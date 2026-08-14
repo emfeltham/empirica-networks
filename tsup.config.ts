@@ -28,7 +28,7 @@ export default defineConfig([
     entry: {
       index: "src/index.ts",
       // "topology/index":     Task 10
-      // "admin/index":        Task 3
+      "admin/index": "src/admin/index.ts",
       // "player/index":       Task 5
       // "player/react/index": Task 7
     },

@@ -20,6 +20,8 @@ export const NBHD_KIND = "nbhd" as const;
 export const NBHD_KEYS = {
   /** Participant ID this channel belongs to. Immutable, set at creation. */
   OWNER: "ownerParticipantID",
+  /** Player scope id this channel corresponds to. Immutable, set at creation. */
+  PLAYER_ID: "playerID",
   /** The projected neighbour views. */
   NEIGHBORS: "neighbors",
   /** Monotonic publish counter. Drives the dones-wiring self-check. */
