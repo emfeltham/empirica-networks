@@ -1,13 +1,20 @@
 /**
  * Topology generators. Pure, zero-dependency, index-based.
  *
- * Ported from Breadboard's groovy/graph.groovy. M1 ships the three the walking
- * skeleton needs; the remaining twelve (wattsStrogatz, barabasiAlbert,
- * erdosRenyi, geometricRandom, smallWorld, smallWorldColoring, star, wheel,
- * grid, ladder, lattice, pairs) land in M2.
+ * Ported from Breadboard's groovy/graph.groovy. M1 ships four — ring,
+ * ringLattice, complete, empty — chosen because they span the regimes the
+ * envelope check cares about: sparse and fixed-degree, tunable-degree, maximally
+ * dense, and disconnected (a control condition). The remaining twelve
+ * (wattsStrogatz, barabasiAlbert, erdosRenyi, geometricRandom, smallWorld,
+ * smallWorldColoring, star, wheel, grid, ladder, lattice, pairs) land in M2.
  *
- * Every generator that makes a random choice takes an Rng so that a recorded
- * seed reproduces the exact graph — see admin/seed.ts for why that matters.
+ * Every generator that makes a random choice takes an Rng, so a recorded seed
+ * reproduces the exact graph. That is not a nicety: Breadboard used an unseeded
+ * generator, so a finished run stored the generator and its parameters but not
+ * the realised graph — which for a network experiment is often the independent
+ * variable. See admin/seed.ts, and test/e2e/reproducibility.test.ts for the
+ * end-to-end check that the recorded seed regenerates what participants were
+ * actually given.
  */
 import type { Rng } from "../admin/seed.js";
 import { shuffle } from "../admin/seed.js";

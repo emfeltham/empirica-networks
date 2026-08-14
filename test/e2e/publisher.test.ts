@@ -284,11 +284,26 @@ test("a reconnecting participant gets its view back", async () => {
       });
 
       // Give the returning participant something to come back to.
-      const other = participants[1]!;
-      const otherID = modeOf(other).player.getValue()!.id;
-      modeOf(other).player.getValue()!.set("choice", "PERSISTED");
-
+      //
+      // The neighbour is derived from the leaver's actual view, NOT assumed to
+      // be participants[1]: harness connection order does not have to match
+      // position on the ring, so picking by index picks a non-neighbour roughly
+      // half the time. That is what it did — this test passed alone and failed
+      // in the full suite, looking exactly like a timing flake.
       const leaver = participants[0]!;
+      const leaverID = modeOf(leaver).player.getValue()!.id;
+      const neighbourIDs = Object.keys(viewOf(leaver));
+      assert.equal(neighbourIDs.length, 2, "a ring of 4 gives the leaver two neighbours");
+
+      const other = participants.find((p) =>
+        neighbourIDs.includes(modeOf(p).player.getValue()!.id)
+      );
+      assert.ok(other, "one of the leaver's neighbours is a connected participant");
+      const otherID = modeOf(other!).player.getValue()!.id;
+      assert.notEqual(otherID, leaverID);
+
+      modeOf(other!).player.getValue()!.set("choice", "PERSISTED");
+
       await waitFor(() => viewOf(leaver)[otherID] === "PERSISTED", {
         label: "leaver saw the value before dropping",
         timeoutMs: 30_000,
