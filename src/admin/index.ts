@@ -7,6 +7,9 @@ export { Nbhd, networkKinds, assertKindsRegistered, KindsNotRegisteredError, REG
 export type { NetworkKinds } from "./kinds.js";
 export { provisionChannels, readChannels, resetChannels } from "./provision.js";
 export type { ChannelMap, ProvisionResult } from "./provision.js";
+export { withNetwork, readNetwork } from "./with_network.js";
+export type { NetworkConfig, NetworkHandle, ProjectContext } from "./with_network.js";
 export { hashSeed, makeRng, randInt, shuffle } from "./seed.js";
+export * as topology from "../topology/index.js";
 export type { Rng } from "./seed.js";
 export * from "../shared/keys.js";
