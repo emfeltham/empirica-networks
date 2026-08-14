@@ -34,8 +34,11 @@ export const GAME_KEYS = {
   NETWORK: "network",
   /** Seed used to generate the topology, recorded for reproducibility. */
   SEED: "networkSeed",
-  /** Map of participantID -> nbhd scope ID. */
-  CHANNELS: "networkChannels",
+  // NOTE: there is deliberately no key here for the channel index.
+  // It was briefly stored on the game scope, which every participant is linked
+  // to, handing every participant every channel id — and with no write ACL
+  // (docs/PLATFORM-NOTES.md 4a) an id is the capability needed to write into
+  // someone else's private channel. The index lives in server memory only.
 } as const;
 
 export type NbhdKey = (typeof NBHD_KEYS)[keyof typeof NBHD_KEYS];

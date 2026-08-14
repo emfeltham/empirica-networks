@@ -27,9 +27,9 @@ export default defineConfig([
     // that does not exist is worse: it fails only in the consumer's build.
     entry: {
       index: "src/index.ts",
-      // "topology/index":     Task 10
+      "topology/index": "src/topology/index.ts",
       "admin/index": "src/admin/index.ts",
-      // "player/index":       Task 5
+      "player/index": "src/player/index.ts",
       // "player/react/index": Task 7
     },
     format: ["esm"],
