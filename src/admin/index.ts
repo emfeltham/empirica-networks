@@ -9,6 +9,15 @@ export { provisionChannels, readChannels, resetChannels } from "./provision.js";
 export type { ChannelMap, ProvisionResult } from "./provision.js";
 export { withNetwork, readNetwork } from "./with_network.js";
 export type { NetworkConfig, NetworkHandle, ProjectContext } from "./with_network.js";
+export { validateProjection, projectionBytes, ProjectionError } from "./projection.js";
+export {
+  checkDegrees,
+  checkViewBytes,
+  resolveEnvelope,
+  DEFAULT_ENVELOPE,
+  EnvelopeError,
+} from "./envelope.js";
+export type { EnvelopeLimits, ResolvedEnvelope } from "./envelope.js";
 export { hashSeed, makeRng, randInt, shuffle } from "./seed.js";
 export * as topology from "../topology/index.js";
 export type { Rng } from "./seed.js";

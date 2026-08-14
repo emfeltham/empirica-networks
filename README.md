@@ -114,6 +114,26 @@ same way you already branch on `usePlayer()`.
 `useNetworkSelf()` resolves earlier — `playerID` is written when the channel is provisioned —
 and reports `degree: undefined` rather than `0` before the first publish, for the same reason.
 
+## `project()` is the only path to a client
+
+Whatever it returns is what gets published, so it is validated before anything is
+written — a publish is one batched RPC, and a rejected projection means nothing is sent
+at all rather than some participants getting a partial view.
+
+The check that matters most: **returning a scope is refused.**
+
+```js
+project: (neighbour) => neighbour            // ✗ throws
+project: (neighbour) => ({ id: neighbour.id, choice: neighbour.get("choice") })  // ✓
+```
+
+The first line is the natural thing to write if you read `project()` as a filter rather
+than a serialiser. An Empirica scope holds a reference to the *global* attribute store, so
+publishing one would ship every attribute of every participant to that client — the exact
+leak this module exists to prevent, arriving through the one path we cannot lock down,
+because you choose what goes in it. Cycles, `BigInt`, functions, `Map`/`Set` and `NaN` are
+refused too, each naming the offending field: `the projection at a.b[0] is ...`.
+
 ## Supported envelope
 
 Per-participant payload is O(d), independent of n; server egress is O(n·d).
@@ -123,6 +143,26 @@ Per-participant payload is O(d), independent of n; server egress is O(n·d).
 | Sparse (d ≤ 16), n ≤ 100 | Verified: ~1× the theoretical floor |
 | Sparse, n up to 500 | Bandwidth fine analytically; **latency unverified** |
 | Dense / complete | **Unsupported** — fails on client bandwidth regardless of server speed |
+
+This is enforced, not just documented. A topology with degree > 16 is refused at game
+start — *before* channels are provisioned, since Tajriba cannot unlink and a late failure
+would leave links behind:
+
+```js
+withNetwork(Empirica, {
+  topology: ...,
+  envelope: {
+    maxDegree: 16,        // measured (SPIKE-REPORT §4)
+    maxViewBytes: 8192,   // NOT measured — a mistake detector, see below
+    onExceed: "throw",    // "warn" to proceed anyway
+  },
+});
+```
+
+The two limits rest on different evidence and the error messages say so. `maxDegree` comes
+from measurement. `maxViewBytes` does not: it is there because a single neighbour view over
+8 KiB almost always means `project()` returned more than intended. Raise it freely if your
+projection is genuinely that large.
 
 ## Development
 
