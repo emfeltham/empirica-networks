@@ -1,0 +1,48 @@
+{
+  "name": "empirica-networks",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Network experiments for Empirica: neighbour-limited visibility, topologies, and rewiring.",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsup",
+    "check": "tsc --noEmit",
+    "test": "node scripts/test.mjs"
+  },
+  "peerDependencies": {
+    "@empirica/core": ">=1.12.0 <2",
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "rxjs": "^7.5.5"
+  },
+  "devDependencies": {
+    "@empirica/core": "1.12.5",
+    "@empirica/tajriba": "1.7.3",
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0",
+    "esbuild": "^0.21.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
