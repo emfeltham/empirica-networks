@@ -101,6 +101,42 @@ Note the sibling helper in `admin/classic/e2e_test_helpers.ts` is *not* exported
 anyway: it spawns a bare `tajriba` binary the CLI does not install, and hardcodes
 `--log.level trace` and `--store.mem`.
 
+## 4a. There is NO write access control. `protected` does not protect ⚠️⚠️⚠️
+
+Measured 2026-08-14 (`test/e2e/participant_write.test.ts`). A participant that knows a node
+id can set attributes on it, and the owner receives them:
+
+| attempt by participant A on participant B's scope | result |
+|---|---|
+| create a new key on B's `nbhd` channel | **accepted**, B received it |
+| overwrite an unprotected attribute | **accepted**, B received it |
+| overwrite an attribute created with `protected: true` | **accepted**, B received it |
+| write into B's **player** scope | **accepted**, B received it |
+
+The last row is the exploitable one: no id has to leak, because Classic cross-links every
+participant to every player node, so every participant already knows every other
+participant's player scope id.
+
+Tajriba documents `protected` as "the Attribute will not be updatable by other Participants".
+Empirically it is not enforced — at least not for attributes created server-side via
+`addScopes`. This is the second attribute flag whose documented meaning does not hold, after
+`private` (see `SPIKE-REPORT.md` §2).
+
+**Consequences for the module:**
+
+- **Server-side code may never trust the provenance of a participant-written value.** If a
+  projection reads participant input, it must attribute that input to the writer by
+  construction (one channel per participant, server-assigned) and treat the contents as
+  untrusted.
+- Read privacy and write integrity are separate properties. The module can honestly claim the
+  first (verified: zero cross-participant delivery) and must **not** claim the second.
+- This is an Empirica-wide property, not specific to this module: any Empirica experiment
+  where a participant benefits from altering another's state is exposed. Worth reporting
+  upstream.
+
+The characterisation test asserts the *current* behaviour, so if upstream ever adds
+enforcement it fails loudly rather than leaving us defending a threat that no longer exists.
+
 ## 5. `EventContext` has no `setAttributes` ⚠️
 
 It exposes `scopeSub`, `addScopes`, `addLinks` only (`admin/events.ts:414-440`).
