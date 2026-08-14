@@ -39,8 +39,7 @@ export default defineConfig([
     target: "es2020",
     external: ["@empirica/core", "@empirica/tajriba", "react", "react-dom"],
   },
-  // Task 6 re-enables this once src/verify/cli.ts exists.
-  /* {
+  {
     name: "verify-cli",
     entry: { "verify/cli": "src/verify/cli.ts" },
     format: ["cjs"],
@@ -49,9 +48,17 @@ export default defineConfig([
     clean: false,
     platform: "node",
     target: "node20",
-    // Deliberately NOT external: the whole point is to inline cross-fetch.
-    noExternal: ["@empirica/tajriba"],
-    external: ["@empirica/core"],
+    // NOTHING is external. @empirica/core must be inlined too, not just
+    // tajriba: leaving core external makes the CLI `require()` it at runtime,
+    // which takes the CJS path and dies on core's nested @empirica/tajriba
+    // having no CJS export (PLATFORM-NOTES §3a). Verified by running the built
+    // CLI, which is the only way this shows up.
+    //
+    // The consequence is honest but real: the CLI verifies the mechanism
+    // against the @empirica/core this package was BUILT against, not against
+    // the consumer's copy. The CLI prints both versions and warns on mismatch
+    // rather than implying it tested theirs.
+    noExternal: [/.*/],
     banner: { js: "#!/usr/bin/env node" },
-  }, */
+  },
 ]);
