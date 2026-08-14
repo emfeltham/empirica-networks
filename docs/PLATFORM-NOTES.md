@@ -223,6 +223,32 @@ simplifies that to `setVal(val2)`, `Object.is` equality would make React skip th
 neighbourhoods would silently freeze at their first value. Only a browser test catches this;
 it is the main thing the deferred M2 Playwright smoke test is for.
 
+## 10. `ephemeral` attributes still survive a reconnect ✅
+
+*Measured 2026-08-14, `@empirica/core@1.12.5`.*
+
+Neighbourhood views are written with `{ephemeral: true}` — they are derived data, republished
+on demand, and persisting them would grow the store on every tick for no benefit.
+
+The expectation was that a reconnecting participant would therefore arrive to an empty
+channel and need an explicit republish. **That is not what happens.** Tajriba replays current
+attribute values to a returning participant, ephemeral or not.
+
+How this was established: `test/e2e/publisher.test.ts` "a reconnecting participant gets its
+view back" was run with the `ParticipantConnect` handler short-circuited. It still passed —
+the returning participant received both its own channel and a view carrying the *current*
+value of a neighbour's attribute set after the original session had already connected.
+
+**Consequence.** The `ParticipantConnect` republish in `with_network.ts` is not load-bearing.
+It is kept as a hedge, because this replay is observed behaviour rather than a documented
+guarantee, and if it changed the failure would be silent: every reconnecting participant goes
+blank with nothing in the logs.
+
+**Not covered.** A participant who first connects *after* game start is a different case —
+`provisionChannels` skips players with no `participantID` and is not re-run on connect, so a
+late joiner gets no channel at all. That is a real gap, tracked for M2, not something this
+handler currently fixes.
+
 ## 9. Misc
 
 - `Player.participantID` is a public field on the admin classic model — no cast needed.

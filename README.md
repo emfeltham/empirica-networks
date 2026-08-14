@@ -78,8 +78,30 @@ import { withNetwork, topology } from "empirica-networks/admin";
 withNetwork(Empirica, {
   topology: ({ playerCount, rng }) => topology.ring(playerCount, { rng }),
   project: (neighbour) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+  watch: ["choice"],   // republish neighbours when this changes
 });
 ```
+
+### Keeping views live
+
+`watch` lists the player attributes your projection depends on. When one changes, the
+participants who can see it get a new view — and only they: a change is republished to the
+changed player's neighbours, not broadcast. Views that come out byte-identical are not
+rewritten at all, so a quiet network costs nothing.
+
+Empirica has no wildcard attribute listener, so this list can't be inferred. That would
+normally make it a footgun — forget `"score"` and neighbours never see scores change, with
+nothing to indicate it. So `project()` runs against a recording proxy, and anything it reads
+that isn't watched is reported once, with the corrected list ready to paste:
+
+```
+empirica-networks: project() reads player attribute(s) "score" that are not in
+`watch`, so neighbours will NOT see them change.
+    withNetwork(Empirica, { watch: ["choice", "score"], ... })
+  If they are set once and never change, this is safe to ignore.
+```
+
+Leave `watch` empty for a static network whose projection never changes.
 
 ```jsx
 // client/src/App.jsx
