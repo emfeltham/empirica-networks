@@ -156,6 +156,47 @@ leak this module exists to prevent, arriving through the one path we cannot lock
 because you choose what goes in it. Cycles, `BigInt`, functions, `Map`/`Set` and `NaN` are
 refused too, each naming the offending field: `the projection at a.b[0] is ...`.
 
+## Topologies
+
+```js
+import { topology } from "empirica-networks/admin";
+
+topology.ring(n, { rng })            // degree 2
+topology.ringLattice(n, m, { rng })  // degree 2m
+topology.complete(n)                 // degree n-1 — exceeds the envelope, see below
+topology.empty()                     // no edges; a control condition
+
+topology.adjacency(n, edges)         // neighbour lists
+topology.degrees(n, edges)
+topology.meanDegree(n, edges)
+topology.maxDegree(n, edges)
+```
+
+Twelve more (`wattsStrogatz`, `barabasiAlbert`, `erdosRenyi`, `star`, `grid`, …) are deferred
+to M2. `topology` takes a plain edge list, so you can supply your own meanwhile:
+
+```js
+withNetwork(Empirica, { topology: ({ playerCount }) => myEdges(playerCount) });
+```
+
+Degenerate parameters are refused rather than quietly producing something that isn't what it
+claims — `ring(2)` throws instead of returning a two-node "ring" of degree 1.
+
+### Reproducible by default
+
+Every generator taking randomness takes a seeded RNG, and `withNetwork` records the seed and
+the realised edge list on the game scope. **The seed alone regenerates the graph participants
+were actually placed in.**
+
+This is a real gap in Breadboard, not a refinement: it used an unseeded generator, so a
+finished run stored the generator and its parameters but not the graph — and for a network
+experiment the realised graph is often the independent variable. Verified end to end in
+`test/e2e/reproducibility.test.ts`, which checks the recorded seed, the recorded edge list,
+and the neighbourhoods that reached clients all agree.
+
+Pass `seed` explicitly to pin a condition across sessions; otherwise it is derived from the
+game id.
+
 ## Supported envelope
 
 Per-participant payload is O(d), independent of n; server egress is O(n·d).
