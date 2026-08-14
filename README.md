@@ -1,0 +1,114 @@
+# empirica-networks
+
+Network experiments for [Empirica](https://empirica.ly): participants are nodes in a graph,
+and **each participant sees only their neighbours' state**.
+
+Status: **M1, in development.** The mechanism works end to end and is covered by tests, but
+the public API is not stable and the package is not published.
+
+## The guarantee, and its limit
+
+**What holds.** A participant never receives a non-neighbour's projected state. Not "the UI
+doesn't render it" — the bytes never arrive. Each participant has a private channel scope
+linked to them alone, and projections are written only there.
+
+**What does not hold: write integrity.** Empirica has no write access control. Any
+participant that knows a node id can set attributes on it, and `protected: true` does not
+prevent this — including on another participant's `player` scope, whose id every participant
+already knows. So:
+
+- server-side code must treat participant-written values as **untrusted input**
+- this module does not, and cannot, claim that a participant's state is tamper-proof
+
+That is an Empirica-wide property, not something this module introduces. Measured in
+`test/e2e/participant_write.test.ts`; details in `docs/PLATFORM-NOTES.md` §4a.
+
+## Verify it yourself
+
+The read guarantee is the whole point, so it ships as a command rather than a claim:
+
+```sh
+npx empirica-networks verify --n 4
+```
+
+Requires the Empirica CLI on PATH (`curl https://install.empirica.dev | sh`). It boots a real
+Tajriba, connects four headless participants on a ring, and checks the wire:
+
+```
+  non-neighbour sentinels received : 0   (must be 0)
+  neighbour sentinels delivered    : 8/8 (non-vacuity)
+  control values observed          : 12  (must be > 0, proves detection works)
+
+  PASS
+```
+
+Three arms, all required. A clean result with a **silent control** means the check is blind,
+and a clean result with **nothing delivered** means the projection never ran — both are
+reported as failures, because most privacy tests are wrong in exactly one of those two ways.
+
+Sentinels are high-entropy tokens held server-side and injected into projections; nothing
+writes them to a scope, and matching is done by substring over raw wire frames, so a leak
+through a channel nobody enumerated is still caught.
+
+Note: the CLI compiles a copy of `@empirica/core` in, because Empirica cannot be loaded
+unbundled (`docs/PLATFORM-NOTES.md` §3a). It prints the bundled version alongside your
+installed one and warns if they differ, rather than implying it tested yours.
+
+## Usage
+
+Registering the scope kind is **mandatory** and silently fatal if skipped:
+
+```diff
+  // server/src/index.js
+- import { Classic, classicKinds, ClassicLoader, Lobby } from "@empirica/core/admin/classic";
++ import { Classic, ClassicLoader, Lobby } from "@empirica/core/admin/classic";
++ import { networkKinds } from "empirica-networks/admin";
+
+  const ctx = await AdminContext.init(
+    argv["url"], argv["sessionTokenPath"], "callbacks", argv["token"], {},
+-   classicKinds
++   networkKinds
+  );
+```
+
+```js
+// server/src/callbacks.js
+import { withNetwork, topology } from "empirica-networks/admin";
+
+withNetwork(Empirica, {
+  topology: ({ playerCount, rng }) => topology.ring(playerCount, { rng }),
+  project: (neighbour) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+});
+```
+
+```jsx
+// client/src/App.jsx
+import { EmpiricaNetwork } from "empirica-networks/player";
+<EmpiricaParticipant url={url} ns={ns} modeFunc={EmpiricaNetwork}>
+```
+
+`EmpiricaNetwork` is a superset of `EmpiricaClassic`, so `usePlayer`, `useGame`, `useStage`
+and friends keep working.
+
+## Supported envelope
+
+Per-participant payload is O(d), independent of n; server egress is O(n·d).
+
+| Regime | Status |
+|---|---|
+| Sparse (d ≤ 16), n ≤ 100 | Verified: ~1× the theoretical floor |
+| Sparse, n up to 500 | Bandwidth fine analytically; **latency unverified** |
+| Dense / complete | **Unsupported** — fails on client bandwidth regardless of server speed |
+
+## Development
+
+```sh
+npm test          # unit (fast) + mode (synthetic provider) + e2e (real Tajriba)
+npm run check
+npm run build
+```
+
+Requires **Node 20** and the Empirica CLI. e2e tests are bundled before running, because the
+published `@empirica/core` cannot be loaded from raw Node in either module system — see
+`docs/PLATFORM-NOTES.md`, which records every platform constraint with the date and versions
+it was measured against.
