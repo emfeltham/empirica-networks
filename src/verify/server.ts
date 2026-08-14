@@ -19,6 +19,7 @@
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
+import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -90,36 +91,50 @@ export async function startServer(opts: ServerOptions = {}): Promise<Server> {
   ];
   args.push(...(opts.storeFile ? ["--tajriba.store.file", opts.storeFile] : ["--tajriba.store.mem"]));
 
-  const proc = spawn(binary, args, { stdio: ["ignore", "pipe", "pipe"] });
+  /**
+   * stderr goes to a FILE, not a pipe.
+   *
+   * Piped stdio leaks handles that cannot be released. Measured on Node 20 with
+   * a bare `spawn("sleep")` — no Empirica involved — `{PipeWrap: 4}` after spawn
+   * and `{PipeWrap: 2}` still held after removeAllListeners + unref + destroy +
+   * SIGKILL. Those two handles keep the event loop alive forever, which is what
+   * made the test suite pass and then hang.
+   *
+   * A file descriptor has no such problem, and we lose nothing: stderr is only
+   * ever read for startup diagnostics, which we can slurp from the file on
+   * failure.
+   */
+  const logFile = path.join(dir, "tajriba.log");
+  const logFd = fs.openSync(logFile, "a");
+  const readLog = () => {
+    try {
+      return fs.readFileSync(logFile, "utf8");
+    } catch {
+      return "(no log captured)";
+    }
+  };
 
-  let stderr = "";
-  proc.stderr?.on("data", (d) => {
-    stderr += d.toString();
-  });
+  const proc = spawn(binary, args, { stdio: ["ignore", logFd, logFd] });
 
   let spawnError: Error | undefined;
   proc.on("error", (e) => {
     spawnError = e;
   });
 
-  // Without this the parent's event loop stays alive after the tests pass and
-  // the runner hangs forever — a green suite that never exits.
+  // Without this the parent's event loop stays alive after the tests pass.
   proc.unref();
 
   const url = `http://localhost:${port}/query`;
   const stop = () => {
-    // Destroy the pipes first: an open stdio stream keeps the loop alive even
-    // after the child is dead.
-    try {
-      proc.stdout?.destroy();
-      proc.stderr?.destroy();
-    } catch {
-      /* best effort */
-    }
     try {
       proc.kill("SIGKILL");
     } catch {
       /* already gone */
+    }
+    try {
+      fs.closeSync(logFd);
+    } catch {
+      /* already closed */
     }
     try {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -138,27 +153,51 @@ export async function startServer(opts: ServerOptions = {}): Promise<Server> {
       );
     }
     if (proc.exitCode !== null) {
+      const log = readLog();
       stop();
-      throw new Error(`tajriba exited early (code ${proc.exitCode}):\n${stderr}`);
+      throw new Error(`tajriba exited early (code ${proc.exitCode}):\n${log}`);
     }
     if (Date.now() > deadline) {
+      const log = readLog();
       stop();
-      throw new Error(`tajriba did not become ready in time:\n${stderr}`);
+      throw new Error(`tajriba did not become ready in time:\n${log}`);
     }
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: "{__typename}" }),
-      });
-      if (res.status === 200) break;
-    } catch {
-      /* not up yet */
-    }
+    if (await probe(port)) break;
     await new Promise((r) => setTimeout(r, 50));
   }
 
   return { url, port, srtoken: SRTOKEN, proc, stop };
+}
+
+/**
+ * One-shot readiness probe.
+ *
+ * Deliberately node:http with `agent: false` rather than global fetch. undici's
+ * global dispatcher pools connections and arms keep-alive timers that outlive
+ * the request, which showed up as a permanent {PipeWrap: 2, Timeout: 2} in
+ * process.getActiveResourcesInfo() long after every server and socket was shut
+ * down — i.e. the harness appeared to leak when the leak was the health check.
+ */
+function probe(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const body = JSON.stringify({ query: "{__typename}" });
+    const req = http.request(
+      {
+        host: "127.0.0.1",
+        port,
+        path: "/query",
+        method: "POST",
+        agent: false,
+        headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
+      },
+      (res) => {
+        res.resume();
+        res.on("end", () => resolve(res.statusCode === 200));
+      }
+    );
+    req.on("error", () => resolve(false));
+    req.end(body);
+  });
 }
 
 /** Scope a server to a function, stopping it afterwards. */

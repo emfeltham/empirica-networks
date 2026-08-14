@@ -7,3 +7,4 @@
  * `tmp` -> require("fs") problem) into client bundles.
  */
 export * from "./shared/keys.js";
+export * from "./shared/wait.js";

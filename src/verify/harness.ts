@@ -22,48 +22,12 @@ import { TajribaConnection } from "@empirica/core/admin";
 import { Classic, ClassicLoader, classicKinds } from "@empirica/core/admin/classic";
 import type { TajribaProvider } from "@empirica/core/player";
 import { initAdminContext, makeProvider, openAdminSession, openParticipantSession } from "./compat.js";
+import { waitFor, waitForValue } from "../shared/wait.js";
 import { withServer, type Server } from "./server.js";
 
-// ---------------------------------------------------------------- waiting
-
-export class TimeoutError extends Error {}
-
-/**
- * Poll until `cond` holds. Every wait in this harness is condition-based; the
- * spike was riddled with bare sleep() calls standing in for readiness signals,
- * which is why its n=200 runs were unreproducible.
- */
-export async function waitFor(
-  cond: () => boolean | Promise<boolean>,
-  opts: { label: string; timeoutMs?: number; intervalMs?: number } = { label: "condition" }
-): Promise<void> {
-  const timeoutMs = opts.timeoutMs ?? 30_000;
-  const intervalMs = opts.intervalMs ?? 25;
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    let ok = false;
-    try {
-      ok = await cond();
-    } catch {
-      ok = false;
-    }
-    if (ok) return;
-    if (Date.now() > deadline) {
-      throw new TimeoutError(`timed out after ${timeoutMs}ms waiting for: ${opts.label}`);
-    }
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-}
-
-/** Wait for an rxjs BehaviorSubject to hold a given value. */
-export function waitForValue<T>(
-  subject: { getValue: () => T },
-  value: T,
-  label: string,
-  timeoutMs = 30_000
-): Promise<void> {
-  return waitFor(() => subject.getValue() === value, { label, timeoutMs });
-}
+// Re-exported so callers get everything from one place; the implementations
+// live in shared/ so they are unit-testable without bundling.
+export { TimeoutError, waitFor, waitForValue } from "../shared/wait.js";
 
 // ---------------------------------------------------------------- participants
 
@@ -117,7 +81,18 @@ export async function connectParticipant<M>(
     mode,
     provider,
     wireStream: () => part.changes(),
-    stop: () => conn.stop(),
+    // Two connections, not one. `sessionParticipant()` returns a
+    // `TajribaParticipant extends Tajriba` with its OWN socket; stopping only
+    // the TajribaConnection leaks the session. Measured: 3 sockets survived a
+    // "full" teardown before this was fixed.
+    stop: () => {
+      try {
+        part.stop?.();
+      } catch {
+        /* already gone */
+      }
+      conn.stop();
+    },
   };
 }
 
@@ -134,7 +109,19 @@ export async function connectAdmin(server: Server): Promise<AdminHandle> {
   const conn = new TajribaConnection(server.url);
   await waitForValue(conn.connected, true, "admin socket connect");
   const taj = await openAdminSession(conn, server.srtoken);
-  return { taj, conn, stop: () => conn.stop() };
+  // Same two-connection shape as participants — see connectParticipant.
+  return {
+    taj,
+    conn,
+    stop: () => {
+      try {
+        taj.stop?.();
+      } catch {
+        /* already gone */
+      }
+      conn.stop();
+    },
+  };
 }
 
 /**
@@ -164,7 +151,25 @@ export async function startCallbacks(
   });
 
   await ready;
-  return { ctx, stop: () => ctx.stop() };
+  return {
+    ctx,
+    stop: async () => {
+      await ctx.stop();
+      // AdminContext holds its own TajribaConnection (readonly .tajriba) and an
+      // AdminConnection. ctx.stop() does not demonstrably release them, so close
+      // them explicitly — same two-connection shape as participants.
+      try {
+        (ctx as any).tajriba?.stop?.();
+      } catch {
+        /* already gone */
+      }
+      try {
+        (ctx as any).adminConn?.stop?.();
+      } catch {
+        /* already gone */
+      }
+    },
+  };
 }
 
 // ---------------------------------------------------------------- batch/game config

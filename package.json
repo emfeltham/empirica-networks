@@ -35,7 +35,6 @@
   },
   "devDependencies": {
     "@empirica/core": "1.12.5",
-    "@empirica/tajriba": "1.7.3",
     "@types/node": "^20.0.0",
     "tsup": "^8.0.0",
     "tsx": "^4.0.0",

@@ -8,6 +8,19 @@
 import { AdminContext, TajribaConnection } from "@empirica/core/admin";
 import { TajribaProvider } from "@empirica/core/player";
 
+/**
+ * Session types derived THROUGH TajribaConnection rather than imported from
+ * @empirica/tajriba directly.
+ *
+ * Importing them directly pulls a second copy of the package (ours vs the one
+ * nested under @empirica/core), and TypeScript rejects the two as incompatible
+ * because `Tajriba` has private fields. That is the same duplicate-class hazard
+ * that would break `instanceof` at runtime — here it surfaces at compile time.
+ * Deriving from core's own method signatures guarantees exactly one copy.
+ */
+type Participant = Awaited<ReturnType<TajribaConnection["sessionParticipant"]>>;
+type Admin = Awaited<ReturnType<TajribaConnection["sessionAdmin"]>>;
+
 /** Range this harness has actually been verified against. */
 export const VERIFIED_CORE = "1.12.5";
 
@@ -41,10 +54,13 @@ export function initAdminContext<Ctx, Kinds extends Record<string, any>>(
  * This is the single most drift-prone line in the harness — a change to the
  * TajribaProvider constructor lands here and nowhere else.
  */
-export function makeProvider(conn: TajribaConnection, part: any): TajribaProvider {
+export function makeProvider(
+  conn: TajribaConnection,
+  part: Participant
+): TajribaProvider {
   return new TajribaProvider(
     part.changes(),
-    (conn.tajriba as any).globalAttributes(),
+    conn.tajriba.globalAttributes(),
     part.setAttributes.bind(part)
   );
 }
@@ -53,8 +69,8 @@ export function makeProvider(conn: TajribaConnection, part: any): TajribaProvide
 export async function openParticipantSession(
   conn: TajribaConnection,
   identifier: string
-): Promise<any> {
-  const [token, pident] = await (conn.tajriba as any).registerParticipant(identifier);
+): Promise<Participant> {
+  const [token, pident] = await conn.tajriba.registerParticipant(identifier);
   return conn.sessionParticipant(token, pident);
 }
 
@@ -63,7 +79,7 @@ export async function openAdminSession(
   conn: TajribaConnection,
   srtoken: string,
   serviceName = "empirica-networks-verify"
-): Promise<any> {
-  const token = await (conn.tajriba as any).registerService(serviceName, srtoken);
+): Promise<Admin> {
+  const token = await conn.tajriba.registerService(serviceName, srtoken);
   return conn.sessionAdmin(token);
 }
