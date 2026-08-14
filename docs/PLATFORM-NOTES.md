@@ -137,6 +137,25 @@ Empirically it is not enforced — at least not for attributes created server-si
 The characterisation test asserts the *current* behaviour, so if upstream ever adds
 enforcement it fails loudly rather than leaving us defending a threat that no longer exists.
 
+## 4b. The game scope is participant-visible — do not put indexes there ⚠️
+
+Obvious in hindsight, caught by an e2e test rather than by reasoning. Provisioning briefly
+stored its `playerID -> channel scope id` map on the **game** scope. Every participant is
+linked to the game, so every participant received the whole map.
+
+That is not a cosmetic leak. Combined with §4a (no write ACL), a channel id is exactly the
+capability needed to write into somebody else's private channel. The one thing protecting
+other participants' channels is that their ids are not known.
+
+The index therefore lives in server memory only (`src/admin/provision.ts`). Known cost: a
+server restart mid-game loses it. It is reconstructible — the channels carry immutable
+owner/playerID attributes — but that recovery path is not implemented, and is recorded as a
+gap rather than assumed to work.
+
+General rule for this module: **before writing anything to a scope, ask who is linked to it.**
+`game`, `player`, `round`, `stage` and `playerGame` are all cross-linked to every participant
+in the game by `classic.ts:304-324`.
+
 ## 5. `EventContext` has no `setAttributes` ⚠️
 
 It exposes `scopeSub`, `addScopes`, `addLinks` only (`admin/events.ts:414-440`).

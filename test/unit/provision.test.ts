@@ -1,0 +1,210 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { provisionChannels, readChannels, resetChannels } from "../../src/admin/provision.js";
+import { NBHD_KEYS, NBHD_KIND } from "../../src/shared/keys.js";
+
+// The channel index is process-global (see provision.ts note 4), so each test
+// starts from a clean slate.
+test.beforeEach(() => resetChannels());
+
+function makePlayer(id: string, participantID?: string) {
+  const attrs = new Map<string, unknown>();
+  return {
+    id,
+    participantID,
+    get: (k: string) => attrs.get(k),
+    set: (k: string, v: unknown) => void attrs.set(k, v),
+  };
+}
+
+/**
+ * Fake EventContext. `scopeOrder` controls the order addScopes returns payloads
+ * in, so we can prove the mapping does not depend on it.
+ */
+function makeCtx(opts: { scopeOrder?: "input" | "reversed" } = {}) {
+  const calls = { addScopes: 0, addLinks: 0 };
+  const links: any[] = [];
+  let counter = 0;
+
+  return {
+    calls,
+    links,
+    addScopes: async (input: any[]) => {
+      calls.addScopes++;
+      const payloads = input.map((scope) => ({
+        id: `scope-${++counter}`,
+        kind: scope.kind,
+        attributes: {
+          edges: scope.attributes.map((a: any) => ({
+            node: { key: a.key, val: a.val },
+          })),
+        },
+      }));
+      return opts.scopeOrder === "reversed" ? payloads.reverse() : payloads;
+    },
+    addLinks: async (input: any[]) => {
+      calls.addLinks++;
+      links.push(...input);
+      return [];
+    },
+  };
+}
+
+function makeGame(players: ReturnType<typeof makePlayer>[]) {
+  const attrs = new Map<string, unknown>();
+  return {
+    id: "game-1",
+    players,
+    get: (k: string) => attrs.get(k),
+    set: (k: string, v: unknown) => void attrs.set(k, v),
+  };
+}
+
+test("provisions one channel per player in a single batched round trip", async () => {
+  const players = [makePlayer("p1", "part1"), makePlayer("p2", "part2"), makePlayer("p3", "part3")];
+  const game = makeGame(players);
+  const ctx = makeCtx();
+
+  const res = await provisionChannels(ctx, game);
+
+  assert.equal(ctx.calls.addScopes, 1, "one addScopes call regardless of n");
+  assert.equal(ctx.calls.addLinks, 1, "one addLinks call regardless of n");
+  assert.deepEqual(res.created.sort(), ["p1", "p2", "p3"]);
+  assert.equal(Object.keys(res.channels).length, 3);
+});
+
+test("maps channels to owners correctly even when addScopes returns out of order", async () => {
+  // The spike assumed input order. Nothing documents that guarantee, and getting
+  // it wrong would hand participants each other's channels — a silent, total
+  // privacy failure that still looks like it works.
+  const players = [makePlayer("p1", "part1"), makePlayer("p2", "part2"), makePlayer("p3", "part3")];
+  const game = makeGame(players);
+  const ctx = makeCtx({ scopeOrder: "reversed" });
+
+  const res = await provisionChannels(ctx, game);
+
+  for (const link of ctx.links) {
+    const participantID = link.participantIDs[0];
+    const nodeID = link.nodeIDs[0];
+    const playerID = Object.keys(res.channels).find((pid) => res.channels[pid] === nodeID);
+    const expected = players.find((p) => p.id === playerID)!.participantID;
+    assert.equal(participantID, expected, `channel ${nodeID} linked to its own owner`);
+  }
+});
+
+test("links one participant to one node — never the cross product", async () => {
+  // A single LinkInput carrying both arrays links every participant to every
+  // node, which is precisely the leak this module exists to prevent.
+  const players = [makePlayer("p1", "part1"), makePlayer("p2", "part2")];
+  const ctx = makeCtx();
+  await provisionChannels(ctx, makeGame(players));
+
+  assert.equal(ctx.links.length, 2, "one link input per pair");
+  for (const link of ctx.links) {
+    assert.equal(link.participantIDs.length, 1);
+    assert.equal(link.nodeIDs.length, 1);
+    assert.equal(link.link, true);
+  }
+});
+
+test("is idempotent: a second call provisions nothing and issues no writes", async () => {
+  const players = [makePlayer("p1", "part1"), makePlayer("p2", "part2")];
+  const game = makeGame(players);
+  const ctx = makeCtx();
+
+  const first = await provisionChannels(ctx, game);
+  const second = await provisionChannels(ctx, game);
+
+  assert.equal(second.created.length, 0, "nothing re-created");
+  assert.equal(ctx.calls.addScopes, 1, "no second addScopes");
+  assert.equal(ctx.calls.addLinks, 1, "no second addLinks — Tajriba cannot unlink");
+  assert.deepEqual(second.channels, first.channels);
+});
+
+test("provisions only the newcomer when a player joins later", async () => {
+  const players = [makePlayer("p1", "part1")];
+  const game = makeGame(players);
+  const ctx = makeCtx();
+  await provisionChannels(ctx, game);
+
+  players.push(makePlayer("p2", "part2"));
+  const res = await provisionChannels(ctx, game);
+
+  assert.deepEqual(res.created, ["p2"]);
+  assert.equal(Object.keys(res.channels).length, 2);
+  assert.equal(ctx.calls.addScopes, 2);
+});
+
+test("skips players with no participantID and reports them as pending", async () => {
+  // Creating a channel for a disconnected player would orphan it: no participant
+  // to link, and no unlink to correct it later.
+  const players = [makePlayer("p1", "part1"), makePlayer("p2", undefined)];
+  const game = makeGame(players);
+  const ctx = makeCtx();
+
+  const res = await provisionChannels(ctx, game);
+
+  assert.deepEqual(res.created, ["p1"]);
+  assert.deepEqual(res.pending, ["p2"]);
+  assert.equal(ctx.links.length, 1);
+});
+
+test("never writes the channel map to a participant-visible scope", async () => {
+  // Regression: the map was briefly stored on the game scope, which every
+  // participant is linked to. That handed every participant every channel id —
+  // and with no write ACL (PLATFORM-NOTES §4a), an id is the capability needed
+  // to inject into someone else's channel.
+  const players = [makePlayer("p1", "part1")];
+  const game = makeGame(players);
+  const written: string[] = [];
+  game.set = (k: string, _v: unknown) => void written.push(k);
+
+  const res = await provisionChannels(makeCtx(), game);
+
+  assert.deepEqual(written, [], "provisioning writes nothing to the game scope");
+  assert.deepEqual(readChannels(game), res.channels, "index is readable server-side");
+});
+
+test("readChannels returns an empty map when nothing is provisioned", () => {
+  assert.deepEqual(readChannels(makeGame([])), {});
+});
+
+test("readChannels returns a copy — callers cannot mutate the index", async () => {
+  const game = makeGame([makePlayer("p1", "part1")]);
+  await provisionChannels(makeCtx(), game);
+  const snapshot = readChannels(game);
+  snapshot["p1"] = "tampered";
+  assert.notEqual(readChannels(game)["p1"], "tampered");
+});
+
+test("throws rather than mis-assign when a payload has no owner attribute", async () => {
+  const players = [makePlayer("p1", "part1")];
+  const ctx = {
+    addScopes: async () => [{ id: "scope-x", attributes: { edges: [] } }],
+    addLinks: async () => [],
+  };
+  await assert.rejects(
+    () => provisionChannels(ctx, makeGame(players)),
+    new RegExp(`${NBHD_KEYS.OWNER}`)
+  );
+});
+
+test("creates scopes of the nbhd kind with immutable owner attributes", async () => {
+  const players = [makePlayer("p1", "part1")];
+  let captured: any[] = [];
+  const ctx = {
+    addScopes: async (input: any[]) => {
+      captured = input;
+      return input.map((s, i) => ({
+        id: `s${i}`,
+        attributes: { edges: s.attributes.map((a: any) => ({ node: { key: a.key, val: a.val } })) },
+      }));
+    },
+    addLinks: async () => [],
+  };
+  await provisionChannels(ctx, makeGame(players));
+
+  assert.equal(captured[0].kind, NBHD_KIND);
+  const owner = captured[0].attributes.find((a: any) => a.key === NBHD_KEYS.OWNER);
+  assert.equal(owner.immutable, true, "owner must be immutable — the client selects on it");
+});
