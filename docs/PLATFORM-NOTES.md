@@ -1,0 +1,146 @@
+# Platform constraints, verified
+
+Everything here was checked at runtime against **`@empirica/core@1.12.5`** and
+**`@empirica/tajriba@1.7.3`** on **2026-08-14**, not read from documentation. Re-run the
+checks when bumping either dependency — several of these are the kind of thing that changes
+silently.
+
+Background evidence: `~/breadboard-v2-working/SPIKE-REPORT.md`.
+
+## 1. `@empirica/core/player` imports cleanly under bare Node ✅
+
+No CSS problem. The source has `import "./index.css"` in `player/index.ts`, but tsup emits CSS
+as separate files (`dist/player.css` etc.) and strips the import from the JS. A Node-side
+import of `@empirica/core/player` works with no loader or stub.
+
+Confirmed available from `@empirica/core/player`: `TajribaProvider`, `Scopes`, `Scope`,
+`Attributes`, `Steps`.
+
+## 2. All seven client Scope classes are public ✅
+
+`@empirica/core/player/classic` exports `EmpiricaClassic` plus `Game`, `Player`, `PlayerGame`,
+`PlayerRound`, `PlayerStage`, `Round`, `Stage`.
+
+The `kinds` object itself is *not* exported, but it is an eight-line reconstruction from these.
+This is what makes composing a custom participant mode possible without vendoring.
+
+## 3. `@empirica/tajriba` cannot be imported under bare Node ESM ⚠️
+
+**The most consequential finding for this package's build.**
+
+```
+node ESM     -> ERR_UNSUPPORTED_DIR_IMPORT
+tsx          -> works
+esbuild CJS  -> works
+```
+
+Cause: `@empirica/tajriba/dist/index.js` does `import "cross-fetch/polyfill"`, and
+`cross-fetch@4.0.0` ships `polyfill/` as a bare directory with a `package.json` `main` and **no
+`exports` map**. Directory imports are not resolvable in ESM.
+
+`cross-fetch@4.1.0` still has no `exports` map, so an npm `overrides` bump does **not** fix it.
+
+This propagates to everything that depends on tajriba: `@empirica/core/admin` and
+`@empirica/core/admin/classic` both fail to import under bare Node ESM.
+
+**Consequences, both already encoded in the build:**
+
+- Dev and tests run under **tsx**, not bare `node`. Not a preference — a requirement.
+- The shipped `verify` CLI is **bundled as CJS** with `@empirica/tajriba` inlined
+  (`noExternal`). Shipping it as plain ESM would fail on the consumer's machine exactly as it
+  fails here.
+
+Normal consumers are unaffected in their own experiments, because the Empirica CLI bundles the
+server with esbuild.
+
+## 3a. The published `@empirica/core` cannot be loaded from raw Node at all ⚠️⚠️
+
+Stronger than §3, and discovered only by running it. **Both** module systems fail:
+
+| path | failure |
+|---|---|
+| ESM (`import`) | `tmp` does `require("fs")`; tsup inlined it behind its `__require` shim, which throws `Dynamic require of "fs" is not supported` |
+| CJS (`require`) | core's *nested* `@empirica/tajriba@1.7.0` has no `exports` main → `ERR_PACKAGE_PATH_NOT_EXPORTED` |
+
+Note the ESM failure is triggered by importing **anything** from
+`@empirica/core/admin/classic` — the barrel eagerly loads `connection_test_helper`, which
+pulls in `tmp`. You do not have to call `withTajriba` to hit it.
+
+**The fix is to bundle**, which resolves both. This is not a workaround: it is how consumers
+already run, since the Empirica CLI bundles their server with esbuild. `scripts/e2e.mjs`
+therefore bundles tests to CJS before running them, and `tsup.config.ts` bundles the `verify`
+CLI the same way.
+
+The spike never hit any of this because it imported Empirica **source** from a clone rather
+than the published package.
+
+Corollary: `node --test` needs **`--test-force-exit`**. `TajribaConnection` leaves websocket
+handles open, so without it the suite passes and then hangs forever. The spawned tajriba child
+also needs `unref()` plus explicit `stdout`/`stderr` destruction on stop.
+
+## 4. `withTajriba` is public — and unusable ⚠️
+
+`@empirica/core/admin/classic` exports `withTajriba` (plus the `StartTajribaOptions` and
+`TajServer` types), and it spawns `empirica tajriba` correctly — but it is **unusable in
+practice**, for two independent reasons:
+
+1. It is what drags `tmp` into the import graph (§3a), so it cannot run unbundled.
+2. Its port autodetection parses `"Started Tajriba server"` out of stderr, and that line is
+   only emitted at `trace` level — so quiet logging and port autodetection are mutually
+   exclusive. At n·d attributes per tick, trace logging dominates CPU and any measurement
+   becomes a benchmark of Tajriba's logger.
+
+`src/verify/server.ts` therefore spawns `empirica tajriba` directly on an explicitly chosen
+free port and polls `/query` for readiness. ~60 lines, no `tmp`, no stderr parsing.
+
+`startTajriba` itself appears in the shipped chunk but is **not** in the public `.d.ts` — only
+the `withTajriba` wrapper is. Its `tmp` usage is inlined by tsup, so the fact that `tmp` is not
+a declared dependency of `@empirica/core` does not break it.
+
+Note the sibling helper in `admin/classic/e2e_test_helpers.ts` is *not* exported and is broken
+anyway: it spawns a bare `tajriba` binary the CLI does not install, and hardcodes
+`--log.level trace` and `--store.mem`.
+
+## 5. `EventContext` has no `setAttributes` ⚠️
+
+It exposes `scopeSub`, `addScopes`, `addLinks` only (`admin/events.ts:414-440`).
+
+The only write path available inside a listener is **`scope.set()`**, which requires the
+`nbhd` kind to be registered in `AdminContext.init(..., kinds)` *and* subscribed via
+`ctx.scopeSub({ kinds: ["nbhd"] })`.
+
+Batching is not lost: the runloop coalesces every `set()` in a callback into a single
+`setAttributes` RPC (`admin/runloop.ts:199-226`).
+
+The spike reached `setAttributes` directly via `(ctx.admin as any).admin` — a private field its
+harness happened to own. **That path does not exist for a consumer.**
+
+## 6. Kind registration is a mandatory consumer edit ⚠️
+
+`AdminContext.init(url, …, classicKinds)` lives in the user's `server/src/index.js`, not inside
+the CLI. Consumers must change it to `{ ...classicKinds, nbhd: Nbhd }`.
+
+Two lines, and **silently fatal if skipped** — so `withNetwork` must assert on `"ready"` and
+throw with the exact diff.
+
+## 7. A headless participant needs no non-public API ✅
+
+`ParticipantContext` builds its provider as:
+
+```js
+new TajribaProvider(part.changes(), taj.globalAttributes(), part.setAttributes.bind(part))
+```
+
+Every piece is public. `@empirica/tajriba` exports `Tajriba.connect`, `registerParticipant`,
+`sessionParticipant`, and `TajribaParticipant.{changes, setAttributes, globalAttributes}`.
+
+So the test harness needs **no** `ParticipantModeContext` (which is exported by no barrel), no
+`e2e_test_helpers`, and no `MemStorage` shim.
+
+## 8. Misc
+
+- `Player.participantID` is a public field on the admin classic model — no cast needed.
+- `usePartModeCtx` / `usePartModeCtxKey` are public and generic, so `useNeighbors()` is a
+  three-line delegation.
+- The unknown-scope-kind warning fires once per scope *creation*, not per update, so composing
+  two scope trees costs one log line, not per-tick spam.
