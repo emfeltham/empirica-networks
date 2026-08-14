@@ -30,7 +30,7 @@ export default defineConfig([
       "topology/index": "src/topology/index.ts",
       "admin/index": "src/admin/index.ts",
       "player/index": "src/player/index.ts",
-      // "player/react/index": Task 7
+      "player/react/index": "src/player/react/index.ts",
     },
     format: ["esm"],
     dts: true,

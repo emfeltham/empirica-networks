@@ -23,6 +23,10 @@
       "types": "./dist/player/index.d.ts",
       "import": "./dist/player/index.js"
     },
+    "./player/react": {
+      "types": "./dist/player/react/index.d.ts",
+      "import": "./dist/player/react/index.js"
+    },
     "./topology": {
       "types": "./dist/topology/index.d.ts",
       "import": "./dist/topology/index.js"
@@ -48,10 +52,14 @@
   "devDependencies": {
     "@empirica/core": "1.12.5",
     "@types/node": "^20.0.0",
+    "@types/react": "^18.3.31",
+    "@types/react-test-renderer": "^18.3.1",
+    "esbuild": "^0.21.0",
+    "react": "^18.3.1",
+    "react-test-renderer": "^18.3.1",
     "tsup": "^8.0.0",
     "tsx": "^4.0.0",
-    "typescript": "^5.4.0",
-    "esbuild": "^0.21.0"
+    "typescript": "^5.4.0"
   },
   "engines": {
     "node": ">=20"

@@ -36,8 +36,26 @@ export class Nbhd extends Scope<NetworkCtx, any> {
     return Array.isArray(v) ? v : [];
   }
 
+  /**
+   * Whether the server has published a view to this channel yet.
+   *
+   * `neighbors` cannot answer this: it returns `[]` both for "not published yet"
+   * and for "genuinely has no neighbours", and those must not be conflated —
+   * rendering an isolated node during startup is a silent data-validity bug, not
+   * a cosmetic one. The hooks use this to return `undefined` until a real view
+   * has arrived.
+   */
+  get published(): boolean {
+    return this.get(NBHD_KEYS.NEIGHBORS) !== undefined;
+  }
+
   get ownerParticipantID(): string | undefined {
     return this.get(NBHD_KEYS.OWNER) as string | undefined;
+  }
+
+  /** The viewer's own player id — the same id space neighbour views are in. */
+  get playerID(): string | undefined {
+    return this.get(NBHD_KEYS.PLAYER_ID) as string | undefined;
   }
 
   get seq(): number | undefined {
