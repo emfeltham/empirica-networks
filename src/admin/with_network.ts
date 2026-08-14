@@ -1,5 +1,8 @@
+import { warn } from "@empirica/core/console";
 import { GAME_KEYS, NBHD_KEYS, NBHD_KIND } from "../shared/keys.js";
 import { adjacency, ring, type Edge } from "../topology/index.js";
+import { checkDegrees, checkViewBytes, type EnvelopeLimits } from "./envelope.js";
+import { projectionBytes, validateProjection } from "./projection.js";
 import { provisionChannels, readChannels } from "./provision.js";
 import { hashSeed, makeRng, type Rng } from "./seed.js";
 
@@ -42,6 +45,11 @@ export interface NetworkConfig {
   project?: (neighbour: any, viewer: any, ctx: ProjectContext) => unknown;
   /** Explicit seed. Defaults to one derived from the game id. */
   seed?: number;
+  /**
+   * Limits on what may be published. Enforced by default; see `./envelope.ts`
+   * for what each number rests on.
+   */
+  envelope?: EnvelopeLimits;
 }
 
 const defaultTopology = ({ playerCount, rng }: { playerCount: number; rng: Rng }) =>
@@ -100,6 +108,12 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     const seed = config.seed ?? hashSeed(String(game.id));
     const rng = makeRng(seed);
     const edges = topology({ game, playerCount: players.length, rng });
+    const adj = adjacency(players.length, edges);
+
+    // Before provisioning and before anything is recorded: an out-of-envelope
+    // topology should fail while the experiment is still abandonable, not after
+    // participants have been committed to a game that will run badly.
+    checkDegrees(adj, config.envelope, warn);
 
     // Recorded so the exact realisation is reconstructible from stored data.
     game.set(GAME_KEYS.SEED, seed);
@@ -107,7 +121,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
 
     networks.set(game.id, {
       edges,
-      adj: adjacency(players.length, edges),
+      adj,
       order: players.map((p: any) => p.id),
       seed,
     });
@@ -134,6 +148,8 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     const byID = new Map(players.map((p) => [p.id, p]));
 
     const targets: { scope: any; view: unknown }[] = [];
+    const sizes: { bytes: number; label: string }[] = [];
+
     for (const [i, playerID] of state.order.entries()) {
       const scopeID = channels[playerID];
       if (!scopeID) return false;
@@ -143,21 +159,42 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       const viewer = byID.get(playerID);
       if (!viewer) return false;
 
-      const neighbours = (state.adj[i] ?? [])
-        .map((j) => {
-          const neighbourID = state.order[j];
-          const neighbour = neighbourID ? byID.get(neighbourID) : undefined;
-          if (!neighbour) return undefined;
-          return project(neighbour, viewer, {
-            game,
-            viewerIndex: i,
-            neighbourIndex: j,
-          });
-        })
-        .filter((v) => v !== undefined);
+      const neighbours: unknown[] = [];
+      for (const j of state.adj[i] ?? []) {
+        const neighbourID = state.order[j];
+        const neighbour = neighbourID ? byID.get(neighbourID) : undefined;
+        if (!neighbour) continue;
+
+        const label = `${playerID}'s view of ${neighbourID}`;
+        let view: unknown;
+        try {
+          view = project(neighbour, viewer, { game, viewerIndex: i, neighbourIndex: j });
+        } catch (e) {
+          // Name the pair. An author's project() throwing otherwise surfaces as
+          // a bare stack inside the game-start listener.
+          const err = new Error(
+            `empirica-networks: project() threw while building ${label}: ` +
+              `${e instanceof Error ? e.message : String(e)}`
+          );
+          // Assigned rather than passed to the constructor: the two-argument
+          // form is ES2022 and this package targets ES2020.
+          (err as Error & { cause?: unknown }).cause = e;
+          throw err;
+        }
+        if (view === undefined) continue;
+
+        // Validate BEFORE anything is written. A publish is one batched RPC, so
+        // throwing here means nothing is sent — no participant gets a partial or
+        // unsafe view.
+        validateProjection(view, label);
+        sizes.push({ bytes: projectionBytes(view), label });
+        neighbours.push(view);
+      }
 
       targets.push({ scope, view: neighbours });
     }
+
+    checkViewBytes(sizes, config.envelope, warn);
 
     const seq = (seqByGame.get(game.id) ?? 0) + 1;
     seqByGame.set(game.id, seq);
