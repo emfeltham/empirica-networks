@@ -1,9 +1,11 @@
+import { TajribaEvent } from "@empirica/core/admin";
 import { warn } from "@empirica/core/console";
 import { GAME_KEYS, NBHD_KEYS, NBHD_KIND } from "../shared/keys.js";
 import { adjacency, ring, type Edge } from "../topology/index.js";
 import { checkDegrees, checkViewBytes, type EnvelopeLimits } from "./envelope.js";
 import { projectionBytes, validateProjection } from "./projection.js";
 import { provisionChannels, readChannels } from "./provision.js";
+import { recordReads, unwatchedKeys, unwatchedKeysMessage } from "./reads.js";
 import { hashSeed, makeRng, type Rng } from "./seed.js";
 
 /**
@@ -50,6 +52,17 @@ export interface NetworkConfig {
    * for what each number rests on.
    */
   envelope?: EnvelopeLimits;
+  /**
+   * Player attribute keys that feed `project()`.
+   *
+   * A change to any of them republishes the views that can see it. Empirica has
+   * no wildcard attribute listener, so this list cannot be inferred — but
+   * `project()` runs against a recording proxy, so anything it reads that is
+   * missing here is reported rather than silently going stale.
+   *
+   * Leave it empty for a static network whose projection never changes.
+   */
+  watch?: string[];
 }
 
 const defaultTopology = ({ playerCount, rng }: { playerCount: number; rng: Rng }) =>
@@ -75,6 +88,8 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   const topology = config.topology ?? defaultTopology;
   const project = config.project ?? defaultProject;
 
+  const watch = config.watch ?? [];
+
   const networks = new Map<string, NetworkState>();
   /** nbhd scope id -> the modelled scope object we can call .set() on. */
   const channelScopes = new Map<string, any>();
@@ -82,6 +97,10 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   const awaitingPublish = new Set<string>();
   const games = new Map<string, any>();
   const seqByGame = new Map<string, number>();
+  /** nbhd scope id -> last published view, serialised. Suppresses no-op writes. */
+  const lastPublished = new Map<string, string>();
+  /** Keys already warned about, so the hot path warns once rather than per publish. */
+  const reportedMissing = new Set<string>();
 
   /**
    * Capture channel scope objects as they materialise.
@@ -135,11 +154,84 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   });
 
   /**
-   * Publish every participant's view. Returns false if any channel scope has
-   * not materialised yet, having published nothing — partial publishes would
-   * leave some participants with a stale view and no signal that they are stale.
+   * Republish when a watched attribute changes.
+   *
+   * One listener per key, registered here at setup, because Empirica dispatches
+   * attribute listeners by `kind-key` and has no wildcard. A change to player P
+   * republishes P's neighbours (they see P) and P itself (a projection may read
+   * the viewer's own state). The byte-identical check in `publish` makes the
+   * over-reach free on the wire.
    */
-  function publishAll(game: any): boolean {
+  for (const key of watch) {
+    collector.on("player", key, (_ctx: any, props: any) => {
+      const player = props?.player;
+      const gameID = player?.get?.("gameID");
+      if (!gameID) return;
+
+      const game = games.get(String(gameID));
+      const state = networks.get(String(gameID));
+      if (!game || !state) return;
+
+      const i = state.order.indexOf(player.id);
+      if (i === -1) return;
+
+      const dirty = new Set<string>([player.id]);
+      for (const j of state.adj[i] ?? []) {
+        const id = state.order[j];
+        if (id) dirty.add(id);
+      }
+      publish(game, dirty);
+    });
+  }
+
+  /**
+   * Republish to a reconnecting participant.
+   *
+   * NOT LOAD-BEARING TODAY, and that is measured rather than assumed: with this
+   * handler disabled, `test/e2e/publisher.test.ts` "a reconnecting participant
+   * gets its view back" still passes. Tajriba replays current attribute values
+   * to a returning participant even though views are written `ephemeral`
+   * (docs/PLATFORM-NOTES.md §10).
+   *
+   * Kept anyway, because that replay is undocumented behaviour we found by
+   * experiment, not a guarantee. If it ever stops, every reconnecting
+   * participant silently goes blank — the exact class of failure this package
+   * keeps running into. Fifteen lines and one no-op publish per connect is a
+   * cheap hedge against it.
+   *
+   * The cache entry is dropped first so the byte-identical check cannot conclude
+   * there is nothing to send: the server's copy would still be current even in
+   * the case where the client had lost it.
+   */
+  collector.on(TajribaEvent.ParticipantConnect, (_ctx: any, props: any) => {
+    const participantID = props?.participant?.id;
+    if (!participantID) return;
+
+    for (const [gameID, game] of games) {
+      const state = networks.get(gameID);
+      if (!state) continue;
+
+      const players: any[] = game.players ?? [];
+      const player = players.find((p) => p.participantID === participantID);
+      if (!player) continue;
+
+      const scopeID = readChannels(game)[player.id];
+      if (scopeID) lastPublished.delete(scopeID);
+      publish(game, new Set([player.id]));
+    }
+  });
+
+  /**
+   * Publish participants' views.
+   *
+   * `only` limits which participants are recomputed. Passing undefined means
+   * everyone, which is what game start and manual republishes want.
+   *
+   * Returns false if any channel scope has not materialised yet, having
+   * published nothing — a partial publish would leave some participants with a
+   * stale view and no signal that they are stale.
+   */
+  function publish(game: any, only?: Set<string>): boolean {
     const state = networks.get(game.id);
     if (!state) return false;
 
@@ -147,8 +239,9 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     const players: any[] = game.players ?? [];
     const byID = new Map(players.map((p) => [p.id, p]));
 
-    const targets: { scope: any; view: unknown }[] = [];
+    const targets: { scope: any; view: unknown; json: string }[] = [];
     const sizes: { bytes: number; label: string }[] = [];
+    const readKeys = new Set<string>();
 
     for (const [i, playerID] of state.order.entries()) {
       const scopeID = channels[playerID];
@@ -159,6 +252,10 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       const viewer = byID.get(playerID);
       if (!viewer) return false;
 
+      // Completeness is still checked for everyone — a channel that has not
+      // materialised must block the publish whether or not it is in `only`.
+      if (only && !only.has(playerID)) continue;
+
       const neighbours: unknown[] = [];
       for (const j of state.adj[i] ?? []) {
         const neighbourID = state.order[j];
@@ -168,7 +265,15 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         const label = `${playerID}'s view of ${neighbourID}`;
         let view: unknown;
         try {
-          view = project(neighbour, viewer, { game, viewerIndex: i, neighbourIndex: j });
+          // Recording proxies: whatever project() reads here is what the view
+          // depends on, and therefore what has to be watched for it to stay
+          // live. Both arguments are wrapped — a projection can key off the
+          // viewer's own state as easily as the neighbour's.
+          view = project(
+            recordReads(neighbour, readKeys),
+            recordReads(viewer, readKeys),
+            { game, viewerIndex: i, neighbourIndex: j }
+          );
         } catch (e) {
           // Name the pair. An author's project() throwing otherwise surfaces as
           // a bare stack inside the game-start listener.
@@ -191,8 +296,19 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         neighbours.push(view);
       }
 
-      targets.push({ scope, view: neighbours });
+      // Skip participants whose view is byte-identical to what they already
+      // have. Without this, one player changing one attribute rewrites every
+      // neighbour's whole neighbourhood on the wire, and the client sees a
+      // change event for a value that did not change.
+      const json = JSON.stringify(neighbours);
+      if (lastPublished.get(scopeID) === json) continue;
+
+      targets.push({ scope, view: neighbours, json });
     }
+
+    reportUnwatchedKeys(readKeys);
+
+    if (targets.length === 0) return true;
 
     checkViewBytes(sizes, config.envelope, warn);
 
@@ -201,13 +317,32 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
 
     // All sets happen inside this callback, so the runloop flushes them as one
     // batched setAttributes.
-    for (const { scope, view } of targets) {
+    for (const { scope, view, json } of targets) {
       scope.set(NBHD_KEYS.NEIGHBORS, view, { ephemeral: true });
       // Monotonic counter, used client-side to detect the silent dones-wiring
       // failure where scopes materialise but every .get() returns undefined.
       scope.set(NBHD_KEYS.SEQ, seq, { ephemeral: true });
+      lastPublished.set(scope.id, json);
     }
     return true;
+  }
+
+  /** Publish everyone. Kept as the name the rest of the module already uses. */
+  function publishAll(game: any): boolean {
+    return publish(game);
+  }
+
+  /**
+   * Warn once per process about projection keys nobody is watching.
+   *
+   * Once, not once per publish: this fires on a hot path, and a message repeated
+   * thousands of times is a message nobody reads.
+   */
+  function reportUnwatchedKeys(readKeys: Set<string>): void {
+    const missing = unwatchedKeys(readKeys, watch).filter((k) => !reportedMissing.has(k));
+    if (missing.length === 0) return;
+    for (const k of missing) reportedMissing.add(k);
+    warn(unwatchedKeysMessage(missing, watch));
   }
 
   return { publishAll: () => (games.size ? [...games.values()].every(publishAll) : false) };
