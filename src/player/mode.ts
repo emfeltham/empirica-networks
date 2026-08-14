@@ -121,6 +121,19 @@ function networkContext(
 
   provider.dones.subscribe({
     next: () => {
+      // FLUSH FIRST, then read.
+      //
+      // Selection depends on the owner attribute, and attributes are only
+      // resolved by this flush. Selecting beforehand meant owner was still
+      // undefined, so with two channels present (a stale one plus ours) neither
+      // the owner match nor the single-channel fallback applied and the mode
+      // silently kept serving the stale channel. Invisible in e2e, where a
+      // participant only ever sees one channel.
+      const updatedIDs = [...scopesUpdated];
+      scopesDones.next(updatedIDs);
+      attributesDones.next(updatedIDs);
+      scopesUpdated.clear();
+
       const all = [...scopes.byKind(NBHD_KIND).values()] as Nbhd[];
 
       // Select by OWNER, not first-wins. The spike took index 0 of whatever
@@ -130,13 +143,8 @@ function networkContext(
         all.find((s) => s.ownerParticipantID === participantID) ??
         (all.length === 1 ? all[0] : undefined);
 
-      if (mine && scopesUpdated.has(mine.id)) sawUpdateForOurScope = true;
+      if (mine && updatedIDs.includes(mine.id)) sawUpdateForOurScope = true;
       if (mine) nbhd.next(mine);
-
-      const ids = [...scopesUpdated];
-      scopesDones.next(ids);
-      attributesDones.next(ids);
-      scopesUpdated.clear();
 
       // Self-check, AFTER flushing: if updates arrived for our scope but nothing
       // on it is readable, the wiring above is wrong. Fail loudly rather than
