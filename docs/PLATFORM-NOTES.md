@@ -192,10 +192,43 @@ Every piece is public. `@empirica/tajriba` exports `Tajriba.connect`, `registerP
 So the test harness needs **no** `ParticipantModeContext` (which is exported by no barrel), no
 `e2e_test_helpers`, and no `MemStorage` shim.
 
-## 8. Misc
+## 8. Hooks cannot be rendered against a synthetic mode ⚠️
+
+*Measured 2026-08-14, `@empirica/core@1.12.5`, `react@18.3.1`.*
+
+`usePartModeCtx` reads its data from `ParticipantCtx`, a React context created at module load
+in `player/react/EmpiricaParticipant.tsx`. **It is not exported** from any barrel — only the
+`<EmpiricaParticipant>` component that provides it.
+
+Two seams were tried and both are dead ends:
+
+1. **Render `<EmpiricaParticipant>` with a fake URL.** Its constructor eagerly builds a
+   `ParticipantContext`, which opens a *retrying* Tajriba connection. Measured: with
+   `url="http://127.0.0.1:9/query"` the Node process never exits, and it is cached
+   module-globally in a `contexts[ns]` map, so it cannot be discarded between tests.
+2. **Grab the Provider off the element** `EmpiricaParticipant(...)` returns, then render it
+   with our own value. This works structurally — `usePartModeCtx` only ever touches
+   `ctx.mode.getValue()` and `ctx.mode.subscribe()`, both satisfied by a `BehaviorSubject` —
+   but getting the element still requires constructing the live connection in (1) first.
+
+**Consequence.** All hook behaviour that depends on a *populated* mode is untestable in Node
+with public API only. So the derivation logic lives in `src/player/view.ts` as plain functions
+(`neighborsOf`, `networkSelfOf`, `assertNetworkMode`), tested against real `Nbhd` instances
+from the synthetic provider, and `src/player/react/` is delegation with nothing to get wrong.
+
+**Residual risk, not covered by any test.** `usePartModeCtxKey` calls `setVal({data: val2})` —
+a fresh wrapper object per emission — so React never bails out even though our
+`BehaviorSubject` re-emits the *same* `Nbhd` instance on every publish. If upstream ever
+simplifies that to `setVal(val2)`, `Object.is` equality would make React skip the re-render and
+neighbourhoods would silently freeze at their first value. Only a browser test catches this;
+it is the main thing the deferred M2 Playwright smoke test is for.
+
+## 9. Misc
 
 - `Player.participantID` is a public field on the admin classic model — no cast needed.
 - `usePartModeCtx` / `usePartModeCtxKey` are public and generic, so `useNeighbors()` is a
   three-line delegation.
 - The unknown-scope-kind warning fires once per scope *creation*, not per update, so composing
   two scope trees costs one log line, not per-tick spam.
+- `@empirica/core/player/classic/react` imports cleanly under bare Node (no residual `.css`
+  import in the shipped `dist`), so hooks can at least be *mounted* in the mode tier.

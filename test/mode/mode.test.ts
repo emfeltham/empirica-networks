@@ -13,54 +13,9 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Subject } from "rxjs";
-import { TajribaProvider } from "@empirica/core/player";
-import { EmpiricaNetwork, Nbhd } from "../../src/player/mode.js";
+import { Nbhd } from "../../src/player/mode.js";
 import { NBHD_KEYS, NBHD_KIND } from "../../src/shared/keys.js";
-
-/** Build the ChangePayload shapes TajribaProvider's groupBy expects. */
-function scopeChange(id: string, kind: string, done = false) {
-  return {
-    __typename: "ChangePayload",
-    done,
-    removed: false,
-    change: { __typename: "ScopeChange", id, kind, name: id },
-  };
-}
-
-let attrSeq = 0;
-function attrChange(nodeID: string, key: string, value: unknown, done = false) {
-  return {
-    __typename: "ChangePayload",
-    done,
-    removed: false,
-    change: {
-      __typename: "AttributeChange",
-      id: `attr-${++attrSeq}`,
-      nodeID,
-      deleted: false,
-      createdAt: new Date().toISOString(),
-      isNew: true,
-      index: null,
-      vector: false,
-      version: 1,
-      key,
-      val: JSON.stringify(value),
-    },
-  };
-}
-
-function harness(participantID: string) {
-  const changes = new Subject<any>();
-  const globals = new Subject<any>();
-  const sent: unknown[] = [];
-  const provider = new TajribaProvider(changes as any, globals as any, async (input) => {
-    sent.push(input);
-    return {};
-  });
-  const mode = EmpiricaNetwork(participantID, provider);
-  return { changes, mode, sent };
-}
+import { attrChange, harness, scopeChange } from "./synthetic.js";
 
 test("resolves a channel and its attributes — the dones contract holds", () => {
   const { changes, mode } = harness("participant-1");

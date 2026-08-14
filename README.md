@@ -90,6 +90,30 @@ import { EmpiricaNetwork } from "empirica-networks/player";
 `EmpiricaNetwork` is a superset of `EmpiricaClassic`, so `usePlayer`, `useGame`, `useStage`
 and friends keep working.
 
+```jsx
+// client/src/Neighbors.jsx
+import { useNeighbors, useNetworkSelf } from "empirica-networks/player/react";
+
+export function Neighbors() {
+  const neighbors = useNeighbors();      // exactly what project() returned
+  const { degree } = useNetworkSelf();
+
+  if (!neighbors) return <Loading />;    // see below — this branch matters
+  return <ul>{neighbors.map((n) => <li key={n.id}>{n.choice}</li>)}</ul>;
+}
+```
+
+TypeScript users can name the projection: `useNeighbors<{ id: string; choice: string }>()`.
+
+**`useNeighbors()` returns `undefined` until the first publish, and `[]` only for a genuinely
+isolated node.** Those two are not the same and the hook refuses to conflate them: a node with
+no neighbours is a legitimate result, so returning `[]` while loading would render a
+participant as isolated, look entirely normal, and quietly corrupt the data. Branch on it the
+same way you already branch on `usePlayer()`.
+
+`useNetworkSelf()` resolves earlier — `playerID` is written when the channel is provisioned —
+and reports `degree: undefined` rather than `0` before the first publish, for the same reason.
+
 ## Supported envelope
 
 Per-participant payload is O(d), independent of n; server egress is O(n·d).
