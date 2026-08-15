@@ -352,11 +352,54 @@ against that replay.
 These take a game id and an event log, not Empirica objects, so the same functions run offline
 over data collected months ago.
 
+### Recording what participants were shown
+
+The edge log says what the network was. It does not say what anyone was *told* — and views are
+published `ephemeral`, so unlike edges, attributes, the seed and chat, nothing durable holds
+them. Capture is opt-in:
+
+```js
+withNetwork(Empirica, {
+  project: (neighbour) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+  views: { file: "views.ndjson" },     // or { onView(record) { … } }
+});
+```
+
+Then, offline:
+
+```js
+import { viewRows, toCSV } from "empirica-networks/admin";
+
+const records = fs.readFileSync("views.ndjson", "utf8").trim().split("\n").map(JSON.parse);
+toCSV(viewRows(records));   // game_id, viewer, seq, t, neighbour_index, neighbour_id, …
+```
+
+**NDJSON in, CSV out**, and the split is the point. A view is a variable-length array of
+whatever `project()` returned, so its columns cannot be known while it is being written — only
+afterwards, with the whole log in hand. `viewRows` emits one row per neighbour per delivery, so
+the table joins straight onto `edges.csv`; fields `project()` returned become columns, and
+nested values are JSON in their cell.
+
+**Worth turning on when `project()` does more than pass values through.** If it buckets a score,
+adds noise, or reads `stateOf()`, the delivered view cannot be reconstructed afterwards from the
+edge log and the attribute export — those give what someone *could* have known. This also
+records *when* they were told, which a reconstruction cannot: views are republished only when
+they change, so a record exists per delivery, not per tick.
+
+It is also the audit trail for the neighbour-limited claim on a real study's own data rather
+than on this package's tests — `test/e2e/views.test.ts` runs exactly that check over a captured
+log.
+
+Off by default, because it is a storage cost a study should choose knowingly: volume is
+`writes/sec × degree × duration`, not `n × tick rate`, since only changed views are published.
+Records are buffered and flushed on a full batch, a 2-second idle, a game ending, and process
+exit — so a hard kill loses at most one batch, which is stated rather than hidden.
+
 ### Reproducible by default
 
 Every generator taking randomness takes a seeded RNG, and `withNetwork` records the seed and
-the realised edge list on the game scope. **The seed alone regenerates the graph participants
-were actually placed in.**
+the realised edge list on the **batch** scope — not the game scope, which every participant can
+read. **The seed alone regenerates the graph participants were actually placed in.**
 
 This is a real gap in Breadboard, not a refinement: it used an unseeded generator, so a
 finished run stored the generator and its parameters but not the graph — and for a network

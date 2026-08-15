@@ -185,21 +185,26 @@ Both are minutes long. CI currently runs unit/mode across Node 20/22/24, e2e onc
 *Done when:* a decision is recorded — probably a weekly job that fails on regression against
 stored baselines, not a per-PR one.
 
-### O8. `scope_visibility.test.ts` is flaky in-suite, cause unidentified
+### O8. Players intermittently never get assigned to a game, in-suite
 
-Passes **6/6 alone**, fails roughly **1 run in 3** inside the full suite — and still does with
-e2e running serially and a 90s timeout. It hangs on "gameID assigned": the server is up and the
-batch is running, but players are never assigned to a game.
+Roughly **1 run in 3** an e2e test hangs on "gameID assigned": the server is up, the batch is
+running, and players are simply never assigned. The same test passes **6/6 alone**, and it
+still happens with e2e running serially.
 
-That is the same assignment path as **U2**, where Classic only assigns a player if the
-participant is already online when the player scope replays. **Leading hypothesis, not
-established** — the timing here differs from U2's restart scenario, and no reproduction pins it
-down.
+**Corrected 2026-08-15.** This was recorded as `scope_visibility.test.ts` being flaky, with the
+leading explanation that it opens an extra wire subscription per participant and is "the
+heaviest thing in the suite". Then `topology_visibility.test.ts` failed the same way, on the
+same wait, and it does no such thing. So the weight explanation is wrong, and this is not a
+property of one test — it is the suite's shared assignment path. The 90s headroom added to
+`scope_visibility` was a mitigation for a diagnosis that did not hold.
 
-Mitigations applied: e2e runs serially (`scripts/test.mjs`), and this test's waits have 90s of
-headroom. Neither is a diagnosis. The test is a *measurement* recording a documented fact
-(the batch scope is not delivered to participants), not a regression guard on our code, so a
-rerun is currently the pragmatic response.
+The one hypothesis still standing is that it is the same path as **U2**, where Classic assigns a
+reloaded player only if that participant is already online at the moment the player scope
+replays. **Not established** — no reproduction pins it down, and the timing here differs from
+U2's restart scenario.
+
+Both affected tests are *measurements* recording documented facts, not regression guards on our
+code, so a rerun remains the pragmatic response.
 
 *Done when:* either the hang is reproduced and attributed, or the harness re-triggers
 assignment when it detects the stall.

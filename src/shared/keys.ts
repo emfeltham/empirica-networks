@@ -165,6 +165,32 @@ export function stateKey(key: string): string {
  */
 export const OUTBOX_KEY = "_outbox";
 
+/**
+ * One view, as actually delivered to one participant.
+ *
+ * The only record of what a participant was told. Views are published
+ * `ephemeral`, deliberately — persisting them would grow the store on every
+ * tick (docs/PLATFORM-NOTES.md §10) — so unlike edges, attributes, the seed and
+ * chat, nothing durable holds them. Capture is opt-in for that reason: it is a
+ * cost you choose, not one you pay by default.
+ *
+ * A record is written per DELIVERY, not per tick. Views are republished only
+ * when they change (the byte-identical check in `publish`), so the log says what
+ * arrived and when, rather than resampling a value nobody was re-sent. That is
+ * also the difference between this and a reconstruction from the edge log and
+ * the attribute export: those give what someone COULD have known.
+ */
+export interface ViewRecord {
+  gameID: string;
+  /** Player id of the viewer — the participant this was delivered to. */
+  viewer: string;
+  /** Publish counter for the game, the same value the client sees as `_seq`. */
+  seq: number;
+  at: number;
+  /** Exactly what `project()` produced, in the order the topology gave it. */
+  view: unknown[];
+}
+
 /** One chat message as delivered to a recipient. */
 export interface ChatMessage {
   /** Player id of the sender. */

@@ -8,6 +8,7 @@ import {
   stateKey,
   type ChatMessage,
   type EdgeEvent,
+  type ViewRecord,
 } from "../shared/keys.js";
 import { adjacency, fromEdgeList, ring, type Edge } from "../topology/index.js";
 import { checkDegrees, checkViewBytes, type EnvelopeLimits } from "./envelope.js";
@@ -21,6 +22,7 @@ import {
 } from "./provision.js";
 import { recordReads, unwatchedKeys, unwatchedKeysMessage } from "./reads.js";
 import { hashSeed, makeRng, type Rng } from "./seed.js";
+import { makeViewSink, type ViewsConfig } from "./views.js";
 
 /**
  * withNetwork: wires network projection into an Empirica experiment.
@@ -103,6 +105,21 @@ export interface NetworkConfig {
    * reason `project()` is the only route for state.
    */
   chat?: boolean | ChatConfig;
+  /**
+   * Record what each participant was actually shown.
+   *
+   * Off by default, and opt-in rather than always-on for one reason: views are
+   * published `ephemeral`, so this is the only part of the system that leaves no
+   * durable trace, and keeping it is a storage cost a study should choose
+   * knowingly. See `./views.ts`.
+   *
+   * Worth turning on when `project()` does anything beyond passing values
+   * through — bucketing, adding noise, keying off `stateOf()` — because then the
+   * delivered view is not recoverable from the edge log and the attribute export
+   * afterwards. Also the audit trail for the neighbour-limited claim on a real
+   * study's own data, rather than on this package's tests.
+   */
+  views?: ViewsConfig;
 }
 
 export interface ChatConfig {
@@ -168,6 +185,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     (typeof config.chat === "object" ? config.chat.history : undefined) ?? 200;
   /** playerID -> highest outbox seq already relayed, so a republish cannot duplicate. */
   const lastOutbox = new Map<string, number>();
+  const viewSink = makeViewSink(config.views);
 
   const networks = new Map<string, NetworkState>();
   /** nbhd scope id -> the modelled scope object we can call .set() on. */
@@ -289,6 +307,10 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
 
   function releaseGame(game: any): void {
     endedGames.add(game.id);
+    // Before anything else: a game ending is the last moment its records are
+    // certainly still wanted, and the buffer would otherwise sit until the next
+    // game filled it or the process exited.
+    viewSink?.flush();
     gameNetworks.delete(game.id);
     historyByGame.delete(game.id);
 
@@ -555,7 +577,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     const players: any[] = game.players ?? [];
     const byID = new Map(players.map((p) => [p.id, p]));
 
-    const targets: { scope: any; view: unknown; json: string }[] = [];
+    const targets: { scope: any; view: unknown[]; json: string; viewer: string }[] = [];
     const sizes: { bytes: number; label: string }[] = [];
     const readKeys = new Set<string>();
 
@@ -624,7 +646,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       const json = JSON.stringify(neighbours);
       if (lastPublished.get(scopeID) === json) continue;
 
-      targets.push({ scope, view: neighbours, json });
+      targets.push({ scope, view: neighbours, json, viewer: playerID });
     }
 
     reportUnwatchedKeys(readKeys);
@@ -638,12 +660,23 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
 
     // All sets happen inside this callback, so the runloop flushes them as one
     // batched setAttributes.
-    for (const { scope, view, json } of targets) {
+    const at = Date.now();
+    for (const { scope, view, json, viewer } of targets) {
       scope.set(NBHD_KEYS.NEIGHBORS, view, { ephemeral: true });
       // Monotonic counter, used client-side to detect the silent dones-wiring
       // failure where scopes materialise but every .get() returns undefined.
       scope.set(NBHD_KEYS.SEQ, seq, { ephemeral: true });
       lastPublished.set(scope.id, json);
+      // Recorded here rather than per-neighbour above, so the log holds one
+      // entry per DELIVERY. Participants skipped by the byte-identical check
+      // never reach this loop and correctly produce no record: they were not
+      // sent anything.
+      //
+      // Both writes are part of one batched RPC, so "recorded" and "sent" stand
+      // or fall together — with the caveat that a failure of that RPC would
+      // leave records for views nobody received. There is no callback to hang
+      // the confirmation off, so this is stated rather than handled.
+      viewSink?.record({ gameID: game.id, viewer, seq, at, view } satisfies ViewRecord);
     }
     return true;
   }

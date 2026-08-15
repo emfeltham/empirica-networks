@@ -27,10 +27,13 @@ export type { EnvelopeLimits, ResolvedEnvelope } from "./envelope.js";
 export {
   edgeRows,
   snapshotRows,
+  viewRows,
   historyIsConsistent,
   toCSV,
 } from "./export.js";
-export type { EdgeRow, SnapshotRow } from "./export.js";
+export type { EdgeRow, SnapshotRow, ViewRow } from "./export.js";
+export { makeViewSink } from "./views.js";
+export type { ViewsConfig, ViewSink } from "./views.js";
 export { hashSeed, makeRng, randInt, shuffle } from "./seed.js";
 export * as topology from "../topology/index.js";
 export type { Rng } from "./seed.js";
