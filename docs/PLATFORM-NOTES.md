@@ -508,6 +508,51 @@ Two consequences, both learned the hard way:
   unnecessary: the runloop already coalesces a callback's `set()` calls into one
   `setAttributes` RPC, so publishing synchronously per mutation still costs one round trip.
 
+## 16. Game start corrupts the websocket stream at scale ⚠️⚠️
+
+*Measured 2026-08-15, `@empirica/core@1.12.5`, by `npm run bench` and `test/bench/ceiling.ts`.*
+
+Above roughly n=150, participants intermittently fail to reach the game at all. The client dies
+on a malformed frame from the server:
+
+```
+RangeError: Invalid WebSocket frame: invalid status code 1006
+  code: 'WS_ERR_INVALID_CLOSE_CODE'
+```
+
+Close status 1006 is reserved and **must never appear on the wire** (RFC 6455 §7.4.1); it is
+the code a client synthesises locally for an abnormal close. Receiving it means the frame
+stream itself is wrong, not that the server closed for a reason. The received close frame was
+also marked compressed, which control frames may not be. Both point at interleaved writes to
+one connection rather than at a deliberate close — the classic symptom of two goroutines
+writing to a websocket that permits only one writer.
+
+Measured rates, sharded bench, 25 participants per shard process, "reached first publish":
+
+```
+  n=100   5/5
+  n=150   3/3
+  n=200   1/6      <- 5 of 6 runs lost a participant at game start
+```
+
+Three things make this worth reporting rather than working around:
+
+- **It is not caused by this package.** Stock Classic with no `withNetwork` registered — same
+  harness, same sizes — fails the same way, and did so at n=125 and n=150 where the network
+  path succeeded. `CEILING_PLAIN=1 node scripts/ceiling.mjs` is the reproduction with nothing
+  of ours in it.
+- **The server logs nothing.** At `--log.level info` the only line is `tajriba: started`. From
+  the operator's side a study just loses participants at the moment everyone joins.
+- **It is a burst, not a load level.** It strikes at game start, when Classic cross-links every
+  participant to every player scope — O(n²) deliveries — and not during the steady 2 Hz
+  publishing that follows, which n=200 sustains at 26.7ms p50 once it starts.
+
+**What is NOT established:** whether a browser survives it. The failure is fatal here because
+Node's `ws` validates frames strictly and throws; a browser's native WebSocket would see a
+closed socket and Empirica would reconnect. So the honest statement is that **the Node harness
+cannot reliably start a game at n=200**, and the consequence for real participants is untested.
+Filed as ISSUES.md U7.
+
 ## 9. Misc
 
 - `Player.participantID` is a public field on the admin classic model — no cast needed.

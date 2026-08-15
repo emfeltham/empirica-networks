@@ -418,31 +418,48 @@ Per-participant payload is O(d), independent of n; server egress is O(n·d).
 
 | Regime | Status |
 |---|---|
-| Sparse (d ≤ 16), n ≤ 100 | Measured on **this** implementation — see below |
-| Sparse, n up to 500 | Bandwidth fine analytically; **latency unverified** |
+| Sparse (d ≤ 16), n ≤ 150 | Measured on **this** implementation — see below |
+| Sparse, n ≥ 200 | **Games do not reliably start.** 1 run in 6 at n=200; not this package's doing, see below |
 | Dense / complete | **Unsupported** — fails on client bandwidth regardless of server speed |
 
-`npm run bench` measures end-to-end publish latency — a watched attribute changing, to the
-neighbour's client holding the new value:
+`npm run bench` measures end-to-end publish latency — a watched attribute changing, to a
+neighbour's client holding the new value. Participants run in child processes, and receipts are
+taken on the client's own flush:
 
 ```
-  n= 25  d=8  p50   52.4ms  p95   53.3ms  max   53.4ms   (95 samples)
-  n= 50  d=8  p50   52.4ms  p95   53.2ms  max   54.0ms   (95 samples)
-  n=100  d=8  p50   77.5ms  p95   78.9ms  max   79.2ms   (95 samples)
+  n= 25  d=8  shards=2  p50    6.6ms  p95    8.1ms  max    9.4ms   (760 receipts)
+  n= 50  d=8  shards=2  p50   11.6ms  p95   13.9ms  max   15.9ms   (760 receipts)
+  n=100  d=8  shards=4  p50   14.3ms  p95   17.7ms  max   19.5ms   (760 receipts)
+  n=150  d=8  shards=6  p50   23.7ms  p95   29.2ms  max   32.0ms   (760 receipts)
+  n=200  d=8  shards=8  p50   26.7ms  p95   35.6ms  max   41.0ms   (760 receipts)
 ```
 
-The distribution is very tight, which is the interesting part: latency here is quantised by a
-scheduling interval rather than by anything proportional to the work, so the cost this package
-adds on top of the transport does not show up at these sizes.
+Every round's delivery is counted at every recipient, so the tail is the slowest neighbour
+rather than an average one, and `delivered/expected` is reported alongside: no run above lost a
+single receipt once its game started.
 
-**Two caveats, and they matter.** Every participant in the bench runs in one Node process
-sharing one event loop, which real participants in separate browsers do not; and the numbers
-above are one run, where `SPIKE-REPORT.md` §5–6 asks for three repetitions with fresh servers
-before any number is published. Read p50 as indicative rather than as a benchmark.
+**Read these as an upper bound.** Sweeping participants-per-process at n=100 moved p50 from
+43.1ms to 10.1ms to 8.0ms as the slice went 50 → 25 → 13, and n=50 in *one* process (36.2ms)
+was slower than n=100 across *four* (10.1ms). The dominant term is how many participants share
+an event loop — an artefact of measuring hundreds of clients on one machine, which real
+participants in separate browsers do not do. The package's own contribution is somewhere below
+these numbers; this bench cannot resolve it.
 
-The earlier "Verified: ~1× the theoretical floor" was inherited from the spike — a different
-codebase, measured before projection, validation, the recording proxy and the private state
-path existed. It is replaced above rather than carried forward.
+**n ≥ 200 is where games stop starting reliably** — 1 of 6 runs at n=200 against 5/5 at n=100
+and 3/3 at n=150. The failure is a malformed websocket close frame during Empirica's O(n²)
+game-start burst, it reproduces with stock Classic and no `withNetwork` registered at all, and
+the server logs nothing. Detail and reproduction: `docs/PLATFORM-NOTES.md` §16. Once a game
+starts, n=200 runs fine — the table row is about *starting*, not about steady state.
+
+Two earlier claims here were wrong and are replaced rather than carried forward. "Verified: ~1×
+the theoretical floor" was inherited from the spike, a different codebase measured before
+projection, validation, the recording proxy and the private state path existed. The figures that
+replaced it (`p50 52.4ms`, praised for a "very tight" distribution) were an artefact of the
+bench's own 25ms polling: measured side by side on the same rounds, polled p50 52.4ms against a
+true 33.3ms, with 49 of 55 samples on one bin edge. The bench no longer polls.
+
+Each line above is still a single run, where `SPIKE-REPORT.md` §5–6 asks for three with fresh
+servers before a number is published.
 
 This is enforced, not just documented. A topology with degree > 16 is refused at game
 start — *before* channels are provisioned, since Tajriba cannot unlink and a late failure

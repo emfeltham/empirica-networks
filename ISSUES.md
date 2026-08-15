@@ -16,8 +16,10 @@ discover after collecting invalid data.
 
 **Disclosure route and status: [`docs/upstream/DISCLOSURE.md`](docs/upstream/DISCLOSURE.md).**
 U1 goes privately first via GitHub's security advisory form (the project publishes no
-`SECURITY.md` and no contact address); U2 is an ordinary public issue. U3–U6 are held back
-deliberately — sending six at once to a quiet repository is how a report gets ignored.
+`SECURITY.md` and no contact address); U2 is an ordinary public issue. U3–U7 are held back
+deliberately — sending seven at once to a quiet repository is how a report gets ignored. U7 is
+the one to promote if a third slot opens: it has a reproduction with none of our code in it,
+and it is the only one that caps how large a study can be.
 
 ### U1. `protected: true` does not prevent participant writes ⚠️ security
 
@@ -52,6 +54,27 @@ can fork some participants' records while leaving others intact.
 
 Consequence: a crash, deploy or `^C` mid-study ends the games in progress, and can leave two
 player scopes for one participant in the stored result.
+
+### U7. Game start corrupts the websocket stream at scale ⚠️ scale limit
+
+**Evidence:** `test/bench/ceiling.ts` — `CEILING_PLAIN=1` removes this package from the picture
+entirely — and `npm run bench`; PLATFORM-NOTES §16.
+
+At n=200, five runs in six lose a participant at the moment the game starts, against 5/5 at
+n=100 and 3/3 at n=150. The client dies on a close frame carrying status **1006**, which RFC
+6455 §7.4.1 reserves and forbids on the wire, and which arrived marked compressed as control
+frames may not be. So the frame stream is corrupt rather than closed — the signature of
+interleaved writes to a connection that permits one writer, during the O(n²) cross-linking
+burst at game start.
+
+Reproduces with **stock Classic and no `withNetwork` registered**, which is what makes it worth
+reporting rather than fixing here. The server logs nothing at `info`, so from the operator's
+side a study simply loses participants at the moment everyone joins.
+
+Not established: whether a browser survives it. Node's `ws` validates frames strictly and
+throws, where a browser would likely see a closed socket and let Empirica reconnect — so this
+may be far less severe in production than in a harness. It still caps what can be verified
+here, and an unverifiable n=200 is its own problem.
 
 ### U3. Attribute listeners subscribe the admin to nothing
 
@@ -92,16 +115,28 @@ kill; arguably the CLI should forward signals.
 
 ## Ours
 
-### O1. Bench and soak are single runs, unsharded — **debt**
+### O1. Bench figures are single runs, and are upper bounds — **debt**
 
-**Evidence:** `test/bench/envelope.ts`, `test/bench/soak.ts`; SPIKE-REPORT §5–6.
+**Evidence:** `test/bench/envelope.ts`, `test/bench/shard.ts`, `test/bench/soak.ts`;
+SPIKE-REPORT §5–6.
 
-Before any number here is published it needs three repetitions with fresh servers, and
-participants sharded across processes for n ≥ 200. Today every participant shares one Node
-event loop, so the latency tail bounds the harness as much as the package, and **n ≥ 200 is
-unmeasured for exactly that reason**.
+**Sharding is done** (2026-08-15): participants run in child processes, this process holds only
+the server, callbacks and admin, and the send time rides inside the value so no clock protocol
+is needed — measured agreement across shards is under 1ms. n=150 and n=200 are measured.
 
-*Done when:* a sharded runner exists and the README envelope table cites repeated runs.
+Two things remain. Each cell is still **one run** where §5–6 asks for three with fresh servers.
+And the numbers are **upper bounds, not measurements of the package**: sweeping
+participants-per-process at n=100 moved p50 43.1 → 10.1 → 8.0ms for slices of 50 → 25 → 13, so
+the harness's own contention still dominates, and one machine cannot spread 200 clients thinly
+enough to escape it.
+
+Fixed along the way: the bench used to time deliveries with a 25ms **poll**, quantising every
+sample. Measured side by side on the same rounds, polled p50 52.4ms against a true 33.3ms, 49
+of 55 samples on one bin edge — and the README was citing the bin as evidence of a tight
+distribution. Receipts now come from the client's own flush.
+
+*Done when:* the README envelope table cites repeated runs, or the figures move to a machine
+that can host the clients without contending with them.
 
 ### O2. Long-session soak not run — **debt**
 
