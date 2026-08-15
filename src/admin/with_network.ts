@@ -9,6 +9,7 @@ import {
   pendingChannelsMessage,
   provisionChannels,
   readChannels,
+  releaseChannels,
 } from "./provision.js";
 import { recordReads, unwatchedKeys, unwatchedKeysMessage } from "./reads.js";
 import { hashSeed, makeRng, type Rng } from "./seed.js";
@@ -98,9 +99,29 @@ interface NetworkState {
   seed: number;
 }
 
+/**
+ * What this instance is currently holding in memory.
+ *
+ * Exposed because the alternative way to check that a finished game was released
+ * is to watch a heap graph and squint, which is neither a test nor an answer.
+ * `npm run soak` prints these alongside RSS.
+ */
+export interface NetworkStats {
+  /** Games being tracked. Should be the number currently RUNNING, not started. */
+  games: number;
+  /** Channel ids indexed, summed across tracked games. */
+  channels: number;
+  /** Materialised channel scope objects held. */
+  channelScopes: number;
+  /** Cached serialised views, one per channel published to. */
+  cachedViews: number;
+}
+
 export interface NetworkHandle {
   /** Recompute and republish every participant's view. */
   publishAll(): boolean;
+  /** Live counts of everything held per game or per channel. */
+  stats(): NetworkStats;
 }
 
 export function withNetwork(collector: any, config: NetworkConfig = {}): NetworkHandle {
@@ -124,6 +145,17 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   const lastPublished = new Map<string, string>();
   /** Keys already warned about, so the hot path warns once rather than per publish. */
   const reportedMissing = new Set<string>();
+  /**
+   * Games known to be over.
+   *
+   * Ids only. This is the one thing deliberately NOT released, because it is
+   * what stops a finished game's channels being re-adopted when the kind
+   * subscription replays them. A string id per game is a few dozen bytes
+   * against one Scope object per participant, so the trade is heavily
+   * favourable — but it IS unbounded in the number of games a process runs,
+   * which is stated here rather than left to be discovered.
+   */
+  const endedGames = new Set<string>();
 
   /**
    * Subscribe the admin to channel scopes.
@@ -159,6 +191,18 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     const gameID = scope.get(NBHD_KEYS.GAME_ID);
     const playerID = scope.get(NBHD_KEYS.PLAYER_ID);
     if (typeof gameID === "string" && typeof playerID === "string") {
+      // Channels outlive their game — Tajriba cannot delete scopes, so every
+      // channel a batch ever created is still there and is replayed to any
+      // process that subscribes to the kind. Adopting them all means a fresh
+      // process loads every historical channel into memory before doing any
+      // work, growing with the number of games the batch has ever run.
+      //
+      // Measured by `npm run soak` arm B: channelScopes climbed 8, 16, 24, 32
+      // across sequential games while `games` stayed 0.
+      if (endedGames.has(gameID)) {
+        channelScopes.delete(scope.id);
+        return;
+      }
       adoptChannel(gameID, playerID, scope.id);
       const idx = scope.get(NBHD_KEYS.INDEX);
       if (typeof idx === "number" && idx >= 0) {
@@ -176,8 +220,58 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     }
   });
 
+  /**
+   * Release everything held for a game once it is over.
+   *
+   * Nine structures are keyed by game or by channel scope, and until this
+   * existed none of them was ever dropped — including one Empirica `Scope`
+   * object per participant per game. A server running a study of many
+   * sequential games accumulated all of it for the life of the process.
+   *
+   * A game ends by `game.set("status", …)`; `hasEnded` covers `ended`,
+   * `terminated` and `failed`, so a game that fails is released like any other.
+   */
+  collector.on("game", "status", (_ctx: any, { game }: any) => {
+    if (!game?.hasEnded) return;
+    releaseGame(game);
+  });
+
+  function releaseGame(game: any): void {
+    endedGames.add(game.id);
+
+    // Read the channel map BEFORE clearing it: the per-scope maps are keyed by
+    // channel scope id, not by game, so this is the only way to find them.
+    for (const scopeID of Object.values(readChannels(game))) {
+      channelScopes.delete(scopeID);
+      lastPublished.delete(scopeID);
+    }
+    releaseChannels(game.id);
+
+    networks.delete(game.id);
+    games.delete(game.id);
+    seqByGame.delete(game.id);
+    recoveredOrder.delete(game.id);
+    awaitingPublish.delete(game.id);
+    recovering.delete(game.id);
+  }
+
   collector.on("game", "start", async (ctx: any, { game }: any) => {
     if (!game.get("start")) return;
+
+    // A finished game must not be re-networked. This listener re-fires for
+    // already-started games on restart (see below), and without this guard a
+    // restarted process would recover and republish games that are over —
+    // reviving state it had correctly released.
+    //
+    // `releaseGame` rather than a bare return: a fresh process has already
+    // adopted this game's channels from the kind subscription, which replays
+    // every channel a batch ever created regardless of whether its game is
+    // over. Without this, restarting mid-batch loads every historical channel
+    // and keeps it.
+    if (game.hasEnded) {
+      releaseGame(game);
+      return;
+    }
 
     games.set(game.id, game);
 
@@ -549,7 +643,18 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     warn(unwatchedKeysMessage(missing, watch));
   }
 
-  return { publishAll: () => (games.size ? [...games.values()].every(publishAll) : false) };
+  return {
+    publishAll: () => (games.size ? [...games.values()].every(publishAll) : false),
+    stats: () => ({
+      games: games.size,
+      channels: [...games.values()].reduce(
+        (sum, game) => sum + Object.keys(readChannels(game)).length,
+        0
+      ),
+      channelScopes: channelScopes.size,
+      cachedViews: lastPublished.size,
+    }),
+  };
 }
 
 /**

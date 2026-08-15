@@ -230,9 +230,48 @@ publish instead of closing the gap — a guessed assignment yields a plausible n
 the wrong people are neighbours, and the run looks normal for the rest of its life.
 
 Caveat on what is verified: the test restarts the **callbacks** against a still-running
-Tajriba, which isolates the in-memory loss. A full `empirica` restart also drops Tajriba's
-memory, and views are written `ephemeral` — recovery republishes, so the outcome should be the
-same, but that has not been measured.
+Tajriba, which isolates the in-memory loss. A full `empirica` restart is a different and worse
+story — see §4e, which measured it and found that recovery usually never gets the chance.
+
+## 4e. A full restart does not put participants back in their game ⚠️⚠️⚠️
+
+*Measured 2026-08-15, `@empirica/core@1.12.5`, by `test/e2e/restart_full.test.ts`.*
+
+Restarting the whole `empirica` process — a crash, a deploy, `^C` — reloads the store fine.
+The batch, the players, the private channels and their links all come back. **The players are
+not re-assigned to their game.** `gameID` is never restored, so no game resumes and every
+participant sits on a screen that will not advance.
+
+Classic assigns a reloaded player only if that participant is *already online at the moment the
+player scope replays*:
+
+```js
+_.on("player", async (ctx, { player }) => {
+  …
+  if (online.has(participantID)) { await assignplayer(ctx, player); }
+});
+```
+
+That is a race between the store replay and participants reconnecting, and it is one no
+operator can win deliberately. Measured: **0/5** when participants returned after the replay
+had settled, **1/5** when they raced it.
+
+**Consequence.** The channel recovery in §4d is correct and is exercised by
+`restart.test.ts`, but on a full restart it mostly never runs, because there is no game to
+recover into. Plan on the basis that **a full restart mid-study ends the games in progress**,
+whatever this package does. That is an Empirica property, not one this module introduces or can
+fix from outside.
+
+`restart_full.test.ts` therefore asserts neither outcome — it reports which way the race went,
+and asserts our recovery only in the runs where the platform cooperated. Demanding either
+result would be flaky by construction.
+
+**This was hidden by a bug in our own harness.** `server.stop()` killed the `empirica` CLI
+wrapper, which execs the real server as a child, so the server was orphaned rather than
+stopped and the "restart" reconnected to the process that had never died. 379 orphans had
+accumulated across one session. Fixed with `detached: true` plus a process-group kill, and
+guarded by a test in `harness.test.ts` — a leak like that is invisible in CI and shows up
+locally as a flake in whatever test runs next.
 
 ## 5. `EventContext` has no `setAttributes` ⚠️
 
@@ -418,6 +457,40 @@ close something".
 It is applied per tier here rather than globally (`scripts/test.mjs`): the unit tier never
 touches the mode and exits cleanly, so forcing exit there would hide a handle leak we
 introduced ourselves. Which files need it was measured one at a time, not assumed.
+
+## 14. Memory: what grows, and what does not ✅
+
+*Measured 2026-08-15, `@empirica/core@1.12.5`, by `npm run soak` (file store, not the harness
+default of `--tajriba.store.mem` — with the memory store everything is resident by
+construction and the measurement would mean nothing).*
+
+The spike named server memory as its top remaining unknown, on the grounds that `ephemeral`
+views live in Tajriba's memory for the lifetime of a game. **That concern is unfounded.**
+Tajriba holds current values, not per-write history:
+
+```
+  n=20, d=8, ~2 writes/sec, file store
+  tajriba RSS  11.2MB flat across 240 publishes    PLATEAU
+```
+
+Our publisher rewrites the same two keys on every publish, so per-write accumulation would have
+shown as linear growth. It does not appear.
+
+**The real retention was ours, and it was not about ephemerality at all.** `withNetwork` kept
+nine structures keyed by game or channel — including one Empirica `Scope` object per
+participant per game — and released none of them when a game ended. A server running a study of
+many sequential games accumulated all of it. Fixed by a `game.status` listener that releases on
+`hasEnded`; `NetworkHandle.stats()` reports what is held, so the fix is asserted exactly rather
+than inferred from a heap graph (`test/e2e/retention.test.ts`).
+
+A second, subtler one surfaced in the same run: channels outlive their game (Tajriba cannot
+delete scopes), and the kind subscription replays **every channel a batch ever created** to any
+process that subscribes. A fresh process adopted all of them. Soak arm B showed
+`channelScopes` climbing 8, 16, 24, 32 across sequential games while `games` stayed 0. Ended
+games are now skipped on adoption and released on replay.
+
+Not measured: n ≥ 200, and sessions longer than the soak's default. The soak is one run, and
+`SPIKE-REPORT.md` §5–6 asks for three with fresh servers before any number is published.
 
 ## 9. Misc
 

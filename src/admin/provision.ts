@@ -68,10 +68,31 @@ export function readChannels(game: GameLike): ChannelMap {
   return { ...(channelStore.get(game.id) ?? {}) };
 }
 
-/** Test seam: forget everything known about a game's channels. */
+/**
+ * Test seam: forget everything known about a game's channels.
+ *
+ * NOT the production path — `releaseChannels` is. Kept separate because the two
+ * differ in intent: this one exists so tests start from a clean slate and may
+ * wipe everything, whereas releasing is a lifecycle event for one finished game.
+ * Conflating them would make an over-broad wipe in production look deliberate.
+ */
 export function resetChannels(gameID?: string): void {
   if (gameID === undefined) channelStore.clear();
   else channelStore.delete(gameID);
+}
+
+/**
+ * Forget a finished game's channels.
+ *
+ * The index is keyed by game and nothing else drops it, so without this a server
+ * that runs a study of many sequential games keeps every channel map it ever
+ * built. That is small on its own — but it is also the map `withNetwork` uses to
+ * find which scope objects to release, so leaking it leaks those too.
+ *
+ * Safe to call for a game that was never provisioned.
+ */
+export function releaseChannels(gameID: string): void {
+  channelStore.delete(gameID);
 }
 
 /**
