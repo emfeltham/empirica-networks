@@ -47,6 +47,16 @@ export const NBHD_KEYS = {
   INDEX: "topologyIndex",
   /** The projected neighbour views. */
   NEIGHBORS: "neighbors",
+  /**
+   * Messages delivered to this participant, server-written.
+   *
+   * On the RECIPIENT's channel, not carried inside `neighbors`. Two reasons,
+   * both load-bearing. It keeps chat out of the per-neighbour view, so message
+   * volume never counts against `maxViewBytes`. And it answers §7.4's open
+   * question structurally rather than by policy: when a tie is dropped, what was
+   * already delivered simply stays where it is, and nothing new arrives.
+   */
+  CHAT: "chat",
   /** Monotonic publish counter. Drives the dones-wiring self-check. */
   SEQ: "_seq",
 } as const;
@@ -140,6 +150,29 @@ export const STATE_PREFIX = "state:";
 /** Attribute key on an nbhd scope for one piece of participant-written state. */
 export function stateKey(key: string): string {
   return `${STATE_PREFIX}${key}`;
+}
+
+/**
+ * Reserved state key: a participant's outgoing message slot.
+ *
+ * Chat needs a participant to SEND, and a participant can only write to their
+ * own channel — writing into a neighbour's would need the absence of write
+ * access control (PLATFORM-NOTES §4a), which is a bug to design against, not a
+ * mechanism to build on. So they write here and the server fans out.
+ *
+ * Reserved: `state.set("_outbox", …)` collides with chat. Named with a leading
+ * underscore to make that unlikely and documented so it is not a surprise.
+ */
+export const OUTBOX_KEY = "_outbox";
+
+/** One chat message as delivered to a recipient. */
+export interface ChatMessage {
+  /** Player id of the sender. */
+  from: string;
+  text: string;
+  /** Sender-local counter, used to drop duplicate relays. */
+  seq: number;
+  at: number;
 }
 
 export type NbhdKey = (typeof NBHD_KEYS)[keyof typeof NBHD_KEYS];

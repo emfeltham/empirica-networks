@@ -301,6 +301,57 @@ Both the current edge list and an append-only mutation log are recorded on the b
 Two records rather than one, because a snapshot cannot answer "how did it get here" — and for
 a rewiring study the sequence is the independent variable.
 
+## Neighbour-scoped chat
+
+Off by default. `chat: true` in `withNetwork(...)` turns it on.
+
+```jsx
+import { useNeighborChat } from "empirica-networks/player/react";
+
+const chat = useNeighborChat();
+chat?.messages.map((m) => <li key={`${m.from}-${m.seq}`}>{m.text}</li>);
+chat?.send("hello");
+```
+
+A message goes to whoever is the sender's neighbour **at that moment**, plus the sender. Same
+channel as everything else, different key — no second privacy path, which is the point.
+`npm test` asserts at the wire that a non-neighbour's traffic never contains the text.
+
+Sending and receiving take different routes on purpose. A participant can only write to their
+own channel, so `send` writes to an outbox there and the server fans out. Writing straight into
+a neighbour's channel would work — nothing prevents it (`docs/PLATFORM-NOTES.md` §4a) — and
+would be building on the absence of write access control.
+
+**Messages land on the recipient's channel**, which decides what a rewire does: dropping a tie
+stops new messages without erasing the conversation already delivered. That was left open in
+the design as a research-design call; storing per-recipient answers it structurally rather than
+by policy. It also keeps chat out of `project()`'s output, so message volume never counts
+against `maxViewBytes`.
+
+Retention is capped at 200 messages per participant (`chat: { history: 500 }` to change it),
+because the log is server memory and wire payload both.
+
+## Exporting the network
+
+```js
+import { network, edgeRows, snapshotRows, toCSV } from "empirica-networks/admin";
+
+const history = network(game).history();
+toCSV(edgeRows(game.id, history));      // game_id, t, event, player_a, player_b
+toCSV(snapshotRows(game.id, history));  // game_id, t, size, edges
+```
+
+`edges.csv` is the `connected`/`disconnected` sequence Breadboard produced, so existing
+analysis ports with little change — and it **includes the initial graph**, so a study that
+never rewires still exports its network rather than an empty file.
+
+Snapshots are replayed from the events rather than stored separately, so they cannot disagree
+with the log they summarise. `historyIsConsistent(history)` checks the recorded edge counts
+against that replay.
+
+These take a game id and an event log, not Empirica objects, so the same functions run offline
+over data collected months ago.
+
 ### Reproducible by default
 
 Every generator taking randomness takes a seeded RNG, and `withNetwork` records the seed and

@@ -4,7 +4,9 @@ import {
   NBHD_KEYS,
   NBHD_KIND,
   NETWORK_KEYS,
+  OUTBOX_KEY,
   stateKey,
+  type ChatMessage,
   type EdgeEvent,
 } from "../shared/keys.js";
 import { adjacency, fromEdgeList, ring, type Edge } from "../topology/index.js";
@@ -89,6 +91,31 @@ export interface NetworkConfig {
    * Leave it empty for a static network whose projection never changes.
    */
   watch?: string[];
+  /**
+   * Neighbour-scoped chat.
+   *
+   * Off by default: it costs a listener and per-channel storage, and most
+   * designs do not want it. `true` uses the defaults below.
+   *
+   * A message written by a participant to their own channel is fanned out by the
+   * server to whoever is their neighbour AT THAT MOMENT. There is no separate
+   * privacy path — it is the same channel, a different key — which is the same
+   * reason `project()` is the only route for state.
+   */
+  chat?: boolean | ChatConfig;
+}
+
+export interface ChatConfig {
+  /**
+   * Messages retained per participant. Default 200.
+   *
+   * Capped because the channel is server memory and wire payload: an
+   * uncapped log grows for the life of the game and is re-sent whenever the
+   * attribute changes. Raise it if your design needs a full transcript, and
+   * note that the transcript is also in the recipient's stored attributes
+   * regardless.
+   */
+  history?: number;
 }
 
 const defaultTopology = ({ playerCount, rng }: { playerCount: number; rng: Rng }) =>
@@ -136,6 +163,11 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   const project = config.project ?? defaultProject;
 
   const watch = config.watch ?? [];
+  const chatEnabled = Boolean(config.chat);
+  const chatHistory =
+    (typeof config.chat === "object" ? config.chat.history : undefined) ?? 200;
+  /** playerID -> highest outbox seq already relayed, so a republish cannot duplicate. */
+  const lastOutbox = new Map<string, number>();
 
   const networks = new Map<string, NetworkState>();
   /** nbhd scope id -> the modelled scope object we can call .set() on. */
@@ -395,6 +427,60 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       const scope = props?.[NBHD_KIND];
       const playerID = scope?.get?.(NBHD_KEYS.PLAYER_ID);
       if (typeof playerID === "string") republishAround(playerID);
+    });
+  }
+
+  /**
+   * Fan a message out to the sender's CURRENT neighbours.
+   *
+   * Registered only when chat is enabled. Reads the sender's own channel and
+   * writes to each recipient's, so a participant never writes to anyone else's
+   * scope — which matters because nothing would stop them if they tried
+   * (PLATFORM-NOTES §4a), and building on that would be building on a bug.
+   */
+  if (chatEnabled) {
+    collector.on(NBHD_KIND, stateKey(OUTBOX_KEY), (_ctx: any, props: any) => {
+      const scope = props?.[NBHD_KIND];
+      const from = scope?.get?.(NBHD_KEYS.PLAYER_ID);
+      const gameID = scope?.get?.(NBHD_KEYS.GAME_ID);
+      if (typeof from !== "string" || typeof gameID !== "string") return;
+
+      const outbox = scope.get(stateKey(OUTBOX_KEY)) as
+        | { seq?: number; text?: string; at?: number }
+        | undefined;
+      if (!outbox || typeof outbox.text !== "string" || typeof outbox.seq !== "number") return;
+
+      // Attribute listeners can fire again for a value already handled — on
+      // replay after a restart, for instance. Without this the same message is
+      // delivered twice and the transcript misdescribes the conversation.
+      if ((lastOutbox.get(from) ?? -1) >= outbox.seq) return;
+      lastOutbox.set(from, outbox.seq);
+
+      const state = networks.get(gameID);
+      const game = games.get(gameID);
+      if (!state || !game) return;
+      const i = state.order.indexOf(from);
+      if (i === -1) return;
+
+      const message: ChatMessage = {
+        from,
+        text: outbox.text,
+        seq: outbox.seq,
+        at: typeof outbox.at === "number" ? outbox.at : Date.now(),
+      };
+
+      // The sender is included: a chat that does not show you your own message
+      // needs the client to merge two sources, and merging is where ordering
+      // bugs live.
+      const channels = readChannels(game);
+      const recipients = [i, ...(state.adj[i] ?? [])];
+      for (const j of recipients) {
+        const playerID = state.order[j];
+        const target = playerID ? channelScopes.get(channels[playerID] ?? "") : undefined;
+        if (!target) continue;
+        const log = (target.get(NBHD_KEYS.CHAT) ?? []) as ChatMessage[];
+        target.set(NBHD_KEYS.CHAT, [...log, message].slice(-chatHistory));
+      }
     });
   }
 

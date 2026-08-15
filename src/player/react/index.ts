@@ -2,6 +2,7 @@ import { usePartModeCtx, usePartModeCtxKey } from "@empirica/core/player/classic
 import { useMemo } from "react";
 import type { EmpiricaNetworkContext, Nbhd } from "../mode.js";
 import { networkStateOf, type NetworkState } from "../state.js";
+import { neighborChatOf, type NeighborChat } from "../chat.js";
 import {
   assertNetworkMode,
   neighborsOf,
@@ -72,5 +73,24 @@ export function useNetworkState(): NetworkState | undefined {
   return useMemo(() => networkStateOf(nbhd), [nbhd]);
 }
 
+/**
+ * Neighbour-scoped chat.
+ *
+ *   const chat = useNeighborChat();
+ *   chat?.messages.map((m) => <li key={`${m.from}-${m.seq}`}>{m.text}</li>);
+ *   chat?.send("hello");
+ *
+ * Requires `chat: true` in `withNetwork(...)`; without it `send` writes to a
+ * slot nobody relays and `messages` stays empty.
+ *
+ * NOT memoised on the channel alone, unlike `useNetworkState`: `messages` is
+ * read fresh each render because a new message must re-render, and a stable
+ * object holding a stale array would silently stop updating the transcript.
+ */
+export function useNeighborChat(): NeighborChat | undefined {
+  const nbhd = useNbhd();
+  return neighborChatOf(nbhd);
+}
+
 export { NetworkModeNotInstalledError };
-export type { NetworkSelf, NetworkState };
+export type { NeighborChat, NetworkSelf, NetworkState };

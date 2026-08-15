@@ -13,5 +13,7 @@ export {
 } from "./view.js";
 export type { NetworkSelf } from "./view.js";
 export { networkStateOf } from "./state.js";
+export { neighborChatOf } from "./chat.js";
+export type { NeighborChat } from "./chat.js";
 export type { NetworkState } from "./state.js";
 export * from "../shared/keys.js";

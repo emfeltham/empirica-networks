@@ -181,7 +181,7 @@ Not defects — recorded so the boundary of M1 stays legible. See `MODULE-DESIGN
 |---|---|
 | ~~Remaining topology generators~~ | **Done 2026-08-15.** Ships `star`, `wheel`, `grid` (with `periodic`), `ladder`, `pairs`, `wattsStrogatz`, `barabasiAlbert`, `erdosRenyi`, `geometricRandom`, `fromEdgeList`, plus `components`/`isConnected`. Three of Breadboard's sixteen omitted on purpose — two were duplicates under other names, one could not be reconstructed from its name. |
 | ~~Rewiring — `network()` handle~~ | **Done 2026-08-15.** `addEdge`/`removeEdge`/`rewire` plus reads and an append-only history log, all keyed by player id. Covered by `test/e2e/rewiring.test.ts`. |
-| Neighbour-scoped chat | §7.4, **still proposal only.** Carries an open design question (does chat history survive a rewire?) and real envelope pressure, since a growing message list is published in every view. |
+| ~~Neighbour-scoped chat~~ | **Done 2026-08-15.** `chat: true` plus `useNeighborChat()`. §7.4's open question is answered structurally — messages live on the recipient's channel, so a rewire stops new messages without erasing delivered ones — and the envelope worry does not arise, because chat is a separate key rather than part of the projected view. |
 | ~~Edge-history export~~ | **Done 2026-08-15.** `edgeRows`/`snapshotRows`/`toCSV` in the Breadboard `Connected`/`Disconnected` shape, plus `historyIsConsistent`. Pure functions over an event log, so they run offline on stored data. `views.csv` remains open (decision 5). |
 | Live network monitor | M4. |
 | Template repo | Deferred; `examples/minimal` ships in-package instead. |
