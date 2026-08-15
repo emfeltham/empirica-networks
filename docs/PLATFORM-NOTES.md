@@ -286,6 +286,35 @@ gets, since core is a peerDependency. The example now exercises the real artifac
 **This does not affect published consumers.** It is a hazard of developing against a linked
 build, and it is why `tsup.config.ts` keeps `@empirica/core` external.
 
+## 12. Attribute listeners do NOT subscribe the admin to anything ⚠️⚠️
+
+*Measured 2026-08-15, `@empirica/core@1.12.5`.*
+
+`_.on(kind, key, cb)` looks like it subscribes to that attribute. It does not.
+`subscribeAttribute(kind, key)` (`admin/attributes.ts`) only creates a local `ReplaySubject`
+and replays attributes the admin **already holds** — it adds nothing to the wire subscription.
+
+This is invisible for scopes the admin created itself: attributes set at creation come back
+inside the `addScopes` response, so they populate `attrsByKind` and the listener fires. That is
+why our `nbhd` OWNER listener worked, and why publishing worked for four milestones without
+any explicit subscription.
+
+It breaks the moment you need to read what a **participant** writes. The write reaches the
+server and is echoed back to its author — so from the client everything looks correct — but
+the admin's listener never fires. No error, no warning, nothing in the log.
+
+**Fix:**
+
+```js
+_.on("start", (ctx) => ctx.scopeSub({ kinds: ["nbhd"] }));
+```
+
+`withNetwork` does this. Symptom if it is ever removed: `test/e2e/private_state.test.ts` times
+out on "every neighbour's secret arrived" while the author's own read-back succeeds — that
+split is the signature of this bug.
+
+Classic does not hit it because `ClassicLoader` subscribes broadly for the built-in kinds.
+
 ## 9. Misc
 
 - `Player.participantID` is a public field on the admin classic model — no cast needed.

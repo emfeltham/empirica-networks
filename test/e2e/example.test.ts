@@ -13,13 +13,14 @@
  * Scope: the server half. The client half (App.jsx, Game.jsx) cannot be
  * exercised headlessly — see docs/PLATFORM-NOTES.md §8 — but it IS compiled by
  * `npm run build` in examples/minimal/client, which catches import and JSX
- * errors. The visual confirmation with two browser windows remains manual.
+ * errors, and by `npm run test:browser`, which drives it in real Chromium.
  */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { networkKinds } from "../../src/admin/kinds.js";
 import { resetChannels } from "../../src/admin/provision.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
+import { networkStateOf } from "../../src/player/state.js";
 import {
   batchConfig,
   createBatch,
@@ -125,7 +126,10 @@ test("the example's `watch` list actually keeps colours live", async () => {
 
       const actor = participants[0]!;
       const actorID = modeOf(actor).player.getValue()!.id;
-      modeOf(actor).player.getValue()!.set("color", "violet");
+      // Written the way the example's Game.jsx writes it: to the participant's
+      // OWN channel, not the player scope. Using player.set here would leave
+      // the value where the example's project() no longer looks.
+      networkStateOf(modeOf(actor).nbhd.getValue())!.set("color", "violet");
 
       await waitFor(
         () =>

@@ -59,21 +59,27 @@ intro, and checks the websocket frames each browser received:
     bravo sees: name-alpha, name-charlie
     charlie sees: name-bravo, name-delta
     delta sees: name-alpha, name-charlie
+
+    alpha: sees {name-bravo, name-delta} · charlie's colour absent from wire ·
+           charlie's name present (public player attribute)
 ```
 
-### An important limit this demo makes visible
+### Two kinds of data, on purpose
 
-The **projection** is neighbour-limited: no non-neighbour's projected view is ever sent to a
-browser, and the test asserts that against the raw frames.
+The demo carries one of each, because the difference is the whole point:
 
-But this demo stores the colour with `player.set("color", …)`, and Empirica cross-links every
-participant to every player node — so **that raw attribute is broadcast to everyone**, whatever
-the topology. The browser test asserts this too, deliberately, so nobody discovers it by
-accident later.
+| Field | Written with | Who can read it |
+|---|---|---|
+| `name` | `player.set("name", …)` | **everyone** — Empirica broadcasts every player scope |
+| `color` | `state.set("color", …)` | only neighbours, via `project()` |
 
-For a demo of network *structure* that is fine. For an experiment where the value itself must
-be private, do not put it on the player scope — see the limits section of the root README.
-`docs/PLATFORM-NOTES.md` §4b has the underlying behaviour.
+Colours are private because they are written to the participant's **own channel**, not to the
+player scope. Had the demo used `player.set("color", …)` — as it did at first — the colour
+would have been broadcast to every participant and the promise on screen would have been
+false, while looking exactly the same.
+
+The browser test asserts both: a non-neighbour's colour appears nowhere in the frames a tab
+received, and their name does. `docs/PLATFORM-NOTES.md` §4b has the underlying behaviour.
 
 You can also check the projection guarantee without a browser:
 
@@ -88,7 +94,7 @@ npx empirica-networks verify --n 4
 | `server/src/index.js` | `classicKinds` → `networkKinds` |
 | `server/src/callbacks.js` | add `withNetwork(...)` |
 | `client/src/App.jsx` | `modeFunc={EmpiricaClassic}` → `modeFunc={EmpiricaNetwork}` |
-| `client/src/Game.jsx` | read `useNeighbors()` |
+| `client/src/Game.jsx` | read `useNeighbors()`, write with `useNetworkState()` |
 
 The `index.js` edit is **mandatory and silently fatal if skipped**: without the `nbhd` kind
 registered, the private channels are never modelled, there is nothing to write views to, and
@@ -111,5 +117,6 @@ missing from that list is reported in the server log rather than silently going 
 `test/e2e/example.test.ts` in the repo root imports **this example's `callbacks.js`
 unmodified** and runs it against a real server, so the server half cannot rot unnoticed. The
 client half is compiled by `cd client && npm run build`, which catches import and JSX errors.
-The visual two-window confirmation above is manual — see `docs/PLATFORM-NOTES.md` §8 for why
-the hooks cannot be exercised headlessly.
+The four-window confirmation is automated too, by `npm run test:browser` — real Chromium
+against a real dev server. What is NOT covered anywhere is the hooks in isolation: they cannot
+be mounted against a synthetic mode, for the reason in `docs/PLATFORM-NOTES.md` §8.

@@ -41,5 +41,25 @@ export const GAME_KEYS = {
   // someone else's private channel. The index lives in server memory only.
 } as const;
 
+/**
+ * Namespace for state a PARTICIPANT writes to their own channel.
+ *
+ * This is the answer to the trap that `player.set()` broadcasts: Classic
+ * cross-links every participant to every player node, so a value written there
+ * is readable by all, and projecting it changes nothing about who can read it.
+ * A value written here is delivered only to its owner and the server, and
+ * reaches anyone else solely through `project()`.
+ *
+ * Prefixed rather than raw so a participant cannot overwrite `neighbors` or
+ * `_seq`. Their own channel is the one scope they can certainly write to
+ * (docs/PLATFORM-NOTES.md §4a), and those two keys belong to the server.
+ */
+export const STATE_PREFIX = "state:";
+
+/** Attribute key on an nbhd scope for one piece of participant-written state. */
+export function stateKey(key: string): string {
+  return `${STATE_PREFIX}${key}`;
+}
+
 export type NbhdKey = (typeof NBHD_KEYS)[keyof typeof NBHD_KEYS];
 export type GameKey = (typeof GAME_KEYS)[keyof typeof GAME_KEYS];

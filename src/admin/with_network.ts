@@ -1,6 +1,6 @@
 import { TajribaEvent } from "@empirica/core/admin";
 import { warn } from "@empirica/core/console";
-import { GAME_KEYS, NBHD_KEYS, NBHD_KIND } from "../shared/keys.js";
+import { GAME_KEYS, NBHD_KEYS, NBHD_KIND, stateKey } from "../shared/keys.js";
 import { adjacency, ring, type Edge } from "../topology/index.js";
 import { checkDegrees, checkViewBytes, type EnvelopeLimits } from "./envelope.js";
 import { projectionBytes, validateProjection } from "./projection.js";
@@ -22,12 +22,26 @@ import { hashSeed, makeRng, type Rng } from "./seed.js";
  * participants costs one round trip, not n.
  */
 
+/** Read-only view of one participant's private, self-written state. */
+export interface StateReader {
+  get<T = unknown>(key: string): T | undefined;
+}
+
 export interface ProjectContext {
   game: any;
   /** Index of the viewer in the topology. */
   viewerIndex: number;
   /** Index of the neighbour in the topology. */
   neighbourIndex: number;
+  /**
+   * A player's PRIVATE state — what they wrote to their own channel.
+   *
+   * Use this, not `player.get(...)`, for anything that must stay within the
+   * neighbourhood. A player attribute is broadcast to every participant, so
+   * projecting one restricts nothing; only values written to a private channel
+   * are actually neighbour-limited.
+   */
+  stateOf(player: any): StateReader;
 }
 
 export interface NetworkConfig {
@@ -103,12 +117,26 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   const reportedMissing = new Set<string>();
 
   /**
+   * Subscribe the admin to channel scopes.
+   *
+   * Load-bearing specifically for reading what PARTICIPANTS write. Attribute
+   * listeners subscribe nothing on their own: `subscribeAttribute(kind, key)`
+   * merely dispatches over attributes the admin already holds. Creation-time
+   * attributes arrive inside the `addScopes` response, which is why the OWNER
+   * listener below fires and why publishing worked for a long time without
+   * this — but a participant's later write is never delivered, and the listener
+   * waiting for it simply never runs. Measured 2026-08-15;
+   * docs/PLATFORM-NOTES.md §12.
+   */
+  collector.on("start", (ctx: any) => {
+    ctx.scopeSub({ kinds: [NBHD_KIND] });
+  });
+
+  /**
    * Capture channel scope objects as they materialise.
    *
-   * Registering a listener on our kind is also what subscribes the admin to it;
-   * without a subscription the scopes never load and there is nothing to write
-   * to. The owner attribute is immutable and set at creation, so this fires
-   * exactly once per channel.
+   * The owner attribute is immutable and set at creation, so this fires exactly
+   * once per channel.
    */
   collector.on(NBHD_KIND, NBHD_KEYS.OWNER, (_ctx: any, payload: any) => {
     const scope = payload?.[NBHD_KIND];
@@ -163,24 +191,22 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * over-reach free on the wire.
    */
   for (const key of watch) {
+    // (a) the player scope — public, broadcast to everyone by Classic.
     collector.on("player", key, (_ctx: any, props: any) => {
       const player = props?.player;
-      const gameID = player?.get?.("gameID");
-      if (!gameID) return;
+      if (player?.id) republishAround(player.id);
+    });
 
-      const game = games.get(String(gameID));
-      const state = networks.get(String(gameID));
-      if (!game || !state) return;
-
-      const i = state.order.indexOf(player.id);
-      if (i === -1) return;
-
-      const dirty = new Set<string>([player.id]);
-      for (const j of state.adj[i] ?? []) {
-        const id = state.order[j];
-        if (id) dirty.add(id);
-      }
-      publish(game, dirty);
+    // (b) the participant's own private channel — the neighbour-limited path.
+    //
+    // One `watch` list covers both deliberately. Which scope a key lives on is
+    // the author's choice and can change; making them remember two lists would
+    // turn a moved key into silently frozen neighbourhoods. Registering a
+    // listener for a key nobody uses costs nothing.
+    collector.on(NBHD_KIND, stateKey(key), (_ctx: any, props: any) => {
+      const scope = props?.[NBHD_KIND];
+      const playerID = scope?.get?.(NBHD_KEYS.PLAYER_ID);
+      if (typeof playerID === "string") republishAround(playerID);
     });
   }
 
@@ -272,7 +298,12 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
           view = project(
             recordReads(neighbour, readKeys),
             recordReads(viewer, readKeys),
-            { game, viewerIndex: i, neighbourIndex: j }
+            {
+              game,
+              viewerIndex: i,
+              neighbourIndex: j,
+              stateOf: (player: any) => makeStateReader(player, channels, readKeys),
+            }
           );
         } catch (e) {
           // Name the pair. An author's project() throwing otherwise surfaces as
@@ -330,6 +361,48 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   /** Publish everyone. Kept as the name the rest of the module already uses. */
   function publishAll(game: any): boolean {
     return publish(game);
+  }
+
+  /**
+   * Read a player's private state off their own channel.
+   *
+   * Reads are recorded into the same set as player-attribute reads, so a key
+   * missing from `watch` is reported the same way whichever scope it lives on.
+   */
+  function makeStateReader(
+    player: any,
+    channels: Record<string, string>,
+    readKeys: Set<string>
+  ): StateReader {
+    const scopeID = player?.id ? channels[player.id] : undefined;
+    const scope = scopeID ? channelScopes.get(scopeID) : undefined;
+    return {
+      get<T = unknown>(key: string): T | undefined {
+        if (typeof key === "string") readKeys.add(key);
+        // No channel yet is normal: a player provisioned this tick has none.
+        // Undefined is the same answer as "written but unset", which is what a
+        // projection should already handle.
+        return scope ? (scope.get(stateKey(key)) as T | undefined) : undefined;
+      },
+    };
+  }
+
+  /** Mark a player and everyone who can see them as needing a republish. */
+  function republishAround(playerID: string): void {
+    for (const [gameID, game] of games) {
+      const state = networks.get(gameID);
+      if (!state) continue;
+      const i = state.order.indexOf(playerID);
+      if (i === -1) continue;
+
+      const dirty = new Set<string>([playerID]);
+      for (const j of state.adj[i] ?? []) {
+        const id = state.order[j];
+        if (id) dirty.add(id);
+      }
+      publish(game, dirty);
+      return;
+    }
   }
 
   /**

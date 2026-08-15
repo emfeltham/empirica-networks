@@ -12,22 +12,31 @@ the public API is not stable and the package is not published.
 doesn't render it" — the bytes never arrive. Each participant has a private channel scope
 linked to them alone, and projections are written only there.
 
-**What this does NOT do: make player attributes private.** The guarantee covers the
-projection. Empirica cross-links every participant to every player node, so anything written
-with `player.set(key, value)` is broadcast to **everyone**, whatever the topology.
+**Where participants write matters.** Empirica cross-links every participant to every player
+node, so anything written with `player.set(key, value)` is broadcast to **everyone**, whatever
+the topology. Projecting such a value restricts nothing — the raw attribute is already out.
 
 ```js
-// ✗ visible to every participant, neighbour or not
+// ✗ broadcast to every participant, neighbour or not
 player.set("choice", "A");
 
-// ✓ reaches only neighbours, because it goes through the projection
-project: (neighbour) => ({ choice: neighbour.get("choice") })
+// ✓ private: written to this participant's own channel
+const state = useNetworkState();
+state.set("choice", "A");
 ```
 
-Both lines can be true at once — and that is the trap. If the raw attribute also lives on the
-player scope, projecting it changes nothing about who can read it. When the *value* must stay
-private, it must not be written to the player scope in the first place. Measured in real
-browsers by `npm run test:browser`; mechanism in `docs/PLATFORM-NOTES.md` §4b.
+and on the server, read it through the projection context rather than off the player:
+
+```js
+project: (neighbour, viewer, ctx) => ({
+  choice: ctx.stateOf(neighbour).get("choice"),   // ✓ neighbour-limited
+  // choice: neighbour.get("choice")              // ✗ was already public
+})
+```
+
+`npm run test:browser` asserts both halves in real browsers: a non-neighbour's private value
+appears nowhere in the bytes a tab received, while a player attribute does. Mechanism in
+`docs/PLATFORM-NOTES.md` §4b.
 
 **What does not hold: write integrity.** Empirica has no write access control. Any
 participant that knows a node id can set attributes on it, and `protected: true` does not

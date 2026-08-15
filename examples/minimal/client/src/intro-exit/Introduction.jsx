@@ -26,10 +26,10 @@ export function Introduction({ next }) {
           that ring — nobody else&apos;s.
         </p>
         <p>
-          The neighbour list is not a display rule: no non-neighbour&apos;s
-          projected view is ever sent to your browser. (This demo also keeps the
-          colour as an ordinary player attribute, which Empirica broadcasts to
-          everyone — see the README.)
+          This is not a display rule. Your colour is stored on your own private
+          channel, so a non-neighbour&apos;s colour is never sent to your browser
+          at all — there is nothing to find in the page source or the network
+          tab. (Your chosen name is public, so that people can be identified.)
         </p>
       </div>
 
