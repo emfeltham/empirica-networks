@@ -31,7 +31,8 @@ altering another's state is exposed. The highest-value thing on this list to rep
 
 ### U2. A full restart does not put participants back in their game ⚠️ data loss
 
-**Evidence:** `test/e2e/restart_full.test.ts`; PLATFORM-NOTES §4e.
+**Evidence:** `test/e2e/restart_full.test.ts`; PLATFORM-NOTES §4e. **Report drafted and ready
+to file:** [`docs/upstream/U2-restart-does-not-restore-games.md`](docs/upstream/U2-restart-does-not-restore-games.md).
 
 The store reloads correctly — batch, players, scopes, links all return. Players are never
 reassigned, so `gameID` is never restored and no game resumes. Classic assigns a reloaded
@@ -39,7 +40,13 @@ player only if that participant is already online at the moment the player scope
 (`if (online.has(participantID))`), which is a race no operator can win: measured **0/5** when
 participants return after the replay settles, **1/5** when they race it.
 
-Consequence: a crash, deploy or `^C` mid-study ends the games in progress.
+It is also **partial**: `PARTICIPANT_CONNECT` creates a fresh player when it does not yet know
+one for that participant, so a participant who arrives before their player scope replays gets a
+DUPLICATE. Measured 2–4 of 4 existing player scopes reused, varying run to run — so a restart
+can fork some participants' records while leaving others intact.
+
+Consequence: a crash, deploy or `^C` mid-study ends the games in progress, and can leave two
+player scopes for one participant in the stored result.
 
 ### U3. Attribute listeners subscribe the admin to nothing
 
