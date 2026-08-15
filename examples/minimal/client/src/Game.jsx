@@ -1,5 +1,9 @@
 import { usePlayer, useStage } from "@empirica/core/player/classic/react";
-import { useNeighbors, useNetworkSelf } from "empirica-networks/player/react";
+import {
+  useNeighbors,
+  useNetworkSelf,
+  useNetworkState,
+} from "empirica-networks/player/react";
 import React from "react";
 
 const COLORS = ["red", "amber", "green", "blue", "violet"];
@@ -25,6 +29,11 @@ export function Game() {
   const player = usePlayer();
   const stage = useStage();
 
+  // Private state: written to this participant's own channel, so it reaches
+  // only their neighbours — via the server's project(). Using
+  // player.set("color", …) here would broadcast it to everyone.
+  const state = useNetworkState();
+
   const neighbors = useNeighbors();
   const self = useNetworkSelf();
 
@@ -35,7 +44,7 @@ export function Game() {
     return <div className="p-8 text-gray-500">Joining the network…</div>;
   }
 
-  const myColor = player.get("color");
+  const myColor = state?.get("color");
 
   return (
     <div className="p-8 space-y-8">
@@ -45,7 +54,7 @@ export function Game() {
           {COLORS.map((c) => (
             <button
               key={c}
-              onClick={() => player.set("color", c)}
+              onClick={() => state?.set("color", c)}
               className={`w-10 h-10 rounded-full border-2 ${SWATCH[c]} ${
                 myColor === c ? "border-black" : "border-transparent"
               }`}
@@ -87,21 +96,17 @@ export function Game() {
         </p>
 
         {/*
-          Being straight about the limit, because the obvious reading of the
-          line above is stronger than what is true.
+          The colour really is neighbour-limited, because it is written with
+          useNetworkState() to this participant's own channel rather than with
+          player.set(). Player attributes are broadcast to everyone, so the
+          earlier version of this demo showed a privacy claim it did not keep.
 
-          This demo stores the colour with `player.set("color", …)`, and Empirica
-          cross-links every participant to every player node — so the raw
-          attribute IS broadcast to everyone, whatever the topology. What is
-          neighbour-limited is the PROJECTION.
-
-          For a real experiment where the value itself must stay private, do not
-          put it on the player scope. See the README.
+          The name below is deliberately still a player attribute: it is a public
+          display name, and having both in one example shows the difference.
         */}
-        <p className="mt-2 text-xs text-amber-700">
-          Note: in this demo the colour is also stored as a plain player
-          attribute, which Empirica broadcasts to everyone. The neighbour list is
-          private; the underlying attribute is not.
+        <p className="mt-2 text-xs text-gray-500">
+          Names are public player attributes. Colours are private — written to
+          your own channel and shown only to your neighbours.
         </p>
       </div>
 

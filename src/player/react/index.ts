@@ -1,5 +1,7 @@
 import { usePartModeCtx, usePartModeCtxKey } from "@empirica/core/player/classic/react";
+import { useMemo } from "react";
 import type { EmpiricaNetworkContext, Nbhd } from "../mode.js";
+import { networkStateOf, type NetworkState } from "../state.js";
 import {
   assertNetworkMode,
   neighborsOf,
@@ -52,5 +54,23 @@ export function useNetworkSelf(): NetworkSelf | undefined {
   return networkSelfOf(useNbhd());
 }
 
+/**
+ * Read and write this participant's own PRIVATE state.
+ *
+ *   const state = useNetworkState();
+ *   state.set("choice", "A");     // only neighbours will see it, via project()
+ *
+ * Use this instead of `player.set()` for anything that must stay inside the
+ * neighbourhood: player attributes are broadcast to every participant, so
+ * projecting one restricts nothing.
+ *
+ * Memoised on the channel identity so the returned object is stable across
+ * renders and safe in a dependency array.
+ */
+export function useNetworkState(): NetworkState | undefined {
+  const nbhd = useNbhd();
+  return useMemo(() => networkStateOf(nbhd), [nbhd]);
+}
+
 export { NetworkModeNotInstalledError };
-export type { NetworkSelf };
+export type { NetworkSelf, NetworkState };

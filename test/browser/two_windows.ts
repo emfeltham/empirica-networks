@@ -100,6 +100,10 @@ async function openTab(browser: Browser, key: string): Promise<Tab> {
   const frames: string[] = [];
 
   page.on("websocket", (ws) => {
+    // Only the Tajriba socket. Vite's HMR socket also carries CSS, which
+    // contains colour words like "green" and would make a substring search for
+    // a leaked colour fire on nothing.
+    if (!ws.url().includes("/query")) return;
     ws.on("framereceived", (data) => {
       const payload = typeof data.payload === "string" ? data.payload : data.payload.toString();
       frames.push(payload);
@@ -170,27 +174,33 @@ async function visibleNeighbourNames(tab: Tab): Promise<string[]> {
  * wire": the module's guarantee is about the projection, and player-scope
  * attributes travel by a separate, broadcast route.
  */
-function projectedNames(tab: Tab): Set<string> {
-  const names = new Set<string>();
+function projectedViews(tab: Tab): { id?: string; name?: string; color?: string }[] {
+  const views: { id?: string; name?: string; color?: string }[] = [];
   for (const frame of tab.frames) {
     // Cheap prefilter: most frames are not attribute changes at all.
     if (!frame.includes('"neighbors"')) continue;
     for (const m of frame.matchAll(/"key"\s*:\s*"neighbors"\s*,\s*"val"\s*:\s*"((?:[^"\\]|\\.)*)"/g)) {
       let parsed: unknown;
       try {
-        // `val` is a JSON string containing JSON.
+        // `val` is a JSON string containing JSON — hence the double parse. This
+        // is also why searching the raw frame for `"color":"red"` finds
+        // nothing: on the wire it is escaped as \"color\":\"red\".
         parsed = JSON.parse(JSON.parse(`"${m[1]}"`));
       } catch {
         continue;
       }
-      if (!Array.isArray(parsed)) continue;
-      for (const view of parsed) {
-        const name = (view as { name?: unknown })?.name;
-        if (typeof name === "string") names.add(name);
-      }
+      if (Array.isArray(parsed)) views.push(...parsed);
     }
   }
-  return names;
+  return views;
+}
+
+function projectedNames(tab: Tab): Set<string> {
+  return new Set(
+    projectedViews(tab)
+      .map((v) => v?.name)
+      .filter((n): n is string => typeof n === "string")
+  );
 }
 
 /**
@@ -380,11 +390,44 @@ async function main(): Promise<void> {
         );
       }
 
-      // (b) THE PLATFORM'S BEHAVIOUR: the same name IS on the wire anyway, via
-      //     the broadcast player scope. Asserted so that if Empirica ever stops
-      //     broadcasting player scopes, this test says so loudly instead of the
-      //     example's warning quietly becoming wrong.
       const wire = tab.frames.join("\n");
+
+      // (b) THE STRONG CLAIM, which only holds because the colour is PRIVATE
+      //     state written to each participant's own channel. A non-neighbour's
+      //     colour must appear nowhere in the bytes this tab received. When the
+      //     example wrote colour with player.set(), this assertion failed — the
+      //     value was broadcast and the demo's own promise was false.
+      // Each tab picks a distinct colour, so a colour word identifies its owner.
+      // Searched in the RAW frames, so a leak through any channel counts — not
+      // just through the projection we know to look at.
+      const strangerColor = COLORS[KEYS.indexOf(strangerKey!)]!;
+      assert.ok(
+        !wire.includes(strangerColor),
+        `LEAK: ${tab.key} received non-neighbour ${strangerKey}'s colour ` +
+          `(${strangerColor}) over the websocket`
+      );
+
+      // (c) NON-VACUITY for (b): a neighbour's colour DID arrive, so the
+      //     absence above means something rather than "no colours were sent".
+      const neighbourColors = new Set(
+        projectedViews(tab)
+          .map((v) => v?.color)
+          .filter((c): c is string => typeof c === "string")
+      );
+      assert.ok(
+        neighbourColors.size > 0,
+        `${tab.key} received no neighbour colours at all — the absence above ` +
+          `would be vacuous`
+      );
+      assert.ok(
+        !neighbourColors.has(strangerColor),
+        `LEAK: ${strangerColor} appeared in ${tab.key}'s projection`
+      );
+
+      // (d) THE PLATFORM'S BEHAVIOUR, for contrast: the stranger's NAME is on
+      //     the wire, because names are ordinary player attributes and Empirica
+      //     broadcasts every player scope. Asserted so the difference between
+      //     the two paths stays visible, and so a change upstream is loud.
       assert.ok(
         wire.includes(strangerName),
         `expected ${strangerName} on ${tab.key}'s wire via the broadcast player scope ` +
@@ -393,8 +436,9 @@ async function main(): Promise<void> {
 
       checked++;
       console.log(
-        `    ${tab.key}: projection = {${[...projected].join(", ")}}, ` +
-          `${strangerName} excluded from it (but present on the wire via player scope)`
+        `    ${tab.key}: sees {${[...projected].join(", ")}} · ` +
+          `${strangerKey}'s colour absent from wire · ` +
+          `${strangerKey}'s name present (public player attribute)`
       );
     }
 

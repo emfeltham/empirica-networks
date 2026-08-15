@@ -22,10 +22,22 @@ withNetwork(Empirica, {
 
   // The ONLY path from server to client. Return plain data — returning the
   // scope itself is refused, because it carries the global attribute store.
-  project: (neighbour) => ({
+  //
+  // Note where each field comes from, because it decides who can read it:
+  //
+  //   name  — a PLAYER attribute. Empirica broadcasts every player scope to
+  //           every participant, so this is public no matter what we do here.
+  //           Fine: it is a display name.
+  //
+  //   color — PRIVATE state, written by the participant to their own channel.
+  //           It reaches other participants only through this projection, so it
+  //           really is limited to neighbours. Had we used neighbour.get("color")
+  //           it would have been broadcast like the name, and the privacy claim
+  //           would have been hollow.
+  project: (neighbour, viewer, ctx) => ({
     id: neighbour.id,
     name: neighbour.get("name"),
-    color: neighbour.get("color"),
+    color: ctx.stateOf(neighbour).get("color"),
   }),
 
   // Player attributes the projection depends on. A change to one republishes
