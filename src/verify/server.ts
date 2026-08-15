@@ -122,7 +122,21 @@ export async function startServer(opts: ServerOptions = {}): Promise<Server> {
     }
   };
 
-  const proc = spawn(binary, args, { stdio: ["ignore", logFd, logFd] });
+  /**
+   * `detached: true` so the child leads its own process group.
+   *
+   * Not cosmetic, and not about the parent's lifetime: the `empirica` CLI is a
+   * WRAPPER that execs a versioned binary
+   * (`~/Library/Caches/empirica/bin/version/vX.Y.Z tajriba …`) as its own child.
+   * Killing `proc` therefore kills the wrapper and orphans the actual server,
+   * which keeps running and holding its port.
+   *
+   * Measured 2026-08-15: 379 orphaned tajriba processes had accumulated across a
+   * session's test runs, enough to make an unrelated e2e test time out waiting
+   * for a game to start. The failure presents as a flake in whatever test runs
+   * next, which is why it survived this long.
+   */
+  const proc = spawn(binary, args, { stdio: ["ignore", logFd, logFd], detached: true });
 
   let spawnError: Error | undefined;
   proc.on("error", (e) => {
@@ -134,6 +148,14 @@ export async function startServer(opts: ServerOptions = {}): Promise<Server> {
 
   const url = `http://localhost:${port}/query`;
   const stop = () => {
+    // Negative pid = the whole process group, so the versioned binary the CLI
+    // spawned goes too. The direct kill stays as a fallback for the case where
+    // the group is already gone but the wrapper is not.
+    try {
+      if (proc.pid) process.kill(-proc.pid, "SIGKILL");
+    } catch {
+      /* group already gone */
+    }
     try {
       proc.kill("SIGKILL");
     } catch {

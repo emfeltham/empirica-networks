@@ -5,6 +5,7 @@ import {
   pendingChannelsMessage,
   provisionChannels,
   readChannels,
+  releaseChannels,
   resetChannels,
 } from "../../src/admin/provision.js";
 import { NBHD_KEYS, NBHD_KIND } from "../../src/shared/keys.js";
@@ -246,6 +247,36 @@ test("adoptChannel re-adopts an existing channel instead of creating a second", 
   assert.equal(readChannels(game)["p1"], original, "the original channel is still the one");
   assert.equal(ctx.calls.addScopes, 1, "no second addScopes");
   assert.equal(ctx.links.length, 1, "and no second link, which could never be undone");
+});
+
+test("releaseChannels drops one game's index and leaves the others alone", async () => {
+  // A study is many sequential games in one process. Releasing the finished one
+  // must not disturb the games still running beside it — the index is global,
+  // so an over-broad release would blank a live game's channels and, since
+  // `publish` refuses partial views, every participant in it.
+  const done = makeGame([makePlayer("p1", "part1")]);
+  const running = { ...makeGame([makePlayer("p2", "part2")]), id: "game-2" };
+  const ctx = makeCtx();
+
+  await provisionChannels(ctx, done);
+  await provisionChannels(ctx, running);
+  assert.equal(Object.keys(readChannels(done)).length, 1);
+  assert.equal(Object.keys(readChannels(running)).length, 1);
+
+  releaseChannels(done.id);
+
+  assert.deepEqual(readChannels(done), {}, "the finished game is forgotten");
+  assert.equal(
+    Object.keys(readChannels(running)).length,
+    1,
+    "the running game keeps its channels"
+  );
+});
+
+test("releasing a game that was never provisioned is harmless", () => {
+  // Reachable: a game can end before provisioning completes, and the release
+  // path should not need to know whether it did.
+  releaseChannels("never-existed");
 });
 
 test("the pending message names the players and the consequence", () => {

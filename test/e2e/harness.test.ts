@@ -16,6 +16,7 @@ import {
   waitFor,
   withScenario,
 } from "../../src/verify/harness.js";
+import { startServer } from "../../src/verify/server.js";
 
 test("harness boots a server, connects participants, and reaches a stage", async () => {
   const N = 2;
@@ -69,4 +70,42 @@ test("waitFor rejects with TimeoutError rather than hanging", async () => {
     () => waitFor(() => false, { label: "never true", timeoutMs: 200 }),
     /timed out after 200ms waiting for: never true/
   );
+});
+
+test("stopping a server leaves no orphaned tajriba process", async () => {
+  // The `empirica` CLI is a wrapper that execs a versioned binary as its own
+  // child. Killing the wrapper orphaned the real server, which kept running and
+  // holding its port; 379 of them had accumulated across one session before
+  // this was noticed, and the symptom was an unrelated test timing out waiting
+  // for a game to start.
+  //
+  // A leak here is invisible in CI (fresh runner per job) and presents locally
+  // as a flake somewhere else entirely, so it needs its own assertion.
+  const server = await startServer({ logLevel: "error" });
+  const pid = server.proc.pid!;
+  assert.ok(pid, "the server has a pid");
+
+  const alive = () => {
+    try {
+      // Signal 0 tests for existence without delivering anything.
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  assert.ok(alive(), "running before stop, or the check below is vacuous");
+
+  server.stop();
+
+  // SIGKILL is delivered asynchronously; poll rather than assume it has landed.
+  const deadline = Date.now() + 10_000;
+  while (alive() && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  assert.equal(alive(), false, "the server process is gone after stop()");
+
+  // And the port it held is free again — the orphan's actual cost.
+  const reuse = await startServer({ port: server.port, logLevel: "error" });
+  reuse.stop();
 });
