@@ -17,7 +17,7 @@ import { networkKinds } from "../../src/admin/kinds.js";
 import { resetChannels } from "../../src/admin/provision.js";
 import { withNetwork } from "../../src/admin/with_network.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
-import { ring } from "../../src/topology/index.js";
+import { ring, star } from "../../src/topology/index.js";
 import {
   batchConfig,
   connectParticipant,
@@ -418,6 +418,85 @@ test("a reconnecting participant gets its view back", async () => {
         );
       } finally {
         returned.stop();
+      }
+    }
+  );
+});
+
+test("republishing follows the actual adjacency, on a graph where degrees differ", async () => {
+  // Ring hides an entire class of bug here. Every node has the same degree and
+  // the same shape of neighbourhood, so a dirty-set computed from the wrong
+  // index still produces two neighbours and still looks right.
+  //
+  // A star cannot be faked that way. The hub sees everyone; a spoke sees only
+  // the hub and NOTHING of the other spokes. So this asserts two things a ring
+  // cannot even express: that a spoke's change reaches exactly one participant,
+  // and that a hub's change reaches all of them.
+  const N = 5; // hub + 4 spokes
+  const listeners = (_: any) => {
+    gameInit(1, 1, 3_600_000)(_);
+    withNetwork(_, {
+      // No rng: position 0 is the hub, deterministically, so the test can name
+      // who should see what without reading it back off the thing under test.
+      topology: ({ playerCount }) => star(playerCount),
+      project: (neighbour: any) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+      watch: ["choice"],
+    });
+  };
+
+  await withScenario(
+    { n: N, kinds: networkKinds, listeners, modeFunc: EmpiricaNetwork },
+    async ({ admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+      await startGame(participants);
+      await waitFor(() => participants.every((p) => modeOf(p).nbhd.getValue()?.published), {
+        label: "first publish",
+        timeoutMs: 30_000,
+      });
+
+      // Identify the hub by degree, which is what makes this graph irregular.
+      const byDegree = participants
+        .map((p) => ({ p, d: Object.keys(viewOf(p)).length }))
+        .sort((a, b) => b.d - a.d);
+      const hub = byDegree[0]!.p;
+      const spokes = byDegree.slice(1).map((x) => x.p);
+
+      assert.equal(byDegree[0]!.d, N - 1, "the hub sees every spoke");
+      for (const s of byDegree.slice(1)) {
+        assert.equal(s.d, 1, "a spoke sees only the hub");
+      }
+
+      // (a) A SPOKE changes. Exactly one participant — the hub — may see it.
+      const spoke = spokes[0]!;
+      const spokeID = modeOf(spoke).player.getValue()!.id;
+      modeOf(spoke).player.getValue()!.set("choice", "FROM-SPOKE");
+
+      await waitFor(() => viewOf(hub)[spokeID] === "FROM-SPOKE", {
+        label: "the hub saw the spoke's change",
+        timeoutMs: 30_000,
+      });
+
+      for (const other of spokes.slice(1)) {
+        assert.equal(
+          viewOf(other)[spokeID],
+          undefined,
+          "a spoke must not appear in another spoke's view at all"
+        );
+      }
+
+      // (b) The HUB changes. Every spoke must see it — the case where a
+      //     ring-sized dirty set would come up short.
+      const hubID = modeOf(hub).player.getValue()!.id;
+      modeOf(hub).player.getValue()!.set("choice", "FROM-HUB");
+
+      await waitFor(
+        () => spokes.every((s) => viewOf(s)[hubID] === "FROM-HUB"),
+        { label: "every spoke saw the hub's change", timeoutMs: 30_000 }
+      );
+
+      for (const s of spokes) {
+        assert.equal(viewOf(s)[hubID], "FROM-HUB", `spoke ${modeOf(s).player.getValue()!.id}`);
       }
     }
   );
