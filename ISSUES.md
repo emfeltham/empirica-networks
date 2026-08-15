@@ -16,7 +16,10 @@ discover after collecting invalid data.
 
 ### U1. `protected: true` does not prevent participant writes ⚠️ security
 
-**Evidence:** `test/e2e/participant_write.test.ts`; PLATFORM-NOTES §4a.
+**Evidence:** `test/e2e/upstream_u1.test.ts` (public client API),
+`test/e2e/participant_write.test.ts` (full characterisation incl. `protected`); PLATFORM-NOTES
+§4a. **Report drafted and ready to file:**
+[`docs/upstream/U1-no-write-access-control.md`](docs/upstream/U1-no-write-access-control.md).
 
 Any participant that knows a node id can set attributes on it — including on another
 participant's `player` scope, whose id every participant already knows, because Classic
