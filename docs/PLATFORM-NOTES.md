@@ -492,6 +492,22 @@ games are now skipped on adoption and released on replay.
 Not measured: n ≥ 200, and sessions longer than the soak's default. The soak is one run, and
 `SPIKE-REPORT.md` §5–6 asks for three with fresh servers before any number is published.
 
+## 15. Writes only count inside a callback ⚠️
+
+*Measured 2026-08-15 while building `src/admin/with_network.ts`'s rewiring handle.*
+
+The runloop flushes the `scope.set()` calls made while it is processing a callback. A write
+issued from anywhere else — a timer, an HTTP handler, test code, a `queueMicrotask` scheduled
+from inside a callback — updates the admin's own copy and is **never sent**. No error, no log.
+
+Two consequences, both learned the hard way:
+
+- The rewiring API documents that mutations must run inside a listener. Reads are unaffected.
+- The obvious optimisation for batching several mutations into one publish — defer the flush to
+  a microtask — moves the writes outside the callback and silently breaks them. It is also
+  unnecessary: the runloop already coalesces a callback's `set()` calls into one
+  `setAttributes` RPC, so publishing synchronously per mutation still costs one round trip.
+
 ## 9. Misc
 
 - `Player.participantID` is a public field on the admin classic model — no cast needed.

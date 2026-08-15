@@ -1,7 +1,13 @@
 import { TajribaEvent } from "@empirica/core/admin";
 import { warn } from "@empirica/core/console";
-import { NBHD_KEYS, NBHD_KIND, NETWORK_KEYS, stateKey } from "../shared/keys.js";
-import { adjacency, ring, type Edge } from "../topology/index.js";
+import {
+  NBHD_KEYS,
+  NBHD_KIND,
+  NETWORK_KEYS,
+  stateKey,
+  type EdgeEvent,
+} from "../shared/keys.js";
+import { adjacency, fromEdgeList, ring, type Edge } from "../topology/index.js";
 import { checkDegrees, checkViewBytes, type EnvelopeLimits } from "./envelope.js";
 import { projectionBytes, validateProjection } from "./projection.js";
 import {
@@ -92,6 +98,7 @@ const defaultProject = (neighbour: any) => ({ id: neighbour.id });
 
 /** Per-game network state, server-side only. */
 interface NetworkState {
+  /** Mutable: rewiring replaces this in place. */
   edges: Edge[];
   adj: number[][];
   /** player id in topology order */
@@ -156,6 +163,18 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * which is stated here rather than left to be discovered.
    */
   const endedGames = new Set<string>();
+  /**
+   * Edge-mutation log per game, in memory and authoritative.
+   *
+   * NOT read back from the batch attribute on each append. Doing that is a
+   * read-modify-write against a value the server also echoes, and two mutations
+   * in quick succession can interleave so that the second reads a stale copy and
+   * overwrites the first — losing an event silently, which for a rewiring study
+   * corrupts the independent variable. Measured as a 1-in-6 flake before this
+   * was made the source of truth. The attribute is a projection of this, not the
+   * other way round.
+   */
+  const historyByGame = new Map<string, EdgeEvent[]>();
 
   /**
    * Subscribe the admin to channel scopes.
@@ -238,6 +257,8 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
 
   function releaseGame(game: any): void {
     endedGames.add(game.id);
+    gameNetworks.delete(game.id);
+    historyByGame.delete(game.id);
 
     // Read the channel map BEFORE clearing it: the per-scope maps are keyed by
     // channel scope id, not by game, so this is the only way to find them.
@@ -317,6 +338,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
 
     const order: string[] = players.map((p: any) => p.id);
     networks.set(game.id, { edges, adj, order, seed });
+    gameNetworks.set(game.id, makeGameNetwork(game));
 
     const { pending } = await provisionChannels(ctx, game, (playerID) =>
       order.indexOf(playerID)
@@ -580,6 +602,11 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       seed: typeof seed === "number" ? seed : 0,
     });
     recovering.delete(game.id);
+    // Reload the log a previous process wrote, so `history()` is complete
+    // across a restart rather than starting again from empty.
+    const stored = game.batch?.get(NETWORK_KEYS.history(game.id));
+    historyByGame.set(game.id, Array.isArray(stored) ? (stored as EdgeEvent[]).slice() : []);
+    gameNetworks.set(game.id, makeGameNetwork(game));
 
     // Views are ephemeral, so a real process restart takes Tajriba's copy with
     // it. `lastPublished` is empty in a fresh process anyway, so this publishes
@@ -608,6 +635,137 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         // Undefined is the same answer as "written but unset", which is what a
         // projection should already handle.
         return scope ? (scope.get(stateKey(key)) as T | undefined) : undefined;
+      },
+    };
+  }
+
+  /**
+   * Build the live rewiring handle for a game.
+   *
+   * Each mutation publishes synchronously to the participants it affects. That
+   * looks wasteful next to §4's "republish once at the end of the callback",
+   * and is not: the runloop coalesces every `set()` made during one callback
+   * into a single `setAttributes` RPC, so ten mutations still cost one round
+   * trip. Deferring our own flush to a microtask — the obvious way to batch —
+   * moves the writes OUTSIDE the callback the runloop is processing, and they
+   * are then never sent at all.
+   */
+  function makeGameNetwork(game: any): GameNetwork {
+    const gameID = game.id;
+    const dirty = new Set<string>();
+    let flushQueued = false;
+
+    const state = () => {
+      const s = networks.get(gameID);
+      if (!s) throw new Error(`empirica-networks: game ${gameID} is no longer networked`);
+      return s;
+    };
+
+    const indexOf = (playerID: string): number => {
+      const i = state().order.indexOf(playerID);
+      if (i === -1) {
+        throw new Error(
+          `empirica-networks: player ${playerID} is not in game ${gameID}'s network`
+        );
+      }
+      return i;
+    };
+
+    const scheduleFlush = () => {
+      if (flushQueued) return;
+      flushQueued = true;
+      flushQueued = false;
+      if (dirty.size === 0) return;
+      const targets = new Set(dirty);
+      dirty.clear();
+      const g = games.get(gameID);
+      if (g) publish(g, targets);
+    };
+
+    /** Recompute adjacency, persist, log, and mark the affected participants. */
+    const commit = (s: NetworkState, event: EdgeEvent, affected: string[]) => {
+      s.adj = adjacency(s.order.length, s.edges);
+      checkDegrees(s.adj, config.envelope, warn);
+
+      // Not `if (batch)`. A mutation that cannot be recorded must fail loudly:
+      // silently skipping leaves the live graph and the stored one disagreeing,
+      // so analysis would describe a network that was never shown to anyone and
+      // a restart would recover the graph as it stood before the mutation.
+      const batch = game.batch;
+      if (!batch) {
+        throw new Error(
+          `empirica-networks: game ${gameID} has no batch, so this mutation cannot be ` +
+            `recorded. Refusing to apply it rather than let the live network and the ` +
+            `stored one diverge.`
+        );
+      }
+      batch.set(NETWORK_KEYS.network(gameID), s.edges);
+      const log = historyByGame.get(gameID) ?? [];
+      log.push(event);
+      historyByGame.set(gameID, log);
+      batch.set(NETWORK_KEYS.history(gameID), [...log]);
+
+      for (const id of affected) dirty.add(id);
+      scheduleFlush();
+    };
+
+    return {
+      neighbors(playerID) {
+        const s = state();
+        return (s.adj[indexOf(playerID)] ?? []).map((j) => s.order[j]!);
+      },
+      degree(playerID) {
+        return (state().adj[indexOf(playerID)] ?? []).length;
+      },
+      hasEdge(a, b) {
+        return state().adj[indexOf(a)]?.includes(indexOf(b)) ?? false;
+      },
+      edges() {
+        const s = state();
+        return s.edges.map(([i, j]) => [s.order[i]!, s.order[j]!] as [string, string]);
+      },
+      addEdge(a, b) {
+        const s = state();
+        const i = indexOf(a);
+        const j = indexOf(b);
+        if (i === j) throw new Error(`empirica-networks: cannot connect ${a} to itself`);
+        if (s.adj[i]?.includes(j)) return false;
+        s.edges = [...s.edges, i < j ? [i, j] : [j, i]];
+        commit(s, { op: "add", a, b, size: s.edges.length, at: Date.now() }, [a, b]);
+        return true;
+      },
+      removeEdge(a, b) {
+        const s = state();
+        const i = indexOf(a);
+        const j = indexOf(b);
+        if (!s.adj[i]?.includes(j)) return false;
+        s.edges = s.edges.filter(([x, y]) => !((x === i && y === j) || (x === j && y === i)));
+        commit(s, { op: "remove", a, b, size: s.edges.length, at: Date.now() }, [a, b]);
+        return true;
+      },
+      rewire(next) {
+        const s = state();
+        // Everyone whose neighbourhood could differ: the union of before and
+        // after. Anything narrower leaves a participant holding a tie that no
+        // longer exists, which is worse than an extra publish.
+        const affected = new Set<string>(s.order);
+        s.edges = fromEdgeList(
+          s.order.length,
+          next.map(([a, b]) => [indexOf(a), indexOf(b)] as Edge)
+        );
+        commit(s, { op: "rewire", size: s.edges.length, at: Date.now() }, [...affected]);
+      },
+      publish() {
+        const g = games.get(gameID);
+        return g ? publishAll(g) : false;
+      },
+      publishFor(playerID) {
+        indexOf(playerID);
+        republishAround(playerID);
+        return true;
+      },
+      history() {
+        return (historyByGame.get(gameID) ?? []).slice();
       },
     };
   }
@@ -655,6 +813,76 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       cachedViews: lastPublished.size,
     }),
   };
+}
+
+/**
+ * Live handle on one game's network, for rewiring during play.
+ *
+ * MUTATE ONLY FROM INSIDE A LISTENER:
+ *
+ *     Empirica.onStageStart(({ stage }) => {
+ *       network(stage.currentGame).addEdge(a, b);   // correct
+ *     });
+ *
+ * The runloop flushes the `set()` calls made while it is processing a callback.
+ * A mutation driven from anywhere else — a timer, an HTTP handler, test code —
+ * updates the server's own state correctly and then reaches NOBODY, with no
+ * error. Measured while building `test/e2e/rewiring.test.ts`, which was first
+ * written the obvious way and had every client assertion time out while the
+ * server-side ones passed.
+ *
+ * Reads (`neighbors`, `degree`, `hasEdge`, `edges`, `history`) are safe
+ * anywhere; only writes depend on the callback.
+ *
+ * Everything takes and returns PLAYER IDS, never topology indices. Indices are
+ * an internal representation; an author holds player objects, and asking them to
+ * translate is how off-by-one errors get written into experiment code.
+ */
+export interface GameNetwork {
+  /** Player ids this player can currently see. */
+  neighbors(playerID: string): string[];
+  degree(playerID: string): number;
+  hasEdge(a: string, b: string): boolean;
+  /** Every current tie, as player id pairs. */
+  edges(): Array<[string, string]>;
+  /** Add a tie. Returns false if it already existed. */
+  addEdge(a: string, b: string): boolean;
+  /** Drop a tie. Returns false if it was not there. */
+  removeEdge(a: string, b: string): boolean;
+  /** Replace the whole edge list. */
+  rewire(edges: Array<[string, string]>): void;
+  /** Force a republish of everyone now, rather than waiting for the flush. */
+  publish(): boolean;
+  /** Force a republish of one participant and those who can see them. */
+  publishFor(playerID: string): boolean;
+  /** Every mutation since game start, oldest first. */
+  history(): EdgeEvent[];
+}
+
+/**
+ * Game id -> live handle. Module-level for the same reason `channelStore` is:
+ * `network(game)` is imported directly by experiment code, which has no access
+ * to the closure `withNetwork` built.
+ */
+const gameNetworks = new Map<string, GameNetwork>();
+
+/**
+ * Handle on a running game's network.
+ *
+ * Throws rather than returning undefined for an unknown game: every call site
+ * is experiment code about to mutate the graph, and silently doing nothing to a
+ * network is precisely the failure mode this package keeps designing against.
+ */
+export function network(game: any): GameNetwork {
+  const handle = game?.id ? gameNetworks.get(game.id) : undefined;
+  if (!handle) {
+    throw new Error(
+      `empirica-networks: no network for game ${game?.id ?? "(no id)"}. ` +
+        `Either the game has not started yet, it has ended, or withNetwork() was never ` +
+        `called on this collector.`
+    );
+  }
+  return handle;
 }
 
 /**

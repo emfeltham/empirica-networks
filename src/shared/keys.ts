@@ -67,11 +67,36 @@ export const NBHD_KEYS = {
  * nicety. See docs/PLATFORM-NOTES.md §4c.
  */
 export const NETWORK_KEYS = {
-  /** Serialised edge list, per game. */
+  /** Serialised edge list, per game. The network as it stands NOW. */
   network: (gameID: string) => `network:${gameID}`,
   /** Seed used to generate the topology, per game. Recorded for reproducibility. */
   seed: (gameID: string) => `networkSeed:${gameID}`,
+  /**
+   * Append-only log of every tie added or dropped after game start.
+   *
+   * Separate from `network` because they answer different questions and only
+   * one of them can be answered by a snapshot. `network` is what the graph is;
+   * this is how it got there. For a rewiring study the sequence IS the
+   * independent variable, so overwriting a single edge list as ties change
+   * would destroy the thing being measured.
+   *
+   * Empty for a static network, which is the common case, so it costs nothing
+   * to carry.
+   */
+  history: (gameID: string) => `networkHistory:${gameID}`,
 } as const;
+
+/** One mutation of the network, as recorded in the history log. */
+export interface EdgeEvent {
+  op: "add" | "remove" | "rewire";
+  /** Player ids. Absent for a wholesale `rewire`. */
+  a?: string;
+  b?: string;
+  /** Edge count after the mutation, so a snapshot can be sanity-checked. */
+  size: number;
+  /** Wall clock, ms. */
+  at: number;
+}
 
 /**
  * Attribute keys the module writes on the game scope.

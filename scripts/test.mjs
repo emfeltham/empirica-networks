@@ -114,7 +114,27 @@ if (e2e.length === 0) {
     .filter((f) => f.endsWith(".cjs"))
     .map((f) => path.join(outDir, f));
 
-  run(process.execPath, ["--test-force-exit", "--test", ...bundled]);
+  /**
+   * Cap e2e concurrency.
+   *
+   * `node --test` defaults to one worker per core, and every e2e file spawns a
+   * REAL Tajriba server plus n participants. On a 14-core machine that is up to
+   * 14 servers and a hundred-odd websocket clients at once, and the machine
+   * saturates: tests start timing out waiting for Classic to assign a game,
+   * with a different file failing on each run.
+   *
+   * That is worse than slow. A suite that fails ~1 in 3 runs on a rotating
+   * victim cannot be used to catch a regression, and twice already a "failure"
+   * here turned out to be load rather than a defect. Two is comfortably below
+   * saturation and costs little wall clock, because these tests are almost
+   * entirely waiting on IO.
+   */
+  run(process.execPath, [
+    "--test-force-exit",
+    "--test-concurrency=2",
+    "--test",
+    ...bundled,
+  ]);
   ran += e2e.length;
 }
 
