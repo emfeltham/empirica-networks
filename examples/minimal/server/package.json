@@ -1,7 +1,7 @@
 {
   "dependencies": {
     "@empirica/core": "1.12.5",
-    "empirica-networks": "file:../../..",
+    "empirica-networks": "file:../../../empirica-networks-0.0.0.tgz",
     "minimist": "1.2.6"
   },
   "devDependencies": {
