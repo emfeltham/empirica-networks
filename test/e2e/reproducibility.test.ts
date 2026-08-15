@@ -20,7 +20,7 @@ import { resetChannels } from "../../src/admin/provision.js";
 import { readNetwork, readSeed, withNetwork } from "../../src/admin/with_network.js";
 import { makeRng } from "../../src/admin/seed.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
-import { adjacency, ring, type Edge } from "../../src/topology/index.js";
+import { adjacency, ring, wattsStrogatz, type Edge } from "../../src/topology/index.js";
 import {
   batchConfig,
   createBatch,
@@ -172,5 +172,72 @@ test("an explicit seed pins the network across separate runs", async () => {
     canonical(first),
     canonical(second),
     "the same explicit seed produces the same network in a fresh game on a fresh server"
+  );
+});
+
+test("an M2 generator survives the round trip: recorded seed -> same neighbourhoods", async () => {
+  // The unit tests prove the math. This proves the wiring: a rewiring generator
+  // produces an irregular graph, and every participant's delivered neighbourhood
+  // still matches the graph rebuilt from the recorded seed. Ring hides this
+  // class of bug — every node looks alike, so an off-by-one in the index-to-
+  // participant mapping is invisible.
+  const N = 12;
+  const K = 4;
+  const BETA = 0.4;
+  let gameRef: any;
+
+  const listeners = (_: any) => {
+    gameInit(1, 1, 3_600_000)(_);
+    _.on("game", "start", (_ctx: any, { game }: any) => {
+      if (game.get("start")) gameRef = game;
+    });
+    withNetwork(_, {
+      topology: ({ playerCount, rng }) => wattsStrogatz(playerCount, K, BETA, { rng }),
+      project: (neighbour: any) => ({ id: neighbour.id }),
+    });
+  };
+
+  await withScenario(
+    { n: N, kinds: networkKinds, listeners, modeFunc: EmpiricaNetwork },
+    async ({ admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+      await waitFor(
+        () => participants.every((p) => modeOf(p).player.getValue()?.get("gameID")),
+        { label: "gameID assigned" }
+      );
+      for (const p of participants) modeOf(p).player.getValue()!.set("introDone", true);
+      await waitFor(() => participants.every((p) => modeOf(p).nbhd.getValue()?.published), {
+        label: "published",
+        timeoutMs: 30_000,
+      });
+
+      const seed = readSeed(gameRef)!;
+      const recorded = readNetwork(gameRef) ?? [];
+      const rebuilt = wattsStrogatz(N, K, BETA, { rng: makeRng(seed) });
+
+      assert.equal(
+        canonical(rebuilt),
+        canonical(recorded),
+        "the seed alone regenerates the rewired graph, not just a ring"
+      );
+      assert.equal(recorded.length, (N * K) / 2, "rewiring preserves the edge count");
+
+      // Irregular by construction — if every degree were equal, this test would
+      // be no stronger than the ring one it exists to complement.
+      const ds = new Set(adjacency(N, recorded).map((a) => a.length));
+      assert.ok(ds.size > 1, `expected an irregular graph, got degrees ${[...ds]}`);
+
+      const playerIDs: string[] = gameRef.players.map((p: any) => p.id);
+      const adj = adjacency(N, rebuilt);
+      for (const p of participants) {
+        const idx = playerIDs.indexOf(modeOf(p).player.getValue()!.id);
+        const expected = new Set((adj[idx] ?? []).map((j) => playerIDs[j]!));
+        const actual = new Set(
+          (modeOf(p).nbhd.getValue()!.neighbors as { id: string }[]).map((nb) => nb.id)
+        );
+        assert.deepEqual([...actual].sort(), [...expected].sort(), `participant ${idx}`);
+      }
+    }
   );
 });
