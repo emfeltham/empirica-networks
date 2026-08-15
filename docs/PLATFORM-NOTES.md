@@ -385,6 +385,32 @@ split is the signature of this bug.
 
 Classic does not hit it because `ClassicLoader` subscribes broadly for the built-in kinds.
 
+## 13. `EmpiricaClassic` never stops its animation-frame loop ⚠️
+
+*Measured 2026-08-15, `@empirica/core@1.12.5`, Node 20.*
+
+Instantiating the participant mode starts a self-rescheduling frame loop that has no
+teardown. Under Node there is no `requestAnimationFrame`, so core polyfills it with
+`setTimeout` and reschedules from inside the callback:
+
+```
+at timeout (@empirica/core/src/player/steps.ts:75:5)
+at scheduleFrame (steps.ts:266:5)
+at root.requestAnimationFrame (steps.ts:238:51)
+```
+
+**68 uncleared timers after a single mode test file**, and the process never exits. Nothing
+in the public API stops it; the loop is owned by the stepper that drives stage timers.
+
+Consequence for anyone testing a Classic-derived mode under Node: `--test-force-exit` is
+required, and it is upstream's fault rather than a leak in your own code. Worth knowing
+because the obvious diagnosis is the opposite one — a hanging test suite reads as "I forgot to
+close something".
+
+It is applied per tier here rather than globally (`scripts/test.mjs`): the unit tier never
+touches the mode and exits cleanly, so forcing exit there would hide a handle leak we
+introduced ourselves. Which files need it was measured one at a time, not assumed.
+
 ## 9. Misc
 
 - `Player.participantID` is a public field on the admin classic model — no cast needed.

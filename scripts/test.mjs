@@ -55,6 +55,22 @@ function run(cmd, args) {
 let ran = 0;
 const skipped = [];
 
+/**
+ * `--test-force-exit` is applied per tier, NOT everywhere.
+ *
+ * It is needed wherever a test instantiates the participant mode, because
+ * `EmpiricaClassic` starts a self-rescheduling `requestAnimationFrame` loop
+ * (`@empirica/core/src/player/steps.ts:238`) which is polyfilled to `setTimeout`
+ * under Node and never stops. Measured 2026-08-15: 68 uncleared timers after one
+ * mode test file, and the run hangs forever without the flag. Upstream's, not
+ * ours — see docs/PLATFORM-NOTES.md §13.
+ *
+ * The unit tier does not touch the mode and exits cleanly on its own, so it does
+ * NOT get the flag: leaving it on everywhere would hide a handle leak we
+ * actually introduced. Verified file by file, not assumed.
+ */
+const NEEDS_FORCE_EXIT = new Set(["mode", "e2e"]);
+
 for (const tier of tiers.filter((t) => t !== "e2e")) {
   const files = testFiles(tier);
   if (files.length === 0) {
@@ -62,7 +78,8 @@ for (const tier of tiers.filter((t) => t !== "e2e")) {
     continue;
   }
   console.log(`\n=== ${tier} (${files.length} file(s)) ===`);
-  run("npx", ["tsx", "--test", "--test-force-exit", ...files]);
+  const flags = NEEDS_FORCE_EXIT.has(tier) ? ["--test-force-exit"] : [];
+  run("npx", ["tsx", "--test", ...flags, ...files]);
   ran += files.length;
 }
 

@@ -443,6 +443,56 @@ async function main(): Promise<void> {
     }
 
     assert.equal(checked, N, "every window was checked");
+
+    // ---- 7. a real browser refresh ----------------------------------------
+    //
+    // The one churn case only a browser can test. Everything the client uses to
+    // prove who it is lives in the page's own storage, so a reload exercises
+    // session restore for real, rather than approximating it with a fresh
+    // headless connection reusing the same ns.
+    //
+    // What has to survive: the same seat on the ring — a reload that reseated
+    // someone would silently change who they interact with for the rest of the
+    // study — and a working live update afterwards, since a restored view that
+    // never changes again is the failure a snapshot check cannot see.
+    const reloaded = tabs[0]!;
+    const before = seen.get(reloaded.key)!;
+
+    await reloaded.page.reload({ waitUntil: "domcontentloaded" });
+    await waitFor(
+      () => reloaded.page.getByText(/Your colour/i).isVisible().catch(() => false),
+      `${reloaded.key} back on the game screen after a reload`
+    );
+    await waitFor(
+      async () => (await visibleNeighbourNames(reloaded)).length === 2,
+      `${reloaded.key} has its neighbourhood again after a reload`
+    );
+
+    const after = (await visibleNeighbourNames(reloaded))
+      .map((t) => t.match(/name-\w+/)?.[0] ?? t)
+      .sort();
+    assert.deepEqual(
+      after,
+      before,
+      `${reloaded.key} must come back to the SAME neighbours, not be reseated`
+    );
+
+    // Live, not frozen: a neighbour changes colour and the reloaded tab shows it.
+    const neighbourKey = before[0]!.replace("name-", "");
+    const neighbourTab = tabs.find((t) => t.key === neighbourKey)!;
+    await neighbourTab.page.locator('button[title="violet"]').click();
+
+    await waitFor(async () => {
+      const titles = await reloaded.page
+        .locator("ul li div[title]")
+        .evaluateAll((els) => els.map((e) => e.getAttribute("title")));
+      return titles.includes("violet");
+    }, `${reloaded.key} sees a neighbour's NEW colour after reloading`);
+
+    console.log(
+      `    ${reloaded.key} reloaded: same neighbours {${after.join(", ")}}, updates still live`
+    );
+
     console.log(`\n  PASS — ${N} real browsers, neighbour-limited visibility confirmed at the wire\n`);
   } catch (e) {
     await dumpTabs(tabs);
