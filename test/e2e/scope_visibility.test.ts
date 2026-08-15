@@ -63,12 +63,15 @@ test("MEASUREMENT: is the batch scope hidden from participants?", async () => {
       try {
         const batch = await createBatch(admin, batchConfig(N, 1));
         await batch.running();
-        // Longer than the default. This test opens an EXTRA wire subscription
-        // per participant on top of the mode's own, which makes it the heaviest
-        // thing in the suite; it passes 6/6 alone but timed out roughly 1 run in
-        // 3 inside the full suite, even with e2e running serially. The cause was
-        // not identified — the headroom is a mitigation, not a diagnosis, and is
-        // recorded as such in ISSUES.md.
+        // Longer than the default, because roughly 1 run in 3 this stalls
+        // in-suite while passing 6/6 alone, even with e2e running serially.
+        //
+        // The headroom was originally justified by this test being the heaviest
+        // in the suite — it opens an extra wire subscription per participant on
+        // top of the mode's own. That explanation is WRONG: `topology_visibility`
+        // later stalled on the same wait and does nothing of the kind. It is the
+        // shared assignment path, not this test's weight. Kept as an unexplained
+        // mitigation, recorded honestly in ISSUES.md O8.
         await waitFor(
           () => participants.every((p) => modeOf(p).player.getValue()?.get("gameID")),
           { label: "gameID assigned", timeoutMs: 90_000 }

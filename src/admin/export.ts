@@ -12,7 +12,7 @@
  * export, they unit test in milliseconds with no server, and an analyst can
  * reuse them on data collected months ago.
  */
-import type { EdgeEvent } from "../shared/keys.js";
+import type { EdgeEvent, ViewRecord } from "../shared/keys.js";
 
 /** One row of `edges.csv`. */
 export interface EdgeRow {
@@ -102,16 +102,101 @@ export function historyIsConsistent(history: EdgeEvent[]): boolean {
   return true;
 }
 
+/** One row of `views.csv`: one viewer's sight of one neighbour at one delivery. */
+export interface ViewRow {
+  game_id: string;
+  /** Player id of the participant this was delivered to. */
+  viewer: string;
+  seq: number;
+  t: number;
+  /** Position within the view — stable, and defined even for a projection with no id. */
+  neighbour_index: number;
+  /** The projected `id`, when there is one. Empty otherwise. */
+  neighbour_id: string;
+  /** Everything else `project()` returned, one column per field. */
+  [field: string]: string | number;
+}
+
+/**
+ * Flatten captured views into one row per viewer per neighbour per delivery.
+ *
+ * This is where the shape changes, and why capture is NDJSON: a view is a
+ * variable-length array of author-defined objects, so the columns cannot be
+ * known until the whole log is in hand. Here it is, so they can be.
+ *
+ * Long rather than wide — one row per neighbour, not one row per view with the
+ * neighbours packed into a cell — because the resulting table joins directly
+ * against `edges.csv` on `(viewer, neighbour_id, t)`. A wide table would have to
+ * be unpacked before any of the questions this exists to answer could be asked.
+ *
+ * Nested values are JSON-encoded into their cell. Flattening them into
+ * `a.b.c` columns guesses at a schema the author did not declare, and a
+ * projection deep enough to need it is better read as JSON anyway.
+ */
+export function viewRows(records: ViewRecord[]): ViewRow[] {
+  const rows: ViewRow[] = [];
+  for (const r of records) {
+    for (const [index, entry] of (r.view ?? []).entries()) {
+      const row: ViewRow = {
+        game_id: r.gameID,
+        viewer: r.viewer,
+        seq: r.seq,
+        t: r.at,
+        neighbour_index: index,
+        neighbour_id: "",
+      };
+      if (entry !== null && typeof entry === "object" && !Array.isArray(entry)) {
+        for (const [k, v] of Object.entries(entry as Record<string, unknown>)) {
+          if (k === "id" && typeof v === "string") {
+            row.neighbour_id = v;
+            continue;
+          }
+          row[k] = scalar(v);
+        }
+      } else {
+        // A projection may return a bare value (`project: (n) => n.id`). Give it
+        // a column rather than dropping it — silently exporting nothing for a
+        // legal projection is the kind of gap found during analysis.
+        row["value"] = scalar(entry);
+      }
+      rows.push(row);
+    }
+  }
+  return rows;
+}
+
+function scalar(v: unknown): string | number {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "number" || typeof v === "string") return v;
+  if (typeof v === "boolean") return v ? "true" : "false";
+  return JSON.stringify(v);
+}
+
 /**
  * Rows to CSV.
  *
  * Quotes every field rather than guessing which need it. Player ids are ULIDs
  * today and would not need quoting, but a CSV writer that is correct only for
  * the current id format is a trap for whoever changes the id format.
+ *
+ * Headers are the union of every row's keys, in first-seen order, and not just
+ * the first row's. Edge and snapshot rows are uniform so it never mattered
+ * there — but view rows carry author-defined columns, and an optional field that
+ * happens to be absent from record 1 would otherwise be dropped from the entire
+ * export without a word.
  */
 export function toCSV(rows: Array<Record<string, string | number>>): string {
   if (rows.length === 0) return "";
-  const headers = Object.keys(rows[0]!);
+  const headers: string[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    for (const k of Object.keys(r)) {
+      if (!seen.has(k)) {
+        seen.add(k);
+        headers.push(k);
+      }
+    }
+  }
   const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
   return [
     headers.map(esc).join(","),
