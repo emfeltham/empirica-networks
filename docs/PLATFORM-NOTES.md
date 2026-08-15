@@ -249,6 +249,43 @@ blank with nothing in the logs.
 late joiner gets no channel at all. That is a real gap, tracked for M2, not something this
 handler currently fixes.
 
+## 11. A `file:` link to this package loads TWO copies of `@empirica/core` ⚠️⚠️
+
+*Measured 2026-08-15, `@empirica/core@1.12.5`, esbuild 0.14.47 (the scaffold's bundler).*
+
+`examples/minimal` originally depended on this package with `"empirica-networks": "file:../../.."`.
+npm makes that a **symlink to the repo root**, and the repo root has its own
+`node_modules/@empirica/core` (our devDependency). So when the example's server was bundled:
+
+- `server/src/index.js` → `@empirica/core` resolved to **the example's** copy
+- `dist/admin/index.js` (ours, through the symlink) → resolved to **the repo root's** copy
+
+Both were inlined. Proven directly rather than inferred:
+
+```
+classicKinds.game === networkKinds.game : false
+classicKinds.game name: Game | networkKinds.game name: Game2
+```
+
+esbuild renamed the second class `Game2`. `networkKinds` therefore carried a `Game` class that
+was not the one `Classic()` checks against, and `isGame(player.currentGame)` — a
+`z.instanceof` — threw on every `introDone`. **The visible symptom was every participant stuck
+on "Waiting for other players" with a full game**, and about a hundred zod stack traces in the
+server log that named neither this package nor the real cause.
+
+Counting strings in the bundle did NOT reveal it: shared modules appeared once, so the
+duplication looked absent. Comparing class identity is the check that works.
+
+`esbuild --preserve-symlinks` did not fix it.
+
+**Fix, and why it is the right one:** the example installs a packed tarball
+(`npm run example:install`) instead of linking. That produces a real directory with no nested
+core, so `@empirica/core` resolves once — which is also exactly what a published consumer
+gets, since core is a peerDependency. The example now exercises the real artifact.
+
+**This does not affect published consumers.** It is a hazard of developing against a linked
+build, and it is why `tsup.config.ts` keeps `@empirica/core` external.
+
 ## 9. Misc
 
 - `Player.participantID` is a public field on the admin classic model — no cast needed.

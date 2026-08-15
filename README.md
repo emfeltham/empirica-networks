@@ -12,6 +12,23 @@ the public API is not stable and the package is not published.
 doesn't render it" — the bytes never arrive. Each participant has a private channel scope
 linked to them alone, and projections are written only there.
 
+**What this does NOT do: make player attributes private.** The guarantee covers the
+projection. Empirica cross-links every participant to every player node, so anything written
+with `player.set(key, value)` is broadcast to **everyone**, whatever the topology.
+
+```js
+// ✗ visible to every participant, neighbour or not
+player.set("choice", "A");
+
+// ✓ reaches only neighbours, because it goes through the projection
+project: (neighbour) => ({ choice: neighbour.get("choice") })
+```
+
+Both lines can be true at once — and that is the trap. If the raw attribute also lives on the
+player scope, projecting it changes nothing about who can read it. When the *value* must stay
+private, it must not be written to the player scope in the first place. Measured in real
+browsers by `npm run test:browser`; mechanism in `docs/PLATFORM-NOTES.md` §4b.
+
 **What does not hold: write integrity.** Empirica has no write access control. Any
 participant that knows a node id can set attributes on it, and `protected: true` does not
 prevent this — including on another participant's `player` scope, whose id every participant

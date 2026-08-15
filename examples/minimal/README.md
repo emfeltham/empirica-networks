@@ -10,12 +10,18 @@ documentation.
 ## Run it
 
 ```sh
-# from the repo root — the example depends on the built package
-npm install && npm run build
+# from the repo root: build, pack, and install the package into this example
+npm install && npm run example:install
 
 cd examples/minimal
 empirica
 ```
+
+`example:install` installs a **packed tarball** rather than linking the repo. That is not
+ceremony: a `file:` link makes npm symlink to the repo root, whose own `node_modules` has a
+second copy of `@empirica/core`, and two copies break every `instanceof` inside Empirica. The
+symptom is every participant stuck on "Waiting for other players" with a full game. Details in
+`docs/PLATFORM-NOTES.md` §11. Re-run `npm run example:install` after changing the package.
 
 Then open **four** browser windows at the printed URL, each with a different
 `?participantKey=`:
@@ -39,10 +45,37 @@ So in each window you should see 2 of the other 3 participants — and the pair 
 differs from window to window. Change a colour and it appears in exactly two other windows,
 live.
 
-To confirm it is not a display rule: open devtools in one window, filter the network tab to
-the websocket, and search the frames for the non-neighbour's colour. It is not there.
+This is automated. From the repo root:
 
-You can also check this without a browser, from the repo root:
+```sh
+npm run test:browser
+```
+
+It boots this project, drives four real Chromium windows through consent, identifier and
+intro, and checks the websocket frames each browser received:
+
+```
+    alpha sees: name-bravo, name-delta
+    bravo sees: name-alpha, name-charlie
+    charlie sees: name-bravo, name-delta
+    delta sees: name-alpha, name-charlie
+```
+
+### An important limit this demo makes visible
+
+The **projection** is neighbour-limited: no non-neighbour's projected view is ever sent to a
+browser, and the test asserts that against the raw frames.
+
+But this demo stores the colour with `player.set("color", …)`, and Empirica cross-links every
+participant to every player node — so **that raw attribute is broadcast to everyone**, whatever
+the topology. The browser test asserts this too, deliberately, so nobody discovers it by
+accident later.
+
+For a demo of network *structure* that is fine. For an experiment where the value itself must
+be private, do not put it on the player scope — see the limits section of the root README.
+`docs/PLATFORM-NOTES.md` §4b has the underlying behaviour.
+
+You can also check the projection guarantee without a browser:
 
 ```sh
 npx empirica-networks verify --n 4

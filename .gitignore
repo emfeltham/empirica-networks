@@ -3,3 +3,6 @@ dist/
 *.tsbuildinfo
 .DS_Store
 .tmp-test/
+
+# packed tarball used by examples/minimal (see `npm run example:install`)
+*.tgz

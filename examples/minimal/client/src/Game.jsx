@@ -69,21 +69,39 @@ export function Game() {
             {neighbors.map((n) => (
               <li key={n.id} className="flex items-center gap-3">
                 <Swatch color={n.color} />
-                <span>{n.name || n.id.slice(0, 8)}</span>
+                <span>{n.name || `…${n.id.slice(-6)}`}</span>
               </li>
             ))}
           </ul>
         )}
 
         {/*
-          The point of the whole package: with more than 3 players, some
-          participants are NOT listed above — and their colours never reached
-          this browser at all. Open the devtools network tab and you will not
-          find them.
+          Showing the TAIL of the id, not the head: these are ULIDs, so players
+          created in the same millisecond share a long prefix and a truncated
+          head makes distinct participants look identical.
         */}
         <p className="mt-4 text-sm text-gray-500">
-          You are node {self?.playerID?.slice(0, 8)} with degree {self?.degree}.
-          Non-neighbours&apos; choices are never sent to this browser.
+          You are node …{self?.playerID?.slice(-6)} with degree {self?.degree}.
+          The list above contains only your neighbours — no non-neighbour&apos;s
+          projected view is ever sent to this browser.
+        </p>
+
+        {/*
+          Being straight about the limit, because the obvious reading of the
+          line above is stronger than what is true.
+
+          This demo stores the colour with `player.set("color", …)`, and Empirica
+          cross-links every participant to every player node — so the raw
+          attribute IS broadcast to everyone, whatever the topology. What is
+          neighbour-limited is the PROJECTION.
+
+          For a real experiment where the value itself must stay private, do not
+          put it on the player scope. See the README.
+        */}
+        <p className="mt-2 text-xs text-amber-700">
+          Note: in this demo the colour is also stored as a plain player
+          attribute, which Empirica broadcasts to everyone. The neighbour list is
+          private; the underlying attribute is not.
         </p>
       </div>
 

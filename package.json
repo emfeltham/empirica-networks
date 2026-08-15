@@ -35,7 +35,9 @@
   "scripts": {
     "build": "tsup",
     "check": "tsc --noEmit",
-    "test": "node scripts/test.mjs"
+    "test": "node scripts/test.mjs",
+    "test:browser": "node scripts/test-browser.mjs",
+    "example:install": "npm run build && npm pack --pack-destination . && npm --prefix examples/minimal/server install && npm --prefix examples/minimal/client install"
   },
   "peerDependencies": {
     "@empirica/core": ">=1.12.0 <2",
@@ -55,8 +57,9 @@
     "@types/react": "^18.3.31",
     "@types/react-test-renderer": "^18.3.1",
     "esbuild": "^0.21.0",
-    "react": "^18.3.1",
-    "react-test-renderer": "^18.3.1",
+    "playwright": "^1.62.1",
+    "react": "^18.2.0",
+    "react-test-renderer": "^18.2.0",
     "tsup": "^8.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.4.0"
