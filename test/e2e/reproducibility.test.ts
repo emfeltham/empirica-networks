@@ -17,11 +17,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { networkKinds } from "../../src/admin/kinds.js";
 import { resetChannels } from "../../src/admin/provision.js";
-import { withNetwork } from "../../src/admin/with_network.js";
+import { readNetwork, readSeed, withNetwork } from "../../src/admin/with_network.js";
 import { makeRng } from "../../src/admin/seed.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
 import { adjacency, ring, type Edge } from "../../src/topology/index.js";
-import { GAME_KEYS } from "../../src/shared/keys.js";
 import {
   batchConfig,
   createBatch,
@@ -79,8 +78,8 @@ test("the recorded seed regenerates the network participants were given", async 
       });
 
       // --- what storage says ---
-      const seed = gameRef.get(GAME_KEYS.SEED) as number;
-      const recorded = (gameRef.get(GAME_KEYS.NETWORK) ?? []) as Edge[];
+      const seed = readSeed(gameRef)!;
+      const recorded = readNetwork(gameRef) ?? [];
       assert.equal(typeof seed, "number", "a seed is recorded");
       assert.equal(recorded.length, N, "a ring of N has N edges");
 
@@ -153,11 +152,11 @@ test("an explicit seed pins the network across separate runs", async () => {
         await waitFor(() => participants.every((p) => Boolean(modeOf(p).game.getValue())), {
           label: "game visible",
         });
-        await waitFor(() => Boolean(gameRef?.get(GAME_KEYS.NETWORK)), {
+        await waitFor(() => Boolean(gameRef && readNetwork(gameRef)), {
           label: "network recorded",
           timeoutMs: 30_000,
         });
-        edges = (gameRef.get(GAME_KEYS.NETWORK) ?? []) as Edge[];
+        edges = readNetwork(gameRef) ?? [];
       }
     );
     return edges;

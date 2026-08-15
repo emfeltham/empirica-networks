@@ -252,6 +252,91 @@ test("setting the same value again publishes nothing", async () => {
   );
 });
 
+test("a participant away for many publishes returns current, not stale", async () => {
+  // "Long absence" in the sense that matters here: not wall-clock time, but how
+  // much the world moved while they were gone. Tajriba keeps ephemeral
+  // attributes in server memory and syncs CURRENT state on resubscribe, so what
+  // is at risk is not the last value but the intermediate ones — a returning
+  // participant must not be handed a replay, or a view assembled from a
+  // half-applied sequence.
+  //
+  // Wall-clock length is deliberately not tested: it would mean sleeping for
+  // minutes to prove nothing, and no timeout in this path is time-based.
+  const listeners = (_: any) => {
+    gameInit(1, 1, 3_600_000)(_);
+    withNetwork(_, {
+      topology: ({ playerCount }) => ring(playerCount),
+      project: (neighbour: any) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+      watch: ["choice"],
+    });
+  };
+
+  await withScenario(
+    { n: N, kinds: networkKinds, listeners, modeFunc: EmpiricaNetwork },
+    async ({ server, admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+      await startGame(participants);
+      await waitFor(() => participants.every((p) => modeOf(p).nbhd.getValue()?.published), {
+        label: "first publish",
+        timeoutMs: 30_000,
+      });
+
+      const leaver = participants[0]!;
+      const neighbourIDs = Object.keys(viewOf(leaver));
+      const other = participants.find((p) =>
+        neighbourIDs.includes(modeOf(p).player.getValue()!.id)
+      )!;
+      const otherID = modeOf(other).player.getValue()!.id;
+      const ns = leaver.ns;
+
+      leaver.stop();
+      await new Promise((r) => setTimeout(r, 500));
+
+      // Thirty publishes while they are away, each one a real change.
+      for (let i = 0; i < 30; i++) {
+        modeOf(other).player.getValue()!.set("choice", `v${i}`);
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      await waitFor(
+        () =>
+          participants
+            .filter((p) => p !== leaver)
+            .some((p) => viewOf(p)[otherID] === "v29"),
+        { label: "the last of the missed publishes landed", timeoutMs: 30_000 }
+      );
+
+      const returned = await connectParticipant(server, ns, EmpiricaNetwork);
+      try {
+        await waitFor(() => Boolean(modeOf(returned).nbhd.getValue()?.published), {
+          label: "the long-absent participant received a view",
+          timeoutMs: 30_000,
+        });
+
+        assert.equal(
+          viewOf(returned)[otherID],
+          "v29",
+          "returns to the CURRENT value, not the one it left on and not a replay"
+        );
+        assert.deepEqual(
+          Object.keys(viewOf(returned)).sort(),
+          neighbourIDs.sort(),
+          "and to the same neighbours"
+        );
+
+        // Still live afterwards, not a final snapshot.
+        modeOf(other).player.getValue()!.set("choice", "AFTER-RETURN");
+        await waitFor(() => viewOf(returned)[otherID] === "AFTER-RETURN", {
+          label: "updates still flow after a long absence",
+          timeoutMs: 30_000,
+        });
+      } finally {
+        returned.stop();
+      }
+    }
+  );
+});
+
 test("a reconnecting participant gets its view back", async () => {
   // What this actually pins down: ephemeral views SURVIVE a reconnect. Tajriba
   // replays current attribute values to a returning participant, so a reloading

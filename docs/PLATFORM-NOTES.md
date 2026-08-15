@@ -154,36 +154,44 @@ General rule for this module: **before writing anything to a scope, ask who is l
 `game`, `player`, `round`, `stage` and `playerGame` are all cross-linked to every participant
 in the game by `classic.ts:304-324`.
 
-## 4c. We break our own §4b rule: the topology is participant-readable ⚠️
+## 4c. The batch scope is the one place participants cannot read ✅
 
-*Measured 2026-08-15, `@empirica/core@1.12.5`, by `test/e2e/topology_visibility.test.ts`.*
+*Measured 2026-08-15, `@empirica/core@1.12.5`, by `test/e2e/scope_visibility.test.ts` and
+`test/e2e/topology_visibility.test.ts`.*
 
-`withNetwork` records the seed and realised edge list on the **game** scope, for reproducibility
-(§7.1 of `MODULE-DESIGN.md`). By the rule directly above, that means every participant gets both.
-They do — measured, not inferred:
+`withNetwork` records the seed and realised edge list so a finished run is reproducible from
+stored data. Those started on the **game** scope, which broke the rule directly above — and
+measurement confirmed the cost: every participant received the full edge list *and* the seed.
 
 ```
-  participant-readable topology : YES
+  participant-readable topology : YES        <- before
   participant-readable seed     : YES
   value: [[0,1],[1,2],[2,3],[3,0]]
 ```
 
-**This is a disclosure, not a state leak.** The package's guarantee — a participant never
-receives a non-neighbour's projected state — is unaffected, and the same test asserts it still
-holds. What a participant additionally learns is the *shape* of the graph: edges as index
-pairs, plus the seed, which regenerates the same shape.
+State was never affected; the package's guarantee held throughout. What leaked was the
+*seating plan*. The edge list is indexed by position in `game.players`, and Classic broadcasts
+every player scope, so a determined participant had most of what they needed to reconstruct
+who was tied to whom. For a design where the network is the manipulation, that is a confound —
+and the premise of the package invites the opposite assumption.
 
-Why it still matters for a study: the edge list is indexed by position in `game.players`, and
-Classic broadcasts every player scope, so a determined participant has most of what they need
-to reconstruct who is tied to whom. For designs where the network is the manipulation, that is
-a confound a researcher would not expect — the whole premise of the package invites the
-assumption that structure is server-side.
+**The batch scope is not delivered to participants.** Measured with a sentinel on each scope
+and a game-scope control in the same run, so a clean result cannot mean "nothing was being
+delivered":
 
-Not yet fixed, because the fix is a design choice rather than a bug fix: the value is on the
-game scope *precisely so it survives into stored data* for analysis, and moving it means
-choosing another home (a scope participants are not linked to, or an admin-side export path)
-and re-testing what analysis can still read. Recorded here, asserted by a test that fails if
-the storage location changes silently, and left for that decision.
+```
+  game-scope sentinel  reached : 3/3 participants   (control, must be 3)
+  batch-scope sentinel reached : 0/3 participants
+```
+
+So the record moved there, keyed by game id (`network:<gameID>`, `networkSeed:<gameID>`) since
+one batch holds many games. It stays durable, stays available for analysis and for restart
+recovery, and is no longer sent to anyone inside the experiment. Read it with `readNetwork(game)`
+and `readSeed(game)` rather than by key — the location is a privacy decision and may move again.
+
+`GAME_KEYS` is now deliberately empty. Two separate things were kept on the game scope and both
+had to leave: the channel index (§4b) and the realised network (this note). The empty record is
+kept so the reason survives.
 
 ## 4d. A restart re-fires `game.start` — and used to reseat everyone ⚠️⚠️⚠️
 

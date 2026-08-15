@@ -14,10 +14,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { networkKinds } from "../../src/admin/kinds.js";
 import { resetChannels } from "../../src/admin/provision.js";
-import { withNetwork } from "../../src/admin/with_network.js";
+import { readNetwork, readSeed, withNetwork } from "../../src/admin/with_network.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
 import { ring } from "../../src/topology/index.js";
-import { GAME_KEYS } from "../../src/shared/keys.js";
 import {
   batchConfig,
   createBatch,
@@ -81,9 +80,9 @@ test("ring of 4: each participant receives exactly its two neighbours", async ()
         { label: "all participants received a neighbourhood", timeoutMs: 30_000 }
       );
 
-      const edges = (gameRef.get(GAME_KEYS.NETWORK) ?? []) as [number, number][];
-      const seed = gameRef.get(GAME_KEYS.SEED);
-      assert.ok(typeof seed === "number", "seed recorded on the game scope");
+      const edges = (readNetwork(gameRef) ?? []) as [number, number][];
+      const seed = readSeed(gameRef);
+      assert.ok(typeof seed === "number", "seed recorded, out of participants' reach");
       assert.equal(edges.length, N, `a ring of ${N} has ${N} edges, got ${edges.length}`);
 
       // Rebuild expected adjacency from the RECORDED edge list, so this checks
@@ -160,12 +159,15 @@ test("the recorded seed reproduces the same network", async () => {
         // Condition-based: wait until withNetwork has actually recorded both
         // values, rather than sleeping and hoping.
         await waitFor(
-          () => Boolean(gameRef) && typeof gameRef.get(GAME_KEYS.SEED) === "number" && Boolean(gameRef.get(GAME_KEYS.NETWORK)),
-          { label: "network recorded on the game scope" }
+          () =>
+            Boolean(gameRef) &&
+            typeof readSeed(gameRef) === "number" &&
+            Boolean(readNetwork(gameRef)),
+          { label: "network recorded on the batch scope" }
         );
         recorded = {
-          seed: gameRef.get(GAME_KEYS.SEED) as number,
-          edges: gameRef.get(GAME_KEYS.NETWORK),
+          seed: readSeed(gameRef)!,
+          edges: readNetwork(gameRef),
         };
       }
     );

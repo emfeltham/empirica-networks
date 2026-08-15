@@ -51,18 +51,38 @@ export const NBHD_KEYS = {
   SEQ: "_seq",
 } as const;
 
-/** Attribute keys the module writes on the game scope. */
-export const GAME_KEYS = {
-  /** Serialised edge list. */
-  NETWORK: "network",
-  /** Seed used to generate the topology, recorded for reproducibility. */
-  SEED: "networkSeed",
-  // NOTE: there is deliberately no key here for the channel index.
-  // It was briefly stored on the game scope, which every participant is linked
-  // to, handing every participant every channel id — and with no write ACL
-  // (docs/PLATFORM-NOTES.md 4a) an id is the capability needed to write into
-  // someone else's private channel. The index lives in server memory only.
+/**
+ * Attribute keys the module writes to record a realised network.
+ *
+ * These live on the **batch** scope, not the game scope, and are therefore
+ * suffixed with the game id. The batch is the only durable scope measured NOT to
+ * be delivered to participants (`test/e2e/scope_visibility.test.ts`), which is
+ * what lets the realised network be both reproducible from storage and hidden
+ * from the people inside it.
+ *
+ * On the game scope — where these started — every participant received the full
+ * edge list and the seed, because Classic links every participant to the game.
+ * State stayed neighbour-limited, but the *structure* did not, and for a design
+ * where the topology is the manipulation that is a confound rather than a
+ * nicety. See docs/PLATFORM-NOTES.md §4c.
+ */
+export const NETWORK_KEYS = {
+  /** Serialised edge list, per game. */
+  network: (gameID: string) => `network:${gameID}`,
+  /** Seed used to generate the topology, per game. Recorded for reproducibility. */
+  seed: (gameID: string) => `networkSeed:${gameID}`,
 } as const;
+
+/**
+ * Attribute keys the module writes on the game scope.
+ *
+ * Deliberately empty. Two separate things were kept here and both had to move:
+ * the channel index (every participant got every channel id, and with no write
+ * ACL that id is the capability needed to write into someone else's private
+ * channel — §4a, §4b), and the realised network (§4c). Kept as a named, empty
+ * record so the reason survives rather than being rediscovered.
+ */
+export const GAME_KEYS = {} as const;
 
 /**
  * Namespace for state a PARTICIPANT writes to their own channel.

@@ -1,6 +1,6 @@
 import { TajribaEvent } from "@empirica/core/admin";
 import { warn } from "@empirica/core/console";
-import { GAME_KEYS, NBHD_KEYS, NBHD_KIND, stateKey } from "../shared/keys.js";
+import { NBHD_KEYS, NBHD_KIND, NETWORK_KEYS, stateKey } from "../shared/keys.js";
 import { adjacency, ring, type Edge } from "../topology/index.js";
 import { checkDegrees, checkViewBytes, type EnvelopeLimits } from "./envelope.js";
 import { projectionBytes, validateProjection } from "./projection.js";
@@ -190,7 +190,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     // stable — so everyone was silently moved to a different node, and
     // provisioning, seeing an empty index, created a SECOND channel per
     // participant that the client never looked at.
-    if (game.get(GAME_KEYS.SEED) !== undefined) {
+    if (readSeed(game) !== undefined) {
       recovering.add(game.id);
       tryRecover(game);
       return;
@@ -207,9 +207,19 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     // participants have been committed to a game that will run badly.
     checkDegrees(adj, config.envelope, warn);
 
-    // Recorded so the exact realisation is reconstructible from stored data.
-    game.set(GAME_KEYS.SEED, seed);
-    game.set(GAME_KEYS.NETWORK, edges);
+    // Recorded so the exact realisation is reconstructible from stored data —
+    // on the BATCH, because the game scope is delivered to every participant and
+    // this is the seating plan of the network they are inside (PLATFORM-NOTES
+    // §4c). Suffixed by game id since one batch holds many games.
+    const batch = game.batch;
+    if (!batch) {
+      throw new Error(
+        `empirica-networks: game ${game.id} has no batch, so the realised network cannot ` +
+          `be recorded. Without it the run is not reproducible and cannot survive a restart.`
+      );
+    }
+    batch.set(NETWORK_KEYS.seed(game.id), seed);
+    batch.set(NETWORK_KEYS.network(game.id), edges);
 
     const order: string[] = players.map((p: any) => p.id);
     networks.set(game.id, { edges, adj, order, seed });
@@ -468,7 +478,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       return false;
     }
 
-    const seed = game.get(GAME_KEYS.SEED);
+    const seed = readSeed(game);
     networks.set(game.id, {
       edges,
       adj: adjacency(order.length, edges),
@@ -542,8 +552,24 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   return { publishAll: () => (games.size ? [...games.values()].every(publishAll) : false) };
 }
 
-/** Read the recorded edge list back off a game scope. */
-export function readNetwork(game: any): Edge[] {
-  const raw = game.get(GAME_KEYS.NETWORK);
-  return Array.isArray(raw) ? (raw as Edge[]) : [];
+/**
+ * Read the realised edge list for a game.
+ *
+ * Recorded on the BATCH scope, not the game scope, so participants cannot read
+ * it (PLATFORM-NOTES §4c). Use this rather than reaching for the attribute: the
+ * location is a privacy decision and may move again.
+ *
+ * Returns `undefined` when nothing was recorded, which is NOT the same as `[]`:
+ * `topology.empty()` is a legitimate control condition, so an empty edge list is
+ * a real answer. Conflating them left the recovery guard unfireable.
+ */
+export function readNetwork(game: any): Edge[] | undefined {
+  const raw = game?.batch?.get(NETWORK_KEYS.network(game.id));
+  return Array.isArray(raw) ? (raw as Edge[]) : undefined;
+}
+
+/** Read the seed the game's topology was generated from. */
+export function readSeed(game: any): number | undefined {
+  const raw = game?.batch?.get(NETWORK_KEYS.seed(game.id));
+  return typeof raw === "number" ? raw : undefined;
 }
