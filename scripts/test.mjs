@@ -66,6 +66,11 @@ if (e2e.length === 0) {
     outExtension: { ".js": ".cjs" },
     logLevel: "warning",
     sourcemap: "inline",
+    // examples/minimal imports `empirica-networks/...` the way a real consumer
+    // does. Point that at src so the example is tested against current source
+    // and needs no install step here; the example's own build resolves it
+    // through the exports map to dist, which is what a user actually gets.
+    alias: { "empirica-networks": path.join(root, "src") },
   });
 
   const bundled = fs
