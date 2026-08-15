@@ -421,6 +421,11 @@ Per-participant payload is O(d), independent of n; server egress is O(n·d).
 | Sparse (d ≤ 16), n ≤ 150 | Measured on **this** implementation — see below |
 | Sparse, n ≥ 200 | **Games do not reliably start.** 1 run in 6 at n=200; not this package's doing, see below |
 | Dense / complete | **Unsupported** — fails on client bandwidth regardless of server speed |
+| Sessions beyond ~10 minutes | **Unverified.** The mechanism is not in doubt — Tajriba holds current values, not per-write history (§14) — but no multi-hour run has been observed |
+
+The regime these were written for is **n ≤ 50**, where every figure below has margin to spare.
+The larger cells are here because a claim about n=100 should be measured rather than
+extrapolated, not because the package is aimed at that size.
 
 `npm run bench` measures end-to-end publish latency — a watched attribute changing, to a
 neighbour's client holding the new value. Participants run in child processes, and receipts are

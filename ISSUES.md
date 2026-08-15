@@ -138,13 +138,15 @@ distribution. Receipts now come from the client's own flush.
 *Done when:* the README envelope table cites repeated runs, or the figures move to a machine
 that can host the clients without contending with them.
 
-### O2. Long-session soak not run — **debt**
+### ~~O2. Long-session soak not run~~ — **closed 2026-08-15 by stating the limit**
 
 `npm run soak` defaults to ~10 minutes. Tajriba RSS plateaus over that window (PLATFORM-NOTES
 §14), but a multi-hour session at realistic write rates has not been observed.
 
-*Done when:* one multi-hour run is recorded, or the supported session length is stated as a
-limit in the README envelope table.
+Closed the second way the entry allowed: the README envelope now carries "sessions beyond ~10
+minutes: unverified" as a row. A multi-hour run would buy one observation at the cost of hours
+of machine time, and the *mechanism* question it would answer — does Tajriba accumulate per
+write? — is already answered no. Reopen if a study is planned that runs long enough to care.
 
 ### O3. `restart_full` asserts conditionally, pending U2
 
@@ -234,3 +236,6 @@ Recorded because they look like gaps and are not.
   (§14). This was the spike's top unknown.
 - **Reconnection works**, for clean disconnect, abrupt TCP drop, browser refresh and long
   absence. Only the *server-side* restart is broken, and that is U2.
+- **The target regime is n ≤ 50**, decided 2026-08-15. U7 (games do not reliably start at
+  n ≥ 200) and the unsharded tail in O1 are both well outside it. They are recorded because
+  they are true, not because they are in the way — weigh work on them accordingly.
