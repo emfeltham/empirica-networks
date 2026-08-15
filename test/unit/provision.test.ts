@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  adoptChannel,
   pendingChannelsMessage,
   provisionChannels,
   readChannels,
@@ -29,13 +30,17 @@ function makePlayer(id: string, participantID?: string) {
 function makeCtx(opts: { scopeOrder?: "input" | "reversed" } = {}) {
   const calls = { addScopes: 0, addLinks: 0 };
   const links: any[] = [];
+  /** The scope inputs as submitted, so tests can assert what gets recorded. */
+  const scopes: any[] = [];
   let counter = 0;
 
   return {
     calls,
     links,
+    scopes,
     addScopes: async (input: any[]) => {
       calls.addScopes++;
+      scopes.push(...input);
       const payloads = input.map((scope) => ({
         id: `scope-${++counter}`,
         kind: scope.kind,
@@ -178,6 +183,69 @@ test("a pending player is rescued by a later call, not stranded", async () => {
   // channel would be permanent and the second link would be unreachable.
   assert.equal(ctx.calls.addScopes, 2, "one batch per call, not per player");
   assert.equal(ctx.links.length, 2, "exactly one link per participant");
+});
+
+test("channels are self-describing, so a restart can rebuild the index from them", async () => {
+  // Each channel carries everything needed to reconstruct the server-side index
+  // that a restart destroys: which game, which player, and which seat. Without
+  // the seat, recovery has to re-derive position from `game.players` order,
+  // which is not stable — and silently reseats everyone.
+  const players = [makePlayer("p1", "part1"), makePlayer("p2", "part2")];
+  const game = makeGame(players);
+  const ctx = makeCtx();
+  const order = ["p2", "p1"]; // deliberately NOT game.players order
+
+  await provisionChannels(ctx, game, (playerID) => order.indexOf(playerID));
+
+  const seats = new Map<string, number>();
+  for (const scope of ctx.scopes) {
+    const attrs = Object.fromEntries(
+      scope.attributes.map((a: any) => [a.key, JSON.parse(a.val)])
+    );
+    assert.equal(attrs[NBHD_KEYS.GAME_ID], "game-1", "carries its game");
+    seats.set(attrs[NBHD_KEYS.PLAYER_ID], attrs[NBHD_KEYS.INDEX]);
+  }
+
+  assert.deepEqual(
+    [...seats.entries()].sort(),
+    [
+      ["p1", 1],
+      ["p2", 0],
+    ],
+    "the seat recorded is the topology index, not the player list position"
+  );
+
+  for (const scope of ctx.scopes) {
+    for (const key of [NBHD_KEYS.GAME_ID, NBHD_KEYS.INDEX]) {
+      const attr = scope.attributes.find((a: any) => a.key === key);
+      assert.equal(attr.immutable, true, `${key} cannot be rewritten by anyone`);
+    }
+  }
+});
+
+test("adoptChannel re-adopts an existing channel instead of creating a second", async () => {
+  // The restart path. Provisioning with an empty index does not merely repeat
+  // work — it creates a duplicate channel, and Tajriba cannot unlink, so the
+  // participant stays linked to both while client and server disagree about
+  // which one is live.
+  const players = [makePlayer("p1", "part1")];
+  const game = makeGame(players);
+  const ctx = makeCtx();
+  await provisionChannels(ctx, game);
+  const original = readChannels(game)["p1"]!;
+
+  // What a restart looks like: the in-memory index is gone, but the channel
+  // scope still exists and still knows who it belongs to.
+  resetChannels();
+  assert.deepEqual(readChannels(game), {}, "the index really is empty");
+
+  adoptChannel(game.id, "p1", original);
+
+  const res = await provisionChannels(ctx, game);
+  assert.deepEqual(res.created, [], "nothing new was created");
+  assert.equal(readChannels(game)["p1"], original, "the original channel is still the one");
+  assert.equal(ctx.calls.addScopes, 1, "no second addScopes");
+  assert.equal(ctx.links.length, 1, "and no second link, which could never be undone");
 });
 
 test("the pending message names the players and the consequence", () => {

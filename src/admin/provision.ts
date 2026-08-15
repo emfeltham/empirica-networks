@@ -74,6 +74,21 @@ export function resetChannels(gameID?: string): void {
   else channelStore.delete(gameID);
 }
 
+/**
+ * Re-adopt a channel that already exists, after the index was lost.
+ *
+ * The alternative — letting `provisionChannels` see an empty index and create a
+ * fresh channel — is not a slower path to the same place. It permanently
+ * doubles up: Tajriba cannot unlink, so the participant ends up linked to two
+ * channels, the client picks one and the server writes the other, and the view
+ * freezes with nothing logged anywhere. Measured in `test/e2e/restart.test.ts`.
+ */
+export function adoptChannel(gameID: string, playerID: string, scopeID: string): void {
+  const channels = channelStore.get(gameID) ?? {};
+  channels[playerID] = scopeID;
+  channelStore.set(gameID, channels);
+}
+
 /** Pull the owner/player attributes back out of an AddScopePayload. */
 function payloadAttrs(payload: any): Record<string, string> {
   const out: Record<string, string> = {};
@@ -126,7 +141,12 @@ export function pendingChannelsMessage(pending: string[], playerCount: number): 
  */
 export async function provisionChannels(
   ctx: CtxLike,
-  game: GameLike
+  game: GameLike,
+  /**
+   * Position of each player in the topology. Written onto the channel so the
+   * index-to-person mapping survives a restart; see NBHD_KEYS.INDEX.
+   */
+  indexOf?: (playerID: string) => number
 ): Promise<ProvisionResult> {
   const channels = readChannels(game);
   const created: string[] = [];
@@ -162,6 +182,19 @@ export async function provisionChannels(
         {
           key: NBHD_KEYS.PLAYER_ID,
           val: JSON.stringify(player.id),
+          immutable: true,
+        },
+        {
+          key: NBHD_KEYS.GAME_ID,
+          val: JSON.stringify(game.id),
+          immutable: true,
+        },
+        // All three of these exist to make the channel self-describing, so a
+        // process that has lost its memory can rebuild the index by reading the
+        // channels rather than by re-deriving it and getting a different answer.
+        {
+          key: NBHD_KEYS.INDEX,
+          val: JSON.stringify(indexOf ? indexOf(player.id) : -1),
           immutable: true,
         },
       ],

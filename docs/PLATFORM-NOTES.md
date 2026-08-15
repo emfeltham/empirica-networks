@@ -147,10 +147,8 @@ That is not a cosmetic leak. Combined with §4a (no write ACL), a channel id is 
 capability needed to write into somebody else's private channel. The one thing protecting
 other participants' channels is that their ids are not known.
 
-The index therefore lives in server memory only (`src/admin/provision.ts`). Known cost: a
-server restart mid-game loses it. It is reconstructible — the channels carry immutable
-owner/playerID attributes — but that recovery path is not implemented, and is recorded as a
-gap rather than assumed to work.
+The index therefore lives in server memory only (`src/admin/provision.ts`). Its cost — a
+restart loses it — is now paid for by the recovery path in §4d rather than left as a gap.
 
 General rule for this module: **before writing anything to a scope, ask who is linked to it.**
 `game`, `player`, `round`, `stage` and `playerGame` are all cross-linked to every participant
@@ -186,6 +184,47 @@ game scope *precisely so it survives into stored data* for analysis, and moving 
 choosing another home (a scope participants are not linked to, or an admin-side export path)
 and re-testing what analysis can still read. Recorded here, asserted by a test that fails if
 the storage location changes silently, and left for that decision.
+
+## 4d. A restart re-fires `game.start` — and used to reseat everyone ⚠️⚠️⚠️
+
+*Measured 2026-08-15, `@empirica/core@1.12.5`, by `test/e2e/restart.test.ts`.*
+
+Attribute listeners replay attributes the admin already holds (§12), and `start` is one of
+them — so `collector.on("game", "start", …)` **fires again for an already-running game** every
+time the callbacks process starts. That is useful (it is how recovery gets a chance to run) and
+it was, before this was found, destructive in two compounding ways.
+
+**1. Everyone was silently reseated.** The seed is stable, so `topology()` returned the same
+edge list. But the edge list is *index pairs*, and the index-to-person mapping came from
+`game.players` order — which is not stable across processes. Same ring, different people at
+each node. Measured: an actor's neighbour set changed across a restart with nothing logged.
+For a network experiment this corrupts the independent variable for the rest of the run.
+
+**2. Every participant got a second channel.** Provisioning saw an empty index and created
+one, and Tajriba cannot unlink, so both links are permanent. The client keeps the channel it
+first selected while the server writes the new one, so the view **freezes forever**. Measured
+as a 30s timeout waiting for a post-restart change that never arrived.
+
+Both failures are silent, and they present as "the experiment got quiet".
+
+The fix makes each channel self-describing — `gameID`, `playerID` and `topologyIndex`, all
+immutable at creation — so a fresh process rebuilds the index by *reading* the channels rather
+than re-deriving it and getting a different answer. `game.start` discriminates on
+`game.get("networkSeed") !== undefined`: already set means a previous process networked this
+game, so recover instead of provisioning.
+
+The seat lives on the channel rather than the game scope deliberately: a participant learns
+only their own index, which tells them nothing they could not already infer, whereas the game
+scope would hand everyone the entire seating plan (§4b, §4c).
+
+**Recovery refuses rather than guesses.** If a seat is missing, `tryRecover` declines to
+publish instead of closing the gap — a guessed assignment yields a plausible network in which
+the wrong people are neighbours, and the run looks normal for the rest of its life.
+
+Caveat on what is verified: the test restarts the **callbacks** against a still-running
+Tajriba, which isolates the in-memory loss. A full `empirica` restart also drops Tajriba's
+memory, and views are written `ephemeral` — recovery republishes, so the outcome should be the
+same, but that has not been measured.
 
 ## 5. `EventContext` has no `setAttributes` ⚠️
 
