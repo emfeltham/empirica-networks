@@ -210,26 +210,96 @@ refused too, each naming the offending field: `the projection at a.b[0] is ...`.
 ```js
 import { topology } from "empirica-networks/admin";
 
-topology.ring(n, { rng })            // degree 2
-topology.ringLattice(n, m, { rng })  // degree 2m
-topology.complete(n)                 // degree n-1 — exceeds the envelope, see below
-topology.empty()                     // no edges; a control condition
+// regular
+topology.ring(n, { rng })                     // degree 2
+topology.ringLattice(n, m, { rng })           // degree 2m
+topology.grid(w, h, { rng })                  // degree 2–4; n = w*h
+topology.grid(w, h, { periodic: true })       // a torus: degree 4 everywhere
+topology.ladder(n, { rng })                   // 2n nodes, degree 2–3
+topology.complete(n)                          // degree n-1 — exceeds the envelope
 
-topology.adjacency(n, edges)         // neighbour lists
+// centralised
+topology.star(n, { rng })                     // hub degree n-1, spokes 1
+topology.wheel(n, { rng })                    // hub degree n-1, rim 3
+
+// random
+topology.wattsStrogatz(n, k, beta, { rng })   // small world: lattice, rewired
+topology.barabasiAlbert(n, m, { rng })        // scale-free, hubs emerge
+topology.erdosRenyi(n, p, { rng })            // G(n, p)
+topology.geometricRandom(n, radius, { rng })  // spatial, naturally clustered
+
+// controls and arbitrary graphs
+topology.pairs(n, { rng })                    // disjoint dyads; degree 1
+topology.empty()                              // no edges
+topology.fromEdgeList(n, edges)               // normalise your own
+
+// measures
+topology.adjacency(n, edges)                  // neighbour lists
 topology.degrees(n, edges)
 topology.meanDegree(n, edges)
 topology.maxDegree(n, edges)
+topology.components(n, edges)                 // partition into components
+topology.isConnected(n, edges)
 ```
 
-Twelve more (`wattsStrogatz`, `barabasiAlbert`, `erdosRenyi`, `star`, `grid`, …) are deferred
-to M2. `topology` takes a plain edge list, so you can supply your own meanwhile:
+Or supply your own — `topology` returns a plain edge list:
 
 ```js
 withNetwork(Empirica, { topology: ({ playerCount }) => myEdges(playerCount) });
 ```
 
+**Three of Breadboard's sixteen are deliberately absent.** `smallWorld` is the same
+construction as `wattsStrogatz`; `lattice` is `grid(w, h, { periodic: true })`; and
+`smallWorldColoring` could not be reconstructed from its name with enough confidence to be
+worth guessing at a generator that decides who is adjacent to whom.
+
+**Some of these can hand you a disconnected graph, and none of them quietly fixes it.**
+`erdosRenyi` and `geometricRandom` below their percolation thresholds, and `wattsStrogatz`
+through rewiring, all produce isolated nodes at some parameters. Resampling until connected
+would silently change the distribution you are sampling from, so `isConnected(n, edges)` is
+offered instead and the choice stays yours.
+
 Degenerate parameters are refused rather than quietly producing something that isn't what it
-claims — `ring(2)` throws instead of returning a two-node "ring" of degree 1.
+claims — `ring(2)` throws instead of returning a two-node "ring" of degree 1, and `pairs(7)`
+throws rather than stranding one participant.
+
+## Rewiring during play
+
+Ties can be added and dropped while a game runs — the capability that motivated this package.
+
+```js
+import { network } from "empirica-networks/admin";
+
+Empirica.onStageStart(({ stage }) => {
+  const net = network(stage.currentGame);
+
+  net.neighbors(playerID);        // -> player ids
+  net.degree(playerID);
+  net.hasEdge(a, b);
+  net.edges();                    // -> [playerID, playerID][]
+
+  net.addEdge(a, b);              // returns false if the tie already existed
+  net.removeEdge(a, b);
+  net.rewire(newEdges);           // replace the whole graph
+
+  net.history();                  // every mutation so far
+});
+```
+
+Everything takes and returns **player ids**, never topology indices. Indices are an internal
+representation, and asking experiment code to translate is how off-by-one errors get written.
+
+**Mutate only from inside a listener.** The runloop flushes the writes made while it is
+processing a callback; a mutation driven from a timer, an HTTP handler or a test updates the
+server's own state correctly and then reaches nobody, with no error. Reads are safe anywhere.
+
+No unlinking is involved, which matters because Tajriba does not support it. The link grants a
+persistent private *channel*; dropping a tie simply means that neighbour is absent from the
+next view written there.
+
+Both the current edge list and an append-only mutation log are recorded on the batch scope.
+Two records rather than one, because a snapshot cannot answer "how did it get here" — and for
+a rewiring study the sequence is the independent variable.
 
 ### Reproducible by default
 
@@ -245,6 +315,51 @@ and the neighbourhoods that reached clients all agree.
 
 Pass `seed` explicitly to pin a condition across sessions; otherwise it is derived from the
 game id.
+
+**Once you rewire, the seed no longer describes the realised network** — it regenerates the
+graph as it stood at game start. The recorded edge list plus `network(game).history()` are the
+ground truth from then on, which is why both are stored.
+
+### Analysis and rendering, via graphology
+
+Topologies are plain edge lists, which is what gets recorded and exported — but for measuring or
+drawing a network you probably want [graphology](https://graphology.github.io) and its ecosystem
+(`graphology-metrics`, `-components`, `-shortest-path`, `-communities-louvain`, GEXF export for
+Gephi, and sigma.js). There is an adapter:
+
+```js
+import { UndirectedGraph } from "graphology";
+import { density } from "graphology-metrics/graph/index.js";
+import { toGraphology, fromGraphology } from "empirica-networks/topology/graphology";
+
+const g = toGraphology(UndirectedGraph, n, edges, { order });  // order = playerIDs by position
+density(g);
+g.neighbors("player-3");
+
+fromGraphology(g);  // -> { n, edges, order }, back to this package's representation
+```
+
+**graphology is not a dependency of this package** — not even an optional one. The constructor
+is injected (graphology's own convention for its generators), so nothing here imports it at
+runtime and the subpath loads fine without it installed. Bring your own copy, and your
+`instanceof` checks and graphology-\* helpers will all agree with the graph you get back.
+
+Nodes are keyed by `order[i]` when you pass one, and every node carries a `topologyIndex`
+attribute so structural position survives the round trip — this package keeps position and
+identity separate on purpose, and labelling by playerID alone would lose that.
+
+Two things worth knowing before you trust a number:
+
+- **Pass `UndirectedGraph`, not `Graph`.** graphology's default is a *mixed* graph, whose ratio
+  metrics count directed slots this module never fills. `toGraphology(Graph, 12, complete(12))`
+  reports a density of `0.333`; `UndirectedGraph` reports `1.000`. Same 66 edges — nothing
+  errors, the number is just wrong.
+- `graphology-metrics` ships no `exports` map, so under plain Node ESM you need the explicit
+  `graphology-metrics/graph/index.js`, not the bare directory. Bundlers resolve either.
+
+`toGraphology` builds from `adjacency()`, so the graph you measure or render is by construction
+the one participants are actually in. `DirectedGraph` is refused: a one-way tie is not something
+the projection can deliver.
 
 ## Supported envelope
 

@@ -161,7 +161,7 @@ Not defects — recorded so the boundary of M1 stays legible. See `MODULE-DESIGN
 | Item | Where it stands |
 |---|---|
 | ~~Remaining topology generators~~ | **Done 2026-08-15.** Ships `star`, `wheel`, `grid` (with `periodic`), `ladder`, `pairs`, `wattsStrogatz`, `barabasiAlbert`, `erdosRenyi`, `geometricRandom`, `fromEdgeList`, plus `components`/`isConnected`. Three of Breadboard's sixteen omitted on purpose — two were duplicates under other names, one could not be reconstructed from its name. |
-| Rewiring — `network()` handle, `addEdge`/`removeEdge`/`rewire` | Designed in §4, **not built**. The runloop batching it depends on is already load-bearing for `watch`, so the assumption is tested even though the API is not. |
+| ~~Rewiring — `network()` handle~~ | **Done 2026-08-15.** `addEdge`/`removeEdge`/`rewire` plus reads and an append-only history log, all keyed by player id. Covered by `test/e2e/rewiring.test.ts`. |
 | Neighbour-scoped chat | §7.4, proposal only. |
 | Edge-history export, `views.csv` | §9, proposal only. Open decision 5. |
 | Live network monitor | M4. |
