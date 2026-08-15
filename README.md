@@ -38,12 +38,14 @@ project: (neighbour, viewer, ctx) => ({
 appears nowhere in the bytes a tab received, while a player attribute does. Mechanism in
 `docs/PLATFORM-NOTES.md` §4b.
 
-**What is not private: the network itself.** The seed and realised edge list are recorded on
-the game scope so a finished run is reproducible from stored data — and every participant is
-linked to the game, so both are delivered to every browser. State stays neighbour-limited;
-*structure* does not. If your design treats the topology as concealed from participants, this
-needs changing before you run — measured in `test/e2e/topology_visibility.test.ts` and
-explained in `docs/PLATFORM-NOTES.md` §4c.
+**The network itself is private too.** The seed and realised edge list are recorded on the
+*batch* scope — the one durable scope measured not to be delivered to participants — so a
+finished run stays reproducible from stored data without handing the seating plan to the people
+inside it. Read them with `readNetwork(game)` / `readSeed(game)`.
+
+They were briefly on the game scope, where every participant received both; that is fixed and
+locked by `test/e2e/topology_visibility.test.ts`, which checks the participant's own scope *and*
+the raw wire. `docs/PLATFORM-NOTES.md` §4c has the measurement.
 
 **What does not hold: write integrity.** Empirica has no write access control. Any
 participant that knows a node id can set attributes on it, and `protected: true` does not
@@ -250,9 +252,31 @@ Per-participant payload is O(d), independent of n; server egress is O(n·d).
 
 | Regime | Status |
 |---|---|
-| Sparse (d ≤ 16), n ≤ 100 | Verified: ~1× the theoretical floor |
+| Sparse (d ≤ 16), n ≤ 100 | Measured on **this** implementation — see below |
 | Sparse, n up to 500 | Bandwidth fine analytically; **latency unverified** |
 | Dense / complete | **Unsupported** — fails on client bandwidth regardless of server speed |
+
+`npm run bench` measures end-to-end publish latency — a watched attribute changing, to the
+neighbour's client holding the new value:
+
+```
+  n= 25  d=8  p50   52.4ms  p95   53.3ms  max   53.4ms   (95 samples)
+  n= 50  d=8  p50   52.4ms  p95   53.2ms  max   54.0ms   (95 samples)
+  n=100  d=8  p50   77.5ms  p95   78.9ms  max   79.2ms   (95 samples)
+```
+
+The distribution is very tight, which is the interesting part: latency here is quantised by a
+scheduling interval rather than by anything proportional to the work, so the cost this package
+adds on top of the transport does not show up at these sizes.
+
+**Two caveats, and they matter.** Every participant in the bench runs in one Node process
+sharing one event loop, which real participants in separate browsers do not; and the numbers
+above are one run, where `SPIKE-REPORT.md` §5–6 asks for three repetitions with fresh servers
+before any number is published. Read p50 as indicative rather than as a benchmark.
+
+The earlier "Verified: ~1× the theoretical floor" was inherited from the spike — a different
+codebase, measured before projection, validation, the recording proxy and the private state
+path existed. It is replaced above rather than carried forward.
 
 This is enforced, not just documented. A topology with degree > 16 is refused at game
 start — *before* channels are provisioned, since Tajriba cannot unlink and a late failure

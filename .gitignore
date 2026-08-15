@@ -6,3 +6,4 @@ dist/
 
 # packed tarball used by examples/minimal (see `npm run example:install`)
 *.tgz
+.tmp-bench/

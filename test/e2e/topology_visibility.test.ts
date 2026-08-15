@@ -1,16 +1,20 @@
 /**
- * Who can read the realised network?
+ * The realised network must not reach the people inside it.
  *
- * `withNetwork` records the seed and the edge list on the GAME scope so a
- * finished run is reproducible from stored data. But this module's own rule
- * (docs/PLATFORM-NOTES.md §4b) is: before writing anything to a scope, ask who
- * is linked to it — and every participant is linked to the game.
+ * `withNetwork` records the seed and edge list so a finished run is
+ * reproducible from stored data. That record started on the GAME scope, which
+ * broke this module's own rule (§4b: before writing anything to a scope, ask who
+ * is linked to it) — every participant is linked to the game, and measurement
+ * confirmed every participant received the full edge list AND the seed.
  *
- * So this measures what participants actually receive. The answer decides
- * whether the package's claim needs qualifying: "sees only their neighbours'
- * STATE" is a different promise from "cannot work out the network".
+ * State was never the issue. The seating plan was: for a design where the
+ * topology is the manipulation, handing it to the browser is a confound.
+ * It now lives on the batch scope, the only durable scope measured not to be
+ * delivered to participants (`scope_visibility.test.ts`).
  *
- * Deliberately written to record the truth either way rather than to pass.
+ * This test is the lock on that. It checks the participant's own scope AND the
+ * raw wire, so moving the data back — or renaming the key and forgetting why —
+ * fails here rather than quietly.
  */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -19,7 +23,6 @@ import { resetChannels } from "../../src/admin/provision.js";
 import { withNetwork } from "../../src/admin/with_network.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
 import { ring } from "../../src/topology/index.js";
-import { GAME_KEYS } from "../../src/shared/keys.js";
 import {
   batchConfig,
   createBatch,
@@ -34,7 +37,7 @@ test.beforeEach(() => resetChannels());
 
 const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
 
-test("MEASUREMENT: can a participant read the topology off the game scope?", async () => {
+test("a participant cannot read the realised topology or its seed", async () => {
   const listeners = (_: any) => {
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
@@ -46,6 +49,13 @@ test("MEASUREMENT: can a participant read the topology off the game scope?", asy
   await withScenario(
     { n: N, kinds: networkKinds, listeners, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
+      // Capture the wire below the mode: a scope-level check alone would miss
+      // the data arriving under a name the client never surfaces.
+      const frames: string[] = [];
+      const sub = participants[0]!.wireStream().subscribe((c: unknown) => {
+        frames.push(JSON.stringify(c));
+      });
+
       const batch = await createBatch(admin, batchConfig(N, 1));
       await batch.running();
 
@@ -64,27 +74,39 @@ test("MEASUREMENT: can a participant read the topology off the game scope?", asy
         timeoutMs: 30_000,
       });
 
-      // What one ordinary participant can read from their own client state.
+      // Scan the participant's WHOLE client-side game scope, not just the keys
+      // we currently use. Asserting `get(ourKey) === undefined` would pass just
+      // as well if the key had merely been renamed, so this looks for the edge
+      // list's actual shape anywhere in what the participant received.
       const client = modeOf(participants[0]!).game.getValue()!;
-      const network = client.get(GAME_KEYS.NETWORK);
-      const seed = client.get(GAME_KEYS.SEED);
+      const edgesJSON = JSON.stringify(ring(N));
+      const visible: string[] = [];
+      for (const key of ["network", "networkSeed", "nbhd", "topology"]) {
+        const v = client.get(key);
+        if (v !== undefined) visible.push(`${key}=${JSON.stringify(v)}`);
+      }
 
-      const readable = network !== undefined;
+      // Match the serialised edge list with and without its outer brackets, so
+      // a copy nested inside a larger payload is still caught.
+      const wire = frames.join("");
+      const topologyOnWire =
+        wire.includes(edgesJSON) || wire.includes(edgesJSON.slice(1, -1));
+
       console.log(
-        `\n  participant-readable topology : ${readable ? "YES" : "no"}` +
-          `\n  participant-readable seed     : ${seed !== undefined ? "YES" : "no"}` +
-          `\n  value: ${JSON.stringify(network)}\n`
+        `\n  network keys on the participant's game scope : ${visible.length ? visible.join(", ") : "none"}` +
+          `\n  edge list anywhere on the wire               : ${topologyOnWire ? "YES" : "no"}\n`
       );
 
-      // The assertion records the measured answer so a future change to WHERE
-      // the network is stored fails here loudly and has to be thought about,
-      // rather than silently changing what participants can see.
+      // Was YES for both until 2026-08-15, when the record moved to the batch
+      // scope — the only durable scope measured NOT to be delivered to
+      // participants (`scope_visibility.test.ts`). State was never the issue;
+      // the seating plan of the network was.
+      assert.deepEqual(visible, [], "no network data on the participant's game scope");
       assert.equal(
-        readable,
-        true,
-        "measured 2026-08-15: the edge list IS delivered to participants"
+        topologyOnWire,
+        false,
+        "the realised edge list must not reach a participant by any route"
       );
-      assert.equal(typeof seed, "number", "and so is the seed");
 
       // The point that matters: structure being visible must NOT mean state is.
       // This is the guarantee the package actually makes, and it still holds.
@@ -96,6 +118,8 @@ test("MEASUREMENT: can a participant read the topology off the game scope?", asy
       );
       assert.equal(myNeighbours.size, 2, "still exactly 2 of the other 3");
       assert.ok(!myNeighbours.has(myID), "and not themselves");
+
+      sub.unsubscribe?.();
     }
   );
 });
