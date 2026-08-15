@@ -148,6 +148,25 @@ Both are minutes long. CI currently runs unit/mode across Node 20/22/24, e2e onc
 *Done when:* a decision is recorded — probably a weekly job that fails on regression against
 stored baselines, not a per-PR one.
 
+### O8. `scope_visibility.test.ts` is flaky in-suite, cause unidentified
+
+Passes **6/6 alone**, fails roughly **1 run in 3** inside the full suite — and still does with
+e2e running serially and a 90s timeout. It hangs on "gameID assigned": the server is up and the
+batch is running, but players are never assigned to a game.
+
+That is the same assignment path as **U2**, where Classic only assigns a player if the
+participant is already online when the player scope replays. **Leading hypothesis, not
+established** — the timing here differs from U2's restart scenario, and no reproduction pins it
+down.
+
+Mitigations applied: e2e runs serially (`scripts/test.mjs`), and this test's waits have 90s of
+headroom. Neither is a diagnosis. The test is a *measurement* recording a documented fact
+(the batch scope is not delivered to participants), not a regression guard on our code, so a
+rerun is currently the pragmatic response.
+
+*Done when:* either the hang is reproduced and attributed, or the harness re-triggers
+assignment when it detects the stall.
+
 ### O7. `admin.taj.attributes()` is untested
 
 Noted during M1 and never exercised. Low priority; listed so it is not mistaken for covered.
@@ -162,8 +181,8 @@ Not defects — recorded so the boundary of M1 stays legible. See `MODULE-DESIGN
 |---|---|
 | ~~Remaining topology generators~~ | **Done 2026-08-15.** Ships `star`, `wheel`, `grid` (with `periodic`), `ladder`, `pairs`, `wattsStrogatz`, `barabasiAlbert`, `erdosRenyi`, `geometricRandom`, `fromEdgeList`, plus `components`/`isConnected`. Three of Breadboard's sixteen omitted on purpose — two were duplicates under other names, one could not be reconstructed from its name. |
 | ~~Rewiring — `network()` handle~~ | **Done 2026-08-15.** `addEdge`/`removeEdge`/`rewire` plus reads and an append-only history log, all keyed by player id. Covered by `test/e2e/rewiring.test.ts`. |
-| Neighbour-scoped chat | §7.4, proposal only. |
-| Edge-history export, `views.csv` | §9, proposal only. Open decision 5. |
+| Neighbour-scoped chat | §7.4, **still proposal only.** Carries an open design question (does chat history survive a rewire?) and real envelope pressure, since a growing message list is published in every view. |
+| ~~Edge-history export~~ | **Done 2026-08-15.** `edgeRows`/`snapshotRows`/`toCSV` in the Breadboard `Connected`/`Disconnected` shape, plus `historyIsConsistent`. Pure functions over an event log, so they run offline on stored data. `views.csv` remains open (decision 5). |
 | Live network monitor | M4. |
 | Template repo | Deferred; `examples/minimal` ships in-package instead. |
 | Package name / `@yale-hnl` scope | Open decision 3, deliberately held: scoping later is a one-field change. |

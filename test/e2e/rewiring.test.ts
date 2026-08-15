@@ -22,6 +22,12 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  edgeRows,
+  historyIsConsistent,
+  snapshotRows,
+  toCSV,
+} from "../../src/admin/export.js";
 import { networkKinds } from "../../src/admin/kinds.js";
 import { resetChannels } from "../../src/admin/provision.js";
 import { network, withNetwork, type GameNetwork } from "../../src/admin/with_network.js";
@@ -192,11 +198,14 @@ test("the history log records every mutation, and the snapshot stays current", a
     async ({ admin, participants }) => {
       await running(admin, participants);
       const net = network(gameRef);
-      assert.deepEqual(net.history(), [], "a static network logs nothing");
+      // Not empty: the initial graph is itself an event, so the log alone
+      // describes the whole run rather than starting mid-story.
+      assert.equal(net.history().length, 1, "the start event");
+      assert.equal(net.history()[0]!.op, "start");
 
       const [a, b] = net.edges()[0]!;
       await command(admin, gameRef.id, { op: "remove", a, b });
-      await waitFor(() => net.history().length === 1, { label: "the drop was logged" });
+      await waitFor(() => net.history().length === 2, { label: "the drop was logged" });
 
       // Must be someone `a` is NOT already tied to. On a ring a-b-c-d-a,
       // dropping (a,b) leaves a still adjacent to d — so "any id that is not a
@@ -209,15 +218,15 @@ test("the history log records every mutation, and the snapshot stays current", a
         .find((id) => id !== a && id !== b && !aNeighbours.has(id))!;
       assert.ok(stranger, "a ring of 4 minus one tie leaves a non-neighbour to add");
       await command(admin, gameRef.id, { op: "add", a, b: stranger }, 1);
-      await waitFor(() => net.history().length === 2, { label: "the add was logged" });
+      await waitFor(() => net.history().length === 3, { label: "the add was logged" });
 
       const log = net.history();
-      assert.equal(log[0]!.op, "remove");
-      assert.deepEqual([log[0]!.a, log[0]!.b].sort(), [a, b].sort());
-      assert.equal(log[0]!.size, N - 1, "edge count after the drop");
-      assert.equal(log[1]!.op, "add");
-      assert.equal(log[1]!.size, N, "and after the add");
-      assert.ok(log[1]!.at >= log[0]!.at, "ordered in time");
+      assert.equal(log[1]!.op, "remove");
+      assert.deepEqual([log[1]!.a, log[1]!.b].sort(), [a, b].sort());
+      assert.equal(log[1]!.size, N - 1, "edge count after the drop");
+      assert.equal(log[2]!.op, "add");
+      assert.equal(log[2]!.size, N, "and after the add");
+      assert.ok(log[2]!.at >= log[1]!.at, "ordered in time");
 
       // The snapshot must track the mutations, or a restart would recover the
       // graph as it stood at game start.
@@ -263,4 +272,58 @@ test("rewire replaces the whole graph in one step", async () => {
 
 test("network() on a game that never started throws rather than doing nothing", () => {
   assert.throws(() => network({ id: "no-such-game" }), /no network for game/);
+});
+
+test("the exported history describes what actually happened in a real run", async () => {
+  // The unit tests prove the export functions are faithful to a log. This
+  // proves the log is faithful to the RUN — that the events a live server wrote
+  // replay to the graph participants were actually given. Those are different
+  // claims and only this one needs a server.
+  let gameRef: any;
+  await withScenario(
+    { n: N, kinds: networkKinds, listeners: makeListeners((g) => (gameRef = g)), modeFunc: EmpiricaNetwork },
+    async ({ admin, participants }) => {
+      await running(admin, participants);
+      const net = network(gameRef);
+
+      const [a, b] = net.edges()[0]!;
+      await command(admin, gameRef.id, { op: "remove", a, b });
+      await waitFor(() => net.history().length === 2, { label: "the drop was logged" });
+
+      const aNeighbours = new Set(net.neighbors(a));
+      const stranger = participants
+        .map((p) => modeOf(p).player.getValue()!.id)
+        .find((id) => id !== a && id !== b && !aNeighbours.has(id))!;
+      await command(admin, gameRef.id, { op: "add", a, b: stranger }, 1);
+      await waitFor(() => net.history().length === 3, { label: "the add was logged" });
+
+      const history = net.history();
+      assert.equal(history[0]!.op, "start", "the initial graph is in the log");
+      assert.equal(history[0]!.added.length, N, "a ring of N has N ties");
+      assert.ok(historyIsConsistent(history), "the events add up to their own sizes");
+
+      // Replaying the log must reproduce the live graph exactly. If it does
+      // not, the exported data describes a network nobody was in.
+      const snaps = snapshotRows(gameRef.id, history);
+      const replayed = snaps.at(-1)!.edges.split(" ").sort();
+      const live = net
+        .edges()
+        .map(([x, y]) => (x < y ? `${x}|${y}` : `${y}|${x}`))
+        .sort();
+      assert.deepEqual(replayed, live, "the replayed graph IS the live graph");
+
+      // And the rows an analyst reads.
+      const rows = edgeRows(gameRef.id, history);
+      assert.equal(rows.filter((r) => r.event === "connected").length, N + 1);
+      assert.equal(rows.filter((r) => r.event === "disconnected").length, 1);
+      assert.ok(
+        rows.every((r) => r.game_id === gameRef.id),
+        "every row carries the game it came from"
+      );
+
+      const csv = toCSV(rows as unknown as Array<Record<string, string | number>>);
+      assert.match(csv.split("\n")[0]!, /game_id.*t.*event.*player_a.*player_b/);
+      assert.equal(csv.split("\n").length, rows.length + 1, "one header plus one row each");
+    }
+  );
 });

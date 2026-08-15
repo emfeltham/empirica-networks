@@ -86,12 +86,25 @@ export const NETWORK_KEYS = {
   history: (gameID: string) => `networkHistory:${gameID}`,
 } as const;
 
-/** One mutation of the network, as recorded in the history log. */
+/**
+ * One mutation of the network, as recorded in the history log.
+ *
+ * `added`/`removed` carry the actual tie changes, including for `start` and
+ * `rewire` where there is no single pair. Without them the log records that
+ * something happened without recording what, and export has to guess — so every
+ * event is self-contained and `edges.csv` is a direct read rather than a
+ * reconstruction.
+ */
 export interface EdgeEvent {
-  op: "add" | "remove" | "rewire";
-  /** Player ids. Absent for a wholesale `rewire`. */
+  /** `start` is the initial graph, so the log alone describes the whole run. */
+  op: "start" | "add" | "remove" | "rewire";
+  /** Player ids, for the single-tie ops. */
   a?: string;
   b?: string;
+  /** Ties created by this event. */
+  added: Array<[string, string]>;
+  /** Ties destroyed by this event. */
+  removed: Array<[string, string]>;
   /** Edge count after the mutation, so a snapshot can be sanity-checked. */
   size: number;
   /** Wall clock, ms. */

@@ -7,8 +7,14 @@ export { Nbhd, networkKinds, assertKindsRegistered, KindsNotRegisteredError, REG
 export type { NetworkKinds } from "./kinds.js";
 export { provisionChannels, readChannels, resetChannels } from "./provision.js";
 export type { ChannelMap, ProvisionResult } from "./provision.js";
-export { withNetwork, readNetwork } from "./with_network.js";
-export type { NetworkConfig, NetworkHandle, ProjectContext } from "./with_network.js";
+export { withNetwork, readNetwork, readSeed, network } from "./with_network.js";
+export type {
+  GameNetwork,
+  NetworkConfig,
+  NetworkHandle,
+  NetworkStats,
+  ProjectContext,
+} from "./with_network.js";
 export { validateProjection, projectionBytes, ProjectionError } from "./projection.js";
 export {
   checkDegrees,
@@ -18,6 +24,13 @@ export {
   EnvelopeError,
 } from "./envelope.js";
 export type { EnvelopeLimits, ResolvedEnvelope } from "./envelope.js";
+export {
+  edgeRows,
+  snapshotRows,
+  historyIsConsistent,
+  toCSV,
+} from "./export.js";
+export type { EdgeRow, SnapshotRow } from "./export.js";
 export { hashSeed, makeRng, randInt, shuffle } from "./seed.js";
 export * as topology from "../topology/index.js";
 export type { Rng } from "./seed.js";

@@ -123,15 +123,21 @@ if (e2e.length === 0) {
    * saturates: tests start timing out waiting for Classic to assign a game,
    * with a different file failing on each run.
    *
-   * That is worse than slow. A suite that fails ~1 in 3 runs on a rotating
-   * victim cannot be used to catch a regression, and twice already a "failure"
-   * here turned out to be load rather than a defect. Two is comfortably below
-   * saturation and costs little wall clock, because these tests are almost
-   * entirely waiting on IO.
+   * That is worse than slow. A suite that fails on a rotating victim cannot be
+   * used to catch a regression, and three times in one session a "failure" here
+   * turned out to be load rather than a defect — each costing a real
+   * investigation.
+   *
+   * Four helped and two helped more, but neither was clean: the last holdouts
+   * were the sentinel tests, which open an EXTRA wire subscription per
+   * participant on top of the mode's own and are therefore the heaviest things
+   * in the suite. They pass 5/5 alone. Serial is the honest setting, and it
+   * costs about a minute — cheap against one wasted afternoon chasing a
+   * phantom regression.
    */
   run(process.execPath, [
     "--test-force-exit",
-    "--test-concurrency=2",
+    "--test-concurrency=1",
     "--test",
     ...bundled,
   ]);
