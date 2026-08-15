@@ -1,0 +1,76 @@
+name: upstream drift
+
+# The alarm for R3 in MODULE-DESIGN.md §10.
+#
+# This package is built on public API, but three contracts are version-fragile
+# and two of them fail SILENTLY rather than throwing:
+#
+#   - the TajribaProvider constructor shape
+#   - the `dones` protocol — Attributes/Scopes resolve nothing unless fed
+#     updated node ids, with no error
+#   - AdminContext.init arity
+#
+# A silent break found by a researcher mid-study is the failure this job exists
+# to prevent. It runs against @empirica/core@latest rather than the pinned
+# range, so it is EXPECTED to be the first thing that goes red after an upstream
+# release — that is the signal, not a flake.
+on:
+  schedule:
+    # Mondays, 06:00 UTC.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  latest:
+    name: "@empirica/core@latest"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+
+      - name: Record the pinned version, then upgrade
+        id: versions
+        run: |
+          PINNED=$(node -p "require('./node_modules/@empirica/core/package.json').version")
+          npm install --no-save @empirica/core@latest
+          LATEST=$(node -p "require('./node_modules/@empirica/core/package.json').version")
+          echo "pinned=$PINNED" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "### @empirica/core $PINNED -> $LATEST" >> "$GITHUB_STEP_SUMMARY"
+
+      # No-op when upstream has not moved. Empirica's core has been quiet since
+      # May 2025, so most weeks this is the path taken — skipping keeps a green
+      # run meaningful instead of re-testing the pinned version weekly under a
+      # name that says otherwise.
+      - name: Nothing to test
+        if: steps.versions.outputs.pinned == steps.versions.outputs.latest
+        run: echo "Unchanged at ${{ steps.versions.outputs.pinned }}; nothing to check." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install the Empirica CLI
+        if: steps.versions.outputs.pinned != steps.versions.outputs.latest
+        run: |
+          curl -fsSL https://install.empirica.dev | sh
+          for d in /usr/local/bin "$HOME/.empirica/bin" "$HOME/.local/bin"; do
+            [ -x "$d/empirica" ] && echo "$d" >> "$GITHUB_PATH"
+          done
+          true
+
+      - name: Typecheck against latest
+        if: steps.versions.outputs.pinned != steps.versions.outputs.latest
+        run: npm run check
+
+      # Mode tests first and reported separately: they drive a synthetic
+      # TajribaProvider and are the tier that catches a `dones` protocol change,
+      # which e2e can mask by simply timing out somewhere else.
+      - name: Mode tests (the dones contract)
+        if: steps.versions.outputs.pinned != steps.versions.outputs.latest
+        run: npm test -- unit mode
+
+      - name: e2e against latest
+        if: steps.versions.outputs.pinned != steps.versions.outputs.latest
+        run: npm test -- e2e

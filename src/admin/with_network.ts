@@ -4,7 +4,7 @@ import { GAME_KEYS, NBHD_KEYS, NBHD_KIND, stateKey } from "../shared/keys.js";
 import { adjacency, ring, type Edge } from "../topology/index.js";
 import { checkDegrees, checkViewBytes, type EnvelopeLimits } from "./envelope.js";
 import { projectionBytes, validateProjection } from "./projection.js";
-import { provisionChannels, readChannels } from "./provision.js";
+import { pendingChannelsMessage, provisionChannels, readChannels } from "./provision.js";
 import { recordReads, unwatchedKeys, unwatchedKeysMessage } from "./reads.js";
 import { hashSeed, makeRng, type Rng } from "./seed.js";
 
@@ -174,7 +174,12 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     });
     games.set(game.id, game);
 
-    await provisionChannels(ctx, game);
+    const { pending } = await provisionChannels(ctx, game);
+    // A player with no participantID gets no channel, and `publish` refuses to
+    // send a partial view — so one unprovisioned player blocks EVERY view in
+    // the game, not just their own. That is the right call (a partial publish
+    // leaves participants stale with no signal), but it must not be silent.
+    if (pending.length > 0) warn(pendingChannelsMessage(pending, players.length));
 
     // Channel scopes arrive asynchronously via the listener above; if they are
     // not all present yet, publish once they are.
@@ -229,7 +234,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * there is nothing to send: the server's copy would still be current even in
    * the case where the client had lost it.
    */
-  collector.on(TajribaEvent.ParticipantConnect, (_ctx: any, props: any) => {
+  collector.on(TajribaEvent.ParticipantConnect, async (ctx: any, props: any) => {
     const participantID = props?.participant?.id;
     if (!participantID) return;
 
@@ -240,6 +245,22 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       const players: any[] = game.players ?? [];
       const player = players.find((p) => p.participantID === participantID);
       if (!player) continue;
+
+      // A player who had no participantID when the game started was reported as
+      // `pending` and has no channel at all. Connecting is the moment that
+      // becomes fixable, and it is the only moment: provisioning otherwise runs
+      // once, at game start. `provisionChannels` is idempotent and provisions
+      // only who is missing, so this costs one no-op call per connect.
+      //
+      // Whether Classic can actually produce such a player is unclear — it sets
+      // `participantID` from an immutable attribute in its own `player`
+      // listener, so players in `game.players` normally have one. This is a net
+      // under a path we could not construct, not a fix for an observed failure.
+      if (!readChannels(game)[player.id]) {
+        await provisionChannels(ctx, game);
+        if (!publishAll(game)) awaitingPublish.add(gameID);
+        continue;
+      }
 
       const scopeID = readChannels(game)[player.id];
       if (scopeID) lastPublished.delete(scopeID);

@@ -156,6 +156,37 @@ General rule for this module: **before writing anything to a scope, ask who is l
 `game`, `player`, `round`, `stage` and `playerGame` are all cross-linked to every participant
 in the game by `classic.ts:304-324`.
 
+## 4c. We break our own §4b rule: the topology is participant-readable ⚠️
+
+*Measured 2026-08-15, `@empirica/core@1.12.5`, by `test/e2e/topology_visibility.test.ts`.*
+
+`withNetwork` records the seed and realised edge list on the **game** scope, for reproducibility
+(§7.1 of `MODULE-DESIGN.md`). By the rule directly above, that means every participant gets both.
+They do — measured, not inferred:
+
+```
+  participant-readable topology : YES
+  participant-readable seed     : YES
+  value: [[0,1],[1,2],[2,3],[3,0]]
+```
+
+**This is a disclosure, not a state leak.** The package's guarantee — a participant never
+receives a non-neighbour's projected state — is unaffected, and the same test asserts it still
+holds. What a participant additionally learns is the *shape* of the graph: edges as index
+pairs, plus the seed, which regenerates the same shape.
+
+Why it still matters for a study: the edge list is indexed by position in `game.players`, and
+Classic broadcasts every player scope, so a determined participant has most of what they need
+to reconstruct who is tied to whom. For designs where the network is the manipulation, that is
+a confound a researcher would not expect — the whole premise of the package invites the
+assumption that structure is server-side.
+
+Not yet fixed, because the fix is a design choice rather than a bug fix: the value is on the
+game scope *precisely so it survives into stored data* for analysis, and moving it means
+choosing another home (a scope participants are not linked to, or an admin-side export path)
+and re-testing what analysis can still read. Recorded here, asserted by a test that fails if
+the storage location changes silently, and left for that decision.
+
 ## 5. `EventContext` has no `setAttributes` ⚠️
 
 It exposes `scopeSub`, `addScopes`, `addLinks` only (`admin/events.ts:414-440`).
