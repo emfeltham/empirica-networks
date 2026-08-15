@@ -22,6 +22,29 @@ export const NBHD_KEYS = {
   OWNER: "ownerParticipantID",
   /** Player scope id this channel corresponds to. Immutable, set at creation. */
   PLAYER_ID: "playerID",
+  /**
+   * Game this channel belongs to. Immutable, set at creation.
+   *
+   * Needed to recover after a restart: channels arrive from the subscription
+   * with no indication of which game they belong to, and the server-side index
+   * that used to say is exactly what a restart destroyed.
+   */
+  GAME_ID: "gameID",
+  /**
+   * This player's position in the topology. Immutable, set at creation.
+   *
+   * The edge list is index pairs, so without this the mapping from index to
+   * person exists only in server memory. Recovering it from `game.players`
+   * order instead is what silently REWIRED everyone across a restart — same
+   * graph, different people at each node, nothing logged. Measured in
+   * `test/e2e/restart.test.ts`.
+   *
+   * On the channel rather than the game scope on purpose: a participant learns
+   * only their own index, which tells them nothing they cannot already see,
+   * whereas the game scope would hand everybody the whole seating plan
+   * (docs/PLATFORM-NOTES.md §4b, §4c).
+   */
+  INDEX: "topologyIndex",
   /** The projected neighbour views. */
   NEIGHBORS: "neighbors",
   /** Monotonic publish counter. Drives the dones-wiring self-check. */

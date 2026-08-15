@@ -4,7 +4,12 @@ import { GAME_KEYS, NBHD_KEYS, NBHD_KIND, stateKey } from "../shared/keys.js";
 import { adjacency, ring, type Edge } from "../topology/index.js";
 import { checkDegrees, checkViewBytes, type EnvelopeLimits } from "./envelope.js";
 import { projectionBytes, validateProjection } from "./projection.js";
-import { pendingChannelsMessage, provisionChannels, readChannels } from "./provision.js";
+import {
+  adoptChannel,
+  pendingChannelsMessage,
+  provisionChannels,
+  readChannels,
+} from "./provision.js";
 import { recordReads, unwatchedKeys, unwatchedKeysMessage } from "./reads.js";
 import { hashSeed, makeRng, type Rng } from "./seed.js";
 
@@ -109,6 +114,10 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   const channelScopes = new Map<string, any>();
   /** games waiting for their channel scopes to materialise before first publish */
   const awaitingPublish = new Set<string>();
+  /** games networked by a previous process, waiting for their channels to arrive */
+  const recovering = new Set<string>();
+  /** gameID -> (topology index -> playerID), rebuilt from the channels themselves */
+  const recoveredOrder = new Map<string, Map<number, string>>();
   const games = new Map<string, any>();
   const seqByGame = new Map<string, number>();
   /** nbhd scope id -> last published view, serialised. Suppresses no-op writes. */
@@ -142,6 +151,25 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     const scope = payload?.[NBHD_KIND];
     if (!scope?.id) return;
     channelScopes.set(scope.id, scope);
+
+    // Re-adopt the channel rather than let provisioning create a second one.
+    // On a normal start this simply re-records what we already know; after a
+    // restart it is the whole recovery, because these attributes are the only
+    // surviving copy of the index.
+    const gameID = scope.get(NBHD_KEYS.GAME_ID);
+    const playerID = scope.get(NBHD_KEYS.PLAYER_ID);
+    if (typeof gameID === "string" && typeof playerID === "string") {
+      adoptChannel(gameID, playerID, scope.id);
+      const idx = scope.get(NBHD_KEYS.INDEX);
+      if (typeof idx === "number" && idx >= 0) {
+        const seats = recoveredOrder.get(gameID) ?? new Map<number, string>();
+        seats.set(idx, playerID);
+        recoveredOrder.set(gameID, seats);
+      }
+      const game = games.get(gameID);
+      if (game && recovering.has(gameID)) tryRecover(game);
+    }
+
     for (const gameID of [...awaitingPublish]) {
       const game = games.get(gameID);
       if (game && publishAll(game)) awaitingPublish.delete(gameID);
@@ -150,6 +178,23 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
 
   collector.on("game", "start", async (ctx: any, { game }: any) => {
     if (!game.get("start")) return;
+
+    games.set(game.id, game);
+
+    // Already networked by a previous process.
+    //
+    // This listener re-fires on restart, because attribute listeners replay
+    // attributes the admin already holds (PLATFORM-NOTES §12) and `start` is one
+    // of them. Taking the normal path here is what made a restart destructive:
+    // the topology got re-derived from `game.players` order — which is not
+    // stable — so everyone was silently moved to a different node, and
+    // provisioning, seeing an empty index, created a SECOND channel per
+    // participant that the client never looked at.
+    if (game.get(GAME_KEYS.SEED) !== undefined) {
+      recovering.add(game.id);
+      tryRecover(game);
+      return;
+    }
 
     const players = game.players ?? [];
     const seed = config.seed ?? hashSeed(String(game.id));
@@ -166,15 +211,12 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     game.set(GAME_KEYS.SEED, seed);
     game.set(GAME_KEYS.NETWORK, edges);
 
-    networks.set(game.id, {
-      edges,
-      adj,
-      order: players.map((p: any) => p.id),
-      seed,
-    });
-    games.set(game.id, game);
+    const order: string[] = players.map((p: any) => p.id);
+    networks.set(game.id, { edges, adj, order, seed });
 
-    const { pending } = await provisionChannels(ctx, game);
+    const { pending } = await provisionChannels(ctx, game, (playerID) =>
+      order.indexOf(playerID)
+    );
     // A player with no participantID gets no channel, and `publish` refuses to
     // send a partial view — so one unprovisioned player blocks EVERY view in
     // the game, not just their own. That is the right call (a partial publish
@@ -382,6 +424,64 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   /** Publish everyone. Kept as the name the rest of the module already uses. */
   function publishAll(game: any): boolean {
     return publish(game);
+  }
+
+  /**
+   * Rebuild a game's network state from what is stored, after a restart.
+   *
+   * Everything needed is durable, but in two different places, and both are
+   * required: the game scope has the edge list, and each channel carries its
+   * owner's seat number. The edge list alone is index pairs — it describes the
+   * shape without saying who sits where, which is precisely how a restart used
+   * to reassign people while looking like it had worked.
+   *
+   * Called on every channel arrival because channels stream in from the
+   * subscription with no completion signal. Idempotent, and gives up quietly
+   * until the last seat is filled.
+   */
+  function tryRecover(game: any): boolean {
+    if (networks.has(game.id)) return true;
+
+    const players: any[] = game.players ?? [];
+    const seats = recoveredOrder.get(game.id);
+    if (!seats || seats.size < players.length) return false;
+
+    const order: string[] = [];
+    for (let i = 0; i < players.length; i++) {
+      const playerID = seats.get(i);
+      // A gap means a channel is missing or predates the seat attribute. Refuse
+      // rather than close the gap by guessing: guessing produces a plausible
+      // network in which the wrong people are neighbours, and the run looks
+      // normal for the rest of its life.
+      if (!playerID) return false;
+      order.push(playerID);
+    }
+
+    const edges = readNetwork(game);
+    if (!edges) {
+      warn(
+        `empirica-networks: game ${game.id} was networked by a previous process but ` +
+          `has no recorded edge list, so it cannot be recovered. Participants will not ` +
+          `receive further updates.`
+      );
+      recovering.delete(game.id);
+      return false;
+    }
+
+    const seed = game.get(GAME_KEYS.SEED);
+    networks.set(game.id, {
+      edges,
+      adj: adjacency(order.length, edges),
+      order,
+      seed: typeof seed === "number" ? seed : 0,
+    });
+    recovering.delete(game.id);
+
+    // Views are ephemeral, so a real process restart takes Tajriba's copy with
+    // it. `lastPublished` is empty in a fresh process anyway, so this publishes
+    // rather than concluding nothing changed.
+    if (!publishAll(game)) awaitingPublish.add(game.id);
+    return true;
   }
 
   /**
