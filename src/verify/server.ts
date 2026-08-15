@@ -27,6 +27,14 @@ import path from "node:path";
 export interface ServerOptions {
   /** Persist to a file instead of memory. Needed to test persistence effects. */
   storeFile?: string;
+  /**
+   * Bind a specific port instead of picking a free one.
+   *
+   * Only needed to restart a server in place: participants and admin reconnect
+   * by URL, so a restart that moved port would be a different server wearing the
+   * same name, and would not test what a real restart does.
+   */
+  port?: number;
   /** Default "error". Raise only when debugging. */
   logLevel?: string;
   /** Path to the empirica CLI. Default: "empirica" from PATH. */
@@ -74,7 +82,7 @@ export async function freePort(): Promise<number> {
 export async function startServer(opts: ServerOptions = {}): Promise<Server> {
   const logLevel = opts.logLevel ?? "error";
   const binary = opts.binary ?? "empirica";
-  const port = await freePort();
+  const port = opts.port ?? (await freePort());
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "empirica-networks-"));
   const configFile = path.join(dir, "tajriba.toml");
