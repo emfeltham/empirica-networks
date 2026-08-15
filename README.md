@@ -54,6 +54,20 @@ Note: the CLI compiles a copy of `@empirica/core` in, because Empirica cannot be
 unbundled (`docs/PLATFORM-NOTES.md` §3a). It prints the bundled version alongside your
 installed one and warns if they differ, rather than implying it tested yours.
 
+## A runnable example
+
+[`examples/minimal`](examples/minimal) is a stock `empirica create` project with four files
+changed — participants on a ring pick a colour and see only their two neighbours':
+
+```sh
+npm install && npm run build
+cd examples/minimal && empirica
+```
+
+Open four windows with different `?participantKey=` values. Each sees 2 of the other 3, and a
+different 2. Its `callbacks.js` is imported unmodified by `test/e2e/example.test.ts`, so the
+server half is covered by this repo's suite rather than left to rot.
+
 ## Usage
 
 Registering the scope kind is **mandatory** and silently fatal if skipped:
