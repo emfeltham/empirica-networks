@@ -14,6 +14,11 @@ These were all measured at runtime against `@empirica/core@1.12.5`, not read fro
 has a reproduction in this repo. Three of them are the kind of thing a researcher would only
 discover after collecting invalid data.
 
+**Disclosure route and status: [`docs/upstream/DISCLOSURE.md`](docs/upstream/DISCLOSURE.md).**
+U1 goes privately first via GitHub's security advisory form (the project publishes no
+`SECURITY.md` and no contact address); U2 is an ordinary public issue. U3–U6 are held back
+deliberately — sending six at once to a quiet repository is how a report gets ignored.
+
 ### U1. `protected: true` does not prevent participant writes ⚠️ security
 
 **Evidence:** `test/e2e/upstream_u1.test.ts` (public client API),
