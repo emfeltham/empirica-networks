@@ -160,7 +160,7 @@ Not defects — recorded so the boundary of M1 stays legible. See `MODULE-DESIGN
 
 | Item | Where it stands |
 |---|---|
-| 12 remaining topology generators (`wattsStrogatz`, `barabasiAlbert`, `erdosRenyi`, `star`, `grid`, …) | M1 ships `ring`, `ringLattice`, `complete`, `empty` plus graph helpers. `topology` takes a plain edge list, so authors can supply their own meanwhile. |
+| ~~Remaining topology generators~~ | **Done 2026-08-15.** Ships `star`, `wheel`, `grid` (with `periodic`), `ladder`, `pairs`, `wattsStrogatz`, `barabasiAlbert`, `erdosRenyi`, `geometricRandom`, `fromEdgeList`, plus `components`/`isConnected`. Three of Breadboard's sixteen omitted on purpose — two were duplicates under other names, one could not be reconstructed from its name. |
 | Rewiring — `network()` handle, `addEdge`/`removeEdge`/`rewire` | Designed in §4, **not built**. The runloop batching it depends on is already load-bearing for `watch`, so the assumption is tested even though the API is not. |
 | Neighbour-scoped chat | §7.4, proposal only. |
 | Edge-history export, `views.csv` | §9, proposal only. Open decision 5. |
