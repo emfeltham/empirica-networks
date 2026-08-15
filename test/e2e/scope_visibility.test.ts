@@ -63,9 +63,15 @@ test("MEASUREMENT: is the batch scope hidden from participants?", async () => {
       try {
         const batch = await createBatch(admin, batchConfig(N, 1));
         await batch.running();
+        // Longer than the default. This test opens an EXTRA wire subscription
+        // per participant on top of the mode's own, which makes it the heaviest
+        // thing in the suite; it passes 6/6 alone but timed out roughly 1 run in
+        // 3 inside the full suite, even with e2e running serially. The cause was
+        // not identified — the headroom is a mitigation, not a diagnosis, and is
+        // recorded as such in ISSUES.md.
         await waitFor(
           () => participants.every((p) => modeOf(p).player.getValue()?.get("gameID")),
-          { label: "gameID assigned" }
+          { label: "gameID assigned", timeoutMs: 90_000 }
         );
         for (const p of participants) modeOf(p).player.getValue()!.set("introDone", true);
         await waitFor(() => participants.every((p) => Boolean(modeOf(p).game.getValue())), {
@@ -76,7 +82,7 @@ test("MEASUREMENT: is the batch scope hidden from participants?", async () => {
         // for the batch would just mean nothing was being delivered at all.
         await waitFor(
           () => frames.every((f) => f.join("").includes(SENTINELS.game)),
-          { label: "the game-scope control reached every participant", timeoutMs: 30_000 }
+          { label: "the game-scope control reached every participant", timeoutMs: 90_000 }
         );
 
         // Give the batch sentinel a fair chance to show up late.

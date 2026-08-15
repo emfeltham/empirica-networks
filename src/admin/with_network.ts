@@ -336,8 +336,23 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     batch.set(NETWORK_KEYS.seed(game.id), seed);
     batch.set(NETWORK_KEYS.network(game.id), edges);
 
+
     const order: string[] = players.map((p: any) => p.id);
     networks.set(game.id, { edges, adj, order, seed });
+    // The initial graph goes into the log as a `start` event, so the log alone
+    // describes the whole run. Without it, `edges.csv` would begin mid-story:
+    // every tie present at game start would be missing, and a study that never
+    // rewires would export an empty history.
+    const startEvent: EdgeEvent = {
+      op: "start",
+      added: edges.map(([i, j]) => [order[i]!, order[j]!] as [string, string]),
+      removed: [],
+      size: edges.length,
+      at: Date.now(),
+    };
+    historyByGame.set(game.id, [startEvent]);
+    batch.set(NETWORK_KEYS.history(game.id), [startEvent]);
+
     gameNetworks.set(game.id, makeGameNetwork(game));
 
     const { pending } = await provisionChannels(ctx, game, (playerID) =>
@@ -731,7 +746,11 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         if (i === j) throw new Error(`empirica-networks: cannot connect ${a} to itself`);
         if (s.adj[i]?.includes(j)) return false;
         s.edges = [...s.edges, i < j ? [i, j] : [j, i]];
-        commit(s, { op: "add", a, b, size: s.edges.length, at: Date.now() }, [a, b]);
+        commit(
+          s,
+          { op: "add", a, b, added: [[a, b]], removed: [], size: s.edges.length, at: Date.now() },
+          [a, b]
+        );
         return true;
       },
       removeEdge(a, b) {
@@ -740,7 +759,11 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         const j = indexOf(b);
         if (!s.adj[i]?.includes(j)) return false;
         s.edges = s.edges.filter(([x, y]) => !((x === i && y === j) || (x === j && y === i)));
-        commit(s, { op: "remove", a, b, size: s.edges.length, at: Date.now() }, [a, b]);
+        commit(
+          s,
+          { op: "remove", a, b, added: [], removed: [[a, b]], size: s.edges.length, at: Date.now() },
+          [a, b]
+        );
         return true;
       },
       rewire(next) {
@@ -749,11 +772,27 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         // after. Anything narrower leaves a participant holding a tie that no
         // longer exists, which is worse than an extra publish.
         const affected = new Set<string>(s.order);
+        const before = new Set(s.edges.map(([x, y]) => `${x}-${y}`));
         s.edges = fromEdgeList(
           s.order.length,
           next.map(([a, b]) => [indexOf(a), indexOf(b)] as Edge)
         );
-        commit(s, { op: "rewire", size: s.edges.length, at: Date.now() }, [...affected]);
+        const after = new Set(s.edges.map(([x, y]) => `${x}-${y}`));
+        const name = (k: string): [string, string] => {
+          const [x, y] = k.split("-").map(Number);
+          return [s.order[x!]!, s.order[y!]!];
+        };
+        commit(
+          s,
+          {
+            op: "rewire",
+            added: [...after].filter((k) => !before.has(k)).map(name),
+            removed: [...before].filter((k) => !after.has(k)).map(name),
+            size: s.edges.length,
+            at: Date.now(),
+          },
+          [...affected]
+        );
       },
       publish() {
         const g = games.get(gameID);
