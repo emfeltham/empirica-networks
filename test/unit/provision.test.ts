@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { provisionChannels, readChannels, resetChannels } from "../../src/admin/provision.js";
+import {
+  pendingChannelsMessage,
+  provisionChannels,
+  readChannels,
+  resetChannels,
+} from "../../src/admin/provision.js";
 import { NBHD_KEYS, NBHD_KIND } from "../../src/shared/keys.js";
 
 // The channel index is process-global (see provision.ts note 4), so each test
@@ -147,6 +152,44 @@ test("skips players with no participantID and reports them as pending", async ()
   assert.deepEqual(res.created, ["p1"]);
   assert.deepEqual(res.pending, ["p2"]);
   assert.equal(ctx.links.length, 1);
+});
+
+test("a pending player is rescued by a later call, not stranded", async () => {
+  // The recovery path `withNetwork` runs on ParticipantConnect. Provisioning
+  // happens once at game start, so if this did not work a player who arrived
+  // without a participantID would have no channel for the rest of the game.
+  const late = makePlayer("p2", undefined);
+  const players = [makePlayer("p1", "part1"), late];
+  const game = makeGame(players);
+  const ctx = makeCtx();
+
+  const first = await provisionChannels(ctx, game);
+  assert.deepEqual(first.pending, ["p2"], "nothing to link to yet");
+
+  // What connecting does: Classic sets participantID from an immutable
+  // attribute in its own `player` listener.
+  late.participantID = "part2";
+  const second = await provisionChannels(ctx, game);
+
+  assert.deepEqual(second.created, ["p2"], "provisioned on the retry");
+  assert.deepEqual(second.pending, [], "and no longer pending");
+  assert.equal(Object.keys(second.channels).length, 2);
+  // p1 must not have been re-provisioned: Tajriba cannot unlink, so a duplicate
+  // channel would be permanent and the second link would be unreachable.
+  assert.equal(ctx.calls.addScopes, 2, "one batch per call, not per player");
+  assert.equal(ctx.links.length, 2, "exactly one link per participant");
+});
+
+test("the pending message names the players and the consequence", () => {
+  // The consequence is disproportionate to the cause — one unprovisioned player
+  // blanks the whole game — so the message has to say so rather than just
+  // reporting a count.
+  const msg = pendingChannelsMessage(["p2", "p7"], 4);
+
+  assert.match(msg, /2 of 4 players/);
+  assert.match(msg, /"p2", "p7"/, "names them, so the operator can act");
+  assert.match(msg, /NO participant in this game receives a neighbourhood/);
+  assert.match(msg, /retried when a participant connects/, "says it self-heals");
 });
 
 test("never writes the channel map to a participant-visible scope", async () => {

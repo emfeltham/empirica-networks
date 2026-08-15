@@ -17,6 +17,25 @@ import { build } from "esbuild";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+const ALL_TIERS = ["unit", "mode", "e2e"];
+
+/**
+ * Tier selection, so CI can run the cheap tiers across a Node version matrix
+ * without needing the Empirica CLI on every runner (only e2e spawns a server).
+ *
+ * An unknown tier is an error rather than a silent no-op: `npm test -- unti`
+ * otherwise reports success having run nothing, which is the same class of
+ * failure this package keeps guarding against.
+ */
+const requested = process.argv.slice(2);
+for (const tier of requested) {
+  if (!ALL_TIERS.includes(tier)) {
+    console.error(`Unknown test tier "${tier}". Known tiers: ${ALL_TIERS.join(", ")}.`);
+    process.exit(1);
+  }
+}
+const tiers = requested.length > 0 ? requested : ALL_TIERS;
+
 function testFiles(tier) {
   const dir = path.join(root, "test", tier);
   if (!fs.existsSync(dir)) return [];
@@ -36,7 +55,7 @@ function run(cmd, args) {
 let ran = 0;
 const skipped = [];
 
-for (const tier of ["unit", "mode"]) {
+for (const tier of tiers.filter((t) => t !== "e2e")) {
   const files = testFiles(tier);
   if (files.length === 0) {
     skipped.push(tier);
@@ -47,9 +66,9 @@ for (const tier of ["unit", "mode"]) {
   ran += files.length;
 }
 
-const e2e = testFiles("e2e");
+const e2e = tiers.includes("e2e") ? testFiles("e2e") : [];
 if (e2e.length === 0) {
-  skipped.push("e2e");
+  if (tiers.includes("e2e")) skipped.push("e2e");
 } else {
   console.log(`\n=== e2e (${e2e.length} file(s), bundled) ===`);
   const outDir = path.join(root, ".tmp-test");

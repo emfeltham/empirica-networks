@@ -1,0 +1,107 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push supersedes an in-flight run on the same ref. e2e spawns real
+# Tajriba servers on fixed ports, so overlapping runs on one runner would
+# collide rather than merely waste time.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Cheap tiers, across the Node versions the package claims to support
+  # (`engines: >=20`). No Empirica CLI needed: unit and mode never spawn a
+  # server, which is exactly why they are separated from e2e here.
+  unit:
+    name: unit + mode (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Even-numbered LTS lines only. Add 26 when it ships — the point of the
+        # matrix is to catch a newer Node breaking us, so the newest current
+        # release matters more than breadth.
+        node: ["20", "22", "24"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test -- unit mode
+
+  # The tier that proves the actual guarantee. Current Node only: it needs the
+  # Empirica CLI and a real Tajriba, and running that three times over would
+  # triple the slowest job to re-test the same server binary.
+  e2e:
+    name: e2e (real Tajriba)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+
+      - name: Install the Empirica CLI
+        run: |
+          curl -fsSL https://install.empirica.dev | sh
+          # Locate it rather than hard-coding: the installer puts the binary in
+          # /usr/local/bin on macOS, and its target is not documented as stable
+          # across versions or platforms. Adding a directory already on PATH is
+          # harmless, so this stays correct if the installer moves.
+          for d in /usr/local/bin "$HOME/.empirica/bin" "$HOME/.local/bin"; do
+            [ -x "$d/empirica" ] && echo "$d" >> "$GITHUB_PATH"
+          done
+          true
+      - name: Confirm the CLI is on PATH
+        # Fail here with a clear message rather than 20 tests deep in a spawn
+        # ENOENT: the harness's own error is good, but 25 copies of it are not.
+        run: empirica version
+
+      - run: npm test -- e2e
+
+      # The privacy claim, run the way a reviewer would run it. This is the
+      # command the README tells people to trust, so CI has to exercise the
+      # command itself and not just the library it wraps.
+      - run: npm run build
+      - run: node dist/verify/cli.cjs verify --n 4
+
+      - name: Upload server logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tajriba-logs
+          path: |
+            **/tajriba.log
+            .empirica/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The example is documentation, so nothing fails when the API moves under it.
+  # Its server half is covered by test/e2e/example.test.ts; this covers the
+  # client half, which only a real build can catch (imports, JSX, exports map).
+  example:
+    name: example builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      # Installs a packed tarball rather than linking: a `file:` link resolves
+      # to the repo root, whose node_modules holds a second copy of
+      # @empirica/core, and two copies break every instanceof inside Empirica.
+      # See docs/PLATFORM-NOTES.md §11.
+      - run: npm run example:install
+      - run: npm --prefix examples/minimal/client run build

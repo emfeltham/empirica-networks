@@ -100,6 +100,28 @@ export interface ProvisionResult {
 }
 
 /**
+ * Explain a pending player, loudly.
+ *
+ * Worth a message rather than a silent skip because the consequence is not
+ * proportional to the cause: `publish` refuses to send a partial view, so ONE
+ * unprovisioned player leaves EVERY participant in the game with no
+ * neighbourhood. On the client that is indistinguishable from still loading,
+ * which is this package's characteristic failure mode and the reason for the
+ * `_seq` self-check in the mode.
+ */
+export function pendingChannelsMessage(pending: string[], playerCount: number): string {
+  const ids = pending.map((id) => `"${id}"`).join(", ");
+  return (
+    `empirica-networks: ${pending.length} of ${playerCount} players have no participantID ` +
+    `and were given no private channel: ${ids}.\n` +
+    `  Until they connect, NO participant in this game receives a neighbourhood — a partial\n` +
+    `  publish would leave the rest stale with no signal, so publishing waits for everyone.\n` +
+    `  Provisioning is retried when a participant connects. If these players never connect,\n` +
+    `  the game will stay blank; end the game or restart the batch.`
+  );
+}
+
+/**
  * Ensure every player in `game` has a private channel. Safe to call repeatedly.
  */
 export async function provisionChannels(

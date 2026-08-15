@@ -38,6 +38,13 @@ project: (neighbour, viewer, ctx) => ({
 appears nowhere in the bytes a tab received, while a player attribute does. Mechanism in
 `docs/PLATFORM-NOTES.md` §4b.
 
+**What is not private: the network itself.** The seed and realised edge list are recorded on
+the game scope so a finished run is reproducible from stored data — and every participant is
+linked to the game, so both are delivered to every browser. State stays neighbour-limited;
+*structure* does not. If your design treats the topology as concealed from participants, this
+needs changing before you run — measured in `test/e2e/topology_visibility.test.ts` and
+explained in `docs/PLATFORM-NOTES.md` §4c.
+
 **What does not hold: write integrity.** Empirica has no write access control. Any
 participant that knows a node id can set attributes on it, and `protected: true` does not
 prevent this — including on another participant's `player` scope, whose id every participant
