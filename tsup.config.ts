@@ -28,6 +28,7 @@ export default defineConfig([
     entry: {
       index: "src/index.ts",
       "topology/index": "src/topology/index.ts",
+      "topology/graphology": "src/topology/graphology.ts",
       "admin/index": "src/admin/index.ts",
       "player/index": "src/player/index.ts",
       "player/react/index": "src/player/react/index.ts",

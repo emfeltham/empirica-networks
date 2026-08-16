@@ -30,6 +30,10 @@
     "./topology": {
       "types": "./dist/topology/index.d.ts",
       "import": "./dist/topology/index.js"
+    },
+    "./topology/graphology": {
+      "types": "./dist/topology/graphology.d.ts",
+      "import": "./dist/topology/graphology.js"
     }
   },
   "scripts": {
@@ -38,7 +42,8 @@
     "test": "node scripts/test.mjs",
     "test:browser": "node scripts/test-browser.mjs",
     "example:install": "npm run build && npm pack --pack-destination . && rm -rf examples/minimal/server/node_modules/empirica-networks examples/minimal/client/node_modules/empirica-networks examples/minimal/server/package-lock.json examples/minimal/client/package-lock.json examples/minimal/client/node_modules/.vite && npm --prefix examples/minimal/server install && npm --prefix examples/minimal/client install",
-    "bench": "node scripts/bench.mjs"
+    "bench": "node scripts/bench.mjs",
+    "soak": "node scripts/soak.mjs"
   },
   "peerDependencies": {
     "@empirica/core": ">=1.12.0 <2",
@@ -58,6 +63,8 @@
     "@types/react": "^18.3.31",
     "@types/react-test-renderer": "^18.3.1",
     "esbuild": "^0.21.0",
+    "graphology": "^0.26.0",
+    "graphology-types": "^0.24.8",
     "playwright": "^1.62.1",
     "react": "^18.2.0",
     "react-test-renderer": "^18.2.0",
