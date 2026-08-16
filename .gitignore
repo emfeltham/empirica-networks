@@ -8,3 +8,10 @@ dist/
 *.tgz
 .tmp-bench/
 .tmp-soak/
+.tmp-test-one/
+.tmp-test-repeat/
+
+# Analysis output written by the reconstructions at game end (see
+# examples/rand2011/README.md). Ignored so an interrupted test run cannot leave
+# CSVs staged as if they were source.
+data/

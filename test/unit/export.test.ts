@@ -11,6 +11,7 @@ import test from "node:test";
 import {
   edgeRows,
   historyIsConsistent,
+  parseNdjson,
   snapshotRows,
   toCSV,
 } from "../../src/admin/export.js";
@@ -125,4 +126,49 @@ test("an empty history exports nothing rather than throwing", () => {
   assert.deepEqual(edgeRows("g", []), []);
   assert.deepEqual(snapshotRows("g", []), []);
   assert.equal(historyIsConsistent([]), true);
+});
+
+/**
+ * `parseNdjson` — reading a run log back, including one a kill cut in half.
+ *
+ * Both examples' `recover.mjs` had hand-rolled this loop, which is what M6 §2.1
+ * moved into the package. It takes TEXT rather than a path on purpose: everything
+ * on the `empirica-networks/export` subpath has to load from plain Node with no
+ * build step, and `test/unit/export_isolation.test.ts` enforces that by refusing
+ * this file any runtime import at all — `node:fs` included.
+ */
+test("parseNdjson returns the records and reports nothing dropped", () => {
+  const { records, dropped } = parseNdjson<{ type: string }>(
+    '{"type":"start"}\n{"type":"round"}\n'
+  );
+  assert.deepEqual(records, [{ type: "start" }, { type: "round" }]);
+  assert.equal(dropped, 0, "a log ending in a newline is a normal log");
+});
+
+test("a truncated final line is dropped and COUNTED", () => {
+  // The case this exists for: a hard kill cuts the last record mid-write. A
+  // recovery that quietly dropped it would be indistinguishable from a session
+  // that ran one round fewer, which is a wrong number rather than a missing one.
+  const { records, dropped } = parseNdjson('{"type":"round","n":1}\n{"type":"rou');
+  assert.equal(records.length, 1);
+  assert.equal(dropped, 1);
+});
+
+test("blank lines are not counted as damage", () => {
+  // Otherwise every clean run would report a truncated log, and a count that is
+  // always non-zero is a count nobody reads.
+  const { records, dropped } = parseNdjson('\n{"a":1}\n\n   \n{"a":2}\n\n');
+  assert.equal(records.length, 2);
+  assert.equal(dropped, 0);
+});
+
+test("a hole in the middle does not cost the records after it", () => {
+  // A partial write mid-file should not turn one bad line into a lost session.
+  const { records, dropped } = parseNdjson('{"a":1}\nnot json\n{"a":3}');
+  assert.deepEqual(records, [{ a: 1 }, { a: 3 }]);
+  assert.equal(dropped, 1);
+});
+
+test("an empty log parses to nothing rather than throwing", () => {
+  assert.deepEqual(parseNdjson(""), { records: [], dropped: 0 });
 });

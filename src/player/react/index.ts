@@ -7,8 +7,10 @@ import {
   assertNetworkMode,
   neighborsOf,
   networkSelfOf,
+  networkToldOf,
   NetworkModeNotInstalledError,
   type NetworkSelf,
+  type NetworkTold,
 } from "../view.js";
 
 /**
@@ -92,5 +94,27 @@ export function useNeighborChat(): NeighborChat | undefined {
   return neighborChatOf(nbhd);
 }
 
+/**
+ * Read what the SERVER told this participant, privately.
+ *
+ *   const told = useNetworkTold();
+ *   const offer = told?.get<{ with: string; theirLastAction: string }>("offer");
+ *
+ * Written server-side with `network(game).tell(playerID, key, value)`. Nobody
+ * else receives it — including the participant it is about.
+ *
+ * The counterpart to `useNetworkState()`, and the split is the point: `state` is
+ * what YOU wrote and your neighbours may see through `project()`; `told` is what
+ * the SERVER wrote to you and nobody else sees at all. Needed for anything the
+ * server knows and a participant should learn about a NON-neighbour, which
+ * `project()` structurally cannot express.
+ *
+ * NOT memoised, unlike `useNetworkState`: told values change during play, and a
+ * stable object holding a stale read would silently stop updating.
+ */
+export function useNetworkTold(): NetworkTold | undefined {
+  return networkToldOf(useNbhd());
+}
+
 export { NetworkModeNotInstalledError };
-export type { NeighborChat, NetworkSelf, NetworkState };
+export type { NeighborChat, NetworkSelf, NetworkState, NetworkTold };

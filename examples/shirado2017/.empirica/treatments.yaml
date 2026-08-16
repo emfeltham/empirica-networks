@@ -1,0 +1,27 @@
+factors:
+  - desc: >
+      Participants per session. The paper used exactly 20 nodes in every session
+      (4,000 subjects over 230 sessions), so 20 is the design. 6 is for trying it
+      out with a handful of browser windows.
+    name: playerCount
+    values:
+      - value: 6
+      - value: 20
+
+treatments:
+  - desc: >
+      The paper's design: 20 participants on a Barabási–Albert network (each new
+      node attached with two links), three colours, five minutes, humans only.
+      This is the arm the paper's Fig. 1 is about — its 30 control sessions.
+    name: Colour coordination (n=20)
+    factors:
+      playerCount: 20
+
+  - desc: >
+      Six participants. NOT the paper's design — six windows is what one person can
+      drive by hand. A 6-node preferential-attachment graph is small enough that the
+      coordination problem is nearly trivial, so use this to see the mechanism work
+      and do not read anything into the solution time.
+    name: Colour coordination (n=6, demo only)
+    factors:
+      playerCount: 6

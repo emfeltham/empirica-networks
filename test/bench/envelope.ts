@@ -37,7 +37,7 @@ import { fork, type ChildProcess } from "node:child_process";
 import { networkKinds } from "../../src/admin/kinds.js";
 import { resetChannels } from "../../src/admin/provision.js";
 import { withNetwork } from "../../src/admin/with_network.js";
-import { ringLattice } from "../../src/topology/index.js";
+import { complete, ringLattice } from "../../src/topology/index.js";
 import {
   batchConfig,
   connectAdmin,
@@ -49,9 +49,13 @@ import type { Sample } from "./shard.js";
 
 interface Cell {
   n: number;
-  /** Half-degree: ringLattice(n, m) has degree 2m. */
+  /** Half-degree: ringLattice(n, m) has degree 2m. Ignored when `dense`. */
   m: number;
+  /** A complete graph instead: degree n-1, the densest a graph can be. */
+  dense?: boolean;
 }
+
+const degreeOfCell = (c: Cell): number => (c.dense ? c.n - 1 : 2 * c.m);
 
 /** Sparse and realistic: degree 8 is the spike's cell, and the README's claim. */
 const CELLS: Cell[] = [
@@ -60,6 +64,32 @@ const CELLS: Cell[] = [
   { n: 100, m: 4 },
   { n: 150, m: 4 },
   { n: 200, m: 4 },
+];
+
+/**
+ * `npm run bench -- --dense`. The cells `maxDegree` needs and did not have.
+ *
+ * The default `maxDegree: 16` is documented as MEASURED, and the measurement
+ * behind it (SPIKE-REPORT §4) swept sparse graphs at n up to 100 — it says
+ * nothing about a small dense one. Rand, Arbesman & Christakis (2011) caps degree
+ * at nothing and reports a tail to about 20 at n ≈ 19.6, so
+ * `examples/rand2011` has to raise the limit to 64 with a paragraph of
+ * justification. That paragraph is a bug report: **16 conflates a per-participant
+ * payload limit with a latency-at-scale limit, and only the second was measured**
+ * (`docs/M6-HARDENING.md` §3.3).
+ *
+ * So: the same n at two densities, then the same density at two n. That is the
+ * comparison that says whether degree or total fan-out is the thing that costs,
+ * and it is the input a decision about the default needs.
+ *
+ * `n=20 d=19` is the cell the Rand reconstruction actually runs.
+ */
+const DENSE_CELLS: Cell[] = [
+  { n: 20, m: 4 },              // d=8   — sparse control at the same n
+  { n: 20, m: 0, dense: true }, // d=19  — a complete graph at the paper's n
+  { n: 50, m: 4 },              // d=8   — sparse control at the same n
+  { n: 50, m: 0, dense: true }, // d=49  — well past anything measured
+  { n: 100, m: 8 },             // d=16  — the default limit at the measured n
 ];
 
 /** Rounds are cheap; the first few are not representative. */
@@ -146,6 +176,7 @@ function spawnShard(url: string, index: number, offset: number, count: number): 
 async function runCell(cell: Cell): Promise<void> {
   resetChannels();
   const { n, m } = cell;
+  const d = degreeOfCell(cell);
   // Never fewer than two: one shard means every participant is back in a single
   // event loop, which is the arrangement this rewrite exists to escape.
   const shardCount = Math.min(MAX_SHARDS, Math.max(2, Math.ceil(n / PER_SHARD)));
@@ -157,11 +188,16 @@ async function runCell(cell: Cell): Promise<void> {
       round.addStage({ duration: 3_600_000 });
     });
     withNetwork(_, {
-      topology: ({ playerCount }: any) => ringLattice(playerCount, m),
+      topology: ({ playerCount }: any) =>
+        cell.dense ? complete(playerCount) : ringLattice(playerCount, m),
       project: (neighbour: any) => ({ id: neighbour.id, tick: neighbour.get("tick") }),
       watch: ["tick"],
-      // Degree 8 is inside the default, but say so rather than rely on it.
-      envelope: { maxDegree: 16, onExceed: "throw" },
+      // Stated rather than relied on. Raised to exactly this cell's degree for a
+      // dense run: the point of that run is to find out what the limit SHOULD be,
+      // so enforcing the current one would make the measurement impossible — but
+      // it is set to the known degree rather than switched off, so an unexpected
+      // topology still fails loudly.
+      envelope: { maxDegree: Math.max(16, d), onExceed: "throw" },
     });
   };
 
@@ -227,7 +263,7 @@ async function runCell(cell: Cell): Promise<void> {
         const silent = ROUNDS - WARMUP - rounds.size;
 
         console.log(
-          `  n=${String(n).padStart(3)}  d=${2 * m}  shards=${shardCount}  ` +
+          `  n=${String(n).padStart(3)}  d=${String(d).padStart(2)}  shards=${shardCount}  ` +
             `mean ${mean.toFixed(1).padStart(6)}ms  ` +
             `p50 ${percentile(sorted, 50).toFixed(1).padStart(6)}ms  ` +
             `p95 ${percentile(sorted, 95).toFixed(1).padStart(6)}ms  ` +
@@ -280,7 +316,8 @@ async function main(): Promise<void> {
     `  attribute set -> a neighbour's client holds the new value\n` +
       `  ${ROUNDS} rounds per cell, ${WARMUP} warmup dropped, one writer per round\n`
   );
-  for (const cell of CELLS) {
+  const cells = argv.includes("--dense") ? DENSE_CELLS : CELLS;
+  for (const cell of cells) {
     if (cell.n > MAX_N || cell.n < MIN_N) continue;
     // A cell that cannot start is a RESULT, not a crash: n=200 does not reach
     // first publish on this platform (docs/PLATFORM-NOTES.md §16), and aborting
@@ -289,7 +326,7 @@ async function main(): Promise<void> {
       await runCell(cell);
     } catch (e) {
       console.log(
-        `  n=${String(cell.n).padStart(3)}  d=${2 * cell.m}  ` +
+        `  n=${String(cell.n).padStart(3)}  d=${String(degreeOfCell(cell)).padStart(2)}  ` +
           `DID NOT COMPLETE: ${e instanceof Error ? e.message : e}`
       );
     }

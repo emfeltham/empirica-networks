@@ -6,6 +6,7 @@ import {
   NETWORK_KEYS,
   OUTBOX_KEY,
   stateKey,
+  toldKey,
   type ChatMessage,
   type EdgeEvent,
   type ViewRecord,
@@ -13,6 +14,7 @@ import {
 import { adjacency, fromEdgeList, ring, type Edge } from "../topology/index.js";
 import { checkDegrees, checkViewBytes, type EnvelopeLimits } from "./envelope.js";
 import { graphMetrics, historyFrames, type GameSnapshot, type NodeSnapshot } from "./inspect.js";
+import { calibrate, duplicateLifecycleListeners, duplicateListenersMessage } from "./listeners.js";
 import { projectionBytes, validateProjection } from "./projection.js";
 import {
   adoptChannel,
@@ -21,8 +23,14 @@ import {
   readChannels,
   releaseChannels,
 } from "./provision.js";
-import { recordReads, unwatchedKeys, unwatchedKeysMessage } from "./reads.js";
+import {
+  recordReads,
+  unlistedKeyMessage,
+  unwatchedKeys,
+  unwatchedKeysMessage,
+} from "./reads.js";
 import { hashSeed, makeRng, type Rng } from "./seed.js";
+import { makeLogSink, type LogConfig } from "./sink.js";
 import { makeViewSink, type ViewsConfig } from "./views.js";
 
 /**
@@ -38,6 +46,35 @@ import { makeViewSink, type ViewsConfig } from "./views.js";
  * `setAttributes` RPC (admin/runloop.ts:199-226), so publishing to n
  * participants costs one round trip, not n.
  */
+
+/**
+ * A game, however you happen to be holding it.
+ *
+ * Every entry point that takes a game accepts either the scope object or its id.
+ * Until M6 they disagreed — `network(game)` wanted an object and read only `.id`
+ * off it, while `net.inspect(gameID)` wanted the id — and the mismatch produced
+ * `no network for game (no id)`, a correct message for a confusing signature.
+ * `test/e2e/rand2011.test.ts` worked around it with an `{ id }` wrapper that
+ * happened to be enough.
+ *
+ * A listener holds `stage.currentGame`; a test or an HTTP handler usually holds an
+ * id. Neither should have to know which one the function it is calling prefers.
+ */
+export type GameRef = string | { id?: unknown };
+
+/**
+ * The id out of a `GameRef`, or undefined.
+ *
+ * One place, so the accepted shapes cannot drift between call sites. Returns
+ * undefined rather than throwing: each caller has its own thing to say about a
+ * game it cannot find, and `inspect()` in particular must answer with `undefined`
+ * rather than an exception.
+ */
+export function gameIDOf(ref: GameRef | undefined): string | undefined {
+  if (typeof ref === "string") return ref.length > 0 ? ref : undefined;
+  const id = (ref as { id?: unknown } | undefined)?.id;
+  return typeof id === "string" && id.length > 0 ? id : undefined;
+}
 
 /** Read-only view of one participant's private, self-written state. */
 export interface StateReader {
@@ -84,7 +121,7 @@ export interface NetworkConfig {
    */
   envelope?: EnvelopeLimits;
   /**
-   * Player attribute keys that feed `project()`.
+   * Keys that feed `project()` — on the player scope, or on a private channel.
    *
    * A change to any of them republishes the views that can see it. Empirica has
    * no wildcard attribute listener, so this list cannot be inferred — but
@@ -92,8 +129,37 @@ export interface NetworkConfig {
    * missing here is reported rather than silently going stale.
    *
    * Leave it empty for a static network whose projection never changes.
+   *
+   * For a private key the server reads but `project()` never touches, use `read`
+   * below instead — the two behave identically, and saying which you meant is the
+   * point.
    */
   watch?: string[];
+  /**
+   * Private keys the SERVER reads but the projection does not.
+   *
+   * A submitted answer, a decision, anything a listener consumes rather than
+   * publishes. Read back with `net.stateOf(gameID, playerID, key)`, and visible in
+   * `net.inspect()`'s per-node `state`.
+   *
+   * Mechanically identical to `watch` — the two are unioned, and a key in either
+   * gets its listener and its place in the snapshot. It is a separate field
+   * because until M6 there was only `watch`, doing both jobs under one name, and
+   * the second job had no recording proxy behind it: a private key the server
+   * needed but nobody had listed read back as `undefined`, which is exactly what
+   * "the participant has not written it yet" looks like.
+   *
+   * Found while building the Rand 2011 reconstruction, where the omitted key was
+   * the participants' rewiring answers: every answer read back as `undefined`, so
+   * `applyRewiring` got an empty answer set and the network NEVER CHANGED — in the
+   * condition whose entire point is that it does — with nothing throwing anywhere
+   * (`ISSUES.md` O11). `stateOf()` is the loud path that replaces it; this field
+   * is what tells `stateOf()` the key is legitimate.
+   *
+   * Listing a key `project()` ignores costs one listener and no wire traffic,
+   * since a republished view comes out byte-identical and is suppressed (§7.1).
+   */
+  read?: string[];
   /**
    * Neighbour-scoped chat.
    *
@@ -121,6 +187,92 @@ export interface NetworkConfig {
    * study's own data, rather than on this package's tests.
    */
   views?: ViewsConfig;
+  /**
+   * An append-only run log, written as the study happens.
+   *
+   *     withNetwork(Empirica, { …, log: { file: "data/run.ndjson" } });
+   *     // then, from any listener:
+   *     net.log(stage.currentGame, { type: "round", round: 3, rows });
+   *
+   * **What this is for.** Analysis files are normally written in `onGameEnded`,
+   * which fires only when a game ends NATURALLY. A study that is killed, crashes,
+   * or is stopped mid-session never reaches it — and after `ISSUES.md` U2 a crash
+   * mid-study is the *normal* shape of "something went wrong", because a restarted
+   * server cannot put participants back in their game anyway. So the case where
+   * partial data matters most was the case that produced none. Measured, not
+   * imagined: a green run of `test/e2e/rand2011.test.ts` left `views.ndjson` and
+   * not one CSV.
+   *
+   * One file for the whole study, not one per game: every record is stamped with
+   * its `gameID` and its `at`, so a batch of concurrent games interleaves safely
+   * and an analyst groups by game offline. Read it back with `parseNdjson` from
+   * `empirica-networks/export`, which tolerates the half-written final line a hard
+   * kill leaves.
+   *
+   * Unbuffered by default — see `batch` — because a facility that exists to
+   * survive a kill should not default to holding its most recent records in
+   * memory. `views` makes the opposite trade for the opposite reason.
+   *
+   * What goes in the records is yours. The package writes none of its own: the
+   * realised network is already durable on the batch scope, and inventing a
+   * parallel copy here would create two versions of the same fact.
+   */
+  log?: LogConfig;
+  /**
+   * A participant wrote one of their own private keys.
+   *
+   *     onPrivateState: ({ gameID, playerID, key, value }) => { … }
+   *
+   * Fires for any key in `watch` or `read`, on the participant's PRIVATE channel
+   * only — a player-scope write is broadcast to everyone and is `Empirica.on(
+   * "player", key, …)`'s business. Delivered after the republish the write
+   * triggered, so a hook that ends the stage does so with everyone's view already
+   * current.
+   *
+   * This exists because the only previous way to get it reached into the package's
+   * key layout:
+   *
+   *     Empirica.on(NBHD_KIND, stateKey("color"), (_ctx, props) => { … });
+   *
+   * which requires knowing that a plain `.on` escapes the `unique` guard
+   * (`ISSUES.md` U8), and which works ONLY because `withNetwork` issued
+   * `ctx.scopeSub({ kinds: ["nbhd"] })` at start — so the same three lines copied
+   * into a project that does not call `withNetwork` produce a listener that never
+   * fires, silently (`docs/PLATFORM-NOTES.md` §12, U3). It was in
+   * `examples/shirado2017` for a whole milestone, which is how a package finds out
+   * it is missing something.
+   *
+   * A config field rather than a `net.onPrivateState(key, cb)` method, and that is
+   * a deliberate refusal: a method invites registration after the admin has
+   * started, and a listener registered too late is a listener that never fires. A
+   * field is read before anything is wired.
+   *
+   * **Synchronous.** A returned promise is not awaited, and any write made after
+   * an `await` inside it lands outside the runloop's flush and reaches nobody —
+   * the trap `GameNetwork` documents for mutators, arriving here by a different
+   * road. Do the work inline, or queue it and write from a listener.
+   *
+   * A throw is caught and reported rather than propagated: with twenty
+   * participants, one hook failing must not stop the other nineteen's events
+   * being processed. That is the opposite of `project()`, which throws — there,
+   * nothing has been sent yet and a bad view must not go out; here the write has
+   * already happened and the choice is only whether to keep going.
+   *
+   * Fires again for a value already delivered if attributes are replayed (a
+   * restart), and does not dedupe. `lastOutbox` in the chat relay is what
+   * deduping looks like when a design needs it.
+   */
+  onPrivateState?: (event: PrivateStateEvent) => void;
+}
+
+/** One participant's write to one of their own private keys. */
+export interface PrivateStateEvent {
+  gameID: string;
+  /** Player id, never a topology index — see `GameNetwork`. */
+  playerID: string;
+  key: string;
+  /** The value as stored. `undefined` if the key was cleared. */
+  value: unknown;
 }
 
 export interface ChatConfig {
@@ -174,8 +326,22 @@ export interface NetworkHandle {
   publishAll(): boolean;
   /** Live counts of everything held per game or per channel. */
   stats(): NetworkStats;
-  /** Ids of the games currently networked by this process. */
-  games(): string[];
+  /**
+   * Games this PROCESS is currently networking, newest first.
+   *
+   * Renamed from `games()` in M6, because the old name invited exactly one wrong
+   * reading — "the current game" — and the lifetime is the whole subtlety. A
+   * process runs many games sequentially: this returns every one that has started
+   * and not yet ended, which in a batch of concurrent games is several, and in a
+   * test suite can be a previous scenario's if a game was never ended.
+   *
+   * `startedAt` is here so that "which one is current" is answerable from the
+   * return value instead of by convention. It is ms since epoch, from the server
+   * clock, recorded when this process began networking the game — so after a
+   * restart it is the RECOVERY time, not the original start. Stated because a
+   * timestamp that silently means two different things is worse than none.
+   */
+  activeGames(): Array<{ id: string; startedAt: number }>;
   /**
    * Everything known about one game's network, as plain data.
    *
@@ -189,7 +355,55 @@ export interface NetworkHandle {
    * REPL. Writes are the thing that only count inside a callback
    * (docs/PLATFORM-NOTES.md §15); nothing here writes.
    */
-  inspect(gameID: string): GameSnapshot | undefined;
+  inspect(game: GameRef): GameSnapshot | undefined;
+  /**
+   * One participant's private value for one key — the loud read path.
+   *
+   *     const answers = net.stateOf(stage.currentGame, playerID, "rewireAnswers");
+   *
+   * Use this rather than `inspect(gameID)?.nodes[i]?.state[key]` for anything a
+   * listener consumes. Both read the same store; the difference is entirely in
+   * what happens when you are wrong, and being wrong here is invisible.
+   *
+   * **`undefined` means one thing only: the participant has not written this
+   * key.** Every other way of not having a value throws — an undeclared key, a
+   * game this process is not networking, a player outside the graph, a channel
+   * that has not materialised. The snapshot path collapses all five into
+   * `undefined`, and that is how `examples/rand2011` ran a whole study in which
+   * the rewiring manipulation did nothing (`ISSUES.md` O11): the key was missing
+   * from the key list, every answer read back as "not submitted", the network
+   * never changed, and nothing anywhere errored.
+   *
+   * Reads are safe from anywhere — a timer, an HTTP handler, a test. It is
+   * writes that only count inside a callback (`docs/PLATFORM-NOTES.md` §15).
+   *
+   * Not on `GameNetwork`, and not returning a scope: `inspect()`'s note about
+   * observers acquiring write paths applies equally to a read accessor, so this
+   * returns the stored value and nothing that can reach the store.
+   */
+  stateOf<T = unknown>(game: GameRef, playerID: string, key: string): T | undefined;
+  /**
+   * Append one record to the run log, now.
+   *
+   *     net.log(stage.currentGame, { type: "round", round: 3, rows });
+   *
+   * `gameID` and `at` are stamped on; everything in `record` is written beside
+   * them. Requires `log: { file }` (or `log: { onRecord }`) in the config, and
+   * **throws if there is none** — a logging call that quietly went nowhere would
+   * be indistinguishable from a study that recorded nothing, which is the failure
+   * this facility exists to prevent.
+   *
+   * The two kinds of error are treated differently on purpose. A bad call — no
+   * log configured, an unresolvable game, a record that is not a plain object —
+   * throws, because it is deterministic and shows up the first time the code
+   * runs. A failure to WRITE (a full disk, a vanished directory) is reported and
+   * swallowed, because it happens mid-study and the study matters more than its
+   * telemetry.
+   *
+   * Safe from anywhere, unlike the mutators: this writes to the filesystem, not
+   * to a scope, so it does not depend on being inside a callback.
+   */
+  log(game: GameRef, record: Record<string, unknown>): void;
 }
 
 export function withNetwork(collector: any, config: NetworkConfig = {}): NetworkHandle {
@@ -197,12 +411,25 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   const project = config.project ?? defaultProject;
 
   const watch = config.watch ?? [];
+  const readOnly = config.read ?? [];
+  /**
+   * Every private key this instance can see, `watch` and `read` together.
+   *
+   * Unioned rather than kept apart, so that misfiling a key between the two
+   * fields cannot break anything: both get a listener, both appear in
+   * `inspect()`, both are readable through `stateOf()`. The distinction is
+   * declarative — it records what the author meant, and gives `stateOf()`
+   * something to check against — and a distinction that also changed behaviour
+   * would be a new way to be silently wrong, which is the thing being fixed.
+   */
+  const readable = [...new Set([...watch, ...readOnly])];
   const chatEnabled = Boolean(config.chat);
   const chatHistory =
     (typeof config.chat === "object" ? config.chat.history : undefined) ?? 200;
   /** playerID -> highest outbox seq already relayed, so a republish cannot duplicate. */
   const lastOutbox = new Map<string, number>();
   const viewSink = makeViewSink(config.views);
+  const logSink = makeLogSink(config.log);
 
   const networks = new Map<string, NetworkState>();
   /** nbhd scope id -> the modelled scope object we can call .set() on. */
@@ -214,11 +441,22 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   /** gameID -> (topology index -> playerID), rebuilt from the channels themselves */
   const recoveredOrder = new Map<string, Map<number, string>>();
   const games = new Map<string, any>();
+  /**
+   * When THIS process began networking each game.
+   *
+   * Not when the game started: after a restart the original start time is not
+   * recoverable from anything durable, and inventing one would make
+   * `activeGames()` report a lie with a plausible shape. `activeGames`'s doc
+   * comment says which it is.
+   */
+  const startedAt = new Map<string, number>();
   const seqByGame = new Map<string, number>();
   /** nbhd scope id -> last published view, serialised. Suppresses no-op writes. */
   const lastPublished = new Map<string, string>();
   /** Keys already warned about, so the hot path warns once rather than per publish. */
   const reportedMissing = new Set<string>();
+  /** Whether the duplicate-lifecycle-listener check has already run. */
+  let reportedDuplicates = false;
   /**
    * Games known to be over.
    *
@@ -257,6 +495,13 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    */
   collector.on("start", (ctx: any) => {
     ctx.scopeSub({ kinds: [NBHD_KIND] });
+    // Here rather than at withNetwork() time, and the timing is the whole
+    // mechanism: registrations happen while the callbacks module is being
+    // evaluated, and `withNetwork(...)` is one statement inside it. Counting at
+    // that moment would miss every listener declared below the call — which in
+    // both shipped examples is most of them. `start` fires once the admin
+    // connects, after module evaluation is complete.
+    reportDuplicateLifecycleListeners();
   });
 
   /**
@@ -326,8 +571,10 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     endedGames.add(game.id);
     // Before anything else: a game ending is the last moment its records are
     // certainly still wanted, and the buffer would otherwise sit until the next
-    // game filled it or the process exited.
+    // game filled it or the process exited. A no-op for the run log at its
+    // default `batch: 1`, and not a no-op for anyone who raised it.
     viewSink?.flush();
+    logSink?.flush();
     gameNetworks.delete(game.id);
     historyByGame.delete(game.id);
 
@@ -341,13 +588,32 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
 
     networks.delete(game.id);
     games.delete(game.id);
+    startedAt.delete(game.id);
     seqByGame.delete(game.id);
     recoveredOrder.delete(game.id);
     awaitingPublish.delete(game.id);
     recovering.delete(game.id);
   }
 
-  collector.on("game", "start", async (ctx: any, { game }: any) => {
+  /**
+   * Held in a const so the duplicate-listener detector can exclude it BY
+   * IDENTITY.
+   *
+   * This is a plain `.on` on `game/start` — one of the six pairs the detector
+   * watches. As an inline `async (ctx, { game }) => …` its shape was exactly a
+   * `unique` wrapper's, so a consumer registering a single, correct
+   * `onGameStart` alongside `withNetwork` would have been warned about entirely
+   * healthy code. Both shipped examples do precisely that, so the detector would
+   * have cried wolf on its own package's examples.
+   *
+   * Naming it happens to fix that a second way — an arrow assigned to a `const`
+   * takes the const's name, so this is now `AsyncFunction/"onGameStartAttribute"/2`
+   * and no longer collides. That is a side effect of readable code, not a
+   * guarantee: inlining it again, or a build that mangles names, would restore
+   * the collision without touching the detector. The identity exclusion is the
+   * one that is actually load-bearing, and it holds either way.
+   */
+  const onGameStartAttribute = async (ctx: any, { game }: any) => {
     if (!game.get("start")) return;
 
     // A finished game must not be re-networked. This listener re-fires for
@@ -366,6 +632,10 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     }
 
     games.set(game.id, game);
+    // Recorded on first sight, including on the recovery path below — so it is
+    // consistently "when this process picked the game up", never sometimes that
+    // and sometimes the original start.
+    if (!startedAt.has(game.id)) startedAt.set(game.id, Date.now());
 
     // Already networked by a previous process.
     //
@@ -438,7 +708,8 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     // Channel scopes arrive asynchronously via the listener above; if they are
     // not all present yet, publish once they are.
     if (!publishAll(game)) awaitingPublish.add(game.id);
-  });
+  };
+  collector.on("game", "start", onGameStartAttribute);
 
   /**
    * Republish when a watched attribute changes.
@@ -449,7 +720,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * the viewer's own state). The byte-identical check in `publish` makes the
    * over-reach free on the wire.
    */
-  for (const key of watch) {
+  for (const key of readable) {
     // (a) the player scope — public, broadcast to everyone by Classic.
     collector.on("player", key, (_ctx: any, props: any) => {
       const player = props?.player;
@@ -458,14 +729,18 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
 
     // (b) the participant's own private channel — the neighbour-limited path.
     //
-    // One `watch` list covers both deliberately. Which scope a key lives on is
+    // One list covers both scopes deliberately. Which scope a key lives on is
     // the author's choice and can change; making them remember two lists would
     // turn a moved key into silently frozen neighbourhoods. Registering a
     // listener for a key nobody uses costs nothing.
     collector.on(NBHD_KIND, stateKey(key), (_ctx: any, props: any) => {
       const scope = props?.[NBHD_KIND];
       const playerID = scope?.get?.(NBHD_KEYS.PLAYER_ID);
-      if (typeof playerID === "string") republishAround(playerID);
+      if (typeof playerID !== "string") return;
+      republishAround(playerID);
+      // After the republish, so a hook that ends the stage does it with every
+      // participant's view already current.
+      notifyPrivateState(scope, playerID, key);
     });
   }
 
@@ -595,7 +870,10 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     const byID = new Map(players.map((p) => [p.id, p]));
 
     const targets: { scope: any; view: unknown[]; json: string; viewer: string }[] = [];
-    const sizes: { bytes: number; label: string }[] = [];
+    // `viewer` as well as `label`, so the envelope can sum per participant. One
+    // view being large and one participant receiving many are different failures
+    // with different fixes, and only the second is visible from a total.
+    const sizes: { bytes: number; label: string; viewer: string }[] = [];
     const readKeys = new Set<string>();
 
     for (const [i, playerID] of state.order.entries()) {
@@ -652,7 +930,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         // throwing here means nothing is sent — no participant gets a partial or
         // unsafe view.
         validateProjection(view, label);
-        sizes.push({ bytes: projectionBytes(view), label });
+        sizes.push({ bytes: projectionBytes(view), label, viewer: playerID });
         neighbours.push(view);
       }
 
@@ -942,6 +1220,49 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       history() {
         return (historyByGame.get(gameID) ?? []).slice();
       },
+      tell(playerID, key, value) {
+        // `indexOf` for its throw: telling a player who is not in this game's
+        // network is a programming error, and writing to a channel outside the
+        // graph would be a leak with nothing to indicate it happened.
+        indexOf(playerID);
+        if (typeof key !== "string" || key.length === 0) {
+          throw new Error("empirica-networks: tell() needs a non-empty string key");
+        }
+
+        // The same validator a projection goes through, deliberately. This is
+        // the second path from server to client, so it gets the first path's
+        // checks: a Scope carries a reference to the GLOBAL attribute store, so
+        // writing one here would ship every attribute of every participant to
+        // this client — the exact leak `project()` is guarded against, arriving
+        // through a newer door. Cycles, BigInt, functions, Map/Set and NaN are
+        // refused too.
+        validateProjection(value, `tell(${playerID}, ${JSON.stringify(key)})`);
+
+        const game = games.get(gameID);
+        if (!game) {
+          throw new Error(`empirica-networks: game ${gameID} is no longer networked`);
+        }
+        const scopeID = readChannels(game)[playerID];
+        const scope = scopeID ? channelScopes.get(scopeID) : undefined;
+        if (!scope) {
+          // Loud, not skipped. An unmaterialised channel is the one case where
+          // this write silently reaches nobody, and for a design where the told
+          // value IS the stimulus — a rewiring offer, say — a dropped write
+          // means that one participant decides on no information while everyone
+          // else decides on theirs, and the data records a choice rather than a
+          // missing question. Retrying is not open to us: the write only counts
+          // inside the caller's callback (PLATFORM-NOTES §15), and by the time a
+          // channel appears that callback is over.
+          throw new Error(
+            `empirica-networks: player ${playerID} has no materialised channel in game ` +
+              `${gameID}, so tell(${JSON.stringify(key)}) would reach nobody. Refusing ` +
+              `rather than dropping it silently. Channels materialise shortly after game ` +
+              `start, so tell() from a round or stage listener rather than from ` +
+              `game.start itself.`
+          );
+        }
+        scope.set(toldKey(key), value);
+      },
     };
   }
 
@@ -969,11 +1290,128 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * Once, not once per publish: this fires on a hot path, and a message repeated
    * thousands of times is a message nobody reads.
    */
+  /**
+   * Warn if a lifecycle helper was registered more than once (`ISSUES.md` U8).
+   *
+   * Reads `collector.attributeListeners`, which is marked `/** @internal *\/`
+   * upstream but is a plain array on the instance. Depending on an internal
+   * field is a real cost, taken deliberately: the alternative is that the
+   * consumer's second `onStageEnded` never runs and nothing anywhere says so,
+   * and this is the only place the duplicate is visible at all.
+   *
+   * Every failure mode degrades to SILENCE. If the field is missing, is not an
+   * array, or the calibration probe does not recognise what it produced, the
+   * detector switches off rather than guessing — a heuristic firing on a shape
+   * it does not understand would train people to ignore it, and this warning has
+   * to be believed the one time it fires.
+   *
+   * `src/admin/listeners.ts` carries the counting and the message, pure, so the
+   * false-positive filters are testable without a server.
+   */
+  function reportDuplicateLifecycleListeners(): void {
+    // Once per process. `start` can fire again if the admin reconnects
+    // (`initOrStop` tears the subscriptions down and rebuilds them), and the
+    // registration list cannot change in between — so a second report would be
+    // the same message twice, which is how a message stops being read.
+    if (reportedDuplicates) return;
+    reportedDuplicates = true;
+    try {
+      const calibration = calibrate(collector);
+      if (!calibration) return;
+      const dupes = duplicateLifecycleListeners(collector.attributeListeners, {
+        shape: calibration.shape,
+        placement: calibration.placement,
+        // Our own plain `game/start` listener, by identity. See its declaration.
+        exclude: new Set<unknown>([onGameStartAttribute]),
+      });
+      if (dupes.length > 0) warn(duplicateListenersMessage(dupes));
+    } catch {
+      // A detector must never be the reason a study fails to start.
+    }
+  }
+
+  /**
+   * Hand a participant's private write to the author's hook.
+   *
+   * See `NetworkConfig.onPrivateState` for the design decisions. What is here is
+   * the two guards and the catch.
+   */
+  function notifyPrivateState(scope: any, playerID: string, key: string): void {
+    const hook = config.onPrivateState;
+    if (!hook) return;
+
+    const gameID = scope?.get?.(NBHD_KEYS.GAME_ID);
+    // Only for a game this process is actually networking. Channels outlive
+    // their game and are replayed to any process that subscribes to the kind, so
+    // without this an ended or foreign game's attributes would arrive at the hook
+    // as though someone had just written them — and the author's handler would be
+    // reasoning about a game whose state they have already released.
+    if (typeof gameID !== "string" || !games.has(gameID)) return;
+
+    try {
+      hook({ gameID, playerID, key, value: scope.get(stateKey(key)) });
+    } catch (e) {
+      // Reported with a stack, unlike the sinks' one-line report: this hook holds
+      // experiment logic rather than telemetry, and the useful question is which
+      // line of the author's handler failed. Swallowed rather than rethrown so
+      // one participant's event cannot stop the rest of the game's, which is
+      // stated in the field's own documentation.
+      console.error(
+        `empirica-networks: onPrivateState threw for ${playerID}'s ${JSON.stringify(key)} ` +
+          `in game ${gameID} — the write itself succeeded and everyone's view was ` +
+          `republished, so what did not happen is whatever your handler does:\n` +
+          `${e instanceof Error ? (e.stack ?? e.message) : String(e)}`
+      );
+    }
+  }
+
+  /**
+   * Append one record to the run log.
+   *
+   * See `NetworkHandle.log`. The three throws are all programming errors that
+   * surface on the first run; write failures are the sink's business and are
+   * reported there rather than raised here.
+   */
+  function log(ref: GameRef, record: Record<string, unknown>): void {
+    if (!logSink) {
+      throw new Error(
+        `empirica-networks: net.log() was called but no run log is configured, so the ` +
+          `record would have gone nowhere. Add \`log: { file: "data/run.ndjson" }\` to ` +
+          `withNetwork(). Silently dropping it is how a study discovers at analysis time ` +
+          `that it recorded nothing.`
+      );
+    }
+    const gameID = gameIDOf(ref);
+    if (!gameID) {
+      throw new Error(
+        `empirica-networks: net.log() needs a game scope or its id string — what was ` +
+          `passed had neither: ${JSON.stringify(ref)}. Every record is stamped with its ` +
+          `game, because one log file holds a whole study.`
+      );
+    }
+    if (record === null || typeof record !== "object" || Array.isArray(record)) {
+      throw new Error(
+        `empirica-networks: net.log() takes a plain object, not ` +
+          `${Array.isArray(record) ? "an array" : typeof record}. Each line of the log is ` +
+          `one object, and anything else cannot carry the stamped gameID or be read back ` +
+          `by a \`record.type\` switch.`
+      );
+    }
+    // The stamp goes first so a line is readable in `head`, and the author's
+    // fields spread over it — so a design that keeps its own `at` (an event time
+    // that is not the moment it was logged) wins, deliberately.
+    logSink.record({ gameID, at: Date.now(), ...record });
+  }
+
   function reportUnwatchedKeys(readKeys: Set<string>): void {
-    const missing = unwatchedKeys(readKeys, watch).filter((k) => !reportedMissing.has(k));
+    // Against the UNION, not `watch` alone. A key declared in `read` still has
+    // its listener, so a projection that reads one is live and warning about it
+    // would be a false alarm — and a false alarm on this path teaches people to
+    // ignore the one warning in the package that catches a stale neighbourhood.
+    const missing = unwatchedKeys(readKeys, readable).filter((k) => !reportedMissing.has(k));
     if (missing.length === 0) return;
     for (const k of missing) reportedMissing.add(k);
-    warn(unwatchedKeysMessage(missing, watch));
+    warn(unwatchedKeysMessage(missing, readable));
   }
 
   /**
@@ -984,10 +1422,68 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * stylistic: a scope carries `.set()`, so handing one to an observer hands it
    * the publisher's write path (see ./inspect.ts).
    */
-  function inspect(gameID: string): GameSnapshot | undefined {
+  /**
+   * Read ONE participant's private value, loudly.
+   *
+   * See `NetworkHandle.stateOf` for what each throw is for. The implementation
+   * is deliberately not `inspect(gameID)?.nodes.find(...)`: that would build the
+   * whole snapshot — every node, the metrics, the replayed history — to read one
+   * attribute, and it would inherit `inspect()`'s `undefined` for a game this
+   * process is not networking, which is the answer this accessor exists to
+   * refuse.
+   */
+  function stateOf<T = unknown>(
+    ref: GameRef,
+    playerID: string,
+    key: string
+  ): T | undefined {
+    if (typeof key !== "string" || key.length === 0) {
+      throw new Error("empirica-networks: stateOf() needs a non-empty string key");
+    }
+    if (!readable.includes(key)) throw new Error(unlistedKeyMessage(key, watch, readOnly));
+
+    const gameID = gameIDOf(ref) ?? "(no id)";
     const state = networks.get(gameID);
     const game = games.get(gameID);
-    if (!state || !game) return undefined;
+    if (!state || !game) {
+      throw new Error(
+        `empirica-networks: game ${gameID} is not networked by this process, so ` +
+          `stateOf(${JSON.stringify(key)}) has no answer. The game has not started, has ` +
+          `ended, or was lost to a restart (ISSUES.md U2).`
+      );
+    }
+    if (!state.order.includes(playerID)) {
+      throw new Error(
+        `empirica-networks: player ${playerID} is not in game ${gameID}'s network`
+      );
+    }
+
+    const scopeID = readChannels(game)[playerID];
+    const scope = scopeID ? channelScopes.get(scopeID) : undefined;
+    if (!scope) {
+      // The same call as `tell()`'s, for the same reason at the opposite
+      // direction. A participant with no materialised channel has never had
+      // anywhere to write, so `undefined` here does not mean "chose nothing" —
+      // it means "was never asked", and scoring the two the same way is how a
+      // non-response gets recorded as a decision. Loud, and it names the field
+      // that shows how widespread the problem is: a game in this condition is
+      // already publishing nothing to anyone, because `publish()` refuses
+      // partial views.
+      throw new Error(
+        `empirica-networks: player ${playerID} has no materialised channel in game ` +
+          `${gameID}, so their private state cannot be read — this is not the same as ` +
+          `their having written nothing. The whole game is stalled while any channel is ` +
+          `missing; see inspect(gameID).pendingChannels.`
+      );
+    }
+    return scope.get(stateKey(key)) as T | undefined;
+  }
+
+  function inspect(ref: GameRef): GameSnapshot | undefined {
+    const gameID = gameIDOf(ref);
+    const state = gameID ? networks.get(gameID) : undefined;
+    const game = gameID ? games.get(gameID) : undefined;
+    if (!state || !game || !gameID) return undefined;
 
     const channels = readChannels(game);
     const players: any[] = game.players ?? [];
@@ -1002,11 +1498,11 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       const player = byID.get(playerID);
       const attrs: Record<string, unknown> = {};
       const privateState: Record<string, unknown> = {};
-      for (const key of watch) {
+      for (const key of readable) {
         // Both halves, because which scope a key lives on is the author's
-        // choice and the `watch` list deliberately covers both (see the
-        // listener registration above). An operator looking at a stalled study
-        // should not have to know which one the author picked.
+        // choice and the key list deliberately covers both (see the listener
+        // registration above). An operator looking at a stalled study should
+        // not have to know which one the author picked.
         if (player) attrs[key] = player.get(key);
         // Reading the private channel is the whole reason this depends on U3:
         // `withNetwork`'s explicit `ctx.scopeSub({ kinds: ["nbhd"] })` is what
@@ -1042,7 +1538,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       history: historyFrames(gameID, historyByGame.get(gameID) ?? [], state.order),
       pendingChannels,
       awaitingPublish: awaitingPublish.has(gameID),
-      watch: [...watch],
+      watch: [...readable],
     };
   }
 
@@ -1057,8 +1553,16 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       channelScopes: channelScopes.size,
       cachedViews: lastPublished.size,
     }),
-    games: () => [...games.keys()],
+    activeGames: () =>
+      [...games.keys()]
+        .map((id) => ({ id, startedAt: startedAt.get(id) ?? 0 }))
+        // Newest first, so `activeGames()[0]` is the most recently started game
+        // rather than whatever insertion order happens to give. Not "the current
+        // game" — see the interface — but at least a defined one.
+        .sort((a, b) => b.startedAt - a.startedAt),
     inspect,
+    stateOf,
+    log,
   };
 }
 
@@ -1104,6 +1608,36 @@ export interface GameNetwork {
   publishFor(playerID: string): boolean;
   /** Every mutation since game start, oldest first. */
   history(): EdgeEvent[];
+  /**
+   * Tell ONE participant one thing, privately. Server-authored.
+   *
+   *     net.tell(decider, "offer", { with: otherID, theirLastAction: "C" });
+   *
+   * Read on the client with `useNetworkTold()`. Writes to that participant's own
+   * channel, so nobody else receives it — including the person the value is
+   * about.
+   *
+   * **This is the second path from server to client, and the only one that is
+   * not `project()`.** It exists because `project()` runs over a viewer's CURRENT
+   * neighbours, which cannot express "show this subject one fact about someone
+   * they are not connected to" — the information a rewiring offer is made of
+   * (Rand, Arbesman & Christakis 2011; `docs/M5-ADOPTION.md` §7).
+   *
+   * It does not weaken the guarantee, and the difference is worth stating
+   * exactly: `project()` remains the only path by which one participant's data
+   * reaches another. What goes here is authored by your own server code, and you
+   * decide what it contains — so the discipline `project()` enforces
+   * structurally is yours to keep here. In particular, **do not pass a whole
+   * neighbour or player object**: it is refused (a Scope carries the global
+   * attribute store), but the reason it is refused is the reason to be careful
+   * with what you assemble by hand.
+   *
+   * Subject to the same rule as the mutators: **only from inside a listener.**
+   * Throws rather than dropping the write if the participant's channel has not
+   * materialised, because a told value is usually a stimulus, and a missing
+   * stimulus that records a choice anyway is worse than a crash.
+   */
+  tell(playerID: string, key: string, value: unknown): void;
 }
 
 /**
@@ -1120,13 +1654,18 @@ const gameNetworks = new Map<string, GameNetwork>();
  * is experiment code about to mutate the graph, and silently doing nothing to a
  * network is precisely the failure mode this package keeps designing against.
  */
-export function network(game: any): GameNetwork {
-  const handle = game?.id ? gameNetworks.get(game.id) : undefined;
+export function network(game: GameRef): GameNetwork {
+  const gameID = gameIDOf(game);
+  const handle = gameID ? gameNetworks.get(gameID) : undefined;
   if (!handle) {
     throw new Error(
-      `empirica-networks: no network for game ${game?.id ?? "(no id)"}. ` +
+      `empirica-networks: no network for game ${gameID ?? "(no id)"}. ` +
         `Either the game has not started yet, it has ended, or withNetwork() was never ` +
-        `called on this collector.`
+        `called on this collector.` +
+        (gameID
+          ? ""
+          : ` Pass a game scope or its id string — what was passed had neither: ` +
+            `${JSON.stringify(game)}.`)
     );
   }
   return handle;

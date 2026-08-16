@@ -1,3 +1,4 @@
+import { toldKey } from "../shared/keys.js";
 import type { Nbhd } from "./mode.js";
 
 /**
@@ -52,6 +53,42 @@ export function networkSelfOf(nbhd: Nbhd | undefined): NetworkSelf | undefined {
     playerID: nbhd.playerID,
     degree: nbhd.published ? nbhd.neighbors.length : undefined,
     seq: nbhd.seq,
+  };
+}
+
+/** Values the SERVER wrote to this participant's channel. Read-only. */
+export interface NetworkTold {
+  /**
+   * One server-authored value, or `undefined` if the server has not written it.
+   *
+   * `undefined` is genuinely ambiguous here — "never written" and "written as
+   * undefined" are the same answer — and unlike `neighborsOf` there is no
+   * published flag to disambiguate, because the server decides per key whether a
+   * key exists at all. Designs that need "asked and declined" distinguishable
+   * from "never asked" should say so in the value (`{ offered: false }`), not in
+   * its absence.
+   */
+  get<T = unknown>(key: string): T | undefined;
+}
+
+/**
+ * Read what the server told this participant, privately.
+ *
+ * Deliberately read-only: this namespace is the server's, and a participant's own
+ * writes go through `networkStateOf`. Nothing enforces that at the wire — a
+ * participant can write any attribute anywhere (PLATFORM-NOTES §4a) — so this is
+ * an API that does not invite the mistake, not a permission check. Server code
+ * reading these values back and trusting them would be trusting participant
+ * input, which is the standing warning in the README.
+ *
+ * NOT memoised on the channel, for the same reason `neighborChatOf` is not: the
+ * whole point is that values change during play, and a stable object closing over
+ * a stale read would silently stop updating.
+ */
+export function networkToldOf(nbhd: Nbhd | undefined): NetworkTold | undefined {
+  if (!nbhd) return undefined;
+  return {
+    get: <T = unknown>(key: string) => nbhd.get(toldKey(key)) as T | undefined,
   };
 }
 

@@ -9,13 +9,38 @@
  * erroring. `npm test` should neither fail because a tier is not written yet nor
  * pretend a tier ran when it did not.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * Sweep orphaned harness servers before the e2e tier, and report what was there.
+ *
+ * The pattern matches this harness's temp config only, and every server it starts
+ * runs `--tajriba.store.mem`, so nothing with data in it is in range. The orphans
+ * are U6's: the `empirica` CLI execs a versioned binary as its own child, so a
+ * killed CLI can leave the real server holding its port.
+ *
+ * Reported rather than silent, because the COUNT is evidence. `ISSUES.md` O8 spent
+ * a session distinguishing load from orphan contamination, and a sweep that says
+ * nothing would have made that impossible: "0 before the run" is what licenses
+ * reading a red run as something other than a dirty machine.
+ */
+function sweepOrphans(label) {
+  const pattern = "empirica-networks-.*tajriba.toml";
+  const before = spawnSync("pgrep", ["-f", pattern], { encoding: "utf8" });
+  const count = (before.stdout ?? "").trim().split("\n").filter(Boolean).length;
+  if (count > 0) {
+    spawnSync("pkill", ["-f", pattern]);
+    console.log(`${label}: swept ${count} orphaned harness server(s) — see ISSUES.md U6`);
+  } else {
+    console.log(`${label}: 0 orphaned harness servers`);
+  }
+}
 
 const ALL_TIERS = ["unit", "mode", "e2e"];
 
@@ -88,6 +113,7 @@ if (e2e.length === 0) {
   if (tiers.includes("e2e")) skipped.push("e2e");
 } else {
   console.log(`\n=== e2e (${e2e.length} file(s), bundled) ===`);
+  sweepOrphans("e2e");
   const outDir = path.join(root, ".tmp-test");
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
@@ -134,6 +160,17 @@ if (e2e.length === 0) {
    * in the suite. They pass 5/5 alone. Serial is the honest setting, and it
    * costs about a minute — cheap against one wasted afternoon chasing a
    * phantom regression.
+   *
+   * AND THIS IS ALREADY THE SHARDED SHAPE (measured 2026-08-16). M6 Tier 4 planned
+   * to shard this tier to fix O8. It cannot: `node --test` runs each test FILE in
+   * its own child process — verified directly, two files reporting two different
+   * `process.pid` under `--test-concurrency=1` — so with concurrency 1 the tier is
+   * already one fresh process per file, run one at a time. Re-running the tier as 25
+   * separate `node --test` invocations, swept before each of three passes, gave 3, 0
+   * and 2 failures across 75 file-runs: the same 1-green-in-3 as the single
+   * invocation. The whole tier costs 89 s when green, so cost is not the problem
+   * either. See `ISSUES.md` O8, and `scripts/e2e-repeat.mjs` for measuring a rate
+   * rather than re-running once and hoping.
    */
   run(process.execPath, [
     "--test-force-exit",

@@ -1,0 +1,21 @@
+# Scaffold-local development credentials. Not secrets, and not shared.
+#
+# `srtoken` is a service token for the local Tajriba server, and Empirica has no
+# write access control behind it (`ISSUES.md` U1): whoever holds it can write any
+# attribute on any scope, including every participant's. It is committed because
+# these are the values `empirica create` generated for a throwaway localhost
+# project and the example has to run out of the box.
+#
+# Regenerate both before this configuration is reachable from anywhere but
+# localhost. Each example here has its OWN pair on purpose: they were identical
+# until M6 Tier 4, which meant a reader who took one example's token as a
+# working default had a token that also opened the other two.
+name = "scaffold-probe"
+
+[tajriba.auth]
+srtoken = "REDACTED"
+
+[[tajriba.auth.users]]
+name = "Admin"
+username = "admin"
+password = "REDACTED"

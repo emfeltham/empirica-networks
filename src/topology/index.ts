@@ -28,10 +28,13 @@
  * end-to-end check that the recorded seed regenerates what participants were
  * actually given.
  *
- * DEGREE MATTERS HERE. The supported envelope is d <= 16 (README), enforced at
- * game start. `complete`, `star` and `wheel` all have a node of degree n-1, so
- * they exceed it for n > 17 by construction — that is a property of the shape,
- * not a bug, and the envelope check will say so rather than let the run degrade.
+ * DEGREE MATTERS HERE, and how much depends on n. The default envelope permits
+ * degree up to n-1 at n <= 50 and caps it at 16 above that, because those are the
+ * two regimes that have been measured (`src/admin/envelope.ts`
+ * `defaultMaxDegree`). So `complete`, `star` and `wheel` — every one of which has
+ * a node of degree n-1 — are fine at n <= 50 and out of the envelope by
+ * construction above it. That is a property of the shape rather than a bug, and
+ * the check at game start says which measurement was hit.
  */
 import type { Rng } from "../admin/seed.js";
 import { shuffle } from "../admin/seed.js";

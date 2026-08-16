@@ -30,6 +30,19 @@ export default defineConfig([
       "topology/index": "src/topology/index.ts",
       "topology/graphology": "src/topology/graphology.ts",
       "admin/index": "src/admin/index.ts",
+      // The row builders and CSV writer, on their own subpath.
+      //
+      // They are pure functions over plain data — `src/admin/export.ts` has one
+      // TYPE import and nothing else — and the README tells analysts they "run
+      // offline over data collected months ago". They could not: reaching them
+      // through `admin/index` drags in `@empirica/core/admin`, which cannot be
+      // loaded from raw Node in either module system (PLATFORM-NOTES §3a), so an
+      // offline analysis script died on `cross-fetch/polyfill` before running a
+      // line. Found by writing exactly such a script — `examples/*/recover.mjs`.
+      //
+      // Pinned by `test/unit/export_isolation.test.ts`, which fails if anything
+      // with a dependency ever reaches this entry.
+      "export/index": "src/admin/export.ts",
       // A separate entry, not folded into admin/index. The monitor imports
       // node:http and serves the complete graph; keeping it behind its own
       // subpath means a server that never opts in never loads it, and means

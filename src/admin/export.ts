@@ -14,25 +14,45 @@
  */
 import type { EdgeEvent, ViewRecord } from "../shared/keys.js";
 
+/**
+ * `EdgeRow` and `SnapshotRow` are `type` aliases rather than `interface`s, and that
+ * is load-bearing rather than stylistic. (`ViewRow` below is an interface and
+ * composes fine — it declares an index signature of its own, because a projection's
+ * fields are not known in advance.)
+ *
+ * TypeScript gives an object type alias an implicit index signature and an
+ * interface none, so `toCSV(edgeRows(…))` — two exported functions of this module,
+ * composed the obvious way — did **not** compile while these were interfaces:
+ * `Index signature for type 'string' is missing in type 'EdgeRow'`. It went
+ * unnoticed until M6 Tier 4 because every caller that composed them was in an
+ * example's plain JavaScript, and the one in TypeScript went through a placeholder
+ * string. Found by writing that call in a test, not by reading the code.
+ *
+ * The alternative was widening `toCSV` to accept `object`, which would have made
+ * `toCSV([{ a: { nested: 1 } }])` compile and emit `[object Object]`. Keeping the
+ * value constraint and dropping the interface is the same fix without that cost.
+ * `test/unit/shirado2017.test.ts` composes them, so `npm run check` is the guard.
+ */
+
 /** One row of `edges.csv`. */
-export interface EdgeRow {
+export type EdgeRow = {
   game_id: string;
   /** Wall clock, ms, from the event that caused it. */
   t: number;
   event: "connected" | "disconnected";
   player_a: string;
   player_b: string;
-}
+};
 
 /** One row of `network_snapshots.csv`. */
-export interface SnapshotRow {
+export type SnapshotRow = {
   game_id: string;
   t: number;
   /** Edge count at this point. */
   size: number;
   /** Full edge list, `a|b` pairs separated by spaces. */
   edges: string;
-}
+};
 
 /**
  * Every tie change, oldest first.
@@ -163,6 +183,48 @@ export function viewRows(records: ViewRecord[]): ViewRow[] {
     }
   }
   return rows;
+}
+
+/** What `parseNdjson` found: the records, and what it had to throw away. */
+export interface NdjsonParse<T> {
+  records: T[];
+  /**
+   * Lines that would not parse.
+   *
+   * Reported rather than swallowed, because the expected cause is a hard kill
+   * cutting the final record in half — and a recovery that quietly dropped a
+   * round would be indistinguishable from a session that ran one round fewer.
+   */
+  dropped: number;
+}
+
+/**
+ * Parse an NDJSON run log, tolerating a truncated tail.
+ *
+ * Takes the file's TEXT, not its path, and that is a constraint rather than a
+ * preference: everything reachable from `empirica-networks/export` has to load
+ * from plain Node with no build step (`docs/PLATFORM-NOTES.md` §3a), and
+ * `test/unit/export_isolation.test.ts` enforces it by refusing this file any
+ * runtime import at all — including `node:fs`. The caller's
+ * `fs.readFileSync(path, "utf8")` is one line and is the line they already had.
+ *
+ * Exists because both shipped examples' `recover.mjs` had hand-rolled the same
+ * split/parse/count loop. Blank lines are skipped and not counted: a log that
+ * ends in a newline is a normal log, and reporting that as a dropped record would
+ * make every clean run look truncated.
+ */
+export function parseNdjson<T = Record<string, unknown>>(text: string): NdjsonParse<T> {
+  const records: T[] = [];
+  let dropped = 0;
+  for (const line of text.split("\n")) {
+    if (line.trim().length === 0) continue;
+    try {
+      records.push(JSON.parse(line) as T);
+    } catch {
+      dropped++;
+    }
+  }
+  return { records, dropped };
 }
 
 function scalar(v: unknown): string | number {

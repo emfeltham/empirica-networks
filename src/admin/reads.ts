@@ -54,6 +54,46 @@ export function unwatchedKeys(read: Set<string>, watched: Iterable<string>): str
 }
 
 /**
+ * The message thrown when the server reads a private key it never declared.
+ *
+ * The counterpart to `unwatchedKeysMessage` at the other boundary. That one is a
+ * warning, because a stale projection still publishes something; this one throws,
+ * because there is no honest value to return. An undeclared key has no listener
+ * and no entry in `inspect()`'s payload, so the only answer available is
+ * `undefined` — which is also the answer for "the participant has not written it
+ * yet", and a caller cannot tell the two apart. That confusion is the whole bug
+ * this accessor exists to remove (`ISSUES.md` O11), so returning `undefined` here
+ * would reproduce it one layer up.
+ *
+ * Names both fields, because which one the author wants is a real decision:
+ * `watch` if `project()` reads the key, `read` if only the server does.
+ */
+export function unlistedKeyMessage(
+  key: string,
+  watched: Iterable<string>,
+  readable: Iterable<string>
+): string {
+  const w = [...watched];
+  const r = [...readable];
+  const declared = [...new Set([...w, ...r])].sort();
+  return (
+    `empirica-networks: stateOf() was asked for private key "${key}", which is in ` +
+    `neither \`watch\` nor \`read\`.\n\n` +
+    `  Declared: ${declared.length ? declared.map((k) => `"${k}"`).join(", ") : "(none)"}\n\n` +
+    `  A private key with no listener cannot be read back: the answer would be\n` +
+    `  undefined, which is indistinguishable from "the participant has not written\n` +
+    `  it yet". Declare it and this works:\n\n` +
+    `    withNetwork(Empirica, { read: [${[...new Set([...r, key])]
+      .map((k) => `"${k}"`)
+      .join(", ")}], ... })\n\n` +
+    `  Use \`read\` for keys only the server consumes, and \`watch\` for keys\n` +
+    `  \`project()\` reads — a change to a watched key republishes the views that\n` +
+    `  can see it. Both are readable here; the difference is what it says to the\n` +
+    `  next person.\n`
+  );
+}
+
+/**
  * The message shown when a projection depends on keys nobody is watching.
  *
  * Deliberately quotes a ready-to-paste `watch` array: a warning that describes a

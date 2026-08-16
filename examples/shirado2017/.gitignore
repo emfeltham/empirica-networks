@@ -1,0 +1,6 @@
+node_modules
+dist
+package-lock.json
+
+# Analysis output written at game end (see this example's README).
+data/

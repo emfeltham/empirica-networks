@@ -569,6 +569,174 @@ closed socket and Empirica would reconnect. So the honest statement is that **th
 cannot reliably start a game at n=200**, and the consequence for real participants is untested.
 Filed as ISSUES.md U7.
 
+## 17. There is no artificial-player facility ⚠️
+
+*Measured 2026-08-15, `@empirica/core@1.12.5`, by searching the shipped bundles.*
+
+Empirica v2 ships **no bots, agents, or simulated participants of any kind**. Searched
+`node_modules/@empirica/core/dist/*.{js,cjs}` for `bot`, `virtual`, `simulat`, `agent`,
+`artificial` and `robot`; the only matches are `bottom`, `both` and `borderBot` (a CSS
+property). Nothing in the `exports` map offers one either — the subpaths are `.`, `./console`,
+`./player`, `./player/react`, `./player/classic`, `./player/classic/react`, `./user`,
+`./admin` and `./admin/classic`.
+
+Worth recording rather than shrugging at, because **assuming bots exist is the natural
+mistake**: Empirica v1 had them, and a substantial slice of network-experiment designs needs
+them. The brief for this milestone assumed it too, in the parenthetical "Empirica ships
+artificial players — reuse, do not port". It does not.
+
+**What a bot would have to be here, if someone builds one.** Not a server-side object: this
+package's topology is defined over `game.players`, Empirica creates a player only for a
+connected participant, and provisioning skips players without a `participantID` — so a node
+with no participant behind it has neither a seat nor a private channel (`ISSUES.md` O4). The
+route that does work is a **headless participant process**, which is about thirty lines of
+public API and is exactly what `src/verify/harness.ts`'s `connectParticipant` already does: a
+real `TajribaConnection`, a real session, and `EmpiricaNetwork` as the mode. Such a bot would
+read its neighbourhood off the mode and write its choice with `networkStateOf(...).set(...)`,
+indistinguishable from a human at the wire — which is also the right property for a study that
+does not tell participants which of their neighbours are software.
+
+Consequence for this repo: `examples/shirado2017` reconstructs the **human-only** arm of
+Shirado & Christakis (2017) and says so. Filed as `ISSUES.md` O10.
+
+## 18. An `onStageEnded`-style listener can only be registered ONCE ⚠️⚠️
+
+*Measured 2026-08-15, `@empirica/core@1.12.5`, while building `examples/rand2011`; the mechanism
+then read off `dist/admin.cjs` rather than inferred.*
+
+`ClassicListenersCollector`'s lifecycle helpers — `onGameStart`, `onRoundStart`, `onStageStart`,
+`onStageEnded`, `onRoundEnded`, `onGameEnded` — all register through `this.unique.on(...)`, and
+the `unique` wrapper is:
+
+```js
+function unique(kind, placement, callback) {
+  return async (ctx, props) => {
+    const attr = props.attribute;
+    const scope = props[kind];
+    if (!attr.id || scope.get(`ran-${PlacementString(placement)}-${props.attrId}`)) {
+      return;                       // <- already ran
+    }
+    await callback(ctx, props);
+    scope.set(`ran-${PlacementString(placement)}-${props.attrId}`, true);
+  };
+}
+```
+
+**The `ran-on-<attrId>` marker lives on the SCOPE, so it is shared by every listener registered
+for that `(kind, key)`.** The first callback to run sets it; every later one sees it and
+returns. A second `onStageEnded` therefore never executes — not for a different stage, not ever.
+
+Registrations are not deduplicated (`attributeListeners.push`), so nothing warns: each callback
+is registered, wrapped, and then silently skipped at dispatch. Plain `.on(kind, key, cb)` is
+**not** affected — `registerListerner` applies the wrapper only when `uniqueCall` is set, which
+is why `withNetwork`'s own listeners and the `Empirica.on(NBHD_KIND, stateKey("color"), …)` in
+`examples/shirado2017` coexist happily.
+
+**How it presented.** `examples/rand2011` was written with two `onStageEnded` handlers, one per
+stage — the obvious structure. The second never ran once: rewiring answers were never applied,
+the network never changed in the condition whose entire point is that it changes, no feedback
+was ever delivered, and nothing errored anywhere. It presented as "the participants' answers do
+not seem to do anything", which is several wrong hypotheses away from the cause. Caught only
+because `test/e2e/rand2011.test.ts` asserts that the graph actually changes.
+
+The same wrapper is why an extra `Empirica.onGameStart(...)` registered from a *test file*
+against a collector imported from an example never fires: the example already registered one.
+
+**Workaround: register each helper exactly once and dispatch inside it**, on
+`stage.get("name")` or equivalent. Both reconstructions do this and say why at the call site.
+Filed as `ISSUES.md` U8.
+
+### 18a. It is detectable from outside — measured 2026-08-16
+
+`withNetwork` now warns about this at server start (`src/admin/listeners.ts`). Everything the
+detector rests on was read off `@empirica/core@1.12.5` rather than inferred, and each fact rules
+out a naive version of the check:
+
+- **`collector.attributeListeners` is a plain `Array` of `{ placement, kind, key, callback }`**,
+  marked `/** @internal */` but readable on the instance. Not a Map, and not keyed — an earlier
+  note in `docs/M6-HARDENING.md` described it as `{"stage/ended/placement=1": 2}`, which was a
+  probe's own grouping mistaken for the field's shape.
+- **`unique()` returns `async (ctx, props) => {…}`.** Anonymous, arity 2, `AsyncFunction`. A
+  named, synchronous or differently-arity callback therefore cannot be a wrapper, which is what
+  lets a plain `.on("stage", "ended", function scoreRound() {})` be told apart from a duplicated
+  helper. The residual collision is an anonymous 2-argument *async* callback passed to a plain
+  `.on` — indistinguishable, rare, and named in the warning.
+- **An arrow assigned to a `const` takes the const's name.** `unique`'s arrow is *returned*, which
+  is why it is anonymous; `withNetwork`'s own `game/start` listener is a `const` and so is not.
+  That is a side effect of readable code, not a guarantee, so the detector excludes our listener
+  by identity as well.
+- **`ctx.register(fn)` gives the function a plain `ListenersCollector`**, which has no
+  `onStageEnded` at all (`chunk-LPBU7J6R.js`: `listeners = new ListenersCollector()`). The
+  detector is correctly inert for the function form — there is no lifecycle helper to duplicate —
+  and active for the `new ClassicListenersCollector()` form every real experiment uses. It also
+  means each `register()` call gets its own collector, so **Classic's internals are not on the
+  consumer's array**.
+- **Classic's own lifecycle registrations use `unique.before` / `unique.after`** (placement 0 and
+  2) on `game/start` and `game/ended`; the six helpers use `unique.on` (placement 1). Its
+  placement-1 attribute listeners are all on other keys (`game/status`, `stage/gameID`,
+  `player/introDone`, `player/ended`, `batch/status`, `stage/timerID`). Filtering on placement
+  makes the previous point moot either way.
+
+Because this reads an internal field, every unrecognised shape switches the detector **off**
+rather than guessing, and the expected wrapper shape is *calibrated at startup* from a throwaway
+`new collector.constructor()` rather than hardcoded — so a change to `unique` upstream retunes the
+detector instead of silently disabling it. `test/e2e/duplicate_listeners.test.ts` asserts both the
+warning and the underlying defect, so if the defect is ever fixed upstream the test says the
+warning should be withdrawn.
+
+### 18b. `warn()` writes to `console.log`, not `console.warn`
+
+*Measured 2026-08-16, `dist/chunk-TIKLWCJI.js`.*
+
+Every level in `@empirica/core/console` goes through one `createLogger` that calls
+`console.log(...)`. So **a test that swaps `console.warn` to capture a warning captures nothing**,
+and an assertion that the warning is *absent* passes vacuously. `test/e2e/envelope.test.ts` had
+exactly that dead capture; it never showed because it did not assert on what it collected.
+
+Two further details, both of which cost time: a multi-line message is emitted as **one
+`console.log` call per line** (`for (const line of args[0].split("\n"))`), each with its own
+timestamp prefix, so captures must be reassembled before matching; and `currentLevel` defaults to
+2 while `warn` is 3, so warnings are never suppressed by the default level.
+`@empirica/core/console` also exports `captureLogs` / `mockLogging`, which are cleaner but divert
+all output and hide the harness's own diagnostics on a failure.
+
+## 19. Degree costs less than the envelope assumed — measured 2026-08-16
+
+*`npm run bench -- --dense`, `@empirica/core@1.12.5`, 60 rounds per cell, participants sharded
+across child processes, macOS, loopback. One run per cell.*
+
+The default `maxDegree` was 16 and was documented as measured. It was — but the measurement
+(SPIKE-REPORT §4) swept **sparse** graphs while varying n, so it constrains n, not degree. The
+cells that would have constrained degree did not exist. They do now:
+
+| n | d | topology | p50 | p95 | max | receipts |
+|---|---|---|---|---|---|---|
+| 20 | 8 | ring lattice | 4.1 ms | 9.8 ms | 13.3 ms | 440/440 |
+| 20 | **19** | **complete** | **7.5 ms** | 13.9 ms | 16.5 ms | 1045/1045 |
+| 50 | 8 | ring lattice | 10.1 ms | 30.3 ms | 35.5 ms | 440/440 |
+| 50 | **49** | **complete** | **16.1 ms** | 24.6 ms | 30.4 ms | 2695/2695 |
+| 100 | 16 | ring lattice | 9.9 ms | 11.6 ms | 13.4 ms | 880/880 |
+
+**A complete graph at n=20 is faster than a degree-8 ring at n=50**, and faster than the cell the
+old limit was set from (n=100 d=16). No receipt was dropped and no round was silent at any density.
+Clock spread across shards was ≤ 0.3 ms in every cell.
+
+Degree is a second-order term. What these cells track is **participants per client process**: n=50
+over 2 shards and n=100 over 4 both put 25 per process and both land near 10 ms, while n=20 over 2
+puts 10 per process and lands at 4 ms. That was already this bench's standing caveat about its own
+numbers (§8 of the README) — it turns out to also be why the degree limit was wrong.
+
+**What this does NOT establish, stated because the limit it replaced was over-read in exactly this
+way.** The projection here is two fields, so these numbers are degree at *small view sizes*. Degree
+× view size is a different quantity, it is what a participant's uplink carries, and it is what
+SPIKE-REPORT §4's client-bandwidth finding was about — an n=100 complete graph at 24.9 KB per tick
+per participant is ~204 ms of transmission on a 1 Mbps uplink before any server cost. Nothing here
+contradicts that, and `maxNeighbourhoodBytes` exists to guard it now that degree alone no longer
+does.
+
+Also unmeasured, and worth naming rather than leaving implied: real browsers (React reconciles on
+every published view), real WAN latency, and any dense cell above n = 50.
+
 ## 9. Misc
 
 - `Player.participantID` is a public field on the admin classic model — no cast needed.

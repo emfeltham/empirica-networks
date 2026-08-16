@@ -14,7 +14,18 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": ".",
+    // The examples import `empirica-networks/...` the way a real consumer does.
+    // This is what lets their `.d.ts` files typecheck here with no install step,
+    // and it mirrors the alias `scripts/test.mjs` hands esbuild — so
+    // `npm run check` and the e2e bundle resolve the same files. Consumers
+    // resolve through the published exports map to `dist` instead, which is what
+    // `npm run example:install` exercises.
+    "paths": {
+      "empirica-networks": ["src/index.ts"],
+      "empirica-networks/*": ["src/*"]
+    }
   },
   "include": ["src", "test"]
 }
