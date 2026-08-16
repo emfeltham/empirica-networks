@@ -52,7 +52,21 @@ test("MEASUREMENT: is the batch scope hidden from participants?", async () => {
   await withScenario(
     { n: N, kinds: networkKinds, listeners, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
-      // Capture every frame each participant receives, below the mode.
+      /**
+       * Capture every frame each participant receives, below the mode.
+       *
+       * Opened BEFORE the batch exists, unlike `topology_visibility`, and it has to
+       * be: the batch sentinel is written by the `_.on("batch", …)` listener above,
+       * which fires the moment `createBatch` lands. A subscription opened after that
+       * could miss the very frame this test exists to look for, and the absence
+       * would then mean nothing.
+       *
+       * That is also the shape that correlates with O8's stall — an extra
+       * `changes()` subscription opened while Classic is registering participants,
+       * measured at 2 failures in 25 runs of `topology_visibility` before it was
+       * moved. Here the timing is part of the claim, so it stays, and the 90 s
+       * headroom below is what pays for it.
+       */
       const frames = participants.map(() => [] as string[]);
       const subs = participants.map((p, i) =>
         p.wireStream().subscribe((change: unknown) => {
@@ -68,10 +82,14 @@ test("MEASUREMENT: is the batch scope hidden from participants?", async () => {
         //
         // The headroom was originally justified by this test being the heaviest
         // in the suite — it opens an extra wire subscription per participant on
-        // top of the mode's own. That explanation is WRONG: `topology_visibility`
-        // later stalled on the same wait and does nothing of the kind. It is the
-        // shared assignment path, not this test's weight. Kept as an unexplained
-        // mitigation, recorded honestly in ISSUES.md O8.
+        // top of the mode's own. That explanation was rejected when
+        // `topology_visibility` stalled on the same wait, apparently doing nothing
+        // of the kind — but `topology_visibility` DID open one extra subscription
+        // before the batch, so the rejection was itself wrong, and the pattern is
+        // back under suspicion (`ISSUES.md` O8, 2026-08-16). It is not established:
+        // more headroom has never once been observed to help, because a stalled
+        // scenario stays stalled for 90 s as readily as for 30. Kept because
+        // removing it proves nothing either.
         await waitFor(
           () => participants.every((p) => modeOf(p).player.getValue()?.get("gameID")),
           { label: "gameID assigned", timeoutMs: 90_000 }

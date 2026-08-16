@@ -51,11 +51,11 @@ export interface NodeSnapshot {
    * This is the sensitive half of the payload and the reason §15.1 exists: it is
    * neighbour-limited data, and the monitor holds all of it at once.
    *
-   * Restricted to the `watch` list rather than dumping the channel. `watch` is
-   * the set of keys the author declared their projection depends on, so it is
-   * both bounded and exactly what an operator watching a live study wants — and
-   * a monitor that dumped every key would eventually dump one somebody put there
-   * for a reason unrelated to being displayed.
+   * Restricted to the declared keys (`watch` plus `read`) rather than dumping
+   * the channel. Those are the keys the author said their study depends on, so
+   * it is both bounded and exactly what an operator watching a live study wants
+   * — and a monitor that dumped every key would eventually dump one somebody put
+   * there for a reason unrelated to being displayed.
    */
   state: Record<string, unknown>;
 }
@@ -146,7 +146,15 @@ export interface GameSnapshot {
   pendingChannels: string[];
   /** True while the game is waiting on channels before its first publish. */
   awaitingPublish: boolean;
-  /** Watched keys, so the UI can label columns without guessing. */
+  /**
+   * Every private key this game can read back, so the UI can label columns
+   * without guessing.
+   *
+   * `watch` and `read` together, in declaration order. The monitor makes one
+   * column per entry and does not distinguish them, because the distinction is
+   * about what the author's code does with a key and an operator watching a
+   * study cares only that the value is there.
+   */
   watch: string[];
 }
 

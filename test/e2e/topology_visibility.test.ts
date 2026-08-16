@@ -49,15 +49,30 @@ test("a participant cannot read the realised topology or its seed", async () => 
   await withScenario(
     { n: N, kinds: networkKinds, listeners, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
-      // Capture the wire below the mode: a scope-level check alone would miss
-      // the data arriving under a name the client never surfaces.
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+
+      /**
+       * Capture the wire below the mode: a scope-level check alone would miss the
+       * data arriving under a name the client never surfaces.
+       *
+       * Opened AFTER the batch is running, and that position is load-bearing. This
+       * subscription used to be the first thing the test did, and that is the shape
+       * M5 already found and fixed in `rand2011`: an extra `changes()` subscription
+       * opened while Classic is registering participants correlates with a
+       * participant never getting a player scope at all, and then nothing is ever
+       * assigned (`ISSUES.md` O8). Measured here: this file failed 2 of 25 runs
+       * alone, on a swept idle machine, with the subscription first.
+       *
+       * Nothing is lost by waiting. The claim is about the edge list, the network
+       * does not exist until the game starts, and the game cannot start before
+       * assignment — so no frame that could carry a topology has been sent yet.
+       * `scope_visibility` is the case where this is NOT true, and it says so.
+       */
       const frames: string[] = [];
       const sub = participants[0]!.wireStream().subscribe((c: unknown) => {
         frames.push(JSON.stringify(c));
       });
-
-      const batch = await createBatch(admin, batchConfig(N, 1));
-      await batch.running();
 
       await waitFor(
         () => participants.every((p) => modeOf(p).player.getValue()?.get("gameID")),

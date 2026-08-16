@@ -15,9 +15,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { networkKinds } from "../../src/admin/kinds.js";
 import { resetChannels } from "../../src/admin/provision.js";
-import { withNetwork } from "../../src/admin/with_network.js";
+import { network, withNetwork } from "../../src/admin/with_network.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
 import { networkStateOf } from "../../src/player/state.js";
+import { networkToldOf } from "../../src/player/view.js";
 import { ring } from "../../src/topology/index.js";
 import {
   batchConfig,
@@ -33,6 +34,7 @@ test.beforeEach(() => resetChannels());
 
 const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
 const stateOf = (p: { mode: unknown }) => networkStateOf(modeOf(p).nbhd.getValue())!;
+const toldOf = (p: { mode: unknown }) => networkToldOf(modeOf(p).nbhd.getValue());
 
 function neighbourEntries(p: { mode: unknown }): { id: string; secret?: string }[] {
   return (modeOf(p).nbhd.getValue()?.neighbors ?? []) as { id: string; secret?: string }[];
@@ -64,6 +66,102 @@ async function startGame(participants: { mode: unknown }[]): Promise<void> {
     timeoutMs: 30_000,
   });
 }
+
+/**
+ * The `onPrivateState` hook, and the namespace boundary it must respect.
+ *
+ * One scenario for both halves, on purpose. The second claim is an ABSENCE — a
+ * server-authored `tell` must not arrive as a participant write — and waiting for
+ * an absence in its own scenario is the expensive shape that pushed the e2e tier
+ * red twice during M6 (`ISSUES.md` O8). Here the absence is checked at a moment
+ * that is already pinned by a positive assertion: the told value has demonstrably
+ * arrived at the client, so if the hook were going to see it, it would have.
+ */
+const HOOK_N = 4;
+const SERVER_AUTHORED = "SERVER-AUTHORED-NOT-A-PARTICIPANT-WRITE";
+const TRIGGER = "TRIGGER-THE-TELL";
+
+test("onPrivateState sees participants' writes, and never the server's own", async () => {
+  const events: Array<{ gameID: string; playerID: string; key: string; value: unknown }> = [];
+
+  const hookListeners = (_: any) => {
+    gameInit(1, 1, 3_600_000)(_);
+    withNetwork(_, {
+      topology: ({ playerCount }) => ring(playerCount),
+      project: (neighbour: any, _viewer: any, ctx: any) => ({
+        id: neighbour.id,
+        secret: ctx.stateOf(neighbour).get("secret"),
+      }),
+      watch: ["secret"],
+      onPrivateState: (event) => {
+        events.push(event);
+        // The `tell` has to happen inside a callback, and the hook IS inside one
+        // — it runs in the attribute listener that delivered the write. That is
+        // also what makes this arm possible without a second scenario.
+        if (event.value === TRIGGER) {
+          // The SAME key name, deliberately. `tell` writes `told:secret` while a
+          // participant writes `state:secret`; if those namespaces ever merged,
+          // an author's handler would start treating the server's own stimulus as
+          // a participant's decision, and every experiment built on this hook
+          // would be scoring its own output.
+          network(event.gameID).tell(event.playerID, "secret", SERVER_AUTHORED);
+        }
+      },
+    });
+  };
+
+  await withScenario(
+    { n: HOOK_N, kinds: networkKinds, listeners: hookListeners, modeFunc: EmpiricaNetwork },
+    async ({ admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(HOOK_N, 1));
+      await batch.running();
+      await startGame(participants);
+
+      const gameID = modeOf(participants[0]!).player.getValue()!.get("gameID");
+      const ids = participants.map((p) => modeOf(p).player.getValue()!.id);
+
+      for (const [i, p] of participants.entries()) stateOf(p).set("secret", `MINE-${i}`);
+      await waitFor(() => ids.every((id) => events.some((e) => e.playerID === id)), {
+        label: "every participant's write reached the hook",
+        timeoutMs: 30_000,
+      });
+
+      // Player ids, not topology indices, and the value as written — the whole
+      // point of the hook over `Empirica.on(NBHD_KIND, stateKey("secret"), …)`,
+      // which hands over a scope and leaves the author to dig both out of it.
+      for (const [i, id] of ids.entries()) {
+        const seen = events.filter((e) => e.playerID === id);
+        assert.ok(seen.length > 0, `no event for ${id}`);
+        assert.deepEqual(
+          seen.map((e) => [e.key, e.gameID]).at(-1),
+          ["secret", gameID],
+          "the event names the key and the game"
+        );
+        assert.equal(seen.at(-1)!.value, `MINE-${i}`, "the value is what the participant wrote");
+      }
+
+      // Now the other half. One participant writes the trigger, the hook tells
+      // them something under the same key, and the told value demonstrably
+      // arrives — which is what makes the absence below a real check rather than
+      // a race that has not finished yet.
+      stateOf(participants[0]!).set("secret", TRIGGER);
+      await waitFor(() => toldOf(participants[0]!)?.get("secret") === SERVER_AUTHORED, {
+        label: "the server's told value reached the participant",
+        timeoutMs: 30_000,
+      });
+
+      assert.ok(
+        events.some((e) => e.value === TRIGGER),
+        "the trigger write itself reached the hook, so the tell above really ran"
+      );
+      assert.equal(
+        events.filter((e) => e.value === SERVER_AUTHORED).length,
+        0,
+        "the server's own write came back through the participant-write hook"
+      );
+    }
+  );
+});
 
 test("a privately written value reaches neighbours and NO ONE else", async () => {
   await withScenario(

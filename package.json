@@ -14,6 +14,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./export": {
+      "types": "./dist/export/index.d.ts",
+      "import": "./dist/export/index.js"
+    },
     "./package.json": "./package.json",
     "./admin": {
       "types": "./dist/admin/index.d.ts",
@@ -44,10 +48,13 @@
     "build": "tsup",
     "check": "tsc --noEmit",
     "test": "node scripts/test.mjs",
+    "test:one": "node scripts/e2e-one.mjs",
     "test:browser": "node scripts/test-browser.mjs",
-    "example:install": "npm run build && npm pack --pack-destination . && rm -rf examples/minimal/server/node_modules/empirica-networks examples/minimal/client/node_modules/empirica-networks examples/minimal/server/package-lock.json examples/minimal/client/package-lock.json examples/minimal/client/node_modules/.vite && npm --prefix examples/minimal/server install && npm --prefix examples/minimal/client install",
+    "example:install": "node scripts/example-install.mjs",
     "bench": "node scripts/bench.mjs",
-    "soak": "node scripts/soak.mjs"
+    "soak": "node scripts/soak.mjs",
+    "test:repeat": "node scripts/e2e-repeat.mjs",
+    "example:build": "node scripts/example-build.mjs"
   },
   "peerDependencies": {
     "@empirica/core": ">=1.12.0 <2",

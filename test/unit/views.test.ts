@@ -103,67 +103,33 @@ test("CSV headers are the union of all rows, not just the first", () => {
   assert.equal(csv, '"game_id","viewer","late"\n"g","a",""\n"g","b","arrived"');
 });
 
-test("the sink hands every record to onView", () => {
-  const seen: ViewRecord[] = [];
-  const sink = makeViewSink({ onView: (r) => seen.push(r) })!;
-  assert.ok(sink, "a configured sink is created");
-  for (const r of RECORDS) sink.record(r);
-  assert.deepEqual(seen, RECORDS);
-});
-
-test("no config means no sink, so the publish path pays nothing", () => {
-  assert.equal(makeViewSink(undefined), undefined);
-  assert.equal(makeViewSink({}), undefined);
-});
-
-test("a throwing onView does not take the publish down with it", () => {
-  // The study matters more than its telemetry: a sink that throws must not
-  // abort a publish that is mid-flight to every participant.
-  const sink = makeViewSink({
-    onView: () => {
-      throw new Error("sink is on fire");
-    },
-  })!;
-  const err = console.error;
-  console.error = () => {};
-  try {
-    assert.doesNotThrow(() => sink.record(RECORDS[0]!));
-  } finally {
-    console.error = err;
-  }
-});
-
-test("the file sink writes NDJSON that parses back to what went in", () => {
+test("every part of views: {} reaches the shared sink", () => {
+  /**
+   * The writer moved to `src/admin/sink.ts` in M6 and is shared with `net.log`
+   * (`docs/M6-HARDENING.md` §2.1), so its own behaviour — buffering, appending,
+   * nested directories, a throwing callback, what a SIGKILL costs — is
+   * `test/unit/sink.test.ts`'s. What is left here is the three-field MAPPING,
+   * which is the part that can silently break: `views: { onView }` keeps its name
+   * because at that call site the record is a view, and a rename that dropped one
+   * of the other two fields on the floor would look exactly like a study that
+   * captured nothing.
+   */
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "views-"));
   const file = path.join(dir, "views.ndjson");
   try {
-    const sink = makeViewSink({ file })!;
-    for (const r of RECORDS) sink.record(r);
-    // Buffered by design: nothing is on disk until a flush, which is the trade
-    // that keeps a syscall out of the publish path.
-    assert.equal(fs.readFileSync(file, "utf8"), "", "buffered until flushed");
-    sink.close();
+    const seen: ViewRecord[] = [];
+    const sink = makeViewSink({ onView: (r) => seen.push(r), file, batch: 2 })!;
+    assert.ok(sink, "a configured sink is created");
 
-    const lines = fs.readFileSync(file, "utf8").trim().split("\n");
-    assert.equal(lines.length, 2);
-    assert.deepEqual(lines.map((l) => JSON.parse(l)), RECORDS);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test("a full batch flushes without waiting", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "views-"));
-  const file = path.join(dir, "views.ndjson");
-  try {
-    const sink = makeViewSink({ file, batch: 2 })!;
     sink.record(RECORDS[0]!);
-    assert.equal(fs.readFileSync(file, "utf8"), "", "one record, batch of two");
+    assert.equal(fs.readFileSync(file, "utf8"), "", "`batch` arrived: one record, batch of two");
     sink.record(RECORDS[1]!);
-    assert.equal(
-      fs.readFileSync(file, "utf8").trim().split("\n").length,
-      2,
-      "the second record fills the batch and writes both"
+
+    assert.deepEqual(seen, RECORDS, "`onView` arrived");
+    assert.deepEqual(
+      fs.readFileSync(file, "utf8").trim().split("\n").map((l) => JSON.parse(l)),
+      RECORDS,
+      "`file` arrived"
     );
     sink.close();
   } finally {
@@ -171,20 +137,7 @@ test("a full batch flushes without waiting", () => {
   }
 });
 
-test("the file is appended, so a restart does not erase the study so far", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "views-"));
-  const file = path.join(dir, "views.ndjson");
-  try {
-    const first = makeViewSink({ file })!;
-    first.record(RECORDS[0]!);
-    first.close();
-
-    const second = makeViewSink({ file })!;
-    second.record(RECORDS[1]!);
-    second.close();
-
-    assert.equal(fs.readFileSync(file, "utf8").trim().split("\n").length, 2);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+test("no config means no sink, so the publish path pays nothing", () => {
+  assert.equal(makeViewSink(undefined), undefined);
+  assert.equal(makeViewSink({}), undefined);
 });

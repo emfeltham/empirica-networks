@@ -40,16 +40,20 @@ export async function monitor(
   // otherwise serve a monitor that renders nothing, and "the graph is blank"
   // reads as a study problem rather than a version mismatch — the exact
   // confusion this package keeps designing against.
-  if (typeof handle?.inspect !== "function" || typeof handle?.games !== "function") {
+  if (typeof handle?.inspect !== "function" || typeof handle?.activeGames !== "function") {
     throw new Error(
       "empirica-networks: monitor() needs the handle returned by withNetwork(). " +
-        "The value passed has no inspect()/games(), so there is nothing to observe.",
+        "The value passed has no inspect()/activeGames(), so there is nothing to observe.",
     );
   }
 
   return serveMonitor(
     {
-      games: () => handle.games(),
+      // `serveMonitor` still takes ids. It is deliberately free of this package's
+      // types, so a `{ id, startedAt }` payload shape would be a decision taken in
+      // the wrong file. The newest-first ordering carries over, which is what the
+      // game picker wanted from this list anyway.
+      games: () => handle.activeGames().map((g) => g.id),
       inspect: (gameID: string) => handle.inspect(gameID),
       // Copied into a plain object rather than passed through: `serveMonitor`
       // takes no Empirica types at all, which is what lets it be tested — and

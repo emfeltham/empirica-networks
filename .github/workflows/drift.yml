@@ -2,13 +2,23 @@ name: upstream drift
 
 # The alarm for R3 in MODULE-DESIGN.md §10.
 #
-# This package is built on public API, but three contracts are version-fragile
-# and two of them fail SILENTLY rather than throwing:
+# This package is built on public API, but four contracts are version-fragile
+# and three of them fail SILENTLY rather than throwing:
 #
 #   - the TajribaProvider constructor shape
 #   - the `dones` protocol — Attributes/Scopes resolve nothing unless fed
 #     updated node ids, with no error
 #   - AdminContext.init arity
+#   - `ListenersCollector.attributeListeners` and the shape of the `unique`
+#     wrapper, which the U8 duplicate-listener detector reads
+#     (src/admin/listeners.ts, PLATFORM-NOTES §18a). This is the only one that
+#     depends on an `@internal` field. The detector calibrates the wrapper shape
+#     at startup rather than hardcoding it, so it retunes itself rather than
+#     going quiet — but if the FIELD moves or is renamed, the detector switches
+#     off and consumers stop being warned about a real defect. Watched by
+#     test/unit/listeners.test.ts and test/e2e/duplicate_listeners.test.ts, both
+#     of which run below. If the e2e one fails saying the second handler DID
+#     run, upstream fixed U8 and the warning should be withdrawn.
 #
 # A silent break found by a researcher mid-study is the failure this job exists
 # to prevent. It runs against @empirica/core@latest rather than the pinned

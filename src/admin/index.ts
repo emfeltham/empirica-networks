@@ -7,20 +7,26 @@ export { Nbhd, networkKinds, assertKindsRegistered, KindsNotRegisteredError, REG
 export type { NetworkKinds } from "./kinds.js";
 export { provisionChannels, readChannels, resetChannels } from "./provision.js";
 export type { ChannelMap, ProvisionResult } from "./provision.js";
-export { withNetwork, readNetwork, readSeed, network } from "./with_network.js";
+export { withNetwork, readNetwork, readSeed, network, gameIDOf } from "./with_network.js";
 export type {
   GameNetwork,
+  GameRef,
   NetworkConfig,
   NetworkHandle,
   NetworkStats,
+  PrivateStateEvent,
   ProjectContext,
 } from "./with_network.js";
 export { validateProjection, projectionBytes, ProjectionError } from "./projection.js";
 export {
   checkDegrees,
   checkViewBytes,
+  checkNeighbourhoodBytes,
   resolveEnvelope,
+  defaultMaxDegree,
   DEFAULT_ENVELOPE,
+  MEASURED_DENSE_N,
+  MEASURED_SPARSE_DEGREE,
   EnvelopeError,
 } from "./envelope.js";
 export type { EnvelopeLimits, ResolvedEnvelope } from "./envelope.js";
@@ -29,11 +35,17 @@ export {
   snapshotRows,
   viewRows,
   historyIsConsistent,
+  parseNdjson,
   toCSV,
 } from "./export.js";
-export type { EdgeRow, SnapshotRow, ViewRow } from "./export.js";
+export type { EdgeRow, NdjsonParse, SnapshotRow, ViewRow } from "./export.js";
 export { makeViewSink } from "./views.js";
 export type { ViewsConfig, ViewSink } from "./views.js";
+// The shared writer behind both `views: { file }` and `log: { file }`. Exported
+// because the run log's config type is the sink's, and a consumer typing a
+// `log:` object needs the name.
+export { makeLogSink, makeNdjsonSink } from "./sink.js";
+export type { LogConfig, LogRecord, NdjsonSink, NdjsonSinkConfig, SinkOptions } from "./sink.js";
 // The introspection types and their pure builders. `monitor()` itself is NOT
 // re-exported here: it is `empirica-networks/admin/monitor`, so a server that
 // never opts in never pulls node:http or the served page into its bundle, and
