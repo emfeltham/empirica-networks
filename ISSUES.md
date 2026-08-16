@@ -724,6 +724,51 @@ decision. `test/e2e/shirado2017.test.ts`'s "a proper colouring ends the session"
 witness that U3 has not regressed, and now runs through the hook: removing the hook's one call site
 fails both tests.
 
+### O14. `assertKindsRegistered` is never called — the one mandatory edit is still silently fatal ⚠️ silent failure
+
+**Found 2026-08-16, while writing `docs/ARCHITECTURE.md`.** Not by a failing test — by trying to
+write down which function runs at which point in the lifecycle, and finding that this one runs at
+no point at all.
+
+**The fact.** `assertKindsRegistered` and `KindsNotRegisteredError` exist in `src/admin/kinds.ts`,
+are exported from `empirica-networks/admin`, and print `REGISTRATION_DIFF` — the exact two-line
+diff a consumer needs. **Nothing in the package calls the function, and no test covers it.**
+Repo-wide, the only occurrences are its own definition and the export line.
+
+**Why it matters more than a normal dead-code finding.** Skipping the registration is the *first*
+mistake a new adopter can make, and its symptom is the package's characteristic one: the channels
+are never modelled, there is nothing to write views to, nothing errors, and every participant sits
+with an empty neighbourhood forever. `docs/M5-ADOPTION.md` §6 files this trap under **"impossible
+to skip silently"**, which is the strongest column in that audit — and it is the only row in the
+table whose claim rests on a call that does not exist.
+
+**How it got here**, because the shape is worth recording. `docs/PLATFORM-NOTES.md` §6 states the
+requirement in the future tense — "so `withNetwork` **must** assert on `"ready"` and throw with the
+exact diff". The helper was built to satisfy it. The wiring never happened, and the M5 audit then
+recorded the requirement as met. This is precisely the failure M5 §8 confessed about §3a: *"The
+trap was known, documented, audited, and shipped anyway."* Twice now, the audit's own weakest
+point has been treating a documented intention as a done thing.
+
+**Why it is not a one-line fix.** `withNetwork` receives the collector, not the kind map — the map
+is passed to `AdminContext.init` in a different file — so it cannot check registration directly.
+Two routes, neither free:
+
+- **Direct.** Reach the kind map from the `"start"` context, if it is reachable at all, and call
+  the existing assertion. Cheapest if `ctx` exposes it; needs checking against `@empirica/core`
+  internals, which is the dependency `.github/workflows/drift.yml` exists to police.
+- **Indirect, and probably right.** Detect the *consequence*: a game started, channels were
+  provisioned, and no `nbhd` scope materialised within some window. That is the same shape as the
+  existing `pendingChannelsMessage` warning, uses only public API, and catches other causes of the
+  same symptom. Costs a timer and a decision about the window.
+
+**Meanwhile the documents have been corrected**, since a false claim of safety is worse than a
+stated gap: `docs/ARCHITECTURE.md` §3 step 3 and `docs/TROUBLESHOOTING.md` now say plainly that it
+is undetected. `docs/GETTING-STARTED.md` §3, `docs/PLATFORM-NOTES.md` §6 and the M5 §6 audit row
+still assert otherwise and need the same treatment.
+
+*Done when:* a server that omits the registration fails loudly, and an e2e test asserts it does —
+the test being the part that was missing, not the helper.
+
 ---
 
 ## M2 scope, deferred by design

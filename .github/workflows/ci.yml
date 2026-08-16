@@ -36,6 +36,15 @@ jobs:
       - run: npm run check
       - run: npm test -- unit mode
 
+      # Documentation links, on one Node version only — the result cannot differ
+      # across them, and three copies of the same failure is noise. Relative
+      # paths and section anchors only, never external URLs: those would make a
+      # green run depend on other people's uptime. Anchors are the ones that
+      # actually rot here, since PLATFORM-NOTES numbers its sections by
+      # discovery order and therefore renumbers them.
+      - run: npm run check:links
+        if: matrix.node == '22'
+
   # The tier that proves the actual guarantee. Current Node only: it needs the
   # Empirica CLI and a real Tajriba, and running that three times over would
   # triple the slowest job to re-test the same server binary.

@@ -10,6 +10,18 @@ absent on the two things it has not.** What has been *built* (the mechanism, the
 traps) is documented to an unusually high standard. What has been *run* (a real deployment) and
 what has been *read* (the internals, by anyone who is not the author) have no document at all.
 
+> **Status — Phase A complete, 2026-08-16.** Written since: `LICENSE`,
+> [ARCHITECTURE](ARCHITECTURE.md), [TROUBLESHOOTING](TROUBLESHOOTING.md),
+> [DATA-AND-ANALYSIS](DATA-AND-ANALYSIS.md) (early — see §6.11),
+> [DEPLOYING](DEPLOYING.md) (a stub, deliberately), [GLOSSARY](GLOSSARY.md),
+> [the index](README.md), and a link checker in CI. §1's assessment below is left as it was
+> written, because it is what the plan was reasoning from; §6 carries the current state.
+>
+> Of the four gaps in §1: **1 is closed** (ARCHITECTURE), **3 is not** (the README is still 867
+> lines, and waits on the API freeze), **4 is closed** (TROUBLESHOOTING), and **2 is *stated*
+> rather than closed** — deployment is still undocumented, and the deliverable so far is a file
+> that says so where someone planning a study will find it.
+
 ---
 
 ## 1. What exists, honestly assessed
@@ -301,11 +313,21 @@ TROUBLESHOOTING (§3.3) and ARCHITECTURE (§3.1) supplies the layer: after they 
 link to *them*, and PLATFORM-NOTES becomes what it is — the evidence, cited rather than
 delegated to.
 
-**Retire the milestone docs from the docs index.** `M5-ADOPTION.md` and `M6-HARDENING.md` are
-process records that both say so. Move them to `docs/decisions/` (or `docs/milestones/`) so
-`docs/` is browsable as documentation. Keep every existing link working.
+~~**Retire the milestone docs from the docs index.** Move them to `docs/decisions/` so `docs/` is
+browsable as documentation.~~ — **abandoned on the count, 2026-08-16.** `M5-ADOPTION` and
+`M6-HARDENING` have **52 inbound references across 27 files**, and they are not all markdown:
+`src/admin/with_network.ts`, `src/admin/sink.ts`, `src/shared/keys.ts`, seven test files and
+three example files all cite them by path in comments. Moving the files means editing source
+comments for a documentation reorganisation, immediately before an API freeze, with a missed
+reference silently becoming a dead path.
+
+The actual goal was *a browsable `docs/` where process records are clearly not user
+documentation*, and the index below achieves that on its own by filing them under a heading that
+says so. Recorded rather than dropped, because "the tidier layout costs 52 edits into source
+comments" is the kind of thing that gets re-proposed every six months.
 
 **Add `docs/README.md` as an index**, with the four audiences from §2 as the top-level cut.
+**Done 2026-08-16.**
 
 **Make the snippets executable.** This is the recommendation with the most leverage and it is
 the repo's own methodology turned on its docs. Options, cheapest first:
@@ -320,9 +342,16 @@ Recommend (2), plus (1) for the long examples. It catches the failure that actua
 an API moves, and a snippet keeps compiling in a reader's head. Full doc-tests are not worth the
 harness weight given e2e already imports every example's real `callbacks.js` unmodified.
 
-**Add a link checker to CI.** ~90 relative markdown links, and section-anchor links into
-PLATFORM-NOTES that break silently whenever a section is renumbered — which happens, since
-sections are numbered by discovery order (there are two §9s and a §3a).
+**Add a link checker to CI. Done 2026-08-16** — `scripts/check-links.mjs`, `npm run check:links`,
+one CI step on Node 22 only. Relative paths and section anchors; never external URLs, which would
+make a green run depend on other people's uptime. 68 links across 21 files, 0 broken at the time
+of writing.
+
+Two implementation notes worth keeping. It skips fenced code blocks, because an illustrative
+`[label](path)` inside an example is not a link this repository is promising to keep working. And
+it reproduces GitHub's duplicate-heading suffixing (`-1`, `-2`), which is what makes
+PLATFORM-NOTES' two `## 9.` sections both linkable — the anchors are exactly what rots here,
+since sections are numbered by discovery order and therefore renumber.
 
 ---
 
@@ -347,15 +376,16 @@ sections are numbered by discovery order (there are two §9s and a §3a).
 
 Grouped by dependency, not by value.
 
-**Phase A — now, no dependencies.** Nothing here can be invalidated by the API freeze.
+**Phase A — now, no dependencies. Complete 2026-08-16.** Nothing here can be invalidated by the
+API freeze.
 
-1. ~~`LICENSE` (defect)~~ **done 2026-08-16**, and the other hygiene files (§3.9).
-2. `docs/TROUBLESHOOTING.md` (§3.3) — cheapest, highest immediate value, pure re-indexing.
-3. `docs/ARCHITECTURE.md` (§3.1) — the largest single gap; describes mechanism, which the freeze
-   does not move.
-4. `docs/GLOSSARY.md`, `docs/README.md` index, milestone-doc move, link checker (§4).
-5. `docs/DEPLOYING.md` **as a stub** (§3.2) — the honest placeholder, so the gap is visible to
-   anyone considering a real study on this.
+1. ~~`LICENSE` (defect)~~ **done**. The other hygiene files (§3.9) are still open.
+2. ~~`docs/TROUBLESHOOTING.md` (§3.3)~~ **done** — cheapest, highest immediate value.
+3. ~~`docs/ARCHITECTURE.md` (§3.1)~~ **done** — the largest single gap.
+4. ~~`docs/GLOSSARY.md`, `docs/README.md` index, link checker (§4)~~ **done**. The milestone-doc
+   move was abandoned on the count — see §4.
+5. ~~`docs/DEPLOYING.md` **as a stub** (§3.2)~~ **done** — the honest placeholder, so the gap is
+   visible to anyone considering a real study on this.
 
 **Phase B — with the API freeze (`PUBLICATION-PLAN.md` §2).**
 
@@ -368,19 +398,33 @@ Grouped by dependency, not by value.
 **Phase C — with the demonstration study (`PUBLICATION-PLAN.md` §3).**
 
 10. `docs/DEPLOYING.md` for real, written *while* deploying, dated and versioned like
-    PLATFORM-NOTES.
-11. `docs/DATA-AND-ANALYSIS.md` (§3.6) — write it against data that actually exists, not against
-    the schema. The R/Python path in particular should be walked once before it is described.
+    PLATFORM-NOTES. The stub from Phase A lists what it has to cover.
+11. ~~`docs/DATA-AND-ANALYSIS.md` (§3.6)~~ — **written early, 2026-08-16, and here is why the
+    plan was wrong about it.** The deferral assumed the document was mostly *analysis workflow*,
+    which needs real data. It is mostly *schemas and file inventory*, which are code facts and
+    were knowable the whole time — and M6 Tier 2.1 made them package facts rather than
+    per-example ones by promoting the run log into the package, so there is now one answer to
+    "what does a run produce" instead of three.
+
+    What genuinely needed the data was narrower than the document: the R/Python path, which is
+    written and **marked as not walked end to end**. That marking is the deliverable of the
+    deferral, not the deferral itself.
+
+    The generalisable version, since this plan made the mistake twice: **defer the paragraph that
+    needs the measurement, not the document that contains it.** §3.2 is the case where the whole
+    document really is unmeasured, which is why it is a stub rather than a draft with warnings.
 
 **Phase D — before or with JOSS submission.**
 
-12. `docs/CONTRIBUTING.md` and `docs/TESTING.md` (§3.7). Late only because the contributor
-    audience is currently one person; JOSS review is the moment it stops being.
+12. `docs/CONTRIBUTING.md` and `docs/TESTING.md` (§3.7). Unchanged: late only because the
+    contributor audience is currently one person, and JOSS review is the moment it stops being.
 
-M6's remaining tiers do not block any of this, but **note the overlap**: M6 Tier 2.1 promotes the
-run log into the package and Tier 2.2 adds a private-write hook. Both change what §3.1 and §3.6
-describe. Write ARCHITECTURE against the current shape and revise it with Tier 2, or do Tier 2
-first — do not try to document a shape that is about to move.
+~~M6's remaining tiers do not block any of this, but note the overlap: Tier 2.1 promotes the run
+log into the package and Tier 2.2 adds a private-write hook, so do not document a shape that is
+about to move.~~ **Resolved: M6 completed 2026-08-16, all four tiers.** ARCHITECTURE and
+DATA-AND-ANALYSIS are written against the post-M6 surface — `read`, `stateOf()`, `log:`,
+`onPrivateState`, `activeGames()`, `GameRef` and the reworked envelope all included. The hazard
+the note was about did not materialise, because the docs waited.
 
 ## 7. Done-when
 

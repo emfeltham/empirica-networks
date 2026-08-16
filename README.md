@@ -3,7 +3,7 @@
 Network experiments for [Empirica](https://empirica.ly): participants are nodes in a graph,
 and **each participant sees only their neighbours' state**.
 
-Status: **M5, in development.** The mechanism works end to end and is covered by tests; two
+Status: **M6 complete, 2026-08-16.** The mechanism works end to end and is covered by tests; two
 published network experiments are reconstructed here and exercised by the same suite. The public
 API is not frozen and **the package is not on npm yet** — see [Installing](#installing).
 
@@ -12,10 +12,14 @@ Not affiliated with, or endorsed by, the Empirica project. The name is descripti
 | | |
 |---|---|
 | **New here?** | [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md) — install to verified guarantee, in order |
+| Something is silently wrong | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) — indexed by symptom, not by cause |
+| How it works inside | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the lifecycle, the publish path, where every value lives |
+| Planning a real study | [`docs/DEPLOYING.md`](docs/DEPLOYING.md) — the pre-flight checklist, and an honest account of what is not yet documented |
+| Getting the data out | [`docs/DATA-AND-ANALYSIS.md`](docs/DATA-AND-ANALYSIS.md) — every column of every table, and one decision to make *before* the run |
 | Want a real study to read | [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md) — two reconstructed papers |
 | Platform constraints | [`docs/PLATFORM-NOTES.md`](docs/PLATFORM-NOTES.md) — measured, dated, versioned |
 | Known defects | [`ISSUES.md`](ISSUES.md) — ours and upstream's |
-| What is being fixed next | [`docs/M6-HARDENING.md`](docs/M6-HARDENING.md) — the plan for what the ported experiments surfaced |
+| Everything else | [`docs/`](docs/README.md) — the documentation index |
 | Why it is shaped this way | `MODULE-DESIGN.md` — the design record, kept alongside the investigation that produced it rather than in this repo |
 
 This file is the API reference. It carries the reasoning behind each decision, which is the part

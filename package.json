@@ -47,6 +47,7 @@
   "scripts": {
     "build": "tsup",
     "check": "tsc --noEmit",
+    "check:links": "node scripts/check-links.mjs",
     "test": "node scripts/test.mjs",
     "test:one": "node scripts/e2e-one.mjs",
     "test:browser": "node scripts/test-browser.mjs",
