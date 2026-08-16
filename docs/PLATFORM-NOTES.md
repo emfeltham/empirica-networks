@@ -432,6 +432,22 @@ split is the signature of this bug.
 
 Classic does not hit it because `ClassicLoader` subscribes broadly for the built-in kinds.
 
+**A second consumer now depends on this line — verified 2026-08-15, M4.** The monitor
+(`admin/monitor`) reads participants' private channel state to label nodes, and it does so
+through the *same* subscription rather than opening one of its own. That is deliberate — a
+second admin connection would need a credential, and under §4a a credential is unlimited write
+access over every participant's data — but it means the one `scopeSub` above is now
+load-bearing for two features instead of one, and the monitor's failure mode is the quieter of
+the two: every node simply shows blank state, which is indistinguishable from a study where
+nobody has written anything yet.
+
+So the removal symptom is now a pair. `test/e2e/monitor.test.ts` times out on "every
+participant's private state reached the monitor"; `test/e2e/private_state.test.ts` times out on
+"every neighbour's secret arrived". Confirmed by deleting the `scopeSub` call and re-running:
+each fails on exactly its own wait, and every other assertion in the monitor test — the graph,
+the rewire, the history — still passes, which is what makes the blank-state failure so easy to
+miss by eye.
+
 ## 13. `EmpiricaClassic` never stops its animation-frame loop ⚠️
 
 *Measured 2026-08-15, `@empirica/core@1.12.5`, Node 20.*

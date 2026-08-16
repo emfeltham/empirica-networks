@@ -12,6 +12,7 @@ import {
 } from "../shared/keys.js";
 import { adjacency, fromEdgeList, ring, type Edge } from "../topology/index.js";
 import { checkDegrees, checkViewBytes, type EnvelopeLimits } from "./envelope.js";
+import { graphMetrics, historyFrames, type GameSnapshot, type NodeSnapshot } from "./inspect.js";
 import { projectionBytes, validateProjection } from "./projection.js";
 import {
   adoptChannel,
@@ -173,6 +174,22 @@ export interface NetworkHandle {
   publishAll(): boolean;
   /** Live counts of everything held per game or per channel. */
   stats(): NetworkStats;
+  /** Ids of the games currently networked by this process. */
+  games(): string[];
+  /**
+   * Everything known about one game's network, as plain data.
+   *
+   * Returns `undefined` for a game this process is not networking — which is
+   * the honest answer for a game that has ended, was never started, or was lost
+   * to a restart (U2). It is deliberately NOT an empty snapshot: an observer
+   * cannot tell an empty graph from a missing one, and this package's
+   * characteristic failure is exactly that confusion.
+   *
+   * READ ONLY, and safe to call from anywhere — a timer, an HTTP handler, a
+   * REPL. Writes are the thing that only count inside a callback
+   * (docs/PLATFORM-NOTES.md §15); nothing here writes.
+   */
+  inspect(gameID: string): GameSnapshot | undefined;
 }
 
 export function withNetwork(collector: any, config: NetworkConfig = {}): NetworkHandle {
@@ -959,6 +976,76 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     warn(unwatchedKeysMessage(missing, watch));
   }
 
+  /**
+   * Assemble one game's snapshot from live state, as plain data.
+   *
+   * Every value crossing this boundary is a number, string, array or plain
+   * object. No `Scope` is returned, and that is load-bearing rather than
+   * stylistic: a scope carries `.set()`, so handing one to an observer hands it
+   * the publisher's write path (see ./inspect.ts).
+   */
+  function inspect(gameID: string): GameSnapshot | undefined {
+    const state = networks.get(gameID);
+    const game = games.get(gameID);
+    if (!state || !game) return undefined;
+
+    const channels = readChannels(game);
+    const players: any[] = game.players ?? [];
+    const byID = new Map(players.map((p) => [p.id, p]));
+    const pendingChannels: string[] = [];
+
+    const nodes: NodeSnapshot[] = state.order.map((playerID, i) => {
+      const scopeID = channels[playerID];
+      const channelScope = scopeID ? channelScopes.get(scopeID) : undefined;
+      if (!channelScope) pendingChannels.push(playerID);
+
+      const player = byID.get(playerID);
+      const attrs: Record<string, unknown> = {};
+      const privateState: Record<string, unknown> = {};
+      for (const key of watch) {
+        // Both halves, because which scope a key lives on is the author's
+        // choice and the `watch` list deliberately covers both (see the
+        // listener registration above). An operator looking at a stalled study
+        // should not have to know which one the author picked.
+        if (player) attrs[key] = player.get(key);
+        // Reading the private channel is the whole reason this depends on U3:
+        // `withNetwork`'s explicit `ctx.scopeSub({ kinds: ["nbhd"] })` is what
+        // makes a participant's own writes reach this process at all. Without
+        // it these are all `undefined` and nothing errors
+        // (docs/PLATFORM-NOTES.md §12). `test/e2e/monitor.test.ts` asserts a
+        // participant-written value arrives here, so a regression is loud.
+        if (channelScope) privateState[key] = channelScope.get(stateKey(key));
+      }
+
+      const neighbours = [...(state.adj[i] ?? [])];
+      return {
+        index: i,
+        playerID,
+        degree: neighbours.length,
+        neighbours,
+        channel: Boolean(channelScope),
+        attrs,
+        state: privateState,
+      };
+    });
+
+    return {
+      gameID,
+      batchID: game.batch?.id,
+      n: state.order.length,
+      edges: state.edges.map(([i, j]) => [i, j] as Edge),
+      order: [...state.order],
+      seed: state.seed,
+      seq: seqByGame.get(gameID) ?? 0,
+      nodes,
+      metrics: graphMetrics(state.order.length, state.edges),
+      history: historyFrames(gameID, historyByGame.get(gameID) ?? [], state.order),
+      pendingChannels,
+      awaitingPublish: awaitingPublish.has(gameID),
+      watch: [...watch],
+    };
+  }
+
   return {
     publishAll: () => (games.size ? [...games.values()].every(publishAll) : false),
     stats: () => ({
@@ -970,6 +1057,8 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       channelScopes: channelScopes.size,
       cachedViews: lastPublished.size,
     }),
+    games: () => [...games.keys()],
+    inspect,
   };
 }
 

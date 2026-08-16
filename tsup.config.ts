@@ -30,6 +30,11 @@ export default defineConfig([
       "topology/index": "src/topology/index.ts",
       "topology/graphology": "src/topology/graphology.ts",
       "admin/index": "src/admin/index.ts",
+      // A separate entry, not folded into admin/index. The monitor imports
+      // node:http and serves the complete graph; keeping it behind its own
+      // subpath means a server that never opts in never loads it, and means
+      // "who can reach the monitor" is answerable by grepping for one import.
+      "admin/monitor/index": "src/admin/monitor/index.ts",
       "player/index": "src/player/index.ts",
       "player/react/index": "src/player/react/index.ts",
     },

@@ -203,15 +203,66 @@ reloaded player only if that participant is already online at the moment the pla
 replays. **Not established** — no reproduction pins it down, and the timing here differs from
 U2's restart scenario.
 
+**New evidence 2026-08-15 (M4): the rate tracks orphaned tajriba servers, i.e. U6.** Noticed
+while establishing that a new e2e file was not the cause. Measured on one machine, small n, so
+this is an observation and not an attribution:
+
+| orphaned tajriba processes | full-suite runs | result |
+|---|---|---|
+| ~20 | 2 | both failed, same test, same 90s "gameID assigned" wait |
+| 0 (after `pkill`) | 1 | passed, 187 / 27 / 50 |
+
+The orphans are U6's: the `empirica` CLI execs a versioned binary as its own child, so a killed
+CLI leaves the real server running. Each survivor was holding ~45s of accumulated CPU and
+~150MB. A machine carrying twenty of them is not the machine the suite was timed on, and player
+assignment is the first thing to starve.
+
+This does **not** explain O8 — the hang predates any orphan accumulation and reproduces on a
+quiet machine — but it plausibly explains the *rate*, and it explains why "1 in 3" has never
+been stable. It also gives a cheap mitigation that costs nothing to adopt:
+
+```sh
+pkill -f "empirica-networks-.*tajriba.toml"   # harness servers only; all use --store.mem
+```
+
+Worth checking before concluding that a suite failure is a regression. Two investigations this
+session started from a red suite that a clean machine turned green.
+
 Both affected tests are *measurements* recording documented facts, not regression guards on our
 code, so a rerun remains the pragmatic response.
 
 *Done when:* either the hang is reproduced and attributed, or the harness re-triggers
-assignment when it detects the stall.
+assignment when it detects the stall. Separately, and more cheaply: the orphan sweep above
+belongs in the test runner, so a contaminated machine cannot present as a code regression.
 
 ### O7. `admin.taj.attributes()` is untested
 
 Noted during M1 and never exercised. Low priority; listed so it is not mistaken for covered.
+
+### O9. The monitor's browser script is not covered by any test — **debt**
+
+**Evidence:** `test/unit/monitor_*.test.ts` and `test/e2e/monitor.test.ts` assert on the
+endpoint. One assertion touches the page — `new Function()` over its `<script>`, so a syntax
+error cannot ship a silently blank monitor — but nothing exercises its behaviour.
+
+M4 was built so that this matters as little as possible: the layout, the metrics, the history
+replay and the change detection are all pure functions on the server, tested there, and the
+served page is left with `createElementNS` and a `fetch`. But "as little as possible" is not
+"nothing". The scrubber's index arithmetic, the colour assignment, and the SSE reconnect
+banner are real logic living in `src/admin/monitor/ui.ts`, and the only thing standing behind
+them is that they are short.
+
+This is the same gap PLATFORM-NOTES §8 forces on `player/react` — hooks cannot be rendered
+against a synthetic mode, so the response was to move decisions out of the untestable place —
+and the residual risk is the same shape: a bug here renders something plausible rather than
+throwing. Playwright is already a devDependency and `npm run test:browser` already drives real
+Chromium, so the route is open; it was not taken because the monitor is an operator tool whose
+output is checked by a human looking at it, which is a weaker argument than a test and is
+recorded as such rather than dressed up.
+
+*Done when:* a browser test loads the page against a synthetic endpoint and asserts the node
+count, the scrubbed edge count at a chosen frame, and that a `gone` event replaces the graph
+with the banner rather than leaving a stale picture.
 
 ---
 
@@ -225,7 +276,7 @@ Not defects — recorded so the boundary of M1 stays legible. See `MODULE-DESIGN
 | ~~Rewiring — `network()` handle~~ | **Done 2026-08-15.** `addEdge`/`removeEdge`/`rewire` plus reads and an append-only history log, all keyed by player id. Covered by `test/e2e/rewiring.test.ts`. |
 | ~~Neighbour-scoped chat~~ | **Done 2026-08-15.** `chat: true` plus `useNeighborChat()`. §7.4's open question is answered structurally — messages live on the recipient's channel, so a rewire stops new messages without erasing delivered ones — and the envelope worry does not arise, because chat is a separate key rather than part of the projected view. |
 | ~~Edge-history export~~ | **Done 2026-08-15.** `edgeRows`/`snapshotRows`/`toCSV` in the Breadboard `Connected`/`Disconnected` shape, plus `historyIsConsistent`. Pure functions over an event log, so they run offline on stored data. `views.csv` remains open (decision 5). |
-| Live network monitor | M4. |
+| ~~Live network monitor~~ | **Done 2026-08-15.** `monitor(handle)` serves a loopback-bound page from the callbacks process: live graph, per-node state, history scrubber, publish counts and unmaterialised channels. Not sigma and not in the template repo — `MODULE-DESIGN.md` §15 says why, and what it rules out structurally versus by convention. Remaining gap: O9. |
 | Template repo | Deferred; `examples/minimal` ships in-package instead. |
 | Package name / `@yale-hnl` scope | Open decision 3, deliberately held: scoping later is a one-field change. |
 

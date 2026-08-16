@@ -19,6 +19,10 @@
       "types": "./dist/admin/index.d.ts",
       "import": "./dist/admin/index.js"
     },
+    "./admin/monitor": {
+      "types": "./dist/admin/monitor/index.d.ts",
+      "import": "./dist/admin/monitor/index.js"
+    },
     "./player": {
       "types": "./dist/player/index.d.ts",
       "import": "./dist/player/index.js"
