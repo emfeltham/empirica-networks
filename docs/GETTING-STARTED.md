@@ -63,8 +63,20 @@ inside the CLI. The private channel is a custom kind, so it has to be registered
 
 `networkKinds` is `classicKinds` plus one entry. Skip this and the channels are never modelled,
 there is nothing to write views to, nothing errors, and participants simply sit with empty
-neighbourhoods forever — so `withNetwork` asserts on it at start and throws with the exact diff
-above. `docs/PLATFORM-NOTES.md` §6.
+neighbourhoods forever.
+
+> ### Nothing checks this for you — yet
+>
+> An earlier version of this document said `withNetwork` asserts on it at start and throws.
+> **It does not.** The assertion was specified, the helper was written
+> (`assertKindsRegistered`), and it is never called — found 2026-08-16 and tracked as
+> `ISSUES.md` O14.
+>
+> So this step is on you, and it is the one step where being wrong looks exactly like a
+> normal-but-empty study. After your first game starts, confirm the channels exist: open the
+> monitor, or check that `net.stats().channelScopes` is not zero.
+
+`docs/PLATFORM-NOTES.md` §6.
 
 ## 4. Declare the network
 
@@ -315,7 +327,12 @@ many individually reasonable views can add up while every other limit stays happ
 | | |
 |---|---|
 | [`README.md`](../README.md) | the API reference, with the reasoning behind each decision |
+| [`docs/TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | when something is silently wrong. Indexed by symptom rather than by cause |
+| [`docs/DATA-AND-ANALYSIS.md`](DATA-AND-ANALYSIS.md) | §9 above in full: every table's columns, and reproducing a finished run |
+| [`docs/DEPLOYING.md`](DEPLOYING.md) | **before you plan a real study** — the pre-flight checklist, and what is not yet documented |
+| [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) | how it works inside, if you want to know why any of the above is true |
 | [`docs/EXPERIMENTS.md`](EXPERIMENTS.md) | the two reconstructions: what they show, and what they are not |
 | [`docs/PLATFORM-NOTES.md`](PLATFORM-NOTES.md) | every platform constraint, with the date and version it was measured against |
+| [`docs/GLOSSARY.md`](GLOSSARY.md) | channel, projection, view, seat, told, envelope, U-numbers |
 | [`ISSUES.md`](../ISSUES.md) | what is known to be broken, ours and upstream's |
 | `MODULE-DESIGN.md` | why the package is shaped the way it is. Not in this repo — it is kept with the investigation that produced it |

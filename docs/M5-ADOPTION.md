@@ -289,7 +289,7 @@ consumer-facing" means it can only be hit by someone developing this package or 
 | 4d | A restart re-fires `game.start` and used to reseat everyone | No — fixed here, and pinned by `test/e2e/restart.test.ts` | **Impossible by construction** |
 | **4e** | **A full restart does not put participants back in their game (U2)** | **Yes** — any crash, deploy or `^C` mid-study | **Named** — README envelope and GETTING-STARTED "What you cannot recover". No documentation makes a crashed study resumable, so it is stated as a limit, not a procedure |
 | 5 | `EventContext` has no `setAttributes` | No | Not consumer-facing |
-| **6** | **Kind registration is a mandatory consumer edit, silently fatal if skipped** | **Yes, on the first install** | **Impossible to skip silently** — `assertKindsRegistered` throws with the exact diff. Also the first step in GETTING-STARTED and the first row of every example's four-file table |
+| **6** | **Kind registration is a mandatory consumer edit, silently fatal if skipped** | **Yes, on the first install** | ~~Impossible to skip silently — `assertKindsRegistered` throws with the exact diff.~~ → **WRONG, corrected 2026-08-16.** The helper exists and **nothing calls it**; this row asserted a call that does not exist (`ISSUES.md` O14). Actual disposition: **named in the docs only** — the first step in GETTING-STARTED and the first row of every example's four-file table. See the note under §8 |
 | 8 | Hooks cannot be rendered against a synthetic mode | No — it is our testing limit | Not consumer-facing; stated in each example's "what is covered" |
 | 10 | `ephemeral` attributes survive a reconnect | (capability) | — |
 | **11** | **A `file:` link loads TWO copies of `@empirica/core`** | **Yes** — anyone developing against a local clone of this package, which is what an adopter who forks does | **Named** — GETTING-STARTED "Installing from a clone", with the symptom ("Waiting for other players" with a full game) first, because that is what they will search for |
@@ -412,3 +412,27 @@ audited, and shipped anyway. The table already distinguishes "impossible by cons
 "named in the docs"; the failure was in putting §3a in the second column and treating that as
 done. Fixed with an `empirica-networks/export` subpath. Everything still open from this milestone
 has a plan in [`M6-HARDENING.md`](M6-HARDENING.md).
+
+**And a second, worse one about §6 — found 2026-08-16, while writing `docs/ARCHITECTURE.md`.**
+Row 6 claimed the kind-registration trap was **"impossible to skip silently"**, on the strength of
+`assertKindsRegistered` throwing. That function is exported and **is never called** — repo-wide,
+the only occurrences are its own definition and the export line, and no test covers it
+(`ISSUES.md` O14). The row has been corrected to "named in the docs only".
+
+Three things about how this happened, because the pattern is now twice-observed and the audit is
+the thing that is supposed to catch it:
+
+1. **The source was a requirement, not a measurement.** `PLATFORM-NOTES.md` §6 says *"so
+   `withNetwork` **must** assert on `"ready"` and throw with the exact diff"* — future tense, a
+   design obligation. The audit read it as a description of behaviour. Every other row in the
+   table cites something that was measured; this one cited something that was intended.
+2. **The strongest column is the one that most needs a witness, and was the only one without
+   one.** Rows marked "impossible by construction" name a test. This row named a function. A
+   function that exists is not a mechanism that runs.
+3. **It survived the milestone that was specifically about traps.** M5's whole subject was
+   consumer-hittable failure, and the trap it ranked first — the very first mistake a new adopter
+   can make — was the one it got wrong.
+
+The correction to make to the *audit*, not just to the row: **a disposition of "impossible" must
+cite a test, and a disposition citing package code must cite the call site, not the definition.**
+Both would have caught this in a table read-through.

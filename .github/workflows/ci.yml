@@ -36,6 +36,15 @@ jobs:
       - run: npm run check
       - run: npm test -- unit mode
 
+      # Documentation links, on one Node version only — the result cannot differ
+      # across them, and three copies of the same failure is noise. Relative
+      # paths and section anchors only, never external URLs: those would make a
+      # green run depend on other people's uptime. Anchors are the ones that
+      # actually rot here, since PLATFORM-NOTES numbers its sections by
+      # discovery order and therefore renumbers them.
+      - run: npm run check:links
+        if: matrix.node == '22'
+
   # The tier that proves the actual guarantee. Current Node only: it needs the
   # Empirica CLI and a real Tajriba, and running that three times over would
   # triple the slowest job to re-test the same server binary.
@@ -74,6 +83,13 @@ jobs:
       # command itself and not just the library it wraps.
       - run: npm run build
       - run: node dist/verify/cli.cjs verify --n 4
+
+      # Every `empirica-networks` import written in the docs, resolved against
+      # what was just built. Here rather than in the `unit` job because it needs
+      # dist, and this is the job that already builds. It catches the drift a
+      # link checker cannot see: an export renamed out from under a snippet that
+      # still reads correctly.
+      - run: npm run check:docs
 
       - name: Upload server logs on failure
         if: failure()

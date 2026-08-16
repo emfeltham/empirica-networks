@@ -295,6 +295,12 @@ the CLI. Consumers must change it to `{ ...classicKinds, nbhd: Nbhd }`.
 Two lines, and **silently fatal if skipped** — so `withNetwork` must assert on `"ready"` and
 throw with the exact diff.
 
+**Not done, and read as done for four milestones — 2026-08-16.** The sentence above is a
+requirement in the future tense. `assertKindsRegistered` was built to satisfy it and **is never
+called**; `docs/M5-ADOPTION.md` §6 then filed the trap under "impossible to skip silently" on the
+strength of it. `ISSUES.md` O14 has the two routes to actually closing it, and why the direct one
+is not a one-liner.
+
 ## 7. A headless participant needs no non-public API ✅
 
 `ParticipantContext` builds its provider as:
