@@ -9,8 +9,9 @@ Cut by what you are trying to do. If you are new, start at
 |---|---|
 | [**GETTING-STARTED**](GETTING-STARTED.md) | The ordered path: install → the one mandatory edit → private state → run → prove the guarantee → export. Read it top to bottom once |
 | [**TROUBLESHOOTING**](TROUBLESHOOTING.md) | Indexed by symptom, for when something is silently wrong. Start here when nothing errored and something is off anyway |
+| [**API**](API.md) | Every export, by import path, with the reasoning behind each decision |
+| [**TOPOLOGIES**](TOPOLOGIES.md) | The 15 generators and 6 measures: parameters, connectivity, envelope implications. The page to read while *designing* |
 | [**GLOSSARY**](GLOSSARY.md) | Channel, projection, view, seat, told, envelope, U-numbers |
-| [`../README.md`](../README.md) | The API reference, with the reasoning behind each decision |
 | [**EXPERIMENTS**](EXPERIMENTS.md) | The two reconstructed papers: what each shows, what was left out, and why "reconstruction" is not "replication" |
 
 ## Running a study
@@ -25,6 +26,8 @@ Cut by what you are trying to do. If you are new, start at
 | | |
 |---|---|
 | [**ARCHITECTURE**](ARCHITECTURE.md) | How it works inside: the module map, the lifecycle end to end, the publish path, where every value lives, and the four upstream contracts that break silently |
+| [**CONTRIBUTING**](CONTRIBUTING.md) | Layout, build, the rules that are not style, how to add things, and releasing |
+| [**TESTING**](TESTING.md) | The three tiers and what each can prove — and **how to read a red run** before calling it a regression |
 | [**PLATFORM-NOTES**](PLATFORM-NOTES.md) | Every platform constraint, with the date and version it was measured against. The evidence the other documents cite |
 | [`../ISSUES.md`](../ISSUES.md) | Known defects. **U** is upstream, **O** is ours |
 | [**DOCS-PLAN**](DOCS-PLAN.md) | What is still missing from these documents, and when it gets written |

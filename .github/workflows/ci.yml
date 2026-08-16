@@ -84,6 +84,13 @@ jobs:
       - run: npm run build
       - run: node dist/verify/cli.cjs verify --n 4
 
+      # Every `empirica-networks` import written in the docs, resolved against
+      # what was just built. Here rather than in the `unit` job because it needs
+      # dist, and this is the job that already builds. It catches the drift a
+      # link checker cannot see: an export renamed out from under a snippet that
+      # still reads correctly.
+      - run: npm run check:docs
+
       - name: Upload server logs on failure
         if: failure()
         uses: actions/upload-artifact@v4

@@ -10,17 +10,23 @@ absent on the two things it has not.** What has been *built* (the mechanism, the
 traps) is documented to an unusually high standard. What has been *run* (a real deployment) and
 what has been *read* (the internals, by anyone who is not the author) have no document at all.
 
-> **Status — Phase A complete, 2026-08-16.** Written since: `LICENSE`,
-> [ARCHITECTURE](ARCHITECTURE.md), [TROUBLESHOOTING](TROUBLESHOOTING.md),
-> [DATA-AND-ANALYSIS](DATA-AND-ANALYSIS.md) (early — see §6.11),
-> [DEPLOYING](DEPLOYING.md) (a stub, deliberately), [GLOSSARY](GLOSSARY.md),
-> [the index](README.md), and a link checker in CI. §1's assessment below is left as it was
-> written, because it is what the plan was reasoning from; §6 carries the current state.
+> **Status — Phases A, B and D complete, 2026-08-16.** Everything in this plan is now written
+> except Phase C, which cannot be: it requires a real deployment and real data
+> (`PUBLICATION-PLAN.md` §3).
 >
-> Of the four gaps in §1: **1 is closed** (ARCHITECTURE), **3 is not** (the README is still 867
-> lines, and waits on the API freeze), **4 is closed** (TROUBLESHOOTING), and **2 is *stated*
-> rather than closed** — deployment is still undocumented, and the deliverable so far is a file
-> that says so where someone planning a study will find it.
+> Written: `LICENSE`, `CITATION.cff`, `CHANGELOG.md`, `CODE_OF_CONDUCT.md`,
+> [API](API.md), [ARCHITECTURE](ARCHITECTURE.md), [TROUBLESHOOTING](TROUBLESHOOTING.md),
+> [DATA-AND-ANALYSIS](DATA-AND-ANALYSIS.md), [TOPOLOGIES](TOPOLOGIES.md),
+> [DEPLOYING](DEPLOYING.md) (a stub, deliberately), [CONTRIBUTING](CONTRIBUTING.md),
+> [TESTING](TESTING.md), [GLOSSARY](GLOSSARY.md), [the index](README.md), the README cut from 953
+> to 270 lines, and two CI checks.
+>
+> Of the four gaps in §1: **1, 3 and 4 are closed.** **2 is *stated* rather than closed** —
+> deployment is still undocumented, and the deliverable so far is a file that says so where
+> someone planning a study will find it.
+>
+> §1's assessment below is left as written, because it is what the plan was reasoning from; §6
+> carries the current state.
 
 ---
 
@@ -387,13 +393,39 @@ API freeze.
 5. ~~`docs/DEPLOYING.md` **as a stub** (§3.2)~~ **done** — the honest placeholder, so the gap is
    visible to anyone considering a real study on this.
 
-**Phase B — with the API freeze (`PUBLICATION-PLAN.md` §2).**
+**Phase B — done 2026-08-16, ahead of the freeze rather than with it.**
 
-6. `docs/API.md` extracted from the README, and the README cut to a front door (§3.4). Fold into
-   the freeze: it needs the surface enumerated, which the freeze does anyway.
-7. `docs/TOPOLOGIES.md` (§3.5).
-8. Snippet checking in CI (§4) — most useful the moment the surface stops moving.
-9. Single-source the publish caveat (§4) — the publish edit itself.
+6. ~~`docs/API.md` extracted, README cut to a front door (§3.4)~~ **done.** README 953 → 270
+   lines — 953, not the 867 in §1's table, because Phase A added links to it before this cut
+   removed most of the file. The plan wanted this folded into the freeze to avoid writing it
+   twice; doing it first turns out to *help* the freeze, because enumerating the surface is most
+   of the freeze's work and the page is now the list to sign off. It carries a banner saying it
+   needs a read-through at freeze time.
+
+   Against the §7 target of "under 200 lines", the README is 270. The overshoot is the U1 warning
+   (~30 lines, and it belongs at the top of the front door) and the envelope evidence (~45 lines,
+   the only copy of the sparse bench table). Both were judged worth keeping over hitting a number.
+7. ~~`docs/TOPOLOGIES.md` (§3.5)~~ **done** — as its own file rather than folded into API.md,
+   for the reason §3.5 gave: it is read while designing a study, not while writing code.
+8. ~~Snippet checking in CI (§4)~~ **done, and narrower than option (2).** See below.
+9. ~~Single-source the publish caveat (§4)~~ **done** — one block in the README's Installing
+   section, with an anchor, and everything else links to it.
+
+**On item 8, because the plan's recommendation was not what shipped.** The plan recommended
+extracting fenced blocks and typechecking them. Attempting it made the objection obvious: most
+snippets are *fragments* by design — `state.set("choice", "A")` with no surrounding component is
+the clearest way to show that line — and rewriting them into compilable programs would make them
+worse documentation in order to catch errors.
+
+What actually goes stale is narrower: **the import line.** `net.games()` became
+`net.activeGames()`; the export helpers moved to their own subpath; `EdgeRow` stopped being an
+interface. So `scripts/check-docs-api.mjs` extracts every `import { … } from "empirica-networks/…"`
+in every fenced block and resolves it against the **built** `.d.ts` — 48 imports today, and it
+catches both an unknown subpath and a name that is no longer exported. It runs in the `e2e` job,
+which is the one that already builds.
+
+The general form: **check the part that can be wrong without looking wrong.** A fragment that
+stops compiling is visible to a reader; a renamed export is not.
 
 **Phase C — with the demonstration study (`PUBLICATION-PLAN.md` §3).**
 
@@ -414,10 +446,18 @@ API freeze.
     needs the measurement, not the document that contains it.** §3.2 is the case where the whole
     document really is unmeasured, which is why it is a stub rather than a draft with warnings.
 
-**Phase D — before or with JOSS submission.**
+**Phase D — done 2026-08-16.**
 
-12. `docs/CONTRIBUTING.md` and `docs/TESTING.md` (§3.7). Unchanged: late only because the
-    contributor audience is currently one person, and JOSS review is the moment it stops being.
+12. ~~`docs/CONTRIBUTING.md` and `docs/TESTING.md` (§3.7)~~ **done**, along with the remaining
+    hygiene files from §3.9: `CITATION.cff`, `CHANGELOG.md`, `CODE_OF_CONDUCT.md`.
+
+    Two notes. `CITATION.cff` has **no `repository-code`** — the repository has no git remote, and
+    a plausible-looking URL that 404s is worse than an absent field. And `CHANGELOG.md` opens with
+    an `[Unreleased]` section that says plainly nothing has been released, rather than
+    back-dating milestone work into version numbers that never existed.
+
+**Phase C remains, and cannot be brought forward.** Items 10 and 11 need a study that has been
+run. Everything else in this plan is now written.
 
 ~~M6's remaining tiers do not block any of this, but note the overlap: Tier 2.1 promotes the run
 log into the package and Tier 2.2 adds a private-write hook, so do not document a shape that is
