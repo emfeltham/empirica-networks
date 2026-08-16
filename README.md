@@ -455,6 +455,83 @@ Two things worth knowing before you trust a number:
 the one participants are actually in. `DirectedGraph` is refused: a one-way tie is not something
 the projection can deliver.
 
+## Watching a study live
+
+`monitor()` serves a live view of a running study: the current graph, nodes carrying each
+participant's state, ties appearing and disappearing as you rewire, and a scrubber back through
+the edge history. It also shows the things you cannot see from inside the experiment — publish
+counts, and any channel that has not materialised.
+
+```js
+// server/src/callbacks.js
+export const net = withNetwork(Empirica, { topology, project, watch: ["color"] });
+
+// server/src/index.js
+if (process.env.MONITOR) {
+  const { monitor } = await import("empirica-networks/admin/monitor");
+  await monitor(net);        // prints http://127.0.0.1:<port>/?t=<token>
+}
+```
+
+```
+MONITOR=1 empirica
+```
+
+**Read this before you expose it.** The monitor shows exactly what participants must never see.
+The whole point of this package is that a participant learns only their neighbourhood, and the
+realised topology lives on the batch scope specifically because the game scope is broadcast to
+everyone. The monitor is the one surface holding the complete graph, the seating plan, and every
+participant's private state at once.
+
+Two things follow, and they are not the same kind of thing:
+
+- **Nothing the monitor serves enters Empirica's scope graph.** It is plain HTTP on its own
+  port, so no participant's subscription can carry it whatever your listeners do. That is
+  structural, and `test/e2e/monitor.test.ts` asserts it against the raw wire with the monitor
+  running and reading every secret.
+- **Who can open the monitor is access control, and access control is never structural.** It
+  binds to `127.0.0.1` and requires a token generated fresh each run. Pass a different `host`
+  and it will do as you ask, and say loudly what that costs. The URL contains the token; treat
+  it as the secret it is.
+
+The monitor holds **no Empirica credential**. It reads the callbacks process's own memory and
+serves JSON — there is no path from the page to `setAttribute`. This matters more than it
+sounds: Empirica has no write access control at all (`ISSUES.md` U1), so an admin `srtoken` in a
+browser is not a read-only view with a login, it is the ability to write any attribute on any
+node, including every participant's player scope. Do not build one.
+
+```js
+await monitor(net, {
+  port: 0,              // default: the OS picks; the printed URL tells you which
+  host: "127.0.0.1",    // default; anything else warns
+  token: undefined,     // default: fresh 48-char token per run
+  pollMs: 500,          // how often it re-reads state
+});
+```
+
+Two things it will not pretend to do. It does not survive a **server restart**, because nothing
+does — a full restart never reassigns players to their game (U2), so it says the game is gone
+rather than showing a stale picture as though it were live. And it is sized for the regime this
+package targets, **n ≤ 50**; the layout is a straightforward force simulation, and n ≥ 200 does
+not reliably start at all (U7).
+
+If you only need to see what happened rather than what is happening, `views: { file }` plus
+`viewRows()` records what each participant was actually shown — the same picture, offline, with
+none of the exposure above.
+
+### Reading the graph elsewhere
+
+`GET /api/state` returns `{ snapshot, positions }`, and `snapshot` carries `{ n, edges, order }`
+— which is exactly `toGraphology`'s signature. So the monitor is also the shortest route into
+the graphology ecosystem on a running study:
+
+```js
+const { snapshot } = await (await fetch(url)).json();
+const g = toGraphology(UndirectedGraph, snapshot.n, snapshot.edges, { order: snapshot.order });
+```
+
+Pass `UndirectedGraph`, not `Graph` — see the warning above.
+
 ## Supported envelope
 
 Per-participant payload is O(d), independent of n; server egress is O(n·d).

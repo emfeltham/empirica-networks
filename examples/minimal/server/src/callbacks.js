@@ -15,7 +15,14 @@ Empirica.onGameStart(({ game }) => {
  * neighbours' choices — never the rest of the graph, and not because the UI
  * hides it: a non-neighbour's colour never reaches the browser.
  */
-withNetwork(Empirica, {
+/**
+ * The handle `withNetwork` returns, exported so `index.js` can hand it to the
+ * monitor. Exporting it has no effect on its own — nothing starts here — which
+ * is why the monitor is wired up in `index.js` rather than in this file: these
+ * callbacks are imported directly by `test/e2e/example.test.ts`, and an import
+ * that opened a socket would be a surprise in a test run.
+ */
+export const net = withNetwork(Empirica, {
   // Seeded from the game id unless you pass `seed`, and recorded on the game
   // scope, so the realised graph is reconstructible from stored data.
   topology: ({ playerCount, rng }) => topology.ring(playerCount, { rng }),
