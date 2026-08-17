@@ -3,7 +3,24 @@
  * loaded unbundled (docs/PLATFORM-NOTES.md §3a). Never import this from client
  * code.
  */
-export { Nbhd, networkKinds, assertKindsRegistered, KindsNotRegisteredError, REGISTRATION_DIFF } from "./kinds.js";
+export {
+  Nbhd,
+  networkKinds,
+  assertKindsRegistered,
+  KindsNotRegisteredError,
+  REGISTRATION_DIFF,
+} from "./kinds.js";
+// The automatic counterpart to `assertKindsRegistered`, exported so a test can
+// assert the message and a consumer can recognise it. Defined apart from
+// `kinds.ts` so `with_network.ts` can import it without inheriting
+// @empirica/core/admin/classic — see `registration.ts`.
+export {
+  REGISTRATION_CHECK_MS,
+  REGISTRATION_CHECK_PER_CHANNEL_MS,
+  registrationWaitMs,
+  registrationNotDetectedMessage,
+  registrationRetractionMessage,
+} from "./registration.js";
 export type { NetworkKinds } from "./kinds.js";
 export { provisionChannels, readChannels, resetChannels } from "./provision.js";
 export type { ChannelMap, ProvisionResult } from "./provision.js";

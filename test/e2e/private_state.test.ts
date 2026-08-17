@@ -111,7 +111,7 @@ test("onPrivateState sees participants' writes, and never the server's own", asy
   };
 
   await withScenario(
-    { n: HOOK_N, kinds: networkKinds, listeners: hookListeners, modeFunc: EmpiricaNetwork },
+    { n: HOOK_N, kinds: networkKinds, recordWire: true, listeners: hookListeners, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       const batch = await createBatch(admin, batchConfig(HOOK_N, 1));
       await batch.running();
@@ -165,7 +165,7 @@ test("onPrivateState sees participants' writes, and never the server's own", asy
 
 test("a privately written value reaches neighbours and NO ONE else", async () => {
   await withScenario(
-    { n: N, kinds: networkKinds, listeners, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       const batch = await createBatch(admin, batchConfig(N, 1));
       await batch.running();
@@ -260,7 +260,7 @@ test("the same value on the PLAYER scope does leak — which is why this exists"
   // If this ever stops leaking, Empirica changed and the private path may no
   // longer be necessary — so this failing is informative, not a disaster.
   await withScenario(
-    { n: N, kinds: networkKinds, listeners, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       const batch = await createBatch(admin, batchConfig(N, 1));
       await batch.running();

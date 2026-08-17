@@ -295,11 +295,15 @@ the CLI. Consumers must change it to `{ ...classicKinds, nbhd: Nbhd }`.
 Two lines, and **silently fatal if skipped** — so `withNetwork` must assert on `"ready"` and
 throw with the exact diff.
 
-**Not done, and read as done for four milestones — 2026-08-16.** The sentence above is a
-requirement in the future tense. `assertKindsRegistered` was built to satisfy it and **is never
-called**; `docs/M5-ADOPTION.md` §6 then filed the trap under "impossible to skip silently" on the
-strength of it. `ISSUES.md` O14 has the two routes to actually closing it, and why the direct one
-is not a one-liner.
+**Done 2026-08-16 — but not the way the sentence above says, and it was read as done for four
+milestones before it was.** The sentence is a requirement in the future tense;
+`assertKindsRegistered` was built to satisfy it and was **never called**, while
+`docs/M5-ADOPTION.md` §6 filed the trap under "impossible to skip silently" on the strength of it.
+
+`withNetwork` cannot assert on `"ready"`: it holds the collector, not the kind map, and reaching
+the map needs an `@internal` field plus a `protected` member of `Scopes`. So the shipped check
+observes the **consequence** — channels created by `addScopes`, none ever materialising as modelled
+scopes — and warns after 5 s. `ISSUES.md` O14; witness `test/e2e/kind_registration.test.ts`.
 
 ## 7. A headless participant needs no non-public API ✅
 
@@ -575,6 +579,41 @@ closed socket and Empirica would reconnect. So the honest statement is that **th
 cannot reliably start a game at n=200**, and the consequence for real participants is untested.
 Filed as ISSUES.md U7.
 
+### 16a. The same burst delays channel materialisation — measured 2026-08-16
+
+*`npm run bench -- --repeats 3`, sparse d=8, 25 participants per shard, `@empirica/core@1.12.5`.*
+
+§16 is about the participants the burst *loses*. This is about what it makes everyone else wait
+for. The figure is the time from the first `addScopes` request to the first `nbhd` scope arriving
+back through the admin's subscription — `net.stats().firstChannelMs` — which is the window that
+anything watching for "have the channels come back yet" is competing against.
+
+```
+  n= 25      83    84    86 ms
+  n= 50     394   463   491 ms
+  n=100    1590  2285  2320 ms
+  n=150    2343  3324  4287 ms      <- inside the supported envelope
+  n=200    4813  5022  5870 ms      <- the 5022ms run delivered 760/760 receipts
+```
+
+**Two orders of magnitude across the range, and the growth is not a straight line.** It steepens
+to n=150 (roughly n²) and then flattens — n=150 → 200 is 1.37× for 1.33× the participants. That
+shape matches §16's mechanism, since the cost is Classic's O(n²) cross-linking at game start and
+the channel replay queues behind it, and it is why the curve cannot be extrapolated past the
+table.
+
+**What it cost us.** `ISSUES.md` O14 shipped a check that warns when no channel has materialised
+within a flat 5 s, justified by "channels materialise in milliseconds at every size in the
+envelope" — true, and a statement about small n only. At n=150 a healthy server had 14% of the
+deadline left; at n=200 the check told a run that went on to deliver every one of its 760
+receipts that its correct code was broken (`ISSUES.md` O15). The deadline now scales with the
+channels created, and the warning retracts itself if it turns out to have been impatient.
+
+**No upstream issue is filed for this one.** Delivery costing time proportional to work is
+ordinary; the fault was ours, in reading a small-n measurement as a property of the platform. It
+is recorded here because it is a platform behaviour anyone building on Empirica will meet, and
+because the number did not exist anywhere until it was needed.
+
 ## 17. There is no artificial-player facility ⚠️
 
 *Measured 2026-08-15, `@empirica/core@1.12.5`, by searching the shipped bundles.*
@@ -591,19 +630,29 @@ mistake**: Empirica v1 had them, and a substantial slice of network-experiment d
 them. The brief for this milestone assumed it too, in the parenthetical "Empirica ships
 artificial players — reuse, do not port". It does not.
 
-**What a bot would have to be here, if someone builds one.** Not a server-side object: this
-package's topology is defined over `game.players`, Empirica creates a player only for a
-connected participant, and provisioning skips players without a `participantID` — so a node
-with no participant behind it has neither a seat nor a private channel (`ISSUES.md` O4). The
-route that does work is a **headless participant process**, which is about thirty lines of
-public API and is exactly what `src/verify/harness.ts`'s `connectParticipant` already does: a
-real `TajribaConnection`, a real session, and `EmpiricaNetwork` as the mode. Such a bot would
-read its neighbourhood off the mode and write its choice with `networkStateOf(...).set(...)`,
-indistinguishable from a human at the wire — which is also the right property for a study that
-does not tell participants which of their neighbours are software.
+**What a bot has to be here.** Not a server-side object: this package's topology is defined over
+`game.players`, Empirica creates a player only for a connected participant, and provisioning
+skips players without a `participantID` — so a node with no participant behind it has neither a
+seat nor a private channel (`ISSUES.md` O4). The route that works is a **headless participant
+process**: a real `TajribaConnection`, a real session, and `EmpiricaNetwork` as the mode, reading
+its neighbourhood off the mode and writing its choice with `networkStateOf(...).set(...)`. That is
+indistinguishable from a human at the wire, which is also the right property for a study that does
+not tell participants which of their neighbours are software.
 
-Consequence for this repo: `examples/shirado2017` reconstructs the **human-only** arm of
-Shirado & Christakis (2017) and says so. Filed as `ISSUES.md` O10.
+**Built, 2026-08-16.** `empirica-networks/bots` is that process — `ISSUES.md` O10, `docs/BOTS.md`
+— and `examples/shirado2017` now reconstructs both arms of Shirado & Christakis (2017), including
+the 3 × 3 agent conditions that are the paper's contribution. Two things the estimate above got
+wrong, both worth keeping:
+
+- *"about thirty lines of public API"* was right about the connection and wrong about the
+  facility. The connection is thirty lines; the lifecycle a participant has to traverse before it
+  can act is six named phases, and every way of getting them wrong is **silent** — a bot that never
+  plays throws nothing and times nothing out, it just leaves a study waiting for a game that will
+  never reach its player count. `src/bots/lifecycle.ts` is that state machine, and it is bigger
+  than the socket code.
+- *"indistinguishable from a human at the wire"* is true of everything the bot **does** and false
+  of what it is **called**. See §22: every participant receives every co-player's
+  `participantIdentifier`, so the naming of a bot is a participant-visible fact.
 
 ## 18. An `onStageEnded`-style listener can only be registered ONCE ⚠️⚠️
 
@@ -743,9 +792,209 @@ does.
 Also unmeasured, and worth naming rather than leaving implied: real browsers (React reconciles on
 every published view), real WAN latency, and any dense cell above n = 50.
 
+## 21. Degree × view size, measured — and what a bench figure is worth
+
+**Measured 2026-08-16, `npm run bench -- --bytes --repeats 2`, `@empirica/core@1.12.5`,
+100 rounds per run, participants sharded across processes.**
+
+Two results. The first replaces a guess with a number; the second is about the first's own
+reliability, and is the more important of the two.
+
+### The payload cost
+
+`maxNeighbourhoodBytes` (64 KiB) was documented as **not measured** — a footgun detector standing
+in for the quantity the degree sweep (§19) deliberately did not cover. Each degree was run twice
+in ONE sweep, differing only in payload:
+
+| cell | neighbourhood / publish | p50 | p95 | receipts |
+|---|---|---|---|---|
+| n=20 d=19, 2 fields | 1.4 KiB | 11.5 ms | 14.4 ms | 1805/1805 |
+| n=20 d=19, +1 KiB/view | 20.6 KiB | 21.4 ms | 24.5 ms | 1805/1805 |
+| n=50 d=49, 2 fields | 3.7 KiB | 22.8 ms | 27.4 ms | 4655/4655 |
+| n=50 d=49, +1 KiB/view | **53.1 KiB** | **67.0 ms** | 72.0 ms | 4655/4655 |
+
+Payload costs, and **it costs more at higher degree**: ~14.5× the bytes buys 1.9× the latency at
+d=19 and 2.9× at d=49. So degree × view size behaves like a product, which is what §19 said it
+had not established and what `maxNeighbourhoodBytes` was added on that suspicion.
+
+**The 64 KiB default now has a number behind it.** A design sitting just under the limit — 53 KiB
+per participant per publish, the densest realistic case in the n ≤ 50 regime — delivers at
+**67 ms p50** rather than the 10–25 ms a small-view design sees. Nothing was dropped: every
+expected receipt arrived at every size. So the limit is not a cliff, it is a slope, and 64 KiB is
+roughly where publish latency reaches 3× baseline while staying under 100 ms on this hardware.
+That is a defensible place for a footgun detector, and it is now a measured statement rather than
+a plausible one. One run showed a p99 of 258 ms against a 72 ms p95, so the tail at that size is
+worth more attention than the median.
+
+### The sweep-level offset is the MACHINE'S POWER MANAGEMENT, and idle is the slow case
+
+**Measured 2026-08-16.** `ISSUES.md` O1 carried an unexplained ~5× offset: the same cell
+(n=25, d=8) measured between 3.3 ms and 18.3 ms across the session, while repeats *within* any one
+sweep agreed to under 17%. Six hypotheses were eliminated by measurement (see O1). The seventh was
+tested by imposing known CPU load — 14 cores, three conditions, three runs each:
+
+| busy-loop processes | 1-min load at start | p50 | coordinator CPU per 32 s window |
+|---|---|---|---|
+| 0 | 1.2–1.7 | **10.2 ms** | 0.9–1.1 s |
+| 8 | 5.4–7.4 | **4.5 ms** | 0.5–0.7 s |
+| 20 | 11–26.6 | **7.3 ms** | 0.7–0.9 s |
+
+**A busier machine is faster, and the relationship is not monotonic** — the minimum is at moderate
+load. Contention is therefore not the mechanism; if it were, the ordering would be the other way
+round and 20 burners would be the worst cell rather than the middle one.
+
+**The CPU-time column is what identifies it.** The coordinator does the same work in every
+condition — it is ~2–3% duty cycle throughout, so nothing is saturated — yet it consumed **1.1
+CPU-seconds when the machine was idle against 0.7 under load**. Identical instructions taking 57%
+more CPU *time* is a clock-frequency signature: the cores were running slower. On Apple Silicon
+that is DVFS, plausibly compounded by the scheduler placing a nearly-idle workload on efficiency
+cores and promoting it to performance cores once the machine is busy.
+
+Not isolated further: distinguishing frequency scaling from core placement needs `powermetrics`
+(root) and neither changes the conclusion. Timer coalescing on an idle system may add to the
+*delivery* latency as well, but it cannot explain the CPU-time difference, so it is at most a
+second term.
+
+**What follows for anyone quoting a number from this bench.**
+
+- **An absolute latency figure from a laptop with heterogeneous cores and aggressive power
+  management is not reproducible**, and more repeats do not fix it — every run in a sweep sits at
+  whatever clock the machine happened to choose. This is the concrete form of O1's "upper bounds"
+  caveat, and it is worse than "upper bounds" suggests, because the error is not one-directional.
+- **Comparisons paired inside one sweep are still sound**, since both arms see the same clock. That
+  is why the payload table above is designed that way and why its conclusions stand while the
+  absolute numbers around them wobble.
+- A quiet CI runner may well measure *slower* than a busy one. Another reason `perf.yml` gates on
+  delivery and retention rather than latency (`ISSUES.md` O6).
+
+### What a single bench figure is worth, measured
+
+The same cell (n=25, d=8, 100 rounds) across four sweeps the same afternoon:
+
+| sweep | p50 median | spread of repeats within it |
+|---|---|---|
+| A, as the first cell | 18.3 ms | 4% |
+| control, 20 rounds | 7.3 ms | 9% |
+| control, 100 rounds | 7.3 ms | 3% |
+| drift check | 10.9 ms | — |
+
+**Repeats within a sweep agree to 3–9% and disagree across sweeps by 2.5×.** Whatever produces
+that offset is shared by everything in a sweep, so `--repeats` measures *precision, not accuracy*,
+and a tight spread is not evidence that a number is right. The cause is not identified. It is not
+orphaned servers (checked, 2 live processes), not accumulated writes (the 20-vs-100-round control
+is the refutation — a plausible mechanism existed, since Tajriba is append-only per attribute, and
+it is wrong), and not within-run drift (`first/last third` is flat in every cell above).
+
+Two consequences, both adopted:
+
+- **Any paired comparison must have both arms inside one sweep.** The payload table above is
+  designed that way, so the offset cancels. Comparing a padded sweep against §19's numbers from
+  another day would have measured the days.
+- **Published latency figures should be read as a scale, not a value.** The README says so.
+
+*Also seen once, and new:* a run died with `tajriba exited early (code 1)` at n=25 — a server
+failing to start, which is neither U6 (orphans) nor U7 (participant loss at n≥200). One occurrence,
+not characterised.
+
+## 20. `game.players` and `player.participantID` come from two different mechanisms
+
+**Read off `@empirica/core@1.12.5` `dist/admin-classic.cjs` on 2026-08-16.** Not measured at
+runtime, and the difference matters for what it licenses — see the last paragraph.
+
+```js
+get players() {                                                    // :4488
+  return this.scopesByKindMatching("player", "gameID", this.id);
+}
+scopesByKindMatching(kind, key, val) {                             // admin.cjs:992
+  return Array.from(this.scopes.byKind(kind).values()).filter((s) => s.get(key) === val);
+}
+
+_.on("player", async (ctx, { player }) => {                        // :5474
+  const participantID = isString2(player.get("participantID"));
+  player.participantID = participantID;                            // :5476
+  …
+});
+```
+
+So membership of `game.players` is a **live filter over the `gameID` attribute**, evaluated fresh
+on every access, while `player.participantID` is a **field assigned by a listener callback**. A
+player scope is in `game.players` the moment the admin holds it with a matching `gameID` — whether
+or not that callback has run for it.
+
+That is the whole of the claim. It does **not** establish that Classic produces a player in
+`game.players` with the field unset: on the normal path the attribute is written at player
+creation and the callback runs long before any game starts. What it does establish is that nothing
+structural prevents it, so the usual argument — *"Classic sets `participantID` in its own player
+listener, therefore players in `game.players` have one"* — does not hold as stated. The two facts
+are about different things.
+
+The suspect window is the subscription replay at process start, where player scopes arrive already
+carrying a `gameID` from a previous run. That is U2's territory, it has not been reproduced, and
+`ISSUES.md` O4 stays open on the reproduction rather than being closed on this reading.
+
+**What this changed.** `withNetwork` re-provisions on `ParticipantConnect` as a net under that
+path, and writing a test for the net found the net broken — it created the repaired channel with
+no seat index, leaving the game unrecoverable at the next restart. Fixed, and covered by
+`test/unit/late_joiner.test.ts`. The transferable part is the method rather than the finding:
+reading the platform's own source settled in minutes a question that three milestones of "we could
+not construct it" had left open, and it cost nothing.
+
+## 22. Every participant receives every co-player's recruitment identifier ⚠️⚠️
+
+*Measured 2026-08-16, `@empirica/core@1.12.5`, at the wire. Witness: `test/e2e/bots.test.ts`,
+"a co-player's recruitment identifier is on the wire". Filed as `ISSUES.md` U10.*
+
+`participantIdentifier` — the raw value of `?participantKey=` — is delivered to **every other
+participant in the game**. Two upstream lines put it there, and neither is doing anything odd:
+
+```js
+// PARTICIPANT_CONNECT: the identifier is written on the player scope, immutably
+ctx.addScopes([{ kind: "player", attributes: attrs([
+  { key: "participantID",         value: participant.id,         immutable: true },
+  { key: "participantIdentifier", value: participant.identifier, immutable: true },
+])}]);
+
+// startGame: every participant is linked to every player node
+for (const player of players) { nodeIDs.push(player.id); participantIDs.push(player.participantID); }
+ctx.addLinks([{ link: true, participantIDs, nodeIDs }]);
+```
+
+The first is how Classic remembers who a player is; the second is how a Classic client can render
+`players`. Together they mean the identifier is broadcast, and it is on the wire of a participant
+who never asked for it and has no interface that shows it.
+
+Measured directly rather than read off the source: four participants in one game, each
+participant's own namespace string searched for in every other participant's received frames. All
+present, in both directions, along with the key `participantIdentifier`.
+
+**Why it matters, in two unrelated ways.**
+
+*Participant privacy.* In a deployed study `participantKey` carries the recruitment identity —
+Prolific PID, MTurk worker ID, whatever the recruitment URL put there. Co-players learn it.
+Platform worker IDs are stable across studies, so this is a cross-study re-identification handle
+passed between strangers. Affects every Empirica Classic study, not only networked ones, and is
+independent of this package: the same two lines run whether or not `withNetwork` is installed.
+
+*Bots.* There is no naming scheme an artificial participant can use that subjects cannot read. This
+is why `runBots` **requires** an identifier list rather than generating one from a count, why the
+default generator matches the shape Empirica's own client produces, and why the server-side half of
+`examples/shirado2017` recognises its agents by holding the list rather than by matching a prefix.
+For a design that does not tell subjects which of their neighbours are software, a recognisable
+identifier is the manipulation disclosed rather than a metadata leak. `docs/BOTS.md` §1.
+
+**Not fixable from here.** Nothing this package controls writes the attribute or creates the link,
+and the read guarantee is unaffected — `project()` is still the only path by which one
+participant's *state* reaches another. What leaks is who is in the room, under the name your
+recruitment gave them.
+
+The workaround, if you need one before upstream moves: make `participantKey` an opaque per-study
+token and keep the mapping to your recruitment identity outside Empirica. That is worth doing
+anyway.
+
 ## 9. Misc
 
-- `Player.participantID` is a public field on the admin classic model — no cast needed.
+- `Player.participantID` is a public field on the admin classic model — no cast needed. Note that
+  it is a *field set by a listener*, not an attribute read: §20 above, and `ISSUES.md` O4.
 - `usePartModeCtx` / `usePartModeCtxKey` are public and generic, so `useNeighbors()` is a
   three-line delegation.
 - The unknown-scope-kind warning fires once per scope *creation*, not per update, so composing

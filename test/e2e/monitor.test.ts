@@ -128,7 +128,7 @@ test("the monitor shows the real network, follows a rewire, and keeps a scrubbab
   };
 
   await withScenario(
-    { n: N, kinds: networkKinds, listeners, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       await startGame(admin, participants);
 
@@ -229,7 +229,7 @@ test("running the monitor leaks nothing to participants, and reads their private
   };
 
   await withScenario(
-    { n: N, kinds: networkKinds, listeners, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       await startGame(admin, participants);
 

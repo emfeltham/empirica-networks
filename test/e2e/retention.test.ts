@@ -100,9 +100,34 @@ test("a finished game releases everything it was holding", async () => {
 
       const after = handle!.stats();
       assert.deepEqual(
-        after,
-        { games: 0, channels: 0, channelScopes: 0, cachedViews: 0 },
+        { ...after, firstChannelMs: undefined },
+        {
+          games: 0,
+          channels: 0,
+          channelScopes: 0,
+          cachedViews: 0,
+          // The single exception, and the reason it is asserted as a value
+          // rather than omitted: the id of a finished game is kept on purpose,
+          // to stop its channels being re-adopted when the kind subscription
+          // replays them. Bounded since `ISSUES.md` O5 — the bound and the
+          // per-player chat state below are exercised over many sequential
+          // games in `test/unit/retention.test.ts`, which needs no server.
+          endedGames: 1,
+          chatSeqs: 0,
+          // Masked in the comparison rather than left out of it, so this stays
+          // an EXHAUSTIVE record and a new field has to be argued for here.
+          // `firstChannelMs` is a measurement, not a resource, and is kept
+          // deliberately: the check it feeds is one-shot per process
+          // (`ISSUES.md` O15), so clearing it per game would make the figure
+          // describe the most recent game rather than the coldest one.
+          firstChannelMs: undefined,
+        },
         "nothing is still held for a game that is over"
+      );
+      assert.equal(
+        typeof after.firstChannelMs,
+        "number",
+        "the one thing that survives on purpose and is not a resource"
       );
       assert.deepEqual(
         readChannels(gameRef),

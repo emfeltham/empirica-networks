@@ -1,5 +1,6 @@
 import { Scope, classicKinds } from "@empirica/core/admin/classic";
 import { NBHD_KEYS, NBHD_KIND } from "../shared/keys.js";
+import { REGISTRATION_DIFF } from "./registration.js";
 
 /**
  * Admin-side model for a participant's private channel.
@@ -46,25 +47,12 @@ export const networkKinds = {
 export type NetworkKinds = typeof networkKinds;
 
 /**
- * The edit a consumer has to make. Two lines, and silently fatal if skipped —
- * so we would rather print it than have them discover it as missing data.
+ * Re-exported so the public surface is one import, while the definition lives
+ * where `with_network.ts` can reach it — this module imports
+ * `@empirica/core/admin/classic` for `classicKinds`, and anything importing it
+ * inherits that module's `tmp` → `require("fs")` problem. See `registration.ts`.
  */
-export const REGISTRATION_DIFF = `
-  // server/src/index.js
-- import { Classic, classicKinds, ClassicLoader, Lobby } from "@empirica/core/admin/classic";
-+ import { Classic, ClassicLoader, Lobby } from "@empirica/core/admin/classic";
-+ import { networkKinds } from "empirica-networks/admin";
-
-  const ctx = await AdminContext.init(
-    argv["url"] || "http://localhost:3000/query",
-    argv["sessionTokenPath"],
-    "callbacks",
-    argv["token"],
-    {},
--   classicKinds
-+   networkKinds
-  );
-`;
+export { REGISTRATION_DIFF } from "./registration.js";
 
 export class KindsNotRegisteredError extends Error {
   constructor() {
@@ -77,10 +65,34 @@ export class KindsNotRegisteredError extends Error {
 }
 
 /**
- * Verify the consumer registered our kinds.
+ * Verify the consumer registered our kinds. **The eager check, and opt-in.**
  *
  * Checked by identity of the constructor rather than by name, so a different
  * class registered under the same key still fails.
+ *
+ * `withNetwork` CANNOT call this: it is handed the listeners collector, and the
+ * kind map goes to `AdminContext.init` in a different file. Reaching it from a
+ * listener context means going through an `@internal` constructor field and then
+ * a `protected` member of `Scopes`, which would make a *fifth* version-fragile
+ * dependency on upstream internals (`.github/workflows/drift.yml`) in order to
+ * check one thing — and the check would go quiet exactly when upstream moved,
+ * which is the failure mode it exists to prevent.
+ *
+ * So this is for the one place that legitimately holds the map — the consumer's
+ * own `server/src/index.js`, where it is one line and fails before the server
+ * starts:
+ *
+ *     const kinds = { ...classicKinds, ...whateverElse };
+ *     assertKindsRegistered(kinds);
+ *     const ctx = await AdminContext.init(…, kinds);
+ *
+ * The automatic check is `registrationNotDetectedMessage` in `./registration.ts`,
+ * which observes the consequence instead. It fires later and warns rather than
+ * throwing; this one fires immediately and throws. Use both.
+ *
+ * For four milestones this function was exported and **called by nothing**,
+ * while three documents recorded the trap as "impossible to skip silently" on
+ * the strength of it (`ISSUES.md` O14).
  */
 export function assertKindsRegistered(kinds: Record<string, unknown> | undefined): void {
   if (!kinds || kinds[NBHD_KIND] !== Nbhd) throw new KindsNotRegisteredError();

@@ -47,7 +47,7 @@ test("a participant cannot read the realised topology or its seed", async () => 
   };
 
   await withScenario(
-    { n: N, kinds: networkKinds, listeners, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       const batch = await createBatch(admin, batchConfig(N, 1));
       await batch.running();

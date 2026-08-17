@@ -31,8 +31,13 @@ await build({
 
 // --expose-gc so heap readings are taken after collection rather than before;
 // extra args (e.g. --minutes 2) are forwarded to the soak itself.
-execFileSync(
-  process.execPath,
-  ["--expose-gc", path.join(outDir, "soak.cjs"), ...process.argv.slice(2)],
-  { stdio: "inherit", cwd: root }
-);
+// Exit code FORWARDED rather than rethrown — see the note in scripts/bench.mjs.
+try {
+  execFileSync(
+    process.execPath,
+    ["--expose-gc", path.join(outDir, "soak.cjs"), ...process.argv.slice(2)],
+    { stdio: "inherit", cwd: root }
+  );
+} catch (e) {
+  process.exit(typeof e.status === "number" ? e.status : 1);
+}

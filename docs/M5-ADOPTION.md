@@ -289,7 +289,7 @@ consumer-facing" means it can only be hit by someone developing this package or 
 | 4d | A restart re-fires `game.start` and used to reseat everyone | No — fixed here, and pinned by `test/e2e/restart.test.ts` | **Impossible by construction** |
 | **4e** | **A full restart does not put participants back in their game (U2)** | **Yes** — any crash, deploy or `^C` mid-study | **Named** — README envelope and GETTING-STARTED "What you cannot recover". No documentation makes a crashed study resumable, so it is stated as a limit, not a procedure |
 | 5 | `EventContext` has no `setAttributes` | No | Not consumer-facing |
-| **6** | **Kind registration is a mandatory consumer edit, silently fatal if skipped** | **Yes, on the first install** | ~~Impossible to skip silently — `assertKindsRegistered` throws with the exact diff.~~ → **WRONG, corrected 2026-08-16.** The helper exists and **nothing calls it**; this row asserted a call that does not exist (`ISSUES.md` O14). Actual disposition: **named in the docs only** — the first step in GETTING-STARTED and the first row of every example's four-file table. See the note under §8 |
+| **6** | **Kind registration is a mandatory consumer edit, silently fatal if skipped** | **Yes, on the first install** | ~~Impossible to skip silently — `assertKindsRegistered` throws with the exact diff.~~ → **WRONG when written, fixed 2026-08-16.** The helper existed and **nothing called it**; this row asserted a call that did not exist (`ISSUES.md` O14). Now genuinely detected — not by the assertion this row named, which `withNetwork` structurally cannot reach, but by a consequence check armed at provisioning, with `test/e2e/kind_registration.test.ts` as the witness. That check then **fired on correct code** at n≥150, because its deadline was a guess about the platform rather than a measurement — corrected the same day (`ISSUES.md` O15, `docs/PLATFORM-NOTES.md` §16a). See the note under §8 |
 | 8 | Hooks cannot be rendered against a synthetic mode | No — it is our testing limit | Not consumer-facing; stated in each example's "what is covered" |
 | 10 | `ephemeral` attributes survive a reconnect | (capability) | — |
 | **11** | **A `file:` link loads TWO copies of `@empirica/core`** | **Yes** — anyone developing against a local clone of this package, which is what an adopter who forks does | **Named** — GETTING-STARTED "Installing from a clone", with the symptom ("Waiting for other players" with a full game) first, because that is what they will search for |
@@ -436,3 +436,15 @@ the thing that is supposed to catch it:
 The correction to make to the *audit*, not just to the row: **a disposition of "impossible" must
 cite a test, and a disposition citing package code must cite the call site, not the definition.**
 Both would have caught this in a table read-through.
+
+**A postscript the same day, and it extends the correction.** The detector that replaced the
+missing call was then measured **firing on correct code** at n=150 and n=200. Its 5 s deadline
+rested on "channels materialise in milliseconds at every size in the envelope" — a claim inferred
+from small-n runs and never measured (`ISSUES.md` O15). So this row went from *citing a call that
+did not exist* to *citing a mechanism that ran and was wrong*, in one day, on one line.
+
+The rule that catches **this** one is narrower than the two above and worth stating separately:
+**a detector's threshold is a claim about the platform, and has to be measured like one.** A test
+can prove a warning fires; only a measurement can say whether it fires when it should. The row
+now rests on both — the e2e witness that it fires, and `docs/PLATFORM-NOTES.md` §16a for the
+latency it is racing.

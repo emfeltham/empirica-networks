@@ -25,7 +25,7 @@ Three Human Nature Lab designs were considered. Each was checked against the pap
 | Study | n per session, as published | Initial network | Rewiring | Status |
 |---|---|---|---|---|
 | Rand, Arbesman & Christakis 2011, *PNAS* 108(48):19193–19198 | 785 subjects / 40 sessions, **mean 19.6 (SD 6.4)** | 20% of possible links at random | **yes**, k = 10% / 30% of pairs per round | **built** |
-| Shirado & Christakis 2017, *Nature* 545:370–374 | 4,000 subjects / 230 sessions, **exactly 20** | preferential attachment, m = 2 | no | **built** (human-only arm) |
+| Shirado & Christakis 2017, *Nature* 545:370–374 | 4,000 subjects / 230 sessions, **exactly 20** | preferential attachment, m = 2 | no | **built** — control arm and the 3 x 3 agent conditions |
 | Nishi, Shirado, Rand & Christakis 2015, *Nature* 526:426–429 | 1,462 subjects / 80 sessions, **mean 17.21 (SD 2.79)** | Erdős–Rényi, 30% of ties | yes, 30% of pairs per round | **not built** |
 
 All three sit inside the **n ≤ 50** regime this package targets and inside its verified envelope. That was checked, not assumed; had one needed n > 50 it would have been a finding about the port rather than a number to round down.
@@ -83,7 +83,13 @@ Twenty participants each pick one of three colours and may change at any time. T
 - **`barabasiAlbert` at the paper's parameters**, staying inside the default envelope — asserted across 50 seeds, since a hub-forming generator is exactly the kind of thing that would quietly exceed it and take the study down at game start.
 - **Plain `.on(kind, key, …)` listeners coexisting with the package's own**, which is what makes a colour-change hook possible at all.
 
-**Left out — including the paper's actual contribution:** the bots. Not a scoping choice. **`@empirica/core@1.12.5` ships no artificial-player facility of any kind** (searched the shipped bundles for `bot`, `virtual`, `simulat`, `agent`, `artificial`, `robot`; `docs/PLATFORM-NOTES.md` §17). Empirica v1 had bots; v2 does not. What is reconstructed is the **human-only** arm — the paper's 30 control sessions, which is what its Fig. 1 is entirely about — so it is a complete arm of the design rather than a broken version of the whole. The route a bot would have to take is recorded in `ISSUES.md` O10; the hard part already exists in `src/verify/harness.ts`.
+**The agents — the paper's actual contribution — took a new entry point.** For M5 and M6 they were absent, and not as a scoping choice: **`@empirica/core@1.12.5` ships no artificial-player facility of any kind** (searched the shipped bundles for `bot`, `virtual`, `simulat`, `agent`, `artificial`, `robot`; `docs/PLATFORM-NOTES.md` §17). Empirica v1 had bots; v2 does not. What existed was the **human-only** arm — the paper's 30 control sessions, which is what its Fig. 1 is entirely about — which is a complete arm of the design rather than a broken version of the whole.
+
+Since 2026-08-16 both arms are here. `empirica-networks/bots` runs each agent as a headless participant process — the only kind of thing Empirica can seat at a node — and the example ships all nine conditions (3 agents x 3 noise levels x 3 placements) plus the deterministic-agent control. Three things that were not obvious from the outside, each written up in [`docs/BOTS.md`](BOTS.md) and `ISSUES.md` O10:
+
+- the **lifecycle** is where bots fail, and every way of failing is silent — a bot that never plays leaves the study waiting for a game that will never reach its player count, with no error anywhere;
+- **placement** needed a package change. The paper's independent variable is *where* the agents sit, and the topology function had no way to say which participant would occupy which node;
+- a bot's **name** is participant-visible. Measuring that turned up an upstream privacy finding, U10: every participant receives every co-player's `participantIdentifier`.
 
 Also left out: incentives, and the chromatic-polynomial solution-space covariate (computable offline from the exported `edges.csv`).
 

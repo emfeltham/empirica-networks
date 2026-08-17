@@ -56,6 +56,19 @@ export interface EnvelopeLimits {
    * it means to. `maxViewBytes` catches one view being too big; this catches many
    * reasonable views adding up, which is the failure a dense graph creates and a
    * per-view limit cannot see.
+   *
+   * **The number was a guess when it was chosen and has since been measured**
+   * (2026-08-16, `npm run bench -- --bytes`, PLATFORM-NOTES §21). It survives,
+   * with its meaning sharpened: a design sitting just under the limit — 53 KiB
+   * per participant per publish, at n=50 d=49, the densest realistic case in the
+   * target regime — delivers at **p50 67ms** against 10-25ms for a small-view
+   * design, and drops nothing. So this is a SLOPE, not a cliff, and 64 KiB is
+   * about where latency reaches 3x baseline while staying under 100ms.
+   *
+   * The measurement also confirmed the suspicion the limit was added on: payload
+   * costs more at higher degree (~14.5x the bytes buys 1.9x the latency at d=19
+   * and 2.9x at d=49), so degree x view size really is the product, and neither
+   * per-view nor per-degree limits can see it alone.
    */
   maxNeighbourhoodBytes?: number;
   /**

@@ -40,13 +40,15 @@ src/
     keys.ts           every scope kind and attribute key, in one place
     wait.ts           polling helpers used by tests and the harness
   admin/              server side; imports @empirica/core/admin — never import from client code
-    with_network.ts   the core. Config, lifecycle wiring, publish path, GameNetwork  (1694 lines)
+    with_network.ts   the core. Config, lifecycle wiring, publish path, GameNetwork  (1808 lines)
     kinds.ts          networkKinds, assertKindsRegistered, the registration diff
     provision.ts      one channel per participant: batched, idempotent, order-independent
     projection.ts     validateProjection, projectionBytes — what a view may contain
     envelope.ts       degree / view-bytes / neighbourhood-bytes limits
     reads.ts          recording proxies; the unwatched-key report
     listeners.ts      the U8 duplicate-lifecycle-listener detector
+    registration.ts   the O14 kind-registration check: constants and messages, zero imports
+    retention.ts      the bound on what a long-running process keeps (O5), zero imports
     seed.ts           hashSeed, makeRng — deterministic realisation
     sink.ts           the shared NDJSON writer behind views: and log:
     views.ts          view capture config on top of the sink
@@ -59,6 +61,11 @@ src/
     state.ts          networkStateOf — the write path for a participant's own private state
     chat.ts           neighborChatOf
     react/index.ts    the hooks, which are thin wrappers over the above
+  bots/               artificial participants; a PARTICIPANT process, not a server-side object
+    runner.ts         runBots: sessions, the poll loop, hook dispatch. Reuses verify/compat.ts
+    lifecycle.ts      the six phases as a pure function, and the stall reasons. Zero imports
+    identity.ts       identifier generation and the U10 warnings. Zero imports
+    policy.ts         the BotPolicy / BotContext types. Type-only imports, so it bundles to nothing
   topology/
     index.ts          15 generators + adjacency/degrees/components/isConnected
     graphology.ts     the graphology bridge, kept behind its own subpath
@@ -72,6 +79,16 @@ server-only code (and its `tmp` → `require("fs")` problem) into client bundles
 `exports` subpath in `package.json`. `monitor` is a further subpath off `admin` for the same
 reason plus one more: a server that never opts in never pulls `node:http` or the served page into
 its bundle, and *"does this deployment expose the whole graph"* stays answerable with one grep.
+
+**`bots` breaks the ESM rule deliberately, and the export map says so.** It reaches
+`@empirica/core/admin` for `TajribaConnection` — the connection class lives there even though a
+bot is a participant — and that cannot be loaded from bare Node ESM (§3a). So it ships as a
+bundled CJS artefact under a single `default` condition, rather than as an `import` entry that
+would resolve cleanly and then fail on the researcher's machine. The cost is a second copy of
+`@empirica/core` inside that bundle; nothing crosses the boundary, because a policy is handed
+plain JSON and plain accessors rather than scope objects. `src/bots/runner.ts` is built on
+`src/verify/compat.ts` rather than on its own copy of the same three calls, so a version bump that
+breaks a bot breaks it in the one file where every upstream contract lives.
 
 ## 3. The lifecycle, end to end
 
@@ -95,12 +112,20 @@ complete. Two things happen, and the timing of both is deliberate:
   `withNetwork()` time, because counting during module evaluation would miss every listener
   declared below the call — which in both shipped examples is most of them.
 
-**3 — Kind registration is *not* checked. See `ISSUES.md` O14.** `assertKindsRegistered`
-(`kinds.ts`) exists and throws with the exact diff to paste — but **nothing in the package calls
-it**, and no test covers it. If `networkKinds` was not passed to `AdminContext.init`, no channels
-are modelled, nothing errors, and participants sit with empty neighbourhoods forever. This is the
-one mandatory consumer edit and the most consequential silent failure in the package, and it is
-currently caught only by the reader following GETTING-STARTED §3.
+**3 — Kind registration.** Two checks, and neither can be the obvious one. If `networkKinds` was
+not passed to `AdminContext.init`, no channels are modelled, nothing errors, and participants sit
+with empty neighbourhoods forever — the one mandatory consumer edit, and the package's most
+consequential silent failure.
+
+- `assertKindsRegistered(kinds)` (`kinds.ts`) — **eager, throws, opt-in.** For the consumer's own
+  `server/src/index.js`, the one place that holds the kind map. `withNetwork` cannot call it: it
+  is handed the collector, and reaching the map from a listener context needs an `@internal`
+  field plus a `protected` member of `Scopes`.
+- The **automatic** check (`registration.ts`, armed at step 7) observes the *consequence* instead
+  — channels created, none materialised — and warns. See §3 step 7.
+
+Until 2026-08-16 there was only the first, and **nothing called it** while three documents recorded
+the trap as "impossible to skip silently" on the strength of it (`ISSUES.md` O14).
 
 **4 — Game start.** `collector.on("game", "start", onGameStartAttribute)`. The handler is held in
 a named `const` so the duplicate detector can exclude it *by identity* — as an inline arrow its
@@ -152,6 +177,19 @@ A player with no `participantID` gets no channel, and `publish` refuses to send 
 so **one unprovisioned player blocks every view in the game.** That is the right call — a partial
 publish leaves participants stale with no signal — but it must not be silent, so it warns.
 
+Provisioning is also where the **kind-registration check** is armed (`armRegistrationCheck`). It
+is one-shot per process, because registration cannot change while the process runs and a per-game
+timer would re-accuse on every game of a broken batch. `provisionChannels` throws if a returned
+payload carries no owner attribute, so `created > 0` establishes that the scopes exist in Tajriba;
+if none of them has come back as a *modelled* scope by `registrationWaitMs(created)` — 5 s, plus
+100 ms per channel past fifty — the check warns. It **names both causes and diagnoses neither**,
+and retracts itself if a channel arrives afterwards: the deadline is sized from measured
+first-channel latency (`ISSUES.md` O15, `docs/PLATFORM-NOTES.md` §16a), and a measurement can be
+beaten by a slower machine. Witnesses: `test/e2e/kind_registration.test.ts` against a real server,
+`test/unit/registration.test.ts` for the arithmetic and for the retraction — which needs a
+deadline that expires while healthy channels are in flight, a race no real server can be asked to
+lose on demand.
+
 **8 — Channels materialise, asynchronously.** `collector.on(NBHD_KIND, NBHD_KEYS.OWNER, …)` fires
 once per channel (the owner attribute is immutable, so exactly once). It captures the scope
 object — the thing `.set()` can be called on — re-adopts the channel into the index, records the
@@ -190,11 +228,14 @@ experiment, and if it ever stops, every reconnecting participant silently goes b
 **12 — Game end.** `collector.on("game", "status")` → `releaseGame()` when `hasEnded` (which
 covers `ended`, `terminated` *and* `failed`). Flushes both sinks first — a game ending is the
 last moment its records are certainly still wanted — then drops nine structures keyed by game or
-channel, including one Empirica `Scope` object per participant. One thing is deliberately *not*
-released: `endedGames`, a set of ids, which is what stops a finished game's channels being
-re-adopted when the kind subscription replays them. It is a few dozen bytes per game against one
-scope object per participant, and it is unbounded in the number of games a process runs
-(`ISSUES.md` O5) — stated rather than left to be discovered.
+channel, including one Empirica `Scope` object per participant, **and** the chat relay's
+per-player dedupe marks. One thing is deliberately *not* released per game: `endedGames`, a set
+of ids, which is what stops a finished game's channels being re-adopted when the kind
+subscription replays them. It is a few dozen bytes per game against one scope object per
+participant, and since `ISSUES.md` O5 it is **capped** rather than unbounded
+(`src/admin/retention.ts`). Forgetting the oldest is safe because the replay that would re-adopt
+an evicted game's channels also replays that game's own `start` attribute, and this step runs
+again behind it.
 
 ## 4. The publish path
 
@@ -402,9 +443,20 @@ is not "watch a heap graph and squint". `npm run soak` prints these alongside RS
 | `networks`, `games`, `startedAt`, `seqByGame`, `historyByGame`, `recoveredOrder`, `gameNetworks` | game id | `releaseGame` |
 | `channelScopes`, `lastPublished` | channel scope id | `releaseGame`, via the channel map |
 | the channel index (`provision.ts`) | game id | `releaseChannels` |
-| `endedGames` | game id | **never** — deliberately (`ISSUES.md` O5) |
-| `lastOutbox` | player id | never; bounded by participants per process |
+| `lastOutbox` (chat dedupe) | **player id** | `releaseGame`, via the seating order |
+| `endedGames` | game id | never per game — deliberately; **capped** at `MAX_ENDED_GAMES` |
 | `reportedMissing` | key name | never; bounded by the key list |
+
+`net.stats()` reports the two that are easy to get wrong — `endedGames` and `chatSeqs` — because
+they are the two that outlive a game, and everything else in that record should return to zero
+between games (`test/e2e/retention.test.ts` asserts the whole shape).
+
+The `lastOutbox` row is the one worth reading twice. Being keyed by player rather than by game is
+what put it outside every game-keyed delete, and the cost of that was not memory: Classic reuses
+a participant's player scope across sequential games while the client's message counter restarts
+with each new channel, so a stale mark made the relay's duplicate guard swallow the opening
+messages of the next game, silently (`ISSUES.md` O5). When adding state here, the question that
+finds this class of bug is *what is this keyed by, and is that the thing that ends?*
 
 ## 10. Reading further
 

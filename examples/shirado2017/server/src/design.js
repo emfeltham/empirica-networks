@@ -116,6 +116,183 @@ export function conflictFreeColors(neighbourColors) {
   return COLORS.filter((c) => !taken.has(c));
 }
 
+// ---------------------------------------------------------------- the agents
+//
+// "Locally noisy autonomous agents" — the paper's title, and its contribution.
+// Everything below is what `docs/PLATFORM-NOTES.md` §17 said was missing and what
+// `ISSUES.md` O10 asked for. It runs in a SEPARATE PROCESS as a headless
+// participant (`server/bots.mjs`, on `empirica-networks/bots`), because that is
+// the only kind of thing Empirica can seat at a node: a bot with no participant
+// behind it has no player scope, no seat and no private channel.
+//
+// Read the reconstruction notes on each constant. Three of the numbers here are
+// the paper's and one is not, and the difference is not something to leave to
+// whoever reads the code next.
+
+/** Three agents per 20-node session. The paper's design. */
+export const BOT_COUNT = 3;
+
+/**
+ * "we manipulated the level of behavioural randomness of the bots (0%, 10%, 30%)".
+ *
+ * The middle level is the paper's finding: 10% noise in central positions improved
+ * global coordination, while 30% made it worse. 0% is the deterministic-agent
+ * control, which is NOT the same thing as the human-only arm — an agent that never
+ * errs is still an agent.
+ */
+export const NOISE_LEVELS = [0, 0.1, 0.3];
+
+/**
+ * "central, random, peripheral" — where the three agents sit.
+ *
+ * Placement is over DEGREE, which is why the graph has to be generated before the
+ * seats are assigned and then relabelled onto them (`placeBots` below). Barabási–
+ * Albert produces hubs, so the three highest-degree nodes and the three
+ * lowest-degree ones are genuinely different positions.
+ */
+export const PLACEMENTS = ["central", "peripheral", "random"];
+
+/**
+ * How often an agent reconsiders its colour, in milliseconds.
+ *
+ * **NOT the paper's number.** The paper describes agents that act with human-like
+ * latency; the exact distribution is not reconstructed here, and an agent's speed
+ * is obviously not neutral — one that moved every 50 ms would dominate the session
+ * regardless of its noise level. So this is a stated choice, not a measurement,
+ * and it is a constant rather than a magic number so that a study which cares can
+ * change it in one place and say what it used.
+ *
+ * 1500 ms is roughly the pace of a person who is paying attention, and it is slow
+ * enough that three agents do not out-move seventeen humans.
+ */
+export const BOT_INTERVAL_MS = 1500;
+
+/**
+ * Uniform choice from a list, using a supplied rng. Local so this file keeps its
+ * property of importing nothing.
+ */
+function pick(items, rng) {
+  return items[Math.floor(rng() * items.length)];
+}
+
+/**
+ * What an agent does next, given only what it can see.
+ *
+ * ONLY what it can see: its own colour and its neighbours'. There is no version of
+ * this function that takes the graph or the global conflict count, and that is a
+ * design constraint rather than an omission — an agent with more information than
+ * a participant would make the bot conditions a comparison between two different
+ * games.
+ *
+ * The rule, in the paper's terms: agents "behaved in the same way as humans" —
+ * switch away from a conflict — with a probability `noise` of acting at random
+ * instead. So:
+ *
+ *   - with probability `noise`, choose uniformly from all three colours;
+ *   - otherwise, if the current colour conflicts with a neighbour, move to a
+ *     conflict-free colour if one exists, and to a random other colour if none
+ *     does (the locally-unresolvable state — standing still there is what a
+ *     deadlock is made of);
+ *   - otherwise, stay.
+ *
+ * **One ambiguity, resolved explicitly.** Whether the noisy draw includes the
+ * colour the agent already has is not something the reconstruction settles. It is
+ * uniform over all three here, so an ε of 0.3 produces an observable change about
+ * 0.2 of the time. Excluding the current colour would make ε the rate of visible
+ * change instead. The choice matters for any comparison with the paper's numbers,
+ * so it is stated rather than buried.
+ *
+ * Returns a colour, which may be the one it already has — meaning "no move".
+ * `bots.mjs` writes only on a change, so a no-move produces no record and no
+ * traffic.
+ */
+export function botChoice({ ownColor, neighbourColors, noise, rng }) {
+  if (rng() < noise) return pick(COLORS, rng);
+  if (ownColor === undefined) return pick(COLORS, rng);
+  if (localConflicts(neighbourColors, ownColor) === 0) return ownColor;
+  const free = conflictFreeColors(neighbourColors);
+  if (free.length > 0) return pick(free, rng);
+  // Every colour conflicts. Moving anyway is the point: this is the state the
+  // paper's Fig. 1a marks in dark red, and it resolves only when somebody moves
+  // without local improvement.
+  return pick(
+    COLORS.filter((c) => c !== ownColor),
+    rng
+  );
+}
+
+/**
+ * Relabel a generated graph so the agents land on the seats the condition asks for.
+ *
+ * Seats are fixed before the topology function is called — `players[i]` is
+ * whoever will occupy index `i` — so placement cannot be done by reordering
+ * participants. It is done the other way round: generate the graph, decide which
+ * of ITS vertices the agents should have, and permute the labels so those
+ * vertices become the agents' seats.
+ *
+ *   `edges`      the generated graph, over vertices 0..n-1
+ *   `botSeats`   the seat indices the agents occupy (from `players`)
+ *   `placement`  "central" | "peripheral" | "random"
+ *
+ * Returns an edge list over SEATS. Same graph, up to isomorphism — the structure
+ * is untouched, only who sits where — which is what makes placement a manipulation
+ * of position rather than of network structure. A study whose "central" condition
+ * also changed the degree distribution would be confounded at the root.
+ *
+ * Humans are shuffled into the remaining seats, which is the paper's "subjects
+ * were placed into the resulting networks at random".
+ */
+export function placeBots(edges, n, botSeats, placement, rng) {
+  if (!PLACEMENTS.includes(placement)) {
+    throw new Error(
+      `shirado2017: unknown bot placement "${placement}". Expected one of ${PLACEMENTS.join(", ")}.`
+    );
+  }
+  const deg = new Array(n).fill(0);
+  for (const [i, j] of edges) {
+    deg[i]++;
+    deg[j]++;
+  }
+
+  // Vertices ordered by how much of a hub they are. Ties broken by the rng rather
+  // than by index, or "central" would systematically prefer low-numbered vertices
+  // — which in a preferential-attachment graph are the early, high-degree ones,
+  // so the tie-break would silently reinforce the very thing being manipulated.
+  const jitter = Array.from({ length: n }, () => rng());
+  const byDegree = [...Array(n).keys()].sort(
+    (a, b) => deg[b] - deg[a] || jitter[a] - jitter[b]
+  );
+
+  let targets;
+  if (placement === "central") targets = byDegree.slice(0, botSeats.length);
+  else if (placement === "peripheral") targets = byDegree.slice(-botSeats.length);
+  else targets = shuffleLocal([...Array(n).keys()], rng).slice(0, botSeats.length);
+
+  // vertex -> seat
+  const seatOf = new Array(n).fill(-1);
+  for (const [t, vertex] of targets.entries()) seatOf[vertex] = botSeats[t];
+
+  const freeSeats = shuffleLocal(
+    [...Array(n).keys()].filter((s) => !botSeats.includes(s)),
+    rng
+  );
+  let next = 0;
+  for (let v = 0; v < n; v++) if (seatOf[v] === -1) seatOf[v] = freeSeats[next++];
+
+  return edges.map(([i, j]) => [seatOf[i], seatOf[j]]);
+}
+
+/** Fisher–Yates with a supplied rng. Local, so this file still imports nothing. */
+function shuffleLocal(items, rng) {
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const a = items[i];
+    items[i] = items[j];
+    items[j] = a;
+  }
+  return items;
+}
+
 /**
  * One row per colour change, for analysis.
  *
@@ -127,6 +304,12 @@ export function conflictFreeColors(neighbourColors) {
  * never saw. Recording it is the point: it is the cost function over time, and it
  * cannot be reconstructed from the colours alone without also knowing the graph at
  * that instant.
+ *
+ * `is_bot` marks the agents' moves. Not derivable afterwards: an agent and a human
+ * write the same key on the same kind of channel through the same code path, which
+ * is exactly the property the bots were built to have, so nothing in the data says
+ * which is which unless it is recorded here. An analysis of human behaviour that
+ * forgot to exclude them would be averaging over a population it chose.
  */
 export function changeRows(gameID, changes) {
   return changes.map((c) => ({
@@ -136,6 +319,7 @@ export function changeRows(gameID, changes) {
     topology_index: c.topologyIndex,
     degree: c.degree,
     color: c.color,
+    is_bot: c.isBot ? 1 : 0,
     conflicts_after: c.conflictsAfter,
   }));
 }
@@ -147,8 +331,18 @@ export function changeRows(gameID, changes) {
  * for an unsolved session rather than 300000: the paper censors at 300 s
  * ("Sessions are censored at 300 s") and writing the limit as though it were an
  * observation is how a censored value silently becomes a measurement.
+ *
+ * The four `bot_*` columns are the condition. `bot_indices` is the seating, so an
+ * analysis can recover which nodes were agents and check the placement actually
+ * happened rather than trusting the label — the paper's central and peripheral
+ * conditions differ only in degree, and a placement bug would produce a perfectly
+ * plausible table with the manipulation silently absent. `bots=0` is the human-only
+ * arm, where the other three are empty rather than 0: an empty cell is "no agents
+ * in this session", and a 0 there would read as "agents with zero noise", which is
+ * a different condition the paper also ran.
  */
 export function sessionRows(gameID, session) {
+  const hasBots = (session.bots ?? 0) > 0;
   return [
     {
       game_id: gameID,
@@ -158,6 +352,10 @@ export function sessionRows(gameID, session) {
       t_solution_ms: session.solved ? session.tSolutionMs : "",
       changes: session.changes,
       max_degree: session.maxDegree,
+      bots: session.bots ?? 0,
+      bot_placement: hasBots ? (session.botPlacement ?? "") : "",
+      bot_noise: hasBots ? (session.botNoise ?? "") : "",
+      bot_indices: hasBots ? (session.botIndices ?? []).join(" ") : "",
     },
   ];
 }
@@ -207,6 +405,12 @@ export function exportFiles(gameID, session, changes, edgeCsv, toCSV) {
  * Tier 4 has no `events` field and yields `[]` — the old behaviour, for the old
  * data, without a crash.
  *
+ * The `graph` record also carries the CONDITION — how many agents, where, and how
+ * noisy — because a recovered session that could not say which arm it belonged to
+ * would be a lost observation rather than a rescued one. A log written before the
+ * bots existed has none of those fields and recovers as the human-only arm, which
+ * is what it was.
+ *
  * Pure, and tolerant of a truncated final line.
  */
 export function fromLog(records) {
@@ -217,12 +421,20 @@ export function fromLog(records) {
   let edges = 0;
   let maxDegree = 0;
   let history = [];
+  let bots = 0;
+  let botPlacement = "";
+  let botNoise = "";
+  let botIndices = [];
 
   for (const r of records) {
     if (r.type === "graph") {
       n = r.n ?? 0;
       edges = r.edges ?? 0;
       maxDegree = r.maxDegree ?? 0;
+      bots = r.bots ?? 0;
+      botPlacement = r.botPlacement ?? "";
+      botNoise = r.botNoise ?? "";
+      botIndices = Array.isArray(r.botIndices) ? r.botIndices : [];
       // Replaced, not appended: this design logs one `graph` record per session,
       // and a second one could only mean the session restarted — in which case the
       // later graph is the one its changes refer to.
@@ -238,6 +450,17 @@ export function fromLog(records) {
   return {
     changes,
     history,
-    session: { n, edges, solved, tSolutionMs, changes: changes.length, maxDegree },
+    session: {
+      n,
+      edges,
+      solved,
+      tSolutionMs,
+      changes: changes.length,
+      maxDegree,
+      bots,
+      botPlacement,
+      botNoise,
+      botIndices,
+    },
   };
 }

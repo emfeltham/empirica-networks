@@ -21,7 +21,7 @@
 import { TajribaConnection } from "@empirica/core/admin";
 import { Classic, ClassicLoader, classicKinds } from "@empirica/core/admin/classic";
 import type { TajribaProvider } from "@empirica/core/player";
-import { initAdminContext, makeProvider, openAdminSession, openParticipantSession } from "./compat.js";
+import { initAdminContext, makeSharedProvider, openAdminSession, openParticipantSession } from "./compat.js";
 import { waitFor, waitForValue } from "../shared/wait.js";
 import { withServer, type Server } from "./server.js";
 
@@ -40,19 +40,19 @@ export interface Participant<M = unknown> {
   mode: M;
   provider: TajribaProvider;
   /**
-   * Opens a NEW independent wire subscription and returns it. The leak test
-   * asserts here, below the mode.
+   * The raw wire this participant receives, below the mode. Leak tests assert here.
    *
-   * Deliberately a function, not a stored stream: `TajribaParticipant.changes()`
-   * calls `this.subscribe(ChangesDocument, ...)` internally, so every call opens
-   * another GraphQL subscription. Calling it eagerly for every participant (as
-   * this harness first did) doubles each one's wire traffic whether or not
-   * anyone observes it.
+   * **Shared with the mode, not a second subscription — changed 2026-08-16.** It
+   * used to call `part.changes()` again, and each call opens another GraphQL
+   * subscription: watching n participants doubled the traffic the server carried
+   * for each of them. Doing that *before* the batch, which several tests did, was
+   * the single largest contributor to `ISSUES.md` O8. `makeSharedProvider` now
+   * `share()`s one subscription between the provider and every observer, so calling
+   * this costs nothing and may be called freely, whenever.
    *
-   * Caveat for anything built on this: the returned stream is a *sibling* of the
-   * one the mode consumes, not the same object. It carries what the server sends
-   * to this participant — which is exactly what a leak test needs — but it is not
-   * evidence of what the mode itself resolved.
+   * The old caveat is gone with it: this is no longer a *sibling* of the stream the
+   * mode consumes, it is that stream. So it is evidence of what the mode was
+   * actually handed, not merely of what the server sent to a second subscription.
    */
   wireStream: () => any;
   stop: () => void;
@@ -65,14 +65,19 @@ export interface Participant<M = unknown> {
 export async function connectParticipant<M>(
   server: Pick<Server, "url">,
   ns: string,
-  modeFunc: (participantID: string, provider: TajribaProvider) => M
+  modeFunc: (participantID: string, provider: TajribaProvider) => M,
+  /**
+   * Retain every frame so `wireStream()` replays from connect. Wire tests want
+   * this; bench and soak must not have it. See `makeSharedProvider`.
+   */
+  opts: { record?: boolean } = {}
 ): Promise<Participant<M>> {
   const conn = new TajribaConnection(server.url);
   await waitForValue(conn.connected, true, `participant ${ns} socket connect`);
   await waitForValue(conn.connecting, false, `participant ${ns} connect settle`);
 
   const part = await openParticipantSession(conn, ns);
-  const provider = makeProvider(conn, part);
+  const { provider, wire } = makeSharedProvider(conn, part, opts);
   const mode = modeFunc(part.id, provider);
 
   return {
@@ -80,7 +85,7 @@ export async function connectParticipant<M>(
     id: part.id,
     mode,
     provider,
-    wireStream: () => part.changes(),
+    wireStream: () => wire,
     // Two connections, not one. `sessionParticipant()` returns a
     // `TajribaParticipant extends Tajriba` with its OWN socket; stopping only
     // the TajribaConnection leaks the session. Measured: 3 sockets survived a
@@ -244,6 +249,16 @@ export async function withScenario<M>(
   opts: {
     n: number;
     kinds: Record<string, any>;
+    /**
+     * Retain every wire frame, so `wireStream()` replays from connect.
+     *
+     * Required by any test that subscribes AFTER the scenario has started and
+     * still expects the history — which is every leak test that looks for a
+     * key-shaped absence, because its non-vacuity control has to be present too.
+     * Off by default: it retains frames for the participant's lifetime, and
+     * `bench`/`soak` run hundreds of participants and measure RSS.
+     */
+    recordWire?: boolean;
     listeners: any;
     modeFunc: (participantID: string, provider: TajribaProvider) => M;
     logLevel?: string;
@@ -261,7 +276,11 @@ export async function withScenario<M>(
       for (let i = 0; i < opts.n; i += wave) {
         const batch = [];
         for (let j = i; j < Math.min(i + wave, opts.n); j++) {
-          batch.push(connectParticipant(server, uniqueNS(), opts.modeFunc));
+          batch.push(
+            connectParticipant(server, uniqueNS(), opts.modeFunc, {
+              record: opts.recordWire ?? false,
+            })
+          );
         }
         participants.push(...(await Promise.all(batch)));
       }

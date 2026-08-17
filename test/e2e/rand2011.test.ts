@@ -190,7 +190,7 @@ async function advance(participants: { mode: unknown }[], from: string): Promise
 
 test("wealth is NOT in the projection — the one field that would make this Nishi 2015", async () => {
   await withScenario(
-    { n: N, kinds: networkKinds, listeners: Empirica, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners: Empirica, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       await start(admin, participants, "fluid");
 
@@ -370,7 +370,7 @@ test("wealth is NOT in the projection — the one field that would make this Nis
 
 test("a non-neighbour's ACTION never reaches a participant, and a neighbour's does", async () => {
   await withScenario(
-    { n: N, kinds: networkKinds, listeners: Empirica, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners: Empirica, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       await start(admin, participants, "fixed");
 
@@ -434,7 +434,7 @@ test("payoffs recorded on the batch match the paper's rule applied to the realis
   // agrees — which would fail if degree, neighbour actions, or the cost/benefit
   // arithmetic were wired up wrongly.
   await withScenario(
-    { n: N, kinds: networkKinds, listeners: Empirica, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners: Empirica, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       await start(admin, participants, "fixed");
 
@@ -514,7 +514,7 @@ test("the run log is on disk WHILE the game is still running", async () => {
    * byte-identical to what a clean finish writes.
    */
   await withScenario(
-    { n: N, kinds: networkKinds, listeners: Empirica, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners: Empirica, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       await start(admin, participants, "fluid");
       const gameID = gameOf(participants[0]!);
@@ -578,7 +578,7 @@ test("the fluid condition offers rewiring decisions about NON-neighbours, privat
   // preceding round" — and for a FORM offer the other is not a neighbour, so
   // project() cannot deliver it.
   await withScenario(
-    { n: N, kinds: networkKinds, listeners: Empirica, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners: Empirica, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       await start(admin, participants, "fluid");
 
@@ -668,7 +668,7 @@ test("the fluid condition offers rewiring decisions about NON-neighbours, privat
 
 test("a rewiring answer actually changes the graph, and is recorded in the history", async () => {
   await withScenario(
-    { n: N, kinds: networkKinds, listeners: Empirica, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners: Empirica, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       await start(admin, participants, "fluid");
 

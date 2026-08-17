@@ -168,6 +168,87 @@ test("R1: a participant can write to its own nbhd scope, and it does not broadca
 
       assert.equal(selfWriteError, undefined, "participant may write to its own nbhd scope");
       assert.equal(nbhdLeaks.length, 0, "an nbhd write must not reach any other participant");
+
+      // --- `admin.taj.attributes()`, exercised here rather than in a file of
+      //     its own (`ISSUES.md` O7) -------------------------------------------
+      //
+      // Noted at M1 and never called since, which is how an API ends up listed
+      // as available and turns out not to be. This scenario already holds a
+      // channel scope carrying a participant-written attribute, so the marginal
+      // cost is one query — and a new e2e file is the most expensive thing in
+      // this repo to add (`ISSUES.md` O8).
+      //
+      // The result matters beyond coverage. `ISSUES.md` O11's design rests on
+      // "an Empirica Scope exposes only get(key), with NO attribute
+      // enumeration", which is why `watch`/`read` must be declared and why
+      // `stateOf()` needs a key list to check against. That constraint is real
+      // but it belongs to the SCOPE MODEL, not to the platform: the admin's raw
+      // Tajriba session can enumerate. Worth knowing exactly, and worth not
+      // over-reading — see the note below the assertions.
+      const probe = async (label: string, input: unknown) => {
+        try {
+          const r = await admin.taj.attributes(input as any);
+          const keys = (r?.edges ?? []).map((e: any) => e?.node?.key);
+          console.log(`  ${label.padEnd(32)} : ${r?.totalCount} attrs — ${keys.join(", ")}`);
+          return r;
+        } catch (e) {
+          console.log(`  ${label.padEnd(32)} : ERROR — ${(e as Error).message}`);
+          return undefined;
+        }
+      };
+
+      console.log("\n=== O7: admin.taj.attributes() ===");
+      const onChannel = await probe("channel scope, first:100", {
+        scopeID: chanFor[0]!,
+        first: 100,
+      });
+      const onChannelBare = await probe("channel scope, no pagination", {
+        scopeID: chanFor[0]!,
+      });
+      const onGame = await probe("game scope, first:100", { scopeID: gameID, first: 100 });
+      const onNonsense = await probe("unknown scope id", { scopeID: "no-such-scope", first: 10 });
+
+      // Deliberately NOT asserted as working. Measured 2026-08-16 against
+      // @empirica/core@1.12.5: every shape above returns `[GraphQL] internal
+      // system error`, including the one for a scope that certainly exists and
+      // certainly has attributes — the assertions two lines up have just proved
+      // the participant's write landed on it.
+      //
+      // So this is a characterisation, in the same spirit as R1b below, and the
+      // assertion is on the SHAPE of the answer rather than on success: whatever
+      // else changes, "the admin can enumerate a scope's attributes" must not
+      // silently start being believed on no evidence. If upstream fixes it, the
+      // first assertion fails and this becomes a working-API test.
+      //
+      // This is also where the news would ARRIVE, which is why the message below
+      // says more than "rewrite this test" (`ISSUES.md` O7b). The e2e tier is run
+      // weekly against @empirica/core@latest by .github/workflows/drift.yml, so a
+      // fix upstream turns this line red without anyone going looking — but a red
+      // line that only asks for a test rewrite would get one, and the larger
+      // consequence would go unnoticed.
+      assert.equal(
+        onChannel,
+        undefined,
+        "attributes() still errors — if this now returns data, upstream fixed it. " +
+          "Close ISSUES.md U9 and rewrite this test to assert the contents, and then " +
+          "REOPEN the question it settled: ISSUES.md O11's design (declared watch/read " +
+          "keys, stateOf() checking against a list) rests on there being no attribute " +
+          "enumeration at ANY layer, and this query working is the counter-example. " +
+          "The declaration requirement may still be right — it is synchronous and " +
+          "in-process, which this never will be — but it would be chosen rather than forced."
+      );
+      assert.equal(onChannelBare, undefined, "…with or without pagination arguments");
+      assert.equal(onGame, undefined, "…and on a stock Classic scope, so it is not our kind");
+      assert.equal(onNonsense, undefined, "…and an unknown id is indistinguishable from a real one");
+
+      // What this does NOT license, stated because the temptation is obvious:
+      // it cannot replace the `watch`/`read` declaration. It lives on the raw
+      // admin session rather than on a Scope, it is asynchronous, and it is a
+      // network round trip per scope — so it cannot serve `inspect()`, which is
+      // synchronous plain data built inside a listener, nor `stateOf()`, whose
+      // value is throwing on an undeclared key rather than discovering one. It
+      // is an OPERATOR and TEST tool: "what is actually on this scope", asked
+      // from outside the runloop.
     }
   );
 });

@@ -24,6 +24,22 @@ name: upstream drift
 # to prevent. It runs against @empirica/core@latest rather than the pinned
 # range, so it is EXPECTED to be the first thing that goes red after an upstream
 # release — that is the signal, not a flake.
+#
+# It has a second job, which is the reason the e2e step below is not optional.
+# Several upstream findings are pinned by tests that assert the CURRENT BROKEN
+# behaviour, so a FIX upstream turns them red too, with a message saying what to
+# close. This is the only thing that runs them against a version where they could
+# pass:
+#
+#   - U8, test/e2e/duplicate_listeners.test.ts — the second handler never ran
+#   - U9, test/e2e/participant_write.test.ts — attributes() returns internal
+#     system error. That one carries the largest consequence, because ISSUES.md
+#     O11's declared-keys design rests on there being no attribute enumeration at
+#     any layer; the assertion message says so.
+#
+# The complementary alarm is test/unit/upstream_pin.test.ts, which fires on the
+# other event: not "upstream moved" but "we moved to it", listing every dated
+# measurement still citing the version left behind (ISSUES.md O7b).
 on:
   schedule:
     # Mondays, 06:00 UTC.

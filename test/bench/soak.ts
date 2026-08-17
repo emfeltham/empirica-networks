@@ -57,6 +57,26 @@ const argMinutes = (() => {
   return Number.isFinite(v) && v > 0 ? v : 10;
 })();
 
+/**
+ * `--assert`: exit non-zero on a RETENTION regression. Never on a slow or
+ * memory-hungry one.
+ *
+ * The same split as the bench's (`ISSUES.md` O6, `test/bench/envelope.ts`). An
+ * RSS or heap threshold on a shared CI runner measures the runner as much as the
+ * package, and a gate that flaps gets muted. What is exact is what the handle
+ * reports: after a game ends, every count keyed by game or channel must be back
+ * to zero, and `endedGames` must have grown by exactly one. Those hold on any
+ * machine at any speed, and they are what regresses when a release path breaks —
+ * which it has, twice (`ISSUES.md` O5).
+ *
+ * Arm A has no equivalent: its whole question is a memory slope, so it is
+ * recorded and never gated.
+ */
+const ASSERT = process.argv.includes("--assert");
+
+/** Retention regressions found this run. Empty is the only passing state. */
+const failures: string[] = [];
+
 interface Sample {
   atMs: number;
   /** Tajriba process resident set size, bytes. The server we do not control. */
@@ -305,10 +325,33 @@ async function armManyGames(games: number): Promise<void> {
         const held = handle!.stats();
         const heap = heapAfterGc();
         heaps.push(heap);
+
+        // The exact half, checked every game rather than at the end: a leak that
+        // starts at game 12 should name game 12.
+        for (const [field, value] of [
+          ["games", held.games],
+          ["channels", held.channels],
+          ["channelScopes", held.channelScopes],
+          ["cachedViews", held.cachedViews],
+          ["chatSeqs", held.chatSeqs],
+        ] as const) {
+          if (value !== 0) failures.push(`game ${g}: ${field} = ${value}, expected 0`);
+        }
+        // The one structure that is MEANT to grow, and by exactly one per game.
+        // Asserted in both directions: too few means a game was not released,
+        // too many means one was released twice and something else may have been
+        // dropped with it.
+        if (held.endedGames !== g + 1) {
+          failures.push(`game ${g}: endedGames = ${held.endedGames}, expected ${g + 1}`);
+        }
         console.log(
           `  ${String(g).padStart(6)} ${mb(rssOf(server.proc.pid!)).padStart(12)} ` +
             `${mb(heap).padStart(11)}  ` +
-            `games=${held.games} scopes=${held.channelScopes} views=${held.cachedViews}`
+            `games=${held.games} scopes=${held.channelScopes} views=${held.cachedViews} ` +
+            // The one structure that is meant to grow, printed so that "grows by
+            // exactly one per game while everything else returns to zero" is
+            // readable off the run rather than inferred (`ISSUES.md` O5).
+            `ended=${held.endedGames}`
         );
       } finally {
         for (const p of participants) {
@@ -363,7 +406,20 @@ async function main(): Promise<void> {
 }
 
 main().then(
-  () => process.exit(0),
+  () => {
+    if (!ASSERT) process.exit(0);
+    if (failures.length === 0) {
+      console.log("  --assert: every finished game released everything it held.\n");
+      process.exit(0);
+    }
+    console.error(`\n  --assert FAILED — ${failures.length} retention regression(s):\n`);
+    for (const f of failures) console.error(`    ${f}`);
+    console.error(
+      "\n  These are exact counts from net.stats(), not memory measurements.\n" +
+        "  RSS and heap are deliberately NOT gated here (`ISSUES.md` O6).\n"
+    );
+    process.exit(1);
+  },
   (e) => {
     console.error("\n  soak failed:", e instanceof Error ? e.message : e);
     process.exit(1);
