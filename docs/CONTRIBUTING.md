@@ -67,6 +67,18 @@ to every participant. Two things were kept there and both had to move: the chann
 ids are, with no write ACL, the capability to write into someone else's channel) and the realised
 network.
 
+### Per-game state is keyed by game, or `releaseGame` will not find it
+
+Nine of the module's structures are keyed by game id and are dropped in `releaseGame`. Anything
+keyed by something else has to be released there **explicitly**, and the question to ask of new
+state is *what is this keyed by, and is that the thing that ends?*
+
+The cost of getting it wrong is not the memory. `lastOutbox` — the chat relay's duplicate guard —
+is keyed by player, so it survived its game; Classic reuses a participant's player scope across
+sequential games while the client's message counter restarts with each new channel, so the stale
+mark made the relay swallow the opening messages of the next game with nothing logged
+(`ISSUES.md` O5). A leak that is only a leak is the lucky version of this.
+
 ### Writes only count inside a callback
 
 Applies to the package's own code as much as a consumer's. The runloop flushes `set()` calls made
@@ -90,6 +102,15 @@ Two build groups in `tsup.config.ts`, and the split is not stylistic:
   The honest consequence: **the CLI verifies against the `@empirica/core` this package was built
   against, not the consumer's copy.** It prints both versions and warns on mismatch rather than
   implying otherwise.
+- **`bots`** — CJS, nothing external, for the same reason: a bot needs `TajribaConnection` from
+  `@empirica/core/admin`. Its `exports` entry has a single `default` condition rather than an
+  `import`, because an ESM entry here would resolve and then fail on the researcher's machine —
+  the export map should not offer a path that cannot work.
+
+**The clean happens in `scripts/clean-dist.mjs`, not in a config.** tsup runs the three groups
+**concurrently**, so `clean: true` in one races the others' output: it silently deleted
+`dist/bots/index.d.cts` after tsup had reported writing it, and the only symptom would have been
+a consumer's editor quietly losing every type in `empirica-networks/bots`.
 
 **Adding an entry point means three edits**, and missing one fails late: `tsup.config.ts` `entry`,
 `package.json` `exports`, and a test that imports it through the built path. A declared entry that
@@ -122,8 +143,16 @@ Do not stop at (4) if (1)–(3) are reachable.
 
 See [TESTING.md](TESTING.md) for the tiers and what each can prove. The rules for new work:
 
-- **Anything that could fail silently needs an e2e witness.** The unit tier is blind to wiring by
-  construction, and wiring is where every documented failure in this package lives.
+- **Watching the wire is free, but say so.** `wireStream()` shares the mode's own subscription;
+  if your test subscribes after the scenario starts and needs the history, pass
+  `recordWire: true` to `withScenario`. Getting this wrong is how `ISSUES.md` O8 lived for four
+  milestones.
+- **Anything that could fail silently needs an e2e witness.** The unit tier is blind to *the
+  platform's* wiring, and that is where every documented failure in this package lives. It is not
+  blind to ours: `test/unit/fake_admin.ts` supplies a collector and an event context, so the admin
+  lifecycle is drivable there — the right home for anything needing several sequential games, or a
+  specific arrival order. Two defects were found that way (`ISSUES.md` O4, O5). See
+  [TESTING §1](TESTING.md#1-the-three-tiers) for where that stops being true.
 - **Ask what the smallest scenario is that can observe the behaviour.** The cost of a test is a
   property of the test — one file was spending two full games on a warning that fires before any
   participant connects, and the participant-free version costs 0.27 s.
@@ -153,7 +182,13 @@ Conventions, which the existing documents follow:
   the definition. Both rules exist because `ISSUES.md` O14 broke the second one and shipped for
   four milestones.
 - **Date and version every measurement.** "Measured 2026-08-16 against `@empirica/core@1.12.5`",
-  not "measured".
+  not "measured". The version half is enforced: `test/unit/upstream_pin.test.ts` fails when the
+  `@empirica/core` pin is bumped and lists every claim still citing the old one. That is a prompt
+  to **re-measure**, not to find-and-replace — the new version is the reason to doubt the number.
+- **Give every `../ISSUES.md` entry a *Done when*.** An entry without one is a claim nobody has
+  undertaken to check: O7b had none, and turned out to assert a gap that did not exist. The `U`
+  entries are exempt — they close upstream, not here. `O1` and `O4` are the two of ours still
+  without one.
 - **Record what a plan got wrong**, above the plan rather than instead of it. Both milestone
   documents do this, and the corrections are the most useful parts of them.
 - **`npm run check:links`** validates relative paths and section anchors. It runs in CI.

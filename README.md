@@ -53,6 +53,13 @@ This module does not, and cannot, claim that a participant's state is tamper-pro
 `docs/PLATFORM-NOTES.md` §4a; tracked as `ISSUES.md` U1, which is going through private
 disclosure to Empirica's maintainers (`docs/upstream/DISCLOSURE.md`).
 
+**And every participant learns every co-player's recruitment identifier.** Same root cause —
+Classic cross-links everyone to every player scope — so the value of `?participantKey=` is
+delivered to everyone else in the game. If that key is a Prolific PID or an MTurk worker ID, your
+subjects are handed each other's, and platform worker IDs are stable across studies. Make
+`participantKey` an opaque per-study token and keep the mapping outside Empirica. Measured in
+`test/e2e/bots.test.ts`; `docs/PLATFORM-NOTES.md` §22; `ISSUES.md` U10.
+
 ## Installing
 
 <a id="not-published-yet"></a>
@@ -200,7 +207,7 @@ so none of them can rot unnoticed. There is deliberately no template repo;
 |---|---|
 | [`examples/minimal`](examples/minimal) | A stock `empirica create` project with four files changed. Participants on a ring pick a colour and see only their two neighbours'. Start here |
 | [`examples/rand2011`](examples/rand2011) | **A reconstruction of the design in** Rand, Arbesman & Christakis (2011), *PNAS*. Cooperation in dynamic networks: rewiring during play, private decisions, four conditions |
-| [`examples/shirado2017`](examples/shirado2017) | **A reconstruction of the human-only arm of** Shirado & Christakis (2017), *Nature*. Colour coordination on a scale-free network, with a global objective participants cannot see |
+| [`examples/shirado2017`](examples/shirado2017) | **A reconstruction of** Shirado & Christakis (2017), *Nature*. Colour coordination on a scale-free network, with a global objective participants cannot see — both the control arm and the paper's autonomous-agent conditions |
 
 ```sh
 npm install && node scripts/example-install.mjs minimal   # or: npm run example:install, for all three
@@ -213,6 +220,49 @@ different 2.
 **Reconstructions, not replications.** Both ported designs were rebuilt from their papers. No data
 has been collected with them and nothing has been compared to the authors' results — see
 [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md).
+
+## Bots
+
+Empirica v2 ships no artificial-player facility of any kind — v1 had them, so assuming they exist
+is the natural mistake (`docs/PLATFORM-NOTES.md` §17). `empirica-networks/bots` is one, built the
+only way the platform allows: a **headless participant process**, indistinguishable from a browser
+at the wire.
+
+```js
+// bots.mjs — plain `node bots.mjs`, no bundler
+import { runBots } from "empirica-networks/bots";
+
+await runBots({
+  url: "ws://localhost:3000/query",
+  identifiers: process.env.BOT_KEYS.split(","),
+  policy: {
+    tickMs: 1500,
+    onTick(ctx) {
+      const neighbours = ctx.neighbors();          // undefined until the first publish
+      if (neighbours === undefined) return;
+      ctx.state().set("choice", decide(neighbours, ctx.rng));
+    },
+  },
+});
+```
+
+A bot reads through the same `project()` and writes to the same private channel a human does.
+There is deliberately no server-side path: a bot that could see the graph or a non-neighbour would
+make any comparison against humans a comparison of access rather than of behaviour.
+
+Three things worth knowing before you use it, each the subject of a section in
+[`docs/BOTS.md`](docs/BOTS.md):
+
+- **Recruit `playerCount − botCount` humans.** The treatment's count is the size of the network,
+  bots included. Getting it wrong gives a study that never starts — so the runner names it.
+- **Placement is a manipulation**, and it goes through `topology({ players })`, where `players[i]`
+  is whoever will occupy index `i`. Relabel the graph rather than reordering people; that is what
+  keeps the degree distribution identical across arms.
+- **A bot's name is participant-visible** (U10 above), so `runBots` takes an identifier list
+  rather than inventing one, and the server should recognise its bots by holding the list.
+
+`examples/shirado2017` is the worked case: 3 agents × 3 noise levels × 3 placements, which is the
+contribution of the paper it reconstructs.
 
 ## Supported envelope
 
@@ -231,20 +281,42 @@ The regime this was written for is **n ≤ 50**, where every figure has margin t
 End-to-end publish latency — a watched attribute changing, to a neighbour's client holding the new
 value (`npm run bench`):
 
+Each figure is the **median of three runs**, each against a fresh server, with the observed range
+beside it (`npm run bench -- --repeats 3`, 2026-08-16):
+
 ```
-  n= 25  d=8  shards=2  p50    6.6ms  p95    8.1ms  max    9.4ms   (760 receipts)
-  n= 50  d=8  shards=2  p50   11.6ms  p95   13.9ms  max   15.9ms   (760 receipts)
-  n=100  d=8  shards=4  p50   14.3ms  p95   17.7ms  max   19.5ms   (760 receipts)
-  n=150  d=8  shards=6  p50   23.7ms  p95   29.2ms  max   32.0ms   (760 receipts)
-  n=200  d=8  shards=8  p50   26.7ms  p95   35.6ms  max   41.0ms   (760 receipts)
+  n= 25  d=8  p50 median 18.3ms   (17.7–18.5 across 3 runs)
+  n= 50  d=8  p50 median  8.6ms   ( 8.6–28.7 across 3 runs)
+  n=100  d=8  p50 median 12.7ms   (10.9–31.7 across 3 runs)
+  n=150  d=8  p50 median 25.1ms   (14.3–29.9 across 3 runs)
+  n=200  d=8  p50 median 26.8ms   (one run in three completed — see U7)
 ```
 
-**Read these as upper bounds, and as single runs.** The dominant term is how many participants
-share an event loop, which is an artefact of measuring hundreds of clients on one machine — real
-participants in separate browsers do not. The package's own contribution is somewhere below these
-numbers and this bench cannot resolve it (`ISSUES.md` O1). The dense measurements, and the
-correction to the degree cap they forced, are in `docs/PLATFORM-NOTES.md` §19; the n ≥ 200
-start failure is §16.
+**Read the scale, not the value — and note that n barely predicts it.** Those ranges are not noise
+around a true figure. The same n=25 cell measured anywhere from 3.3 to 18.3 ms across one
+afternoon, while repeats *within* any sweep agreed to under 17%, and the cause is the measuring
+machine rather than the package: **a busier host measures faster**, non-monotonically, because an
+idle laptop clocks its cores down (`docs/PLATFORM-NOTES.md` §21 — the coordinator burns 57% more
+CPU *time* for identical work when the machine is quiet). Repeats buy precision, not accuracy, so
+treat any single figure here as an order of magnitude. Comparisons made *inside* one sweep — like
+the payload table below — are sound, because both arms see the same clock.
+
+The dominant term is how many participants share an event loop, which is an artefact of measuring
+hundreds of clients on one machine — real participants in separate browsers do not. The package's
+own contribution is somewhere below these numbers and this bench cannot resolve it (`ISSUES.md`
+O1). The n ≥ 200 start failure is §16; the degree-cap correction is §19.
+
+**What a large per-neighbour payload costs**, paired inside one sweep so that offset cancels (§21):
+
+```
+  n=20  d=19   2 fields  →  1.4KiB per publish   p50 11.5ms
+  n=20  d=19  +1KiB/view →  20.6KiB              p50 21.4ms
+  n=50  d=49   2 fields  →  3.7KiB               p50 22.8ms
+  n=50  d=49  +1KiB/view →  53.1KiB              p50 67.0ms   ← just under maxNeighbourhoodBytes
+```
+
+Nothing was dropped at any size, so the 64 KiB default is a **slope, not a cliff**: a design
+sitting against it delivers around 67 ms rather than 10–25 ms.
 
 The limits are **enforced, not just documented** — an out-of-envelope topology is refused at game
 start, before channels are provisioned, since Tajriba cannot unlink and a late failure would leave

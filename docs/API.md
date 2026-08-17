@@ -68,7 +68,7 @@ export const net = withNetwork(Empirica, {
 
 ### `NetworkConfig`
 
-#### `topology?: ({ game, playerCount, rng }) => Edge[]`
+#### `topology?: ({ game, players, playerCount, rng }) => Edge[]`
 
 Builds the network at game start. Receives a **seeded** rng, so the realisation is reproducible
 from the seed recorded on the batch scope. Defaults to a ring at n ≥ 3, and no edges below that.
@@ -79,7 +79,29 @@ Returns a plain edge list over indices, so supplying your own is a one-liner:
 withNetwork(Empirica, { topology: ({ playerCount }) => myEdges(playerCount) });
 ```
 
-See [TOPOLOGIES.md](TOPOLOGIES.md) for the catalogue.
+**`players` is the seating plan.** `players[i]` is the participant who will occupy topology index
+`i`, so `edge [i, j]` ties `players[i]` to `players[j]`. Without it a design cannot place anybody
+deliberately — the generators return an anonymous edge list, and who lands where was decided
+afterwards, out of reach.
+
+That is not hypothetical: Shirado & Christakis (2017) manipulate exactly this, placing agents at
+central, peripheral or random nodes. Placement is done by **relabelling** the generated graph, not
+by reordering people — seats are fixed before this is called:
+
+```js
+topology: ({ players, playerCount, rng }) => {
+  const graph = barabasiAlbert(playerCount, 2, { rng });
+  const seats = players.flatMap((p, i) => (isBot(p) ? [i] : []));
+  return placeBots(graph, playerCount, seats, "central", rng);   // see docs/BOTS.md §4
+}
+```
+
+Relabelling keeps the degree distribution identical across arms, so a "central" condition differs
+from a "peripheral" one only in who sits where. Pinned by `test/unit/seating.test.ts`, whose point
+is the failure that would otherwise pass silently: a broken mapping still yields a perfectly
+correct graph, over the wrong people.
+
+See [TOPOLOGIES.md](TOPOLOGIES.md) for the catalogue and [BOTS.md](BOTS.md) for placement.
 
 #### `project?: (neighbour, viewer, ctx) => unknown`
 
@@ -303,9 +325,29 @@ different things is worse than none.
 
 #### `net.publishAll(): boolean` · `net.stats(): NetworkStats`
 
-Recompute and republish every participant's view; and live counts of what is held
-(`games`, `channels`, `channelScopes`, `cachedViews`). `npm run soak` prints the latter alongside
-RSS.
+Recompute and republish every participant's view; and live counts of what is held. `npm run soak`
+prints the latter alongside RSS.
+
+| Field | |
+|---|---|
+| `games` | games this process is currently networking |
+| `channels` | channel ids indexed, summed across those games |
+| `channelScopes` | materialised channel scope objects held |
+| `cachedViews` | serialised views kept for the byte-identical check |
+| `endedGames` | finished games still remembered by id |
+| `chatSeqs` | chat dedupe marks held, one per participant who has sent a message |
+| `firstChannelMs` | ms from the first `addScopes` to the first channel arriving, or `undefined` |
+
+The first three return to **zero** between games; `endedGames` and `chatSeqs` are the exceptions,
+and are reported for that reason. `endedGames` grows by one per game ended and is capped
+(`ISSUES.md` O5) — it is what stops a finished game's channels being re-adopted when the kind
+subscription replays them. `chatSeqs` is zero unless `chat` is enabled, and returns to zero at
+game end.
+
+`firstChannelMs` is not a resource count and is here anyway: it is the quantity the
+kind-registration warning above is racing, measured once per process and never revised. A number
+that decides whether someone is told their server is misconfigured should be readable by the
+person being told.
 
 ## `network(game): GameNetwork`
 
@@ -396,11 +438,50 @@ const ctx = await AdminContext.init(url, sessionTokenPath, "callbacks", token, {
 | `REGISTRATION_DIFF` | the two-line diff, as a string |
 | `assertKindsRegistered(kinds)` | throws `KindsNotRegisteredError` with that diff |
 
-> **`assertKindsRegistered` is never called by the package — `ISSUES.md` O14.** It is exported and
-> works, but nothing invokes it and no test covers it, so **skipping the registration is still
-> silently fatal**: no channels are modelled, nothing errors, and every participant sits with an
-> empty neighbourhood forever. Until that is wired up, confirm it yourself after your first game
-> starts — `net.stats().channelScopes` should not be zero.
+**Two checks, because `withNetwork` cannot do the obvious one.** It is handed the collector, not
+the kind map, so it cannot verify the registration directly — reaching the map from a listener
+context needs an `@internal` field plus a `protected` member of upstream's `Scopes`.
+
+- `assertKindsRegistered(kinds)` — **eager, throws, opt-in.** Call it in `server/src/index.js`,
+  the one place that holds the map. One line, and it fails before the server starts.
+- The **automatic** check runs after the first game provisions its channels: if channels were
+  created and none has materialised within `registrationWaitMs(created)`, it **warns** with the
+  diff. A warning rather than a throw because it fires from a timer, outside the runloop, where a
+  throw is an unhandled rejection that could take down a server with participants in it.
+
+### The deadline scales, and the warning can be taken back
+
+Both because it was measured firing on correct code — `ISSUES.md` O15.
+
+```
+registrationWaitMs(created) = max(REGISTRATION_CHECK_MS,          // 5 s floor
+                                  REGISTRATION_CHECK_PER_CHANNEL_MS * created)   // 100 ms each
+```
+
+The flat 5 s was justified by "channels materialise in milliseconds", which is true at small n
+and false at large. Slowest first-channel latency, three runs per cell
+(`docs/PLATFORM-NOTES.md` §16a): **86 ms at n=25, 2320 ms at n=100, 4287 ms at n=150, 5870 ms at
+n=200.** At n=150 — inside the supported envelope — the old deadline had 14% left.
+
+| | |
+|---|---|
+| `net.stats().firstChannelMs` | how long the first channel took, or `undefined` if none has |
+| `registrationRetractionMessage(…)` | printed if a channel arrives *after* the warning |
+
+**The retraction is the part worth knowing about.** A deadline sized from a measurement can be
+beaten by a machine slower than the one measured, so the check's residual failure is still a
+false accusation — but a temporary one. If a channel turns up afterwards, the package says so, in
+the same log, and says nothing needs fixing. An operator reading the log later does not find an
+unanswered claim that their server is misconfigured.
+
+`registrationNotDetectedMessage`, `registrationRetractionMessage`, `registrationWaitMs`,
+`REGISTRATION_CHECK_MS` and `REGISTRATION_CHECK_PER_CHANNEL_MS` are exported so a test can assert
+the behaviour and a consumer can recognise it. The wait is overridable for tests via
+`EMPIRICA_NETWORKS_REGISTRATION_CHECK_MS` — which replaces the whole computation, not just the
+floor — deliberately an env seam rather than a config field.
+
+> Until 2026-08-16 there was only the eager check and **nothing called it**, while three documents
+> recorded the trap as "impossible to skip silently" on the strength of it — `ISSUES.md` O14.
 
 ## Reading the realised network
 
@@ -498,8 +579,13 @@ await monitor(net, {
 > write access control anywhere in Empirica, an admin `srtoken` in a browser is not a read-only
 > view with a login, it is the ability to write any attribute on any node. Do not build one.
 
-It does not survive a server restart, because nothing does — it says the game is gone rather than
-showing a stale picture as though it were live. And it is sized for n ≤ 50.
+It does not survive a server restart, because nothing does — it says the game is gone **and clears
+the picture**, rather than leaving a dead study on screen as though it were live. That sentence was
+written here before anything checked it, and until 2026-08-16 the page kept the entire graph and
+table behind the banner (`ISSUES.md` O9); it is now asserted in a real browser by
+`test/browser/monitor_page.ts`. A *dropped stream* is deliberately different: the graph stays, with
+a banner saying it is frozen, because the study itself may well still be running. And it is sized
+for n ≤ 50.
 
 `GET /api/state` returns `{ snapshot, positions }`, where `snapshot` is `{ n, edges, order }` —
 exactly `toGraphology`'s signature, so the monitor is also the shortest route into the graphology
@@ -604,6 +690,99 @@ The pure row builders: `edgeRows`, `snapshotRows`, `viewRows`, `parseNdjson`, `t
 
 ---
 
+# `empirica-networks/bots`
+
+Artificial participants. Full account, including the parts that are not API, in
+[BOTS.md](BOTS.md).
+
+**Shipped as a bundled CJS artefact**, so a bot script runs under plain `node` with no bundler and
+no tsx. `@empirica/core/admin` — needed for `TajribaConnection` — cannot be loaded from bare Node
+ESM ([PLATFORM-NOTES §3a](PLATFORM-NOTES.md#3a-the-published-empiricacore-cannot-be-loaded-from-raw-node-at-all-)),
+so the export map has one `default` condition rather than an `import` that would resolve and then
+fail. Both `import` and `require` work.
+
+## `runBots(options): Promise<BotRun>`
+
+```js
+import { botIdentifiers, runBots } from "empirica-networks/bots";
+
+const run = await runBots({
+  url: "ws://localhost:3000/query",
+  identifiers: process.env.BOT_KEYS.split(","),
+  seed: 1,
+  policy: {
+    tickMs: 1500,
+    onTick(ctx) {
+      const neighbours = ctx.neighbors();
+      if (neighbours === undefined) return;
+      const mine = ctx.state().get("choice");
+      const next = decide(mine, neighbours, ctx.rng);
+      if (next !== mine) ctx.state().set("choice", next);
+    },
+  },
+});
+```
+
+| option | |
+|---|---|
+| `url` | Tajriba endpoint, e.g. `ws://localhost:3000/query` |
+| `identifiers` | one participant key per bot. **Required** — the list is the count, and the server usually needs the same list |
+| `policy` | the behaviour; see below |
+| `seed` | seeds each bot's `ctx.rng` from `(seed, identifier)`. Default 1, fixed rather than time-derived so bot behaviour is reproducible by default |
+| `log` | `(record) => void`. Default: one JSON line per record on stdout |
+| `pollMs` | lifecycle poll interval, default 250. Polled because the mode's subjects carry scope objects mutated in place, so `player.get("gameID")` changing pushes nothing |
+| `stallMs` | warn after this long in one non-playing phase, default 30 000. Once per phase, not per poll |
+
+`runBots` resolves once every bot has a session, not when a game ends — one fleet plays a whole
+batch, following Classic's reassignment with `onEnd` then `onStart`.
+
+`BotRun` gives `identifiers`, `playerIDs()` (the id space `project()` works in — record these to
+know which nodes were bots), `phases()`, and `stop()`.
+
+## `BotPolicy`
+
+| | |
+|---|---|
+| `onStart(ctx)` | first published view, once per game |
+| `onView(ctx)` | what this bot can see changed — driven by the publish counter, not by wire frames |
+| `onTick(ctx)` | every `tickMs`; required for any policy that must act when nothing changed |
+| `tickMs` | required whenever `onTick` is set — a missing one would mean a bot that simply never acts |
+| `onEnd(ctx)` | this bot's game ended |
+
+Every hook is **synchronous**: a returned promise is not awaited, and a write after an `await`
+lands outside the runloop's flush and reaches nobody ([§15](PLATFORM-NOTES.md#15-writes-only-count-inside-a-callback-)).
+A throw is caught and logged rather than propagated — one policy failing must not leave the study
+one player short.
+
+## `BotContext`
+
+`identifier`, `index`, `playerID`, `gameID`, and the four accessors a browser has:
+`neighbors()`, `self()`, `state()`, `told()`. Plus `elapsedMs()` (since the first publish),
+`rng`, `log(record)` and `submit()`.
+
+There is deliberately no server-side path — no way to read a non-neighbour, see the graph, or
+learn global state. A bot with more information than a participant would make a bot condition a
+comparison between two different games.
+
+## `botIdentifiers(n, { now?, spacingMs? })`
+
+Keys shaped like the ones Empirica's own client generates — a 13-digit millisecond timestamp,
+matching `createNewParticipant`. **A development default.** Every participant receives every
+co-player's `participantIdentifier` ([U10](../ISSUES.md)), so in a deployed study pass keys drawn
+from the same space as your recruitment keys, or three 13-digit numbers among 24-character
+Prolific PIDs are the three bots, in order.
+
+`botMarkerWarning(ids)` returns the warning `runBots` prints for identifiers that name themselves
+(`bot`, `agent`, `robot`, …). `assertIdentifiers(ids)` throws on an empty list or a duplicate — a
+duplicate is one participant with two sockets, so the game sits one player short forever.
+
+## `botPhase(obs)`, `stallReason(phase)`, `stallMessage(...)`
+
+The lifecycle as a pure function, exported because it is testable and because a stalled study is
+diagnosed by phase: `connecting → waiting → intro → starting → playing → ended`.
+
+---
+
 # `empirica-networks` (root)
 
 Isomorphic pieces only.
@@ -628,5 +807,6 @@ empty record so the reason survives rather than being rediscovered.
 |---|---|
 | [GETTING-STARTED](GETTING-STARTED.md) | the ordered path, if this page is the wrong altitude |
 | [ARCHITECTURE](ARCHITECTURE.md) | what happens between these calls |
+| [BOTS](BOTS.md) | artificial participants, in more depth than the entry above |
 | [TROUBLESHOOTING](TROUBLESHOOTING.md) | when one of them does nothing |
 | [`../ISSUES.md`](../ISSUES.md) | known defects in the above |

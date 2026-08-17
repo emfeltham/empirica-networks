@@ -504,7 +504,13 @@ export const PAGE = `<!doctype html>
     var scrub = el("scrub");
     var label = el("scrubLabel");
     var mode = el("mode");
-    if (!payload) { label.textContent = "no history"; return; }
+    if (!payload) {
+      // Reset the range too, so a game that has gone does not leave a thumb
+      // parked partway along a history that is no longer on the page.
+      scrub.max = "0"; scrub.value = "0";
+      label.textContent = "no history";
+      return;
+    }
     var frames = payload.snapshot.history.frames;
     scrub.max = String(Math.max(frames.length - 1, 0));
     if (frameIndex === null) {
@@ -544,6 +550,10 @@ export const PAGE = `<!doctype html>
 
   function apply(next) {
     payload = next;
+    // Undo what gone() disabled. A game can come back — the operator switches
+    // games in the picker, or a stream reopens on a game this process still
+    // holds — and a monitor stuck with a dead scrubber would need a reload.
+    el("scrub").disabled = false;
     setColorKeys(next.snapshot);
     el("gameLabel").textContent = next.snapshot.gameID;
     renderScrub();
@@ -555,9 +565,31 @@ export const PAGE = `<!doctype html>
     var mode = el("mode");
     mode.className = "badge gone";
     mode.textContent = "gone";
+
     // Deliberately not "keep showing the last picture". A full restart never
     // reassigns players to their game (U2), so there is nothing to reconnect
     // to, and a stale graph presented as live is worse than an honest gap.
+    //
+    // The DATA goes, not just the label. Dropping the payload is what makes
+    // that true — an operator who scrolled past the banner, or who is on the
+    // table view, would otherwise read a picture of a study that has stopped as
+    // the current state of one that is running, which is the misreport
+    // MODULE-DESIGN §15.5 exists to prevent. Note that the table holds the same
+    // complete seating plan the graph does and has to be cleared with it.
+    payload = null;
+    frameIndex = null;
+    selected = null;
+    render();
+    renderScrub();
+    el("scrub").disabled = true;
+    el("liveBtn").disabled = true;
+    el("metrics").innerHTML = "";
+    el("ops").innerHTML = "";
+    el("legend").innerHTML = "";
+    el("tableView").innerHTML = "";
+    el("detail").className = "k";
+    el("detail").textContent = "";
+
     banner("This process is no longer networking game " + (info && info.gameID ? info.gameID : "") +
       ". The game has ended, or a restart lost it \\u2014 a full server restart does not put " +
       "participants back into their game (ISSUES.md U2), so there is nothing to reconnect to.");

@@ -40,25 +40,45 @@ does exactly this for the bundled examples.
 **Cause: `networkKinds` was not registered**, so the private channels are never modelled, and
 there is nothing to write views to.
 
-**This is not currently detected** — `ISSUES.md` O14. The package ships an
-`assertKindsRegistered` helper that throws with the exact diff, but nothing calls it, so the
-failure is as silent as it ever was. Several documents claim otherwise; they are wrong and are
-being corrected.
+**Since 2026-08-16 this is detected** (`ISSUES.md` O14). Once the first game's channels have had
+time to come back and none has, you get:
 
-**Fix:** in `server/src/index.js`, pass `networkKinds` to `AdminContext.init` instead of
-`classicKinds`. `docs/GETTING-STARTED.md` §3 has the diff.
+```
+empirica-networks: 2 private channels were created 5s ago and none has materialised. Two
+things do this, and this process cannot tell them apart.
 
-**Confirm it, since nothing will tell you:**
-
-```js
-import { networkKinds } from "empirica-networks/admin";
-const ctx = await AdminContext.init(…, networkKinds);   // not classicKinds
+1. THE "nbhd" SCOPE KIND IS NOT REGISTERED — the likely one, and silently fatal: …
+   … the diff …
+2. The subscription is only slow. …
 ```
 
-and check that the monitor shows materialised channels, or that `net.stats().channelScopes` is
-non-zero once a game has started.
+**Fix:** in `server/src/index.js`, pass `networkKinds` to `AdminContext.init` instead of
+`classicKinds`. `docs/GETTING-STARTED.md` §3 has the diff, and the warning prints it too.
 
-`docs/PLATFORM-NOTES.md` §6
+To fail *before* the server starts rather than a few seconds into the first game, call the eager
+check where you build the map:
+
+```js
+import { assertKindsRegistered, networkKinds } from "empirica-networks/admin";
+assertKindsRegistered(networkKinds);   // throws with the diff
+const ctx = await AdminContext.init(…, networkKinds);
+```
+
+**If it IS registered and you see this warning**, the subscription was merely slow, and the
+package will retract the warning itself the moment a channel arrives:
+
+```
+empirica-networks: RETRACTING the registration warning above — it was wrong. A channel
+materialised 24.1s after 200 were created, past the 20s deadline …
+```
+
+Nothing to fix when you see that. The deadline scales with the number of channels
+(`docs/API.md` "Registration") and is sized from latencies measured up to n=200, so a retraction
+means your setup beat the measurement — worth reporting with the participant count.
+`net.inspect(gameID).pendingChannels` lists who is still missing;
+`net.stats().firstChannelMs` is the figure itself.
+
+`docs/PLATFORM-NOTES.md` §6, §16a
 
 ### A private value reads back as `undefined`, and the manipulation silently does nothing
 
@@ -175,6 +195,11 @@ It is not silent. Look for:
 ```
 empirica-networks: N of M players have no participantID …
 ```
+
+**It repairs itself when they connect.** Provisioning otherwise runs once, at game start, so
+`ParticipantConnect` re-runs it for whoever is still missing and everyone's view unblocks
+together. If the message names players who never connect, the game stays blank: end it or restart
+the batch.
 
 `docs/ARCHITECTURE.md` §3 step 7 · `ISSUES.md` O4
 

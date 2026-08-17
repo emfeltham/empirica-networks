@@ -11,6 +11,7 @@ Cut by what you are trying to do. If you are new, start at
 | [**TROUBLESHOOTING**](TROUBLESHOOTING.md) | Indexed by symptom, for when something is silently wrong. Start here when nothing errored and something is off anyway |
 | [**API**](API.md) | Every export, by import path, with the reasoning behind each decision |
 | [**TOPOLOGIES**](TOPOLOGIES.md) | The 15 generators and 6 measures: parameters, connectivity, envelope implications. The page to read while *designing* |
+| [**BOTS**](BOTS.md) | Artificial participants: the policy interface, placement, counting them into `playerCount`, and why a bot's *name* is participant-visible |
 | [**GLOSSARY**](GLOSSARY.md) | Channel, projection, view, seat, told, envelope, U-numbers |
 | [**EXPERIMENTS**](EXPERIMENTS.md) | The two reconstructed papers: what each shows, what was left out, and why "reconstruction" is not "replication" |
 

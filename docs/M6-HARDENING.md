@@ -42,7 +42,7 @@ Everything the examples surfaced, with what happened to it.
 | 7 | **No first-class hook for "a participant wrote private state"** — Shirado reaches for `NBHD_KIND` + `stateKey()` and depends on U3 one layer down | ours, API gap | **done 2026-08-16** — `ISSUES.md` O13 · §2.2 |
 | 8 | **`network(game)` takes an object, `net.inspect(gameID)` takes an id**; `net.games()` is process-global and outlives a game | ours, API coherence | **done 2026-08-16** — §3.1, §3.2 |
 | 9 | **`envelope.maxDegree: 16` is too low for a legitimate published design at n=20** — the Rand port raises it to 64 | ours, API coherence | **done 2026-08-16** — §3.3; measured, and the plan's proposed fix was wrong |
-| 10 | **No artificial-player facility in Empirica v2**, so Shirado's bots are absent | upstream, scope | open — `ISSUES.md` O10 · **not doing** |
+| 10 | **No artificial-player facility in Empirica v2**, so Shirado's bots are absent | upstream, scope | deferred here · **built afterwards, 2026-08-16** — `ISSUES.md` O10, `docs/BOTS.md` |
 | 11 | **O8's flake rate tracks suite weight**; one case was deterministic (subscriptions opened during game assignment) | ours→upstream, debt | **re-described 2026-08-16, not fixed** — Tier 4. Rates measured per file (`chat` 5/25, `topology_visibility` 2/25 → 0/40 once its subscription moved); the stall's signature is a participant Classic never *registered*, not a player never assigned; sharding the tier — the standing fix since M4 — cannot help, because `node --test` already runs one process per file |
 
 ## Tier 1 — silent failure in the consumer's code — **done 2026-08-16**

@@ -35,9 +35,11 @@ import {
   type AdminHandle,
   type Participant,
 } from "../../src/verify/harness.js";
+import { runBots } from "../../src/bots/index.js";
 import { Empirica, net } from "../../examples/shirado2017/server/src/callbacks.js";
 import {
   COLORS,
+  botChoice,
   conflictCount,
   isSolved,
   // @ts-expect-error - plain JS example module, deliberately untyped
@@ -91,7 +93,7 @@ async function start(admin: AdminHandle, participants: { mode: unknown }[]): Pro
 
 test("a non-neighbour's colour never arrives, and a neighbour's does", async () => {
   await withScenario(
-    { n: N, kinds: networkKinds, listeners: Empirica, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners: Empirica, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       await start(admin, participants);
 
@@ -183,7 +185,7 @@ test("a non-neighbour's colour never arrives, and a neighbour's does", async () 
 
 test("the global conflict count is computed and never published", async () => {
   await withScenario(
-    { n: N, kinds: networkKinds, listeners: Empirica, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners: Empirica, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       await start(admin, participants);
 
@@ -265,7 +267,7 @@ test("a proper colouring ends the session, and an improper one does not", async 
   // the first is worse: a detector that fires early records a time to solution for a
   // problem nobody solved. A detector that never fires just wastes five minutes.
   await withScenario(
-    { n: N, kinds: networkKinds, listeners: Empirica, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners: Empirica, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       await start(admin, participants);
 
@@ -361,6 +363,171 @@ test("a proper colouring ends the session, and an improper one does not", async 
         label: "the session ended once the network was properly coloured",
         timeoutMs: 60_000,
       });
+    }
+  );
+});
+
+/**
+ * The agent arm, against this experiment's `callbacks.js` UNMODIFIED.
+ *
+ * `test/unit/shirado2017.test.ts` asserts what an agent decides and where
+ * `placeBots` puts it. Neither of those can tell you whether an agent is really
+ * seated in a real game, whether the placement survived the round trip through
+ * Classic's seating, or whether the noise level the treatment declared is the one
+ * the agent acted on — the two processes have separate copies of nothing, but they
+ * do have a channel between them, and a channel is a thing that can silently not
+ * work.
+ *
+ * Six nodes rather than twenty: the claims are about seating and wiring, and at
+ * n=6 with m=2 the degree spread is still enough to tell a hub from a leaf.
+ */
+const BOT_KEYS = ["1755000000001", "1755000000002", "1755000000003"];
+const HUMANS = 3;
+const WITH_BOTS = HUMANS + BOT_KEYS.length;
+
+test("the agent arm: three agents seated centrally, told their noise, and playing", async () => {
+  // Set BEFORE the game starts, and read lazily by callbacks.js — which is what
+  // lets this run against the shipped file rather than a copy with the keys
+  // hard-coded.
+  process.env["SHIRADO2017_BOT_KEYS"] = BOT_KEYS.join(",");
+
+  await withScenario(
+    {
+      n: HUMANS,
+      kinds: networkKinds,
+      listeners: Empirica,
+      modeFunc: EmpiricaNetwork,
+    },
+    async ({ server, admin, participants }) => {
+      const botLog: Record<string, unknown>[] = [];
+      const run = await runBots({
+        url: server.url,
+        identifiers: BOT_KEYS,
+        // The shipped agent, imported from the example rather than reimplemented:
+        // a test against a second copy of the policy would prove nothing about the
+        // one a study runs.
+        policy: {
+          tickMs: 150,
+          onTick(ctx) {
+            const noise = ctx.told()?.get("noise");
+            if (typeof noise !== "number") return;
+            const neighbours = ctx.neighbors();
+            if (neighbours === undefined) return;
+            const state = ctx.state()!;
+            const ownColor = state.get("color") as string | undefined;
+            const next = botChoice({
+              ownColor,
+              neighbourColors: (neighbours as { color?: string }[]).map((nb) => nb.color),
+              noise,
+              rng: ctx.rng,
+            });
+            if (next === ownColor) return;
+            state.set("color", next);
+            ctx.log({ type: "move", to: next, noise });
+          },
+        },
+        log: (r) => botLog.push(r),
+      });
+
+      try {
+        const batch = await createBatch(
+          admin,
+          // The treatment IS the condition. `botCount` counts toward `playerCount`,
+          // which is why only three humans are connected for a six-node network.
+          batchConfig(WITH_BOTS, 1, [
+            { botCount: BOT_KEYS.length, botPlacement: "central", botNoise: 0.3 },
+          ])
+        );
+        await batch.running();
+        await waitFor(
+          () => participants.every((p) => modeOf(p).player.getValue()?.get("gameID")),
+          { label: "humans assigned", timeoutMs: 30_000 }
+        );
+        for (const p of participants) modeOf(p).player.getValue()!.set("introDone", true);
+        await waitFor(() => run.phases().every((ph) => ph === "playing"), {
+          label: `agents playing (${run.phases().join(", ")})`,
+          timeoutMs: 60_000,
+        });
+        await waitFor(() => participants.every((p) => modeOf(p).nbhd.getValue()?.published), {
+          label: "humans have a view",
+          timeoutMs: 30_000,
+        });
+
+        const gameID = gameOf(participants[0]!).id;
+        const snapshot = net.inspect(gameID)!;
+        assert.equal(snapshot.n, WITH_BOTS, "the agents are nodes in the network");
+
+        // --- placement survived the round trip ----------------------------
+        const botIDs = new Set(run.playerIDs().filter(Boolean) as string[]);
+        assert.equal(botIDs.size, BOT_KEYS.length);
+        const byDegree = [...snapshot.nodes].sort((a, b) => b.degree - a.degree);
+        const topThree = byDegree.slice(0, 3).map((node) => node.playerID);
+        assert.deepEqual(
+          [...topThree].sort(),
+          [...botIDs].sort(),
+          `the "central" treatment did not seat the agents on the hubs. Degrees were ` +
+            byDegree.map((node) => `${node.playerID}:${node.degree}`).join(" ")
+        );
+        // Non-vacuity: at n=6 a near-regular draw would make "central" mean
+        // nothing, and this assertion would pass by accident.
+        assert.ok(
+          byDegree[0]!.degree > byDegree[byDegree.length - 1]!.degree,
+          "this graph has no hubs, so the placement claim above is untested"
+        );
+
+        // --- the noise level reached the agents ---------------------------
+        // The agents act ONLY once `net.tell` has delivered a numeric noise level,
+        // so a move is the evidence that the server-to-agent channel worked. There
+        // is no other reader for a `told:` key.
+        await waitFor(() => botLog.filter((r) => r["type"] === "move").length >= BOT_KEYS.length, {
+          label: "every agent has moved, so every agent was told its noise",
+          timeoutMs: 30_000,
+        });
+        for (const key of BOT_KEYS) {
+          const moves = botLog.filter((r) => r["type"] === "move" && r["identifier"] === key);
+          assert.ok(moves.length > 0, `agent ${key} never moved, so it was never told its noise`);
+          assert.equal(moves[0]!["noise"], 0.3, "the treatment's noise level, not a default");
+        }
+
+        // --- and the server recorded whose moves they were ----------------
+        await waitFor(
+          () => {
+            const s = net.inspect(gameID);
+            return Boolean(s && [...botIDs].every((id) =>
+              s.nodes.some((node) => node.playerID === id && node.state["color"] !== undefined)
+            ));
+          },
+          { label: "every agent's colour reached the server", timeoutMs: 30_000 }
+        );
+        const records = fs
+          .readFileSync("data/run.ndjson", "utf8")
+          .split("\n")
+          .filter(Boolean)
+          .map((line) => JSON.parse(line) as Record<string, unknown>)
+          .filter((r) => r["gameID"] === gameID);
+
+        const graph = records.find((r) => r["type"] === "graph")!;
+        assert.equal(graph["bots"], BOT_KEYS.length, "the condition is in the run log");
+        assert.equal(graph["botPlacement"], "central");
+        assert.equal(graph["botNoise"], 0.3);
+
+        const botChanges = records.filter((r) => r["type"] === "change" && r["isBot"] === true);
+        assert.ok(botChanges.length > 0, "no change was recorded as an agent's");
+        assert.ok(
+          botChanges.every((r) => botIDs.has(r["playerID"] as string)),
+          "a change was marked as an agent's when it was a human's"
+        );
+        // The other direction matters as much: a marker that fired for everybody
+        // would look identical in the count above.
+        const humanIDs = new Set(participants.map((p) => idOf(p)));
+        const misattributed = records.filter(
+          (r) => r["type"] === "change" && r["isBot"] === true && humanIDs.has(r["playerID"] as string)
+        );
+        assert.equal(misattributed.length, 0, "a human's move was recorded as an agent's");
+      } finally {
+        await run.stop();
+        delete process.env["SHIRADO2017_BOT_KEYS"];
+      }
     }
   );
 });

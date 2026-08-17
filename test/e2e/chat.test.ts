@@ -73,10 +73,16 @@ async function running(admin: AdminHandle, participants: { mode: unknown }[]): P
 test("a message reaches neighbours and the sender, and nobody else — at the wire", async () => {
   let gameRef: any;
   await withScenario(
-    { n: N, kinds: networkKinds, listeners: makeListeners((g) => (gameRef = g)), modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners: makeListeners((g) => (gameRef = g)), modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       // Record every frame each participant receives, below the mode, before
       // anything is said.
+      //
+      // Free, and safe this early: `wireStream()` shares the mode's own
+      // subscription (`src/verify/compat.ts`). It used to open a second one, which
+      // is what made this shape expensive before the batch (`ISSUES.md` O8) — and
+      // this file is where moving the capture, rather than fixing the cause, was
+      // shown to be the wrong answer: it went 0/12 to 1/12 and failed in a new way.
       const wires = participants.map((p) => {
         const frames: string[] = [];
         (p as Participant<unknown>).wireStream().subscribe((c: unknown) => {
@@ -142,7 +148,7 @@ test("sending twice delivers twice, in order, without duplicates", async () => {
   // not also drop genuinely new messages.
   let gameRef: any;
   await withScenario(
-    { n: N, kinds: networkKinds, listeners: makeListeners((g) => (gameRef = g)), modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners: makeListeners((g) => (gameRef = g)), modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       await running(admin, participants);
 
@@ -179,7 +185,7 @@ test("dropping a tie stops new messages but keeps what was already delivered", a
   // recipient's own channel, so nothing has to actively preserve it.
   let gameRef: any;
   await withScenario(
-    { n: N, kinds: networkKinds, listeners: makeListeners((g) => (gameRef = g)), modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners: makeListeners((g) => (gameRef = g)), modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
       await running(admin, participants);
 

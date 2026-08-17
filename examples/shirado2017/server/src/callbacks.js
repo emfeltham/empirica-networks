@@ -1,16 +1,20 @@
 /**
  * Shirado & Christakis (2017) — server wiring.
  *
- * A RECONSTRUCTION of the HUMAN-ONLY arm of the design in:
+ * A RECONSTRUCTION of the design in:
  *
  *   Shirado, H. & Christakis, N. A. (2017). Locally noisy autonomous agents
  *   improve global human coordination in network experiments. Nature 545,
  *   370-374. https://doi.org/10.1038/nature22332
  *
- * NOT a replication, and NOT the whole paper — the bots are absent, because
- * `@empirica/core@1.12.5` ships no artificial-player facility at all
- * (`docs/PLATFORM-NOTES.md` §17). What is here is the paper's 30 control sessions,
- * which is what its Fig. 1 is entirely about. See the README.
+ * NOT a replication: the design was rebuilt from the paper, no data has been
+ * collected with it, and nothing has been compared to the authors' results. What
+ * IS here, since M7, is both arms — the 30 control sessions AND the agent
+ * conditions (3 agents x 3 noise levels x 3 placements) that are the paper's
+ * actual contribution. The agents run as a separate headless process, `../bots.mjs`,
+ * on `empirica-networks/bots`; this file is the half that places them and records
+ * which nodes they were. See the README, and `ISSUES.md` O10 for why it took a new
+ * entry point rather than a config flag.
  *
  * Every rule lives in `./design.js`, which imports nothing and is unit-tested by
  * `test/unit/shirado2017.test.ts`.
@@ -21,16 +25,78 @@ import { ClassicListenersCollector } from "@empirica/core/admin/classic";
 import { edgeRows, network, toCSV, topology, withNetwork } from "empirica-networks/admin";
 import {
   ATTACHMENT,
+  BOT_COUNT,
   TIME_LIMIT_SECONDS,
   conflictCount,
   exportFiles,
   isSolved,
+  placeBots,
 } from "./design.js";
 
 export const Empirica = new ClassicListenersCollector();
 
 /** Where CSVs land at game end, relative to wherever the server was started. */
 const OUT_DIR = process.env["SHIRADO2017_OUT"] ?? "data";
+
+/**
+ * The agents' participant keys, shared with `../bots.mjs` through the environment.
+ *
+ *   SHIRADO2017_BOT_KEYS=1755000000001,1755000000002,1755000000003
+ *
+ * A SHARED LIST rather than a recognisable prefix, and that is forced rather than
+ * fastidious. Every participant in a game receives every other participant's
+ * `participantIdentifier` — the raw `?participantKey=` — because Classic writes it
+ * on the player scope and links everyone to every player node (`ISSUES.md` U10,
+ * measured in `test/e2e/bots.test.ts`). So a key like `bot-1` is readable from any
+ * participant's browser, and in THIS design that is not a metadata leak: subjects
+ * are not told which of their neighbours are software, so a recognisable key
+ * discloses the manipulation itself.
+ *
+ * Hence: the server recognises agents by holding the list, not by reading a
+ * pattern, and `botIdentifiers()` generates keys shaped like the ones Empirica's
+ * own client produces. In a deployed study, use keys drawn from the same space as
+ * your human recruitment keys — see `docs/BOTS.md`.
+ */
+function botKeys() {
+  return new Set(
+    (process.env["SHIRADO2017_BOT_KEYS"] ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+  );
+}
+
+/**
+ * Is this player one of the agents? Answerable only by holding the list.
+ *
+ * Reads the environment on each call rather than at module load. Twenty calls per
+ * game start is nothing, and it buys the property that matters: the list can be
+ * set after this module is imported, which is what lets `test/e2e/shirado2017.test.ts`
+ * run the agent arm against this file UNMODIFIED — the whole point of that test.
+ */
+const isBotPlayer = (player) => botKeys().has(player?.get("participantIdentifier"));
+
+/**
+ * The condition, read off the treatment.
+ *
+ * The treatment is the single source of truth for the arm a session is in. The
+ * agents do not read it — they are told their noise level through their own
+ * private channel (`net.tell` at stage start), so the runner cannot be started
+ * against a condition the server is not running. Two processes each reading their
+ * own copy of the config is exactly how a study ends up with 10% agents recorded
+ * as 30%.
+ */
+function conditionOf(game) {
+  const treatment = game.get("treatment") ?? {};
+  return {
+    bots: Number(treatment["botCount"] ?? 0),
+    placement: String(treatment["botPlacement"] ?? "random"),
+    noise: Number(treatment["botNoise"] ?? 0),
+  };
+}
+
+/** Per-game agent seating, decided in `topology` and needed again at export. */
+const botSeating = new Map();
 
 /**
  * Live session state, in this process only.
@@ -66,6 +132,9 @@ Empirica.onGameStart(({ game }) => {
  */
 Empirica.onStageStart(({ stage }) => {
   const game = stage.currentGame;
+  const { placement, noise } = conditionOf(game);
+  const botIndices = (botSeating.get(game.id)?.seats ?? []).slice().sort((a, b) => a - b);
+
   sessions.set(game.id, {
     game,
     stage,
@@ -73,6 +142,15 @@ Empirica.onStageStart(({ stage }) => {
     changes: [],
     solved: false,
     tSolutionMs: undefined,
+    // Kept as a Set of PLAYER IDS rather than of seats: the colour listener is
+    // handed a playerID, and converting seat-to-player on every change would be a
+    // lookup per move for something fixed at game start.
+    botPlayerIDs: new Set(
+      botIndices.map((i) => net.inspect(game.id)?.order?.[i]).filter(Boolean)
+    ),
+    botIndices,
+    botPlacement: placement,
+    botNoise: noise,
   });
 
   // The graph, logged once at the start. Recovery needs it for `session.csv`'s
@@ -112,8 +190,37 @@ Empirica.onStageStart(({ stage }) => {
       n: snapshot.n,
       edges: snapshot.edges.length,
       maxDegree: snapshot.metrics.maxDegree,
+      // The condition, so a recovered session knows which arm it belonged to. A
+      // rescued session that cannot say that is not a rescued observation.
+      bots: botIndices.length,
+      botPlacement: botIndices.length > 0 ? placement : "",
+      botNoise: botIndices.length > 0 ? noise : "",
+      botIndices,
       events,
     });
+  }
+
+  /**
+   * Tell each agent how noisy to be, on its own private channel.
+   *
+   * `net.tell` rather than an environment variable in `../bots.mjs`, and that is
+   * the load-bearing choice in the whole bot arrangement: with two processes each
+   * reading their own copy of the condition, a study runs 10%-noise agents and
+   * records them as 30% with nothing anywhere disagreeing. Here the treatment is
+   * the only source, and the runner physically cannot act on a noise level the
+   * server did not send.
+   *
+   * At STAGE start, not game start: `tell()` needs the participant's channel to
+   * exist, and the package refuses rather than writing into nothing.
+   *
+   * It reaches only its own recipient, and it is validated by the same
+   * `validateProjection` as a view — so this does not weaken the design's
+   * guarantee. No human is told anything, and no participant learns which of their
+   * neighbours were told what.
+   */
+  for (const index of botIndices) {
+    const playerID = snapshot?.order?.[index];
+    if (playerID) network(game).tell(playerID, "noise", noise);
   }
 });
 
@@ -128,7 +235,35 @@ export const net = withNetwork(Empirica, {
    * intrinsically easier to solve"), so an analysis that cannot recover the exact
    * graph cannot control for it.
    */
-  topology: ({ playerCount, rng }) => topology.barabasiAlbert(playerCount, ATTACHMENT, { rng }),
+  topology: ({ game, players, playerCount, rng }) => {
+    const graph = topology.barabasiAlbert(playerCount, ATTACHMENT, { rng });
+    const { bots, placement } = conditionOf(game);
+
+    // Which SEATS the agents got. `players[i]` is whoever will occupy topology
+    // index `i` — that is the package's seating guarantee, and it is the whole
+    // reason placement is expressible at all (`test/unit/seating.test.ts`).
+    const botSeats = players.flatMap((p, i) => (isBotPlayer(p) ? [i] : []));
+    botSeating.set(game.id, { seats: botSeats, placement, expected: bots });
+
+    if (bots === 0) return graph;
+
+    if (botSeats.length !== bots) {
+      // Loud, and it has to be: the session would run, produce a complete and
+      // plausible session.csv, and be in a condition nobody chose. The usual
+      // cause is that the runner was not started, or was started with different
+      // keys — so name both halves of the contract.
+      // eslint-disable-next-line no-console
+      console.error(
+        `shirado2017: treatment asks for ${bots} agent(s) but ${botSeats.length} of the ` +
+          `${playerCount} seated participants matched SHIRADO2017_BOT_KEYS. This session ` +
+          `is NOT in the condition it will be labelled with. Check that ../bots.mjs is ` +
+          `running and that both processes have the same SHIRADO2017_BOT_KEYS.`
+      );
+    }
+    if (botSeats.length === 0) return graph;
+
+    return placeBots(graph, playerCount, botSeats, placement, rng);
+  },
 
   /**
    * "Subjects could see only the colours of neighbours to whom they were directly
@@ -255,6 +390,11 @@ function detectSolution({ gameID, playerID, key }) {
     topologyIndex: node?.index ?? -1,
     degree: node?.degree ?? 0,
     color: node?.state["color"],
+    // Recorded because it CANNOT be recovered afterwards. An agent writes the same
+    // key, on the same kind of channel, through the same code path as a human —
+    // that is the property the bots were built to have — so nothing in the data
+    // distinguishes them unless this column does.
+    isBot: session.botPlayerIDs.has(playerID),
     conflictsAfter: conflicts,
   };
   session.changes.push(change);
@@ -312,6 +452,10 @@ Empirica.onGameEnded(({ game }) => {
       tSolutionMs: session?.tSolutionMs ?? "",
       changes: session?.changes.length ?? 0,
       maxDegree: snapshot?.metrics.maxDegree ?? 0,
+      bots: session?.botIndices?.length ?? 0,
+      botPlacement: session?.botPlacement ?? "",
+      botNoise: session?.botNoise ?? "",
+      botIndices: session?.botIndices ?? [],
     },
     session?.changes ?? [],
     toCSV(edgeRows(game.id, history)),
@@ -325,6 +469,7 @@ Empirica.onGameEnded(({ game }) => {
   }
 
   sessions.delete(game.id);
+  botSeating.delete(game.id);
   // eslint-disable-next-line no-console
   console.log(
     `shirado2017: ${session?.solved ? `solved in ${session.tSolutionMs}ms` : "unsolved"} — ` +

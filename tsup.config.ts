@@ -1,13 +1,15 @@
 import { defineConfig } from "tsup";
 
 /**
- * Two build groups, for a reason that is not stylistic.
+ * Three build groups, for a reason that is not stylistic.
  *
  * Library entries stay ESM with @empirica/* EXTERNAL. Bundling core would give
  * the consumer two copies of the `Scope` class, and `instanceof` checks would
  * silently start failing.
  *
- * The `verify` CLI is the exception: it must be BUNDLED AS CJS. `@empirica/tajriba`
+ * The `verify` CLI and the `bots` runner are the exceptions: both must be
+ * BUNDLED AS CJS, because both run as their own Node process against Empirica's
+ * own client stack rather than inside a consumer's build. `@empirica/tajriba`
  * imports `cross-fetch/polyfill`, a legacy directory subpath with no `exports`
  * map, which bare Node ESM refuses with ERR_UNSUPPORTED_DIR_IMPORT. Verified on
  * 2026-08-14 against @empirica/core@1.12.5 / @empirica/tajriba@1.7.3:
@@ -54,9 +56,41 @@ export default defineConfig([
     format: ["esm"],
     dts: true,
     sourcemap: true,
-    clean: true,
+    // Every group is clean:false — tsup runs these configs CONCURRENTLY, so a
+    // clean here races the other groups' output and silently deleted
+    // `dist/bots/index.d.cts`. `scripts/clean-dist.mjs` does it once, before.
+    clean: false,
     target: "es2020",
     external: ["@empirica/core", "@empirica/tajriba", "react", "react-dom"],
+  },
+  {
+    /**
+     * The bot runner: CJS, bundled, for the SAME reason as the verify CLI below.
+     *
+     * A bot is a headless participant, so it needs `TajribaConnection` — which
+     * lives in `@empirica/core/admin` and drags in `cross-fetch/polyfill`. Left
+     * as an ESM library entry it would resolve fine and then fail at import time
+     * on the researcher's machine, which is the shape of failure this repository
+     * spends most of its guards on. Bundled CJS is loadable by both `require`
+     * and `import`, so the export map has a single `default` condition rather
+     * than an `import` that is a trap.
+     *
+     * The consequence is the same one the CLI accepts, and is worth stating
+     * rather than leaving to be discovered: this bundle carries its own copy of
+     * `@empirica/core`, so a process importing BOTH `empirica-networks/bots` and
+     * `empirica-networks/player` holds two `Scope` classes. Nothing crosses that
+     * boundary today — a policy sees plain JSON and plain accessors — but a bot
+     * script that starts passing scope objects around will find it.
+     */
+    name: "bots",
+    entry: { "bots/index": "src/bots/index.ts" },
+    format: ["cjs"],
+    dts: true,
+    sourcemap: true,
+    clean: false,
+    platform: "node",
+    target: "node20",
+    noExternal: [/.*/],
   },
   {
     name: "verify-cli",

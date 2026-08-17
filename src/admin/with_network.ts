@@ -17,6 +17,11 @@ import { graphMetrics, historyFrames, type GameSnapshot, type NodeSnapshot } fro
 import { calibrate, duplicateLifecycleListeners, duplicateListenersMessage } from "./listeners.js";
 import { projectionBytes, validateProjection } from "./projection.js";
 import {
+  registrationNotDetectedMessage,
+  registrationRetractionMessage,
+  registrationWaitMs,
+} from "./registration.js";
+import {
   adoptChannel,
   pendingChannelsMessage,
   provisionChannels,
@@ -29,6 +34,11 @@ import {
   unwatchedKeys,
   unwatchedKeysMessage,
 } from "./reads.js";
+import {
+  endedGamesCap,
+  endedGamesEvictedMessage,
+  rememberEndedGame,
+} from "./retention.js";
 import { hashSeed, makeRng, type Rng } from "./seed.js";
 import { makeLogSink, type LogConfig } from "./sink.js";
 import { makeViewSink, type ViewsConfig } from "./views.js";
@@ -102,8 +112,39 @@ export interface NetworkConfig {
   /**
    * Build the network at game start. Receives a seeded rng so the realisation
    * is reproducible from the seed recorded on the game scope.
+   *
+   * `players` is the SEATING PLAN: `players[i]` is the participant who will
+   * occupy topology index `i`, so `edge [i, j]` ties `players[i]` to
+   * `players[j]`. It is here because without it a design cannot place anybody
+   * deliberately — the generators return an anonymous edge list over indices,
+   * and who lands where was decided afterwards, out of reach.
+   *
+   * That is not a hypothetical gap. Shirado & Christakis (2017) manipulate
+   * exactly this: their bots are placed at central, peripheral or random nodes,
+   * and the placement is the independent variable. Expressing it needs the
+   * ability to say which seat a particular participant gets, and until this
+   * field existed the only way to get it was to read `game.players` and rely on
+   * the package happening to seat them in that order — true, but an accident of
+   * two lines in `onGameStartAttribute` rather than anything promised. Now it is
+   * promised, and `test/unit/seating.test.ts` fails if it stops being true —
+   * including the case that matters, where a broken mapping still produces a
+   * perfectly correct graph over the wrong people.
+   *
+   * Placement is done by RELABELLING: generate the graph you want, then permute
+   * the indices so the seats you care about land on the degrees you want. The
+   * alternative — reordering the participants — is not available, because seats
+   * are fixed before this is called.
+   *
+   * `playerCount` is `players.length`, kept because most designs want only the
+   * number and `({ playerCount, rng })` is the common signature.
    */
-  topology?: (args: { game: any; playerCount: number; rng: Rng }) => Edge[];
+  topology?: (args: {
+    game: any;
+    playerCount: number;
+    /** In seat order: `players[i]` occupies topology index `i`. */
+    players: any[];
+    rng: Rng;
+  }) => Edge[];
   /**
    * What ONE participant may learn about ONE neighbour.
    *
@@ -317,8 +358,40 @@ export interface NetworkStats {
   channels: number;
   /** Materialised channel scope objects held. */
   channelScopes: number;
+  /**
+   * How long the first channel took to come back, in ms — or `undefined` if
+   * none ever has.
+   *
+   * Not a resource count like the rest of this record, and here anyway: it is
+   * the quantity the kind-registration warning is racing, and that warning is
+   * the only thing in the package that can accuse correct code of being broken
+   * (`ISSUES.md` O14, O15). A number that decides whether someone is told their
+   * server is misconfigured should be readable by the person being told.
+   *
+   * Measured from the first `addScopes` request to the first `nbhd` scope
+   * arriving on the subscription, on the admin's own event loop — the same loop
+   * the check's timer runs on, so the two are comparable by construction.
+   */
+  firstChannelMs: number | undefined;
   /** Cached serialised views, one per channel published to. */
   cachedViews: number;
+  /**
+   * Finished games still remembered by id.
+   *
+   * The one structure that outlives its game on purpose, and therefore the one
+   * worth being able to see. Grows by one per game ended and is capped at
+   * `MAX_ENDED_GAMES` (`./retention.ts`, `ISSUES.md` O5); everything else in
+   * this record should return to zero between games.
+   */
+  endedGames: number;
+  /**
+   * Chat dedupe entries held — one per participant who has sent a message.
+   *
+   * Zero unless `chat` is enabled, and back to zero when the game ends. Reported
+   * because it is keyed by player rather than by game, so it is the one release
+   * that a game-keyed sweep would miss, and it did.
+   */
+  chatSeqs: number;
 }
 
 export interface NetworkHandle {
@@ -426,7 +499,19 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   const chatEnabled = Boolean(config.chat);
   const chatHistory =
     (typeof config.chat === "object" ? config.chat.history : undefined) ?? 200;
-  /** playerID -> highest outbox seq already relayed, so a republish cannot duplicate. */
+  /**
+   * playerID -> highest outbox seq already relayed, so a republish cannot
+   * duplicate.
+   *
+   * Keyed by PLAYER, not by game, so it is not covered by any of the game-keyed
+   * deletes in `releaseGame` and has to be cleared there explicitly. That was
+   * missed until `ISSUES.md` O5, and the consequence was worse than the leak:
+   * Classic reuses a participant's player scope across sequential games, while
+   * the client derives its sequence number from the OUTBOX ATTRIBUTE ON ITS OWN
+   * CHANNEL (`src/player/chat.ts`) — a fresh channel each game, so the count
+   * restarts at 1. A stale high-water mark therefore silently DROPS the first
+   * messages of a later game. Witness: `test/unit/retention.test.ts`.
+   */
   const lastOutbox = new Map<string, number>();
   const viewSink = makeViewSink(config.views);
   const logSink = makeLogSink(config.log);
@@ -458,16 +543,48 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   /** Whether the duplicate-lifecycle-listener check has already run. */
   let reportedDuplicates = false;
   /**
-   * Games known to be over.
+   * Whether ANY channel scope has ever materialised in this process.
    *
-   * Ids only. This is the one thing deliberately NOT released, because it is
-   * what stops a finished game's channels being re-adopted when the kind
-   * subscription replays them. A string id per game is a few dozen bytes
-   * against one Scope object per participant, so the trade is heavily
-   * favourable — but it IS unbounded in the number of games a process runs,
-   * which is stated here rather than left to be discovered.
+   * The evidence behind the kind-registration check. Process-wide rather than
+   * per-game because registration is a process-wide property: once one channel
+   * has come back as a modelled scope, the kind is registered, and no later
+   * game can prove otherwise.
+   */
+  let sawAnyChannel = false;
+  /** Whether the one-shot registration check has already been scheduled. */
+  let registrationCheckArmed = false;
+  /**
+   * When channels were first requested from Tajriba, and how long the first one
+   * took to come back. The evidence the registration check rests on, made
+   * visible — see `NetworkStats.firstChannelMs`.
+   */
+  let firstProvisionAt: number | undefined;
+  let firstChannelMs: number | undefined;
+  /**
+   * The warning this process has already printed, if it printed one — so that a
+   * channel arriving afterwards can retract it rather than leaving a false
+   * accusation as the last word in the log.
+   */
+  let accusation: { created: number; waitMs: number } | undefined;
+  /**
+   * Games known to be over. Ids only, oldest first, capped.
+   *
+   * This is the one thing deliberately NOT released per game, because it is what
+   * stops a finished game's channels being re-adopted when the kind subscription
+   * replays them. A string id per game is a few dozen bytes against one Scope
+   * object per participant, so the trade is heavily favourable — but it used to
+   * be unbounded in the number of games a process ran, which is `ISSUES.md` O5.
+   *
+   * Bounded rather than cleared on some batch signal, and forgetting the oldest
+   * is safe for a reason worth stating: a replay that re-adopts an evicted
+   * game's channels also replays that game's own `start` attribute, and
+   * `onGameStartAttribute` releases an already-ended game rather than networking
+   * it. So an eviction costs a transient hold, not a permanent one, in the
+   * ordering where the channels arrive first. See `./retention.ts`.
    */
   const endedGames = new Set<string>();
+  /** Whether the eviction warning has been said. Once per process; see below. */
+  let reportedEviction = false;
   /**
    * Edge-mutation log per game, in memory and authoritative.
    *
@@ -513,6 +630,17 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   collector.on(NBHD_KIND, NBHD_KEYS.OWNER, (_ctx: any, payload: any) => {
     const scope = payload?.[NBHD_KIND];
     if (!scope?.id) return;
+    // Before every early return below, including the ended-game one: reaching
+    // this line at all proves the kind is registered, which is the only thing
+    // the registration check needs to know.
+    if (!sawAnyChannel && firstProvisionAt !== undefined) {
+      firstChannelMs = Date.now() - firstProvisionAt;
+      if (accusation) {
+        warn(registrationRetractionMessage(accusation.created, accusation.waitMs, firstChannelMs));
+        accusation = undefined;
+      }
+    }
+    sawAnyChannel = true;
     channelScopes.set(scope.id, scope);
 
     // Re-adopt the channel rather than let provisioning create a second one.
@@ -568,7 +696,15 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   });
 
   function releaseGame(game: any): void {
-    endedGames.add(game.id);
+    const evicted = rememberEndedGame(endedGames, game.id, endedGamesCap());
+    if (evicted !== undefined && !reportedEviction) {
+      reportedEviction = true;
+      warn(endedGamesEvictedMessage(endedGamesCap()));
+    }
+    // The chat relay's dedupe state is keyed by player, so none of the
+    // game-keyed deletes below reach it. Read the seating order BEFORE
+    // `networks.delete`, which is the only record of who was in this game.
+    for (const playerID of networks.get(game.id)?.order ?? []) lastOutbox.delete(playerID);
     // Before anything else: a game ending is the last moment its records are
     // certainly still wanted, and the buffer would otherwise sit until the next
     // game filled it or the process exited. A no-op for the run log at its
@@ -655,7 +791,10 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     const players = game.players ?? [];
     const seed = config.seed ?? hashSeed(String(game.id));
     const rng = makeRng(seed);
-    const edges = topology({ game, playerCount: players.length, rng });
+    // `players` is handed to `topology` and then used, unchanged, to build
+    // `order` below. Same array, same tick — which is what makes the seating-plan
+    // guarantee in NetworkConfig.topology a contract rather than a coincidence.
+    const edges = topology({ game, playerCount: players.length, players, rng });
     const adj = adjacency(players.length, edges);
 
     // Before provisioning and before anything is recorded: an out-of-envelope
@@ -696,9 +835,16 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
 
     gameNetworks.set(game.id, makeGameNetwork(game));
 
-    const { pending } = await provisionChannels(ctx, game, (playerID) =>
+    // Stamped BEFORE the await, not inside `armRegistrationCheck`. The round
+    // trip is part of what the check is waiting out, and on a fast server a
+    // channel can materialise before `addScopes` even resolves — measuring from
+    // after it would report a latency of zero for the case that matters least
+    // and nothing at all for the case that matters most.
+    if (firstProvisionAt === undefined) firstProvisionAt = Date.now();
+    const { pending, created } = await provisionChannels(ctx, game, (playerID) =>
       order.indexOf(playerID)
     );
+    armRegistrationCheck(created.length);
     // A player with no participantID gets no channel, and `publish` refuses to
     // send a partial view — so one unprovisioned player blocks EVERY view in
     // the game, not just their own. That is the right call (a partial publish
@@ -835,12 +981,25 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       // once, at game start. `provisionChannels` is idempotent and provisions
       // only who is missing, so this costs one no-op call per connect.
       //
-      // Whether Classic can actually produce such a player is unclear — it sets
-      // `participantID` from an immutable attribute in its own `player`
-      // listener, so players in `game.players` normally have one. This is a net
-      // under a path we could not construct, not a fix for an observed failure.
+      // Whether Classic actually produces such a player is not established, and
+      // this is a net rather than a fix for an observed failure. It is not an
+      // exotic path either: `game.players` is
+      // `scopesByKindMatching("player", "gameID", id)` — a filter over an
+      // ATTRIBUTE — while `player.participantID` is a FIELD assigned inside
+      // Classic's own `_.on("player", …)`. Two mechanisms, so they cannot be
+      // assumed in step. See docs/PLATFORM-NOTES.md §20.
+      //
+      // `indexOf` is passed for the same reason game start passes it, and
+      // leaving it out was a real defect (`ISSUES.md` O4): the channel carried
+      // `topologyIndex: -1`, the OWNER listener records seats only for
+      // `idx >= 0`, and `tryRecover` refuses a game with a gap in its seating
+      // plan rather than guessing who sits where. So a game repaired by this
+      // path ran correctly and was quietly unrecoverable at the next restart.
+      // `state.order` is the order fixed at game start and already contains this
+      // player: they were in `game.players` all along, missing a channel rather
+      // than a seat.
       if (!readChannels(game)[player.id]) {
-        await provisionChannels(ctx, game);
+        await provisionChannels(ctx, game, (playerID) => state.order.indexOf(playerID));
         if (!publishAll(game)) awaitingPublish.add(gameID);
         continue;
       }
@@ -1308,6 +1467,43 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * `src/admin/listeners.ts` carries the counting and the message, pure, so the
    * false-positive filters are testable without a server.
    */
+  /**
+   * Arm the one-shot check for an unregistered scope kind — `ISSUES.md` O14.
+   *
+   * The trap: `networkKinds` is passed to `AdminContext.init` in the consumer's
+   * own `server/src/index.js`, and skipping it is silently fatal. The channels
+   * are created in Tajriba either way; upstream's `Scopes` simply drops each one
+   * as an unknown kind, so nothing here ever holds a scope to write to, nothing
+   * throws, and every participant sits with an empty neighbourhood forever.
+   *
+   * `assertKindsRegistered` exists for this and cannot be called from here — see
+   * its comment. So this observes the consequence: channels demonstrably created,
+   * none ever materialised.
+   *
+   * One-shot per process, not per game, for two reasons. Registration cannot
+   * change while the process runs, so a second check could only repeat the first.
+   * And a per-game timer would re-accuse on every game of a broken batch, which
+   * turns one legible warning into noise.
+   *
+   * `unref()` so a pending check never holds a process open — this must not turn
+   * a clean exit into a hang in anyone's test suite. That mattered when the wait
+   * was a flat 5 s and matters more now it scales with the channel count
+   * (`ISSUES.md` O15): at n=200 the timer outlives the study by 20 s.
+   */
+  function armRegistrationCheck(created: number): void {
+    if (registrationCheckArmed || sawAnyChannel || created === 0) return;
+    registrationCheckArmed = true;
+    const waitMs = registrationWaitMs(created);
+    const timer = setTimeout(() => {
+      if (sawAnyChannel) return;
+      // Remembered so the OWNER listener can take it back if a channel turns up
+      // after all. See `registrationRetractionMessage`.
+      accusation = { created, waitMs };
+      warn(registrationNotDetectedMessage(created, waitMs));
+    }, waitMs);
+    timer.unref?.();
+  }
+
   function reportDuplicateLifecycleListeners(): void {
     // Once per process. `start` can fire again if the admin reconnects
     // (`initOrStop` tears the subscriptions down and rebuilds them), and the
@@ -1551,7 +1747,10 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         0
       ),
       channelScopes: channelScopes.size,
+      firstChannelMs,
       cachedViews: lastPublished.size,
+      endedGames: endedGames.size,
+      chatSeqs: lastOutbox.size,
     }),
     activeGames: () =>
       [...games.keys()]

@@ -7,9 +7,9 @@ If you only want to see it work, skip to [§8](#8-run-a-reconstruction-of-a-publ
 **Before anything else, read [the write-access warning in the README](../README.md#read-this-before-running-a-study-on-empirica).**
 It affects every Empirica study, whether or not you use this package, and it is the one thing here that changes whether some designs should be run at all.
 
-## 1. What this package does, in one paragraph
+## 1. What this package does
 
-Participants are nodes in a graph, and **each participant receives only their neighbours' projected state**. Not "the interface hides the rest" — the bytes never arrive. Each participant gets a private channel scope linked to them alone, and the server writes projections only there. The realised network and its seed are recorded on the batch scope, which participants cannot read, so a finished run is reproducible from stored data without handing the seating plan to the people inside it.
+Participants are nodes in a graph, and each participant receives only their neighbours' projected state. Not "the interface hides the rest" — the bytes never arrive. Each participant gets a private channel scope linked to them alone, and the server writes projections only there. The realised network and its seed are recorded on the batch scope, which participants cannot read, so a finished run is reproducible from stored data without handing the seating plan to the people inside it.
 
 ## 2. Install
 
@@ -61,20 +61,35 @@ inside the CLI. The private channel is a custom kind, so it has to be registered
   );
 ```
 
-`networkKinds` is `classicKinds` plus one entry. Skip this and the channels are never modelled,
-there is nothing to write views to, nothing errors, and participants simply sit with empty
-neighbourhoods forever.
+`networkKinds` is `classicKinds` plus one entry. Skip this and the channels are never modelled, there is nothing to write views to, nothing errors, and participants simply sit with empty neighbourhoods forever.
 
-> ### Nothing checks this for you — yet
+> ### If you skip it, you get told — a few seconds into the first game
 >
-> An earlier version of this document said `withNetwork` asserts on it at start and throws.
-> **It does not.** The assertion was specified, the helper was written
-> (`assertKindsRegistered`), and it is never called — found 2026-08-16 and tracked as
-> `ISSUES.md` O14.
+> ```
+> empirica-networks: 2 private channels were created 5s ago and none has materialised. Two
+> things do this, and this process cannot tell them apart.
 >
-> So this step is on you, and it is the one step where being wrong looks exactly like a
-> normal-but-empty study. After your first game starts, confirm the channels exist: open the
-> monitor, or check that `net.stats().channelScopes` is not zero.
+> 1. THE "nbhd" SCOPE KIND IS NOT REGISTERED — the likely one, and silently fatal: …
+> 2. The subscription is only slow. …
+> ```
+>
+> To fail *before* the server starts instead, call the eager check where you build the map:
+>
+> ```js
+> import { assertKindsRegistered, networkKinds } from "empirica-networks/admin";
+> assertKindsRegistered(networkKinds);   // throws, with the diff above
+> ```
+>
+> Worth knowing why this is two checks rather than one: `withNetwork` is handed the listeners
+> collector, not the kind map, so it cannot verify the registration directly — it detects the
+> *consequence*. And for four milestones neither check ran at all, while this document claimed
+> one did (`ISSUES.md` O14).
+>
+> The wait is 5 s for a small study and grows with the participant count, because channel
+> delivery queues behind Classic's game-start burst — at n=150 the first channel has been
+> measured taking 4.3 s on a healthy server (`ISSUES.md` O15). If the warning turns out to have
+> been impatient, the package retracts it in the same log rather than leaving you with an
+> accusation it cannot support.
 
 `docs/PLATFORM-NOTES.md` §6.
 

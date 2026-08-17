@@ -141,13 +141,22 @@ test("a told value reaches its target and NOBODY else — including the person i
   await withScenario(
     {
       n: N,
-      kinds: networkKinds,
+      kinds: networkKinds, recordWire: true,
       listeners: makeListeners((g) => (gameRef = g)),
       modeFunc: EmpiricaNetwork,
     },
     async ({ admin, participants }) => {
       // Record every frame each participant receives, below the mode, before
       // anything is told.
+      //
+      // Free, and safe to do this early — `wireStream()` shares the mode's own
+      // subscription rather than opening a second one (`src/verify/compat.ts`).
+      // Until 2026-08-16 it opened another, and doing that for four participants
+      // before `running()` doubled the wire traffic the server carried through
+      // Classic's O(n²) game-start burst: this file failed **4/12** on `gameID
+      // assigned`. Moving the capture below `running()` fixed the symptom; sharing
+      // the subscription removed the cause, so the capture is back where it belongs
+      // and now covers game start too (`ISSUES.md` O8).
       const wires = participants.map((p) => {
         const frames: string[] = [];
         (p as Participant<unknown>).wireStream().subscribe((c: unknown) => {
@@ -235,7 +244,7 @@ test("a told value is not readable as participant state, and vice versa", async 
   await withScenario(
     {
       n: N,
-      kinds: networkKinds,
+      kinds: networkKinds, recordWire: true,
       listeners: makeListeners((g) => (gameRef = g)),
       modeFunc: EmpiricaNetwork,
     },
@@ -271,7 +280,7 @@ test("tell() runs every check project() runs, plus its own", async () => {
   await withScenario(
     {
       n: N,
-      kinds: networkKinds,
+      kinds: networkKinds, recordWire: true,
       listeners: makeListeners((g) => (gameRef = g)),
       modeFunc: EmpiricaNetwork,
     },

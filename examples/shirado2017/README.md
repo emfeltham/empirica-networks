@@ -1,16 +1,21 @@
 # shirado2017 — the colour coordination game
 
-**A reconstruction of the human-only arm of the design in:**
+**A reconstruction of the design in:**
 
 > Shirado, H. & Christakis, N. A. (2017). Locally noisy autonomous agents improve global human
 > coordination in network experiments. *Nature* **545**, 370–374.
 > <https://doi.org/10.1038/nature22332>
 
-**Read this first: it is a reconstruction, not a replication — and it is not the whole paper.**
-The design was rebuilt from the paper. No data has been collected with this code and nothing has
-been compared to the authors' results. The paper's own contribution is what the **bots** do, and
-the bots are absent; see "What is not reconstructed". If you write about it, call it *a
-reconstruction of the human-only condition of the design in Shirado & Christakis (2017)*.
+**Read this first: it is a reconstruction, not a replication.** The design was rebuilt from the
+paper. No data has been collected with this code and nothing has been compared to the authors'
+results. If you write about it, call it *a reconstruction of the design in Shirado & Christakis
+(2017)*, and read "What is not reconstructed" — three things still are not, including the
+incentives.
+
+**Both arms are here.** The 30 control sessions, and the paper's own contribution: 3 autonomous
+agents x 3 noise levels x 3 placements. The agents run as a separate process, `server/bots.mjs`,
+on `empirica-networks/bots` — Empirica ships no artificial-player facility, so this took a new
+entry point rather than a config flag (`ISSUES.md` O10, [`docs/BOTS.md`](../../docs/BOTS.md)).
 
 Twenty participants sit in a network and each picks one of three colours, changing it whenever
 they like. The group succeeds when **every** participant differs from all of their own
@@ -44,9 +49,43 @@ empirica
 ```
 
 Open one browser window per participant with a different `?participantKey=`. Pick a treatment:
-**`Colour coordination (n=20)`** is the paper's design; **`(n=6, demo only)`** is what one person
-can drive by hand, and at that size the problem is close to trivial, so read nothing into the
-solution time.
+**`Colour coordination (n=20, humans only)`** is the paper's control arm; **`(n=6, demo only)`** is
+what one person can drive by hand, and at that size the problem is close to trivial, so read
+nothing into the solution time.
+
+### With the agents
+
+The nine agent conditions need a second process, and both halves need the **same** participant
+keys — the server has no other way to know which of its participants are agents:
+
+```sh
+cd examples/shirado2017/server
+export SHIRADO2017_BOT_KEYS=$(node bots.mjs --keys)
+
+# terminal 1 — the study
+cd .. && SHIRADO2017_BOT_KEYS=$SHIRADO2017_BOT_KEYS empirica
+
+# terminal 2 — the agents
+cd server && node bots.mjs
+```
+
+Then pick e.g. **`n=20, 3 agents: central, 10% noise`** — the paper's finding — and open
+**seventeen** browser windows, not twenty. `playerCount` is the size of the *network*, agents
+included. Recruiting twenty leaves the game one seat short forever; the runner says so after 30 s
+rather than sitting there quietly. `n=6, 3 agents: central, 10% noise (demo only)` needs three
+windows and is the one to try first.
+
+A shared key list rather than a `bot-` prefix, because **every participant in a game receives every
+other participant's `?participantKey=`** (`ISSUES.md` U10). A recognisable key would be readable
+from any browser — and this design does not tell subjects which of their neighbours are software,
+so that is the manipulation disclosed, not a metadata leak. `node bots.mjs --keys` generates keys
+shaped like the ones Empirica's own client produces; a deployed study should use keys drawn from
+the same space as its human recruitment keys. [`docs/BOTS.md`](../../docs/BOTS.md) §1.
+
+The agents are told their noise level by the **server**, on their own private channel
+(`net.tell` at stage start), so the treatment is the single source of truth for the condition.
+Two processes each reading their own copy is how a study runs 10%-noise agents and records them
+as 30%.
 
 Prove the neighbour-limited claim on your own machine:
 
@@ -68,17 +107,25 @@ node dist/verify/cli.cjs verify --n 4     # from a clone today
   differs from all their neighbours, and are given no way to see whether that has happened. The
   gap between those two is the coordination problem.
 - **Five minutes**, ending early the moment the network is properly coloured.
+- **The agents.** Three per session, on the paper's 3 x 3 grid of noise levels (0%, 10%, 30%) and
+  placements (central, peripheral, random). An agent switches away from a local conflict as a
+  human would, and with probability `noise` picks at random instead. Placement is by **degree**:
+  "central" is the three highest-degree nodes of the graph that session drew. It is implemented by
+  relabelling the generated graph rather than by generating a different one, so every arm draws
+  from the same distribution of structures — an arm whose degree distribution also differed would
+  confound position with structure.
 
 ## What is not reconstructed
 
-- **The bots — the paper's actual contribution.** Not a scoping choice: **`@empirica/core@1.12.5`
-  ships no artificial-player facility at all.** Searched the shipped bundles for `bot`, `virtual`,
-  `simulat`, `agent`, `artificial` and `robot`; the only hits are `bottom`, `both` and a CSS
-  property. Empirica v1 had bots; v2 does not. So the 9 bot conditions (3 noise levels × 3
-  placements) and the fixed-colour condition are absent, and what is here is the paper's **30
-  control sessions** — the arm its Fig. 1 is entirely about. Recorded as
-  `docs/PLATFORM-NOTES.md` §17 and `ISSUES.md` O10, including the route a bot would have to take
-  (a headless participant process, which `src/verify/harness.ts` already implements).
+- **The agents' pace, and one of their rules.** Two numbers here are choices, not measurements,
+  and they are stated rather than buried because both affect any comparison with the paper's
+  results. (1) `BOT_INTERVAL_MS` is 1500 ms — an agent's speed is obviously not neutral, and one
+  moving every 50 ms would dominate a session regardless of its noise level. (2) Whether the noisy
+  draw includes the colour an agent already has is not settled by what was reconstructed; it is
+  uniform over all three here, so an eps of 0.3 produces an *observable* change about 0.2 of the
+  time. Excluding the current colour would make eps the rate of visible change instead.
+- **The fixed-colour agent condition.** The paper also ran agents that never change; that arm is
+  not here.
 - **Incentives.** The paper paid subjects by how quickly all conflicts were resolved. This does
   not pay anything, and payment is exactly what makes a time-pressure task a time-pressure task.
 - **The solution-space measure.** The paper counts each network's proper 3-colourings via the
@@ -93,6 +140,15 @@ node dist/verify/cli.cjs verify --n 4     # from a clone today
 | `color` | `state.set("color", …)` — the participant's own channel | **only their neighbours**, via `project()` |
 | the global conflict count | nothing — held in the callbacks process | **nobody** |
 | time to solution | `game.batch.set(…)` at the end | **nobody but the server** |
+| an agent's noise level | `network(game).tell(playerID, "noise", …)` — that agent's own channel | **only that agent** |
+| which nodes are agents | `SHIRADO2017_BOT_KEYS`, in both processes' environments | the server — and, unavoidably, anyone reading their own wire (U10) |
+
+The last row is the uncomfortable one and is stated rather than glossed. The *list* is a shared
+secret between the two processes, but the identifiers themselves are not secret from participants:
+Classic delivers every participant's `?participantKey=` to every co-player. So the agents' keys are
+chosen to be indistinguishable from human ones rather than hidden. A subject who inspects their
+wire sees six participant keys and cannot tell which three are software — which is the best the
+platform allows, not a guarantee.
 
 **The global conflict count is computed on every colour change and published nowhere.** A
 participant who knew it would know when to stop trying, and not knowing is the coordination
@@ -112,10 +168,20 @@ At game end, into `data/<gameID>/` (override with `SHIRADO2017_OUT`):
 
 | File | One row per | Notes |
 |---|---|---|
-| `session.csv` | session | `solved`, `t_solution_ms`, node and edge counts, max degree |
-| `changes.csv` | colour change | `t_ms` since stage start, who, their degree, and the **global** conflict count after the change |
+| `session.csv` | session | `solved`, `t_solution_ms`, node and edge counts, max degree, and the agent condition |
+| `changes.csv` | colour change | `t_ms` since stage start, who, their degree, `is_bot`, and the **global** conflict count after the change |
 | `edges.csv` | tie | the package's format; static here, so it is the graph |
 | `views.ndjson` | delivered view | what each participant was shown, and when |
+| `bots.ndjson` | agent action | written by `server/bots.mjs`, in its own file because it is a separate process |
+
+**Record which nodes were agents, because nothing else does.** An agent writes the same key, on the
+same kind of channel, through the same code path as a human — that is the property they were built
+to have — so `is_bot` in `changes.csv` and `bot_indices` in `session.csv` are the only things that
+separate them. `bot_indices` is the seating, so an analysis can *check* the placement happened
+rather than trust the label: a placement bug produces a complete, plausible table with the
+manipulation silently absent. Note that `bot_noise` is **empty** rather than `0` in the human-only
+arm — "no agents" and "agents with zero noise" are two different conditions the paper ran, and a
+`0` in both would merge them.
 
 `t_solution_ms` is **empty** for an unsolved session, not `300000`. The paper censors at 300 s,
 and writing the limit as though it were an observation is how a censored value silently becomes
@@ -167,12 +233,20 @@ writing an empty file quietly.
 - `test/unit/shirado2017.test.ts` — the rules: what counts as a conflict, that an unchosen node
   conflicts with nobody, that `isSolved` requires *everyone* to have chosen, that
   `barabasiAlbert(20, 2)` stays inside the package's default envelope, and that an unsolved
-  session is censored rather than recorded as 300 s.
+  session is censored rather than recorded as 300 s. Plus the agents: that a 0%-noise agent really
+  is deterministic (it is the baseline the other arms are read against, so a fencepost there would
+  move every result), that an agent moves even when every colour conflicts — standing still is
+  what a deadlock is made of — and that `placeBots` leaves the **degree sequence unchanged** in
+  every arm, with a non-vacuity check that these graphs really do have hubs.
 - `test/e2e/shirado2017.test.ts` — this experiment's `callbacks.js`, **imported unmodified**,
   against a real Tajriba: a non-neighbour's colour never reaches a browser (asserted at the wire
   with per-participant sentinels, with the neighbour case as the non-vacuity arm), the global
   conflict count reaches nobody in any shape, and a proper colouring ends the session while an
   improper one does not.
+  Its agent arm runs three agents against this file, seated centrally: the placement survives the
+  round trip through Classic's seating, each agent is told noise 0.3 by the server (a move is the
+  only evidence that `tell` arrived — there is no other reader for a `told:` key), and `is_bot` is
+  recorded for the agents' moves and for nobody else's.
 - `npm run example:build shirado2017` (from the repo root) compiles the client; CI runs it for every
   example. Run `npm run example:install` first.
 

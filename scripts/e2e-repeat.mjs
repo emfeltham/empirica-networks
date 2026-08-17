@@ -3,6 +3,7 @@
  *
  *   node scripts/e2e-repeat.mjs test/e2e/topology_visibility.test.ts 20
  *   npm run test:repeat -- test/e2e/chat.test.ts 20
+ *   npm run test:repeat -- test/e2e/chat.test.ts 20 3000   # 3s settle between reps
  *
  * WHY THIS EXISTS. `ISSUES.md` O8 is an intermittent hang on "gameID assigned",
  * and the docs' rule for reading a red suite is now "re-read the FILE alone" — the
@@ -29,7 +30,7 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const [fileArg, countArg] = process.argv.slice(2);
+const [fileArg, countArg, delayArg] = process.argv.slice(2);
 
 if (!fileArg) {
   console.error("usage: node scripts/e2e-repeat.mjs test/e2e/<file>.test.ts [repetitions]");
@@ -45,6 +46,22 @@ if (!Number.isInteger(reps) || reps < 1) {
   console.error(`repetitions must be a positive integer, got "${countArg}"`);
   process.exit(1);
 }
+
+/**
+ * Optional settle delay BETWEEN repetitions, in ms.
+ *
+ * An instrument for O8, not a workaround. The hypothesis it tests: repetitions run
+ * back-to-back, `--test-force-exit` kills each process abruptly, and the next one
+ * starts while the previous tajriba child is still shutting down. If a gap changes
+ * the rate, teardown overlap is the mechanism and the fix belongs in the harness;
+ * if it does not, the hypothesis is dead and the gap cost nothing to rule out.
+ */
+const delayMs = Number(delayArg ?? 0);
+if (!Number.isFinite(delayMs) || delayMs < 0) {
+  console.error(`delay must be a non-negative number of ms, got "${delayArg}"`);
+  process.exit(1);
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const outDir = path.join(root, ".tmp-test-repeat");
 fs.rmSync(outDir, { recursive: true, force: true });
@@ -73,6 +90,7 @@ const failures = [];
 let totalMs = 0;
 
 for (let i = 1; i <= reps; i++) {
+  if (delayMs > 0 && i > 1) await sleep(delayMs);
   // Swept before each repetition, so a leftover server from repetition i-1 cannot
   // become repetition i's explanation (O8 spent a session on that confusion).
   sweep();
@@ -108,7 +126,8 @@ for (let i = 1; i <= reps; i++) {
 const rate = ((100 * failures.length) / reps).toFixed(1);
 console.log(
   `\n${path.relative(root, file)}: ${failures.length}/${reps} failed (${rate}%), ` +
-    `${(totalMs / reps / 1000).toFixed(1)}s per repetition`
+    `${(totalMs / reps / 1000).toFixed(1)}s per repetition` +
+    (delayMs > 0 ? `, ${delayMs}ms settle between repetitions` : "")
 );
 for (const f of failures) {
   console.log(`  #${f.i}: ${f.waits.join(" | ") || "see log"} — ${path.relative(root, f.log)}`);

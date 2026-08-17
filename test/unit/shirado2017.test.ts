@@ -13,9 +13,13 @@ import { makeRng } from "../../src/admin/seed.js";
 import { barabasiAlbert, degrees, maxDegree } from "../../src/topology/index.js";
 import {
   ATTACHMENT,
+  BOT_COUNT,
   COLORS,
   NODES,
+  NOISE_LEVELS,
+  PLACEMENTS,
   TIME_LIMIT_SECONDS,
+  botChoice,
   changeRows,
   conflictCount,
   conflictEdges,
@@ -24,6 +28,7 @@ import {
   fromLog,
   isSolved,
   localConflicts,
+  placeBots,
   sessionRows,
   // @ts-expect-error - plain JS example module, deliberately untyped
 } from "../../examples/shirado2017/server/src/design.js";
@@ -162,7 +167,15 @@ test("barabasiAlbert(20, 2) is inside the package's default envelope", () => {
 test("changeRows: durations, not wall clocks, and the hidden cost function", () => {
   const rows = changeRows("game-1", [
     { tMs: 1200, playerID: "p1", topologyIndex: 0, degree: 4, color: "green", conflictsAfter: 3 },
-    { tMs: 4800, playerID: "p2", topologyIndex: 1, degree: 2, color: "orange", conflictsAfter: 2 },
+    {
+      tMs: 4800,
+      playerID: "p2",
+      topologyIndex: 1,
+      degree: 2,
+      color: "orange",
+      isBot: true,
+      conflictsAfter: 2,
+    },
   ]);
 
   assert.equal(rows.length, 2);
@@ -173,10 +186,25 @@ test("changeRows: durations, not wall clocks, and the hidden cost function", () 
   assert.equal(rows[0].conflicts_after, 3);
   assert.equal(rows[1].conflicts_after, 2);
 
+  // Whose move it was. An agent and a human write the same key on the same kind of
+  // channel through the same code — the property the bots were built to have — so
+  // nothing in the data separates them unless this column does.
+  assert.equal(rows[0].is_bot, 0, "a human's move");
+  assert.equal(rows[1].is_bot, 1, "an agent's move");
+
   const header = toCSV(rows as Record<string, string | number>[]).split("\n")[0]!;
   assert.deepEqual(
     header.split(",").map((c) => c.replace(/^"|"$/g, "")),
-    ["game_id", "t_ms", "player_id", "topology_index", "degree", "color", "conflicts_after"],
+    [
+      "game_id",
+      "t_ms",
+      "player_id",
+      "topology_index",
+      "degree",
+      "color",
+      "is_bot",
+      "conflicts_after",
+    ],
     "the column contract with an analyst"
   );
 });
@@ -378,4 +406,312 @@ test("fromLog: a session that DID solve recovers its solution time", () => {
   assert.equal(recovered.session.tSolutionMs, 143_700);
   const files = exportFiles("g1", recovered.session, recovered.changes, "E", toCSV);
   assert.match(files["session.csv"]!, /"143700"/);
+});
+
+// ---------------------------------------------------------------- the agents
+//
+// The paper's contribution, and the part `ISSUES.md` O10 was about. These rules
+// are the whole behaviour of an agent: `server/bots.mjs` decides only WHEN to ask
+// and what to do with the answer.
+
+test("the agent conditions are the paper's", () => {
+  assert.equal(BOT_COUNT, 3, "three agents per session");
+  assert.deepEqual(NOISE_LEVELS, [0, 0.1, 0.3], "0%, 10%, 30% behavioural randomness");
+  assert.deepEqual([...PLACEMENTS].sort(), ["central", "peripheral", "random"]);
+});
+
+test("botChoice with no noise: stay when content, move when conflicted", () => {
+  const rng = makeRng(1);
+
+  // No conflict: stay. An agent that churned would add noise it was not asked for
+  // — the 0% condition has to actually be deterministic, since it is the control
+  // the other two are read against.
+  assert.equal(
+    botChoice({ ownColor: "green", neighbourColors: ["orange", "purple"], noise: 0, rng }),
+    "green"
+  );
+  assert.equal(botChoice({ ownColor: "green", neighbourColors: [], noise: 0, rng }), "green");
+
+  // Conflicted, with a way out: take it, and take one that is actually free.
+  for (let i = 0; i < 20; i++) {
+    const next = botChoice({
+      ownColor: "green",
+      neighbourColors: ["green", "orange"],
+      noise: 0,
+      rng,
+    });
+    assert.equal(next, "purple", "the only colour that conflicts with nobody");
+  }
+});
+
+test("botChoice with no noise: an agent with no colour yet picks one", () => {
+  // Otherwise an agent would sit uncoloured for the whole session and `isSolved`
+  // would never fire, because it requires that EVERY node has chosen.
+  const rng = makeRng(3);
+  for (let i = 0; i < 20; i++) {
+    const next = botChoice({ ownColor: undefined, neighbourColors: ["green"], noise: 0, rng });
+    assert.ok(COLORS.includes(next), `${next} is a colour`);
+  }
+});
+
+test("botChoice breaks a local deadlock rather than standing still", () => {
+  // Every colour is taken by a neighbour — the state the paper's Fig. 1a marks in
+  // dark red. Staying put is what a deadlock is made of, so the agent moves anyway,
+  // and it moves to a DIFFERENT colour: returning its own would be standing still
+  // with extra steps.
+  const rng = makeRng(5);
+  for (let i = 0; i < 30; i++) {
+    const next = botChoice({
+      ownColor: "green",
+      neighbourColors: ["green", "orange", "purple"],
+      noise: 0,
+      rng,
+    });
+    assert.notEqual(next, "green", "it moved");
+    assert.ok(COLORS.includes(next));
+  }
+});
+
+test("botChoice never returns anything that is not a colour", () => {
+  const rng = makeRng(11);
+  for (const noise of [0, 0.1, 0.3, 1]) {
+    for (const own of [undefined, ...COLORS]) {
+      for (const nbrs of [[], ["green"], ["green", "orange"], COLORS, [undefined, "green"]]) {
+        for (let i = 0; i < 10; i++) {
+          const next = botChoice({ ownColor: own, neighbourColors: nbrs, noise, rng });
+          assert.ok(COLORS.includes(next), `${JSON.stringify(next)} is not a colour`);
+        }
+      }
+    }
+  }
+});
+
+test("noise is the rate of the random branch, and the draw includes the current colour", () => {
+  // The documented resolution of the paper's one ambiguity, asserted so it cannot
+  // drift silently: the noisy draw is uniform over all three colours, so an eps of
+  // 0.3 produces an OBSERVABLE change about 0.2 of the time. Any comparison with
+  // the paper's numbers depends on which of the two conventions is in force.
+  const rng = makeRng(17);
+  const runs = 20_000;
+  let moved = 0;
+  for (let i = 0; i < runs; i++) {
+    // Content: with no noise this agent would never move, so every move below is
+    // the noise branch and nothing else.
+    const next = botChoice({
+      ownColor: "green",
+      neighbourColors: ["orange", "purple"],
+      noise: 0.3,
+      rng,
+    });
+    if (next !== "green") moved++;
+  }
+  const rate = moved / runs;
+  assert.ok(rate > 0.17 && rate < 0.23, `observable change rate ${rate}, expected about 0.2`);
+});
+
+test("noise 0 really is 0 and noise 1 really is 1", () => {
+  // The two endpoints, because a fencepost in the comparison would make the 0%
+  // condition slightly noisy — and the 0% arm is the baseline the others are read
+  // against, so that error would move every result.
+  const rng = makeRng(23);
+  for (let i = 0; i < 2000; i++) {
+    assert.equal(
+      botChoice({ ownColor: "green", neighbourColors: ["orange"], noise: 0, rng }),
+      "green",
+      "an agent at 0% noise with no conflict never moves"
+    );
+  }
+  // At noise 1 every branch is the random one, so a conflicted agent sometimes
+  // stays — which is the direct consequence of the uniform-over-three convention.
+  let stayed = 0;
+  for (let i = 0; i < 3000; i++) {
+    if (botChoice({ ownColor: "green", neighbourColors: ["green"], noise: 1, rng }) === "green") {
+      stayed++;
+    }
+  }
+  assert.ok(stayed > 800 && stayed < 1200, `stayed ${stayed}/3000, expected about a third`);
+});
+
+test("botChoice is reproducible from its rng, which is what makes the arm recordable", () => {
+  // The agents' randomness IS the manipulation, so an unrecorded stream is an
+  // unrecorded independent variable. Same seed, same session.
+  const seq = (seed: number) => {
+    const rng = makeRng(seed);
+    return Array.from({ length: 50 }, () =>
+      botChoice({ ownColor: "green", neighbourColors: ["green", "orange"], noise: 0.3, rng })
+    );
+  };
+  assert.deepEqual(seq(99), seq(99));
+  assert.notDeepEqual(seq(99), seq(100));
+});
+
+// ---------------------------------------------------------------- placement
+
+/** Degree per seat, from an edge list over seats. */
+function degreeBySeat(n: number, edges: number[][]): number[] {
+  const d: number[] = new Array(n).fill(0);
+  for (const edge of edges) {
+    d[edge[0]!]! += 1;
+    d[edge[1]!]! += 1;
+  }
+  return d;
+}
+
+test("placeBots puts the agents on hubs, on leaves, or anywhere — in the SAME graph", () => {
+  const n = 20;
+  const seats = [0, 1, 2];
+
+  for (let seed = 1; seed <= 25; seed++) {
+    const graph = barabasiAlbert(n, ATTACHMENT, { rng: makeRng(seed) });
+    const before = [...degreeBySeat(n, graph)].sort((a, b) => a - b);
+
+    for (const placement of PLACEMENTS) {
+      const placed = placeBots(graph, n, seats, placement, makeRng(seed + 1000));
+      const deg = degreeBySeat(n, placed);
+
+      // THE confound check, and it applies to every arm. Placement relabels; it
+      // must not change the graph. A "central" condition whose degree
+      // distribution also differed would be manipulating structure and position
+      // at once, and no analysis could separate them afterwards.
+      assert.deepEqual(
+        [...deg].sort((a, b) => a - b),
+        before,
+        `${placement}, seed ${seed}: the degree sequence changed, so this is not a relabelling`
+      );
+      assert.equal(placed.length, graph.length, "same number of ties");
+      assert.ok(
+        (placed as number[][]).every((edge) => edge[0] !== edge[1]),
+        "no self-loop was created by the relabelling"
+      );
+
+      const sorted = [...deg].sort((a, b) => b - a);
+      const botDegrees = seats.map((s) => deg[s]!);
+      if (placement === "central") {
+        assert.deepEqual(
+          [...botDegrees].sort((a, b) => b - a),
+          sorted.slice(0, 3),
+          `seed ${seed}: the agents hold the three highest degrees`
+        );
+      } else if (placement === "peripheral") {
+        assert.deepEqual(
+          [...botDegrees].sort((a, b) => a - b),
+          [...sorted].reverse().slice(0, 3),
+          `seed ${seed}: the agents hold the three lowest degrees`
+        );
+      }
+    }
+  }
+});
+
+test("central and peripheral are actually different positions", () => {
+  // Non-vacuity for the test above. If Barabási–Albert produced a near-regular
+  // graph at this size, every placement would be the same manipulation and the
+  // whole factor would be measuring nothing — so the difference is asserted rather
+  // than assumed from the generator's reputation.
+  const n = 20;
+  const seats = [0, 1, 2];
+  let separated = 0;
+  for (let seed = 1; seed <= 25; seed++) {
+    const graph = barabasiAlbert(n, ATTACHMENT, { rng: makeRng(seed) });
+    const central = degreeBySeat(n, placeBots(graph, n, seats, "central", makeRng(1)));
+    const peripheral = degreeBySeat(n, placeBots(graph, n, seats, "peripheral", makeRng(1)));
+    const sum = (d: number[]) => seats.reduce((t, s) => t + d[s]!, 0);
+    assert.ok(
+      sum(central) > sum(peripheral),
+      `seed ${seed}: central agents should hold more ties than peripheral ones`
+    );
+    if (sum(central) >= sum(peripheral) * 2) separated++;
+  }
+  assert.ok(separated >= 20, `only ${separated}/25 graphs had a clearly hubbed structure`);
+});
+
+test("placeBots is a bijection over seats: everybody is somewhere, and once", () => {
+  const n = 12;
+  const graph = barabasiAlbert(n, ATTACHMENT, { rng: makeRng(4) });
+  const placed = placeBots(graph, n, [3, 7], "central", makeRng(9));
+  const seatsUsed = new Set(placed.flat());
+  // Every seat appears, so nobody was dropped and nobody was duplicated into two
+  // positions — a permutation bug would leave one participant isolated and one
+  // doubled, and the graph would still look like a graph.
+  for (let s = 0; s < n; s++) {
+    assert.ok(seatsUsed.has(s), `seat ${s} is on no tie after relabelling`);
+  }
+});
+
+test("an unknown placement throws rather than quietly running the wrong arm", () => {
+  const graph = barabasiAlbert(10, ATTACHMENT, { rng: makeRng(2) });
+  assert.throws(
+    () => placeBots(graph, 10, [0], "centrall", makeRng(1)),
+    /unknown bot placement/,
+    "a typo in a treatment factor must not silently become `random`"
+  );
+});
+
+test("sessionRows: the condition is recorded, and human-only is empty rather than zero", () => {
+  const withBots = sessionRows("g1", {
+    n: 20,
+    edges: 37,
+    solved: true,
+    tSolutionMs: 100_000,
+    changes: 40,
+    maxDegree: 9,
+    bots: 3,
+    botPlacement: "central",
+    botNoise: 0.1,
+    botIndices: [4, 11, 2],
+  })[0];
+  assert.equal(withBots.bots, 3);
+  assert.equal(withBots.bot_placement, "central");
+  assert.equal(withBots.bot_noise, 0.1);
+  // The seating, so an analysis can CHECK the placement rather than trust the
+  // label — a placement bug produces a plausible table with the manipulation
+  // silently absent.
+  assert.equal(withBots.bot_indices, "4 11 2");
+
+  const humansOnly = sessionRows("g2", {
+    n: 20,
+    edges: 37,
+    solved: false,
+    tSolutionMs: "",
+    changes: 12,
+    maxDegree: 9,
+  })[0];
+  assert.equal(humansOnly.bots, 0);
+  // Empty, not 0: "no agents in this session" and "agents with zero noise" are
+  // two different arms the paper ran, and a 0 here would merge them.
+  assert.equal(humansOnly.bot_noise, "");
+  assert.equal(humansOnly.bot_placement, "");
+  assert.equal(humansOnly.bot_indices, "");
+});
+
+test("fromLog recovers which arm a killed session was in", () => {
+  // A rescued session that cannot say which condition it belonged to is a lost
+  // observation, not a rescued one — and for the agent conditions the condition is
+  // the entire point of the run.
+  const log = [
+    {
+      type: "graph",
+      n: 20,
+      edges: 37,
+      maxDegree: 9,
+      bots: 3,
+      botPlacement: "peripheral",
+      botNoise: 0.3,
+      botIndices: [0, 5, 9],
+      events: [],
+    },
+    { type: "change", tMs: 10, playerID: "p1", topologyIndex: 0, degree: 2, color: "green", isBot: true, conflictsAfter: 4 },
+  ];
+  const { session, changes } = fromLog(log);
+  assert.equal(session.bots, 3);
+  assert.equal(session.botPlacement, "peripheral");
+  assert.equal(session.botNoise, 0.3);
+  assert.deepEqual(session.botIndices, [0, 5, 9]);
+  assert.equal(changeRows("g", changes)[0].is_bot, 1, "the agents' moves survive recovery");
+
+  // A log written before the agents existed recovers as the human-only arm, which
+  // is what it was — rather than crashing on a missing field.
+  const old = fromLog([{ type: "graph", n: 20, edges: 37, maxDegree: 9, events: [] }]);
+  assert.equal(old.session.bots, 0);
+  assert.equal(sessionRows("g", old.session)[0].bot_noise, "");
 });
