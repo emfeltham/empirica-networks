@@ -14,6 +14,8 @@ Cut by what you are trying to do. If you are new, start at
 | [**BOTS**](BOTS.md) | Artificial participants: the policy interface, placement, counting them into `playerCount`, and why a bot's *name* is participant-visible |
 | [**GLOSSARY**](GLOSSARY.md) | Channel, projection, view, seat, told, envelope, U-numbers |
 | [**EXPERIMENTS**](EXPERIMENTS.md) | The two reconstructed papers: what each shows, what was left out, and why "reconstruction" is not "replication" |
+| [**EVALUATION**](EVALUATION.md) | The paper's empirical section: what a *platform* has to prove, and why simulated sessions are the right instrument rather than a fallback |
+| [**EVALUATION-RUNBOOK**](EVALUATION-RUNBOOK.md) | How to build and run `simulate`, written to be handed to someone who has not worked on this package |
 
 ## Running a study
 
