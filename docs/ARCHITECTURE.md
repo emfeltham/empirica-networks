@@ -67,7 +67,8 @@ src/
     identity.ts       identifier generation and the U10 warnings. Zero imports
     policy.ts         the BotPolicy / BotContext types. Type-only imports, so it bundles to nothing
   topology/
-    index.ts          15 generators + adjacency/degrees/components/isConnected
+    index.ts          14 generators + 6 measures (adjacency, degrees, meanDegree, maxDegree,
+                      components, isConnected). Pure, index-based, zero imports
     graphology.ts     the graphology bridge, kept behind its own subpath
   verify/             the `verify` CLI: harness, server, sentinel leak test, tcp cut
 ```
@@ -123,9 +124,6 @@ consequential silent failure.
   field plus a `protected` member of `Scopes`.
 - The **automatic** check (`registration.ts`, armed at step 7) observes the *consequence* instead
   — channels created, none materialised — and warns. See §3 step 7.
-
-Until 2026-08-16 there was only the first, and **nothing called it** while three documents recorded
-the trap as "impossible to skip silently" on the strength of it (`ISSUES.md` O14).
 
 **4 — Game start.** `collector.on("game", "start", onGameStartAttribute)`. The handler is held in
 a named `const` so the duplicate detector can exclude it *by identity* — as an inline arrow its
@@ -202,8 +200,9 @@ channel before doing any work. Measured by `npm run soak` arm B — `channelScop
 **9 — Recovery, if a previous process networked this game.** `tryRecover()` needs two durable
 things in two different places: the edge list from the batch scope, and each channel's
 `topologyIndex`. **Both are required.** The edge list alone is index pairs — it describes the
-shape without saying who sits where, which is precisely how a restart used to silently reassign
-everyone to different nodes while looking like it had worked (`test/e2e/restart.test.ts`). A
+shape without saying who sits where, and reconstructing seats from anything else is exactly how a
+restart silently reassigns everyone to different nodes while looking like it worked
+(`test/e2e/restart.test.ts`). A
 missing seat makes recovery **refuse** rather than guess: guessing produces a plausible network
 in which the wrong people are neighbours, and the run looks normal for the rest of its life.
 

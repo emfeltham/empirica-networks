@@ -427,24 +427,18 @@ which is the one that already builds.
 The general form: **check the part that can be wrong without looking wrong.** A fragment that
 stops compiling is visible to a reader; a renamed export is not.
 
-**Phase C — with the demonstration study (`PUBLICATION-PLAN.md` §3).**
+**Phase C — needs a real deployment.**
 
 10. `docs/DEPLOYING.md` for real, written *while* deploying, dated and versioned like
     PLATFORM-NOTES. The stub from Phase A lists what it has to cover.
-11. ~~`docs/DATA-AND-ANALYSIS.md` (§3.6)~~ — **written early, 2026-08-16, and here is why the
-    plan was wrong about it.** The deferral assumed the document was mostly *analysis workflow*,
-    which needs real data. It is mostly *schemas and file inventory*, which are code facts and
-    were knowable the whole time — and M6 Tier 2.1 made them package facts rather than
-    per-example ones by promoting the run log into the package, so there is now one answer to
-    "what does a run produce" instead of three.
+11. ~~`docs/DATA-AND-ANALYSIS.md` (§3.6)~~ — **done.** Only one part of it genuinely needed real
+    data: the R/Python path, which is written and **marked as not walked end to end**. The rest is
+    schemas and file inventory, which are code facts. The run log living in the package rather
+    than in each example is what gives one answer to "what does a run produce" instead of three.
 
-    What genuinely needed the data was narrower than the document: the R/Python path, which is
-    written and **marked as not walked end to end**. That marking is the deliverable of the
-    deferral, not the deferral itself.
-
-    The generalisable version, since this plan made the mistake twice: **defer the paragraph that
-    needs the measurement, not the document that contains it.** §3.2 is the case where the whole
-    document really is unmeasured, which is why it is a stub rather than a draft with warnings.
+    The generalisable rule: **defer the paragraph that needs the measurement, not the document
+    that contains it.** §3.2 is the case where the whole document really is unmeasured, which is
+    why it is a stub rather than a draft with warnings.
 
 **Phase D — done 2026-08-16.**
 
@@ -456,15 +450,14 @@ stops compiling is visible to a reader; a renamed export is not.
     an `[Unreleased]` section that says plainly nothing has been released, rather than
     back-dating milestone work into version numbers that never existed.
 
-**Phase C remains, and cannot be brought forward.** Items 10 and 11 need a study that has been
-run. Everything else in this plan is now written.
+**Item 10 remains, and cannot be brought forward.** It needs a deployment that has actually
+happened, which is off the critical path (`docs/EVALUATION.md` §6). Everything else in this plan
+is written.
 
-~~M6's remaining tiers do not block any of this, but note the overlap: Tier 2.1 promotes the run
-log into the package and Tier 2.2 adds a private-write hook, so do not document a shape that is
-about to move.~~ **Resolved: M6 completed 2026-08-16, all four tiers.** ARCHITECTURE and
-DATA-AND-ANALYSIS are written against the post-M6 surface — `read`, `stateOf()`, `log:`,
-`onPrivateState`, `activeGames()`, `GameRef` and the reworked envelope all included. The hazard
-the note was about did not materialise, because the docs waited.
+ARCHITECTURE and DATA-AND-ANALYSIS are written against the full M6 surface — `read`, `stateOf()`,
+`log:`, `onPrivateState`, `activeGames()`, `GameRef` and the reworked envelope all included.
+Documenting a shape while it is still moving is the hazard here, and the answer is to let it
+settle first.
 
 ## 7. Done-when
 

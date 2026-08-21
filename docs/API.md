@@ -4,9 +4,8 @@ Organised by import path, so the line at the top of your file tells you which se
 Each entry carries the reasoning behind the decision, which is the part worth reading — this is
 hand-written rather than generated from types for that reason.
 
-> **The surface is not frozen.** `PUBLICATION-PLAN.md` §2 freezes it at the first publish. This
-> page was extracted from the README against the post-M6 surface on 2026-08-16 and needs a
-> read-through at freeze time.
+> **The surface is not frozen.** `PUBLICATION-PLAN.md` §2 freezes it at the first publish, and
+> this page is the inventory that freeze signs off. Until then anything here can still move.
 
 | Path | Loads | Use from |
 |---|---|---|
@@ -22,6 +21,9 @@ hand-written rather than generated from types for that reason.
 The root barrel deliberately does **not** re-export the others. Pulling admin, player and React
 into one barrel is the mistake in `@empirica/core`'s own `index.ts`, which drags server-only code
 into client bundles.
+
+The package also ships one **binary**, `empirica-networks`, which is not imported from anywhere —
+see [The `verify` CLI](#the-verify-cli) at the foot of this page.
 
 ---
 
@@ -451,17 +453,17 @@ context needs an `@internal` field plus a `protected` member of upstream's `Scop
 
 ### The deadline scales, and the warning can be taken back
 
-Both because it was measured firing on correct code — `ISSUES.md` O15.
+Both because a flat deadline fires on correct code at large n — `ISSUES.md` O15.
 
 ```
 registrationWaitMs(created) = max(REGISTRATION_CHECK_MS,          // 5 s floor
                                   REGISTRATION_CHECK_PER_CHANNEL_MS * created)   // 100 ms each
 ```
 
-The flat 5 s was justified by "channels materialise in milliseconds", which is true at small n
-and false at large. Slowest first-channel latency, three runs per cell
-(`docs/PLATFORM-NOTES.md` §16a): **86 ms at n=25, 2320 ms at n=100, 4287 ms at n=150, 5870 ms at
-n=200.** At n=150 — inside the supported envelope — the old deadline had 14% left.
+"Channels materialise in milliseconds" is true at small n and false at large. Slowest
+first-channel latency, three runs per cell (`docs/PLATFORM-NOTES.md` §16a): **86 ms at n=25,
+2320 ms at n=100, 4287 ms at n=150, 5870 ms at n=200.** At n=150 — inside the supported
+envelope — a flat 5 s would have 14% of the deadline left.
 
 | | |
 |---|---|
@@ -479,9 +481,6 @@ unanswered claim that their server is misconfigured.
 the behaviour and a consumer can recognise it. The wait is overridable for tests via
 `EMPIRICA_NETWORKS_REGISTRATION_CHECK_MS` — which replaces the whole computation, not just the
 floor — deliberately an env seam rather than a config field.
-
-> Until 2026-08-16 there was only the eager check and **nothing called it**, while three documents
-> recorded the trap as "impossible to skip silently" on the strength of it — `ISSUES.md` O14.
 
 ## Reading the realised network
 
@@ -508,16 +507,17 @@ Limits on what may be published, enforced by default.
 Degree is checked at game start, before provisioning and before anything is recorded, so an
 out-of-envelope topology fails while the experiment is still abandonable.
 
-**Why three and not one.** The measurement behind the old flat cap of 16 swept *sparse* graphs
-while varying n, so 16 was a number about **n** being enforced as a number about **degree** — and a
-published design needing a full neighbourhood at n=20 had to override it. When that was measured
-properly (`npm run bench -- --dense`), a complete graph at n=20 published *faster* than a degree-8
-ring at n=50. So the per-node cap came off within the measured regime.
+**Why three and not one, and why `maxDegree` depends on n.** A flat cap of 16 at every size would
+be a number about **n** enforced as a number about **degree**: the sweep behind it varies n over
+*sparse* graphs, so it says nothing about degree at a fixed n — and a published design needing a
+full neighbourhood at n=20 would have to override it. Measured directly
+(`npm run bench -- --dense`), a complete graph at n=20 publishes *faster* than a degree-8 ring at
+n=50, which is why there is no per-node cap inside the measured regime and 16 stands only above it.
 
-But the bench projected two fields, so it established that degree is cheap **at small view sizes**.
-Degree × view size is what a participant's connection actually carries. `maxNeighbourhoodBytes`
-went on as the cap came off: 49 views of 1.5 KiB are each well inside `maxViewBytes` and add up to
-73 KiB. **Lifting a limit is only honest if you name what it was accidentally guarding.**
+But that bench projects two fields, so what it establishes is that degree is cheap **at small view
+sizes**. Degree × view size is what a participant's connection actually carries, and guarding it is
+`maxNeighbourhoodBytes`'s job: 49 views of 1.5 KiB are each well inside `maxViewBytes` and add up
+to 73 KiB. **Lifting a limit is only honest if you name what it was accidentally guarding.**
 
 Also exported: `resolveEnvelope`, `defaultMaxDegree`, `DEFAULT_ENVELOPE`, `MEASURED_DENSE_N`,
 `MEASURED_SPARSE_DEGREE`, `EnvelopeError`, and the `checkDegrees` / `checkViewBytes` /
@@ -580,11 +580,10 @@ await monitor(net, {
 > view with a login, it is the ability to write any attribute on any node. Do not build one.
 
 It does not survive a server restart, because nothing does — it says the game is gone **and clears
-the picture**, rather than leaving a dead study on screen as though it were live. That sentence was
-written here before anything checked it, and until 2026-08-16 the page kept the entire graph and
-table behind the banner (`ISSUES.md` O9); it is now asserted in a real browser by
-`test/browser/monitor_page.ts`. A *dropped stream* is deliberately different: the graph stays, with
-a banner saying it is frozen, because the study itself may well still be running. And it is sized
+the picture**, rather than leaving a dead study on screen as though it were live, and
+`test/browser/monitor_page.ts` asserts that in a real browser. A *dropped stream* is deliberately
+different: the graph stays, with a banner saying it is frozen, because the study itself may well
+still be running. And it is sized
 for n ≤ 50.
 
 `GET /api/state` returns `{ snapshot, positions }`, where `snapshot` is `{ n, edges, order }` —
@@ -669,7 +668,7 @@ TypeScript users can name the projection: `useNeighbors<{ id: string; choice: st
 
 # `empirica-networks/topology` · `/topology/graphology`
 
-See **[TOPOLOGIES.md](TOPOLOGIES.md)** — 15 generators, 6 measures, and the graphology bridge,
+See **[TOPOLOGIES.md](TOPOLOGIES.md)** — 14 generators, 6 measures, and the graphology bridge,
 with the parameters, connectivity guarantees and envelope implications of each.
 
 ---
@@ -798,6 +797,74 @@ Isomorphic pieces only.
 move — the channel index (every participant got every channel id, which with no write ACL is the
 capability needed to write into someone else's channel) and the realised network. It is kept as an
 empty record so the reason survives rather than being rediscovered.
+
+---
+
+# The `verify` CLI
+
+One binary, one command. It runs the leak check against **your** installed Empirica, so the claim
+this package exists to make is something you reproduce in about thirty seconds rather than take on
+trust — and it doubles as the upgrade canary: run it after bumping `@empirica/core`.
+
+```sh
+npx empirica-networks verify --n 4        # once published
+node dist/verify/cli.cjs verify --n 4     # from a clone, after `npm run build`
+```
+
+| Option | Default | |
+|---|---|---|
+| `-n`, `--n <count>` | 4 | Participants. **Minimum 4**, and refused below that: on a smaller ring everyone is everyone's neighbour, so there is no non-neighbour and a pass would prove nothing |
+| `--topology <name>` | `ring` | The only value today |
+| `-q`, `--quiet` | off | Print `PASS` or `FAIL` and nothing else. The CI form |
+| `-h`, `--help` | | Usage |
+
+**Exit code 0 on PASS, 1 on FAIL, on a usage error, and on a run that could not start.** The last
+one is deliberate: a check that cannot run must not be mistaken for a check that passed.
+
+**Requires the Empirica CLI on PATH** (`curl https://install.empirica.dev | sh`). `verify` boots a
+real Tajriba in a temporary directory and cleans it up, so it touches nothing in your project and
+can be run from anywhere — but run it from the half where you installed the package (`server/`),
+because that is what makes the version line below report *your* study's `@empirica/core`.
+
+```
+  @empirica/core bundled into this CLI : 1.12.5
+  @empirica/core installed here        : 1.12.5
+
+  … connected 4 participants
+  … waiting for projections to be published
+
+  empirica-networks verify — neighbour-limited visibility
+  topology: ring of 4
+
+  non-neighbour sentinels received : 0   (must be 0)
+  neighbour sentinels delivered    : 8/8 (non-vacuity)
+  control values observed          : 12  (must be > 0, proves detection works)
+
+  PASS
+```
+
+**Three arms, all required.** A clean result with a silent control means the check is blind; a
+clean result with nothing delivered means the projection never ran. Most privacy tests are wrong
+in exactly one of those two ways, so both are reported as failures rather than as a pass.
+
+Sentinels are high-entropy tokens held server-side and injected into projections. Nothing writes
+them to a scope, and matching is by substring over raw wire frames, so a leak through a channel
+nobody thought to enumerate is still caught.
+
+**When the two versions differ it says so, and says what that costs:**
+
+```
+  NOTE: these differ. This run verifies the mechanism against 1.12.5,
+  not against your installed 1.13.0.
+```
+
+The CLI compiles a copy of `@empirica/core` in, because Empirica cannot be loaded unbundled
+([§3a](PLATFORM-NOTES.md#3a-the-published-empiricacore-cannot-be-loaded-from-raw-node-at-all-)).
+So a differing installation is a run whose result does not transfer, and saying that is the only
+honest option available — the alternative is a green tick that implies a test nobody performed.
+
+`bench`, `soak` and `ceiling` are **not** part of this binary. They are repository scripts for
+working on the package itself; [TESTING.md](TESTING.md) §3 has them.
 
 ---
 

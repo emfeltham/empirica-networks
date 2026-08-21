@@ -13,9 +13,15 @@ withNetwork(Empirica, {
 });
 ```
 
-Every generator is **pure, zero-dependency and index-based**: it returns `Array<[number,
-number]>` over node indices `0…n-1`, and `withNetwork` maps indices onto participants. You can
-return any edge list you like, from anywhere — these are a convenience, not a gate.
+**Fourteen generators and six measures.** Every generator is **pure, zero-dependency and
+index-based**: it returns `Array<[number, number]>` over node indices `0…n-1`, and `withNetwork`
+maps indices onto participants. You can return any edge list you like, from anywhere — these are a
+convenience, not a gate.
+
+The function is called once per game with `{ game, players, playerCount, rng }`. **`players[i]` is
+the participant who will occupy index `i`**, which is what makes *who sits where* addressable: to
+place particular participants at particular positions, relabel the graph you generated rather than
+reordering people. [BOTS §4](BOTS.md) is the worked case.
 
 ## Three rules that apply to all of them
 

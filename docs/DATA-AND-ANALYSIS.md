@@ -203,7 +203,9 @@ import { UndirectedGraph } from "graphology";
 const g = toGraphology(UndirectedGraph, n, edges, { order });
 ```
 
-Pass `UndirectedGraph`, **not** `Graph` — see the warning in the README's graphology section.
+Pass `UndirectedGraph`, **not** `Graph`. graphology's default is a *mixed* graph, whose ratio
+metrics count directed slots this module never fills, so density comes back wrong with nothing
+erroring — [TOPOLOGIES.md](TOPOLOGIES.md#rendering-and-measuring-elsewhere) has the figures.
 
 `GET /api/state` on a running monitor returns `{ snapshot, positions }` where `snapshot` is
 `{ n, edges, order }`, which is exactly that signature. It is the shortest route into the
@@ -216,8 +218,7 @@ graphs for a dynamic network; `views.csv` joins to `edges.csv` on `(viewer, neig
 > **Not yet walked end to end.** No analysis of a real dataset has been done in either language
 > from this package's output — the schemas above are read off the code, and the join keys are
 > stated by design rather than exercised. Most network researchers analyse in R or Python, so
-> this is the section most likely to be wrong in a way only doing it will reveal. It should be
-> rewritten as part of `PUBLICATION-PLAN.md` §3.
+> this is the section most likely to be wrong in a way only doing it will reveal.
 
 ## 6. Recovery scripts
 
@@ -225,13 +226,13 @@ Both reconstructions ship a `recover.mjs` that rebuilds their CSVs from a run's 
 fact — the thing you reach for when a session ended badly. They are worth reading as worked
 examples of §2's offline path.
 
-They are worth reading for one design decision in particular, settled in M6 Tier 4.
-`examples/shirado2017` used to recover an **empty** `edges.csv`, because its network is static and
-lived only on the batch scope. The fix was to log the package's own events verbatim —
-`net.log(game, { type: "graph", …, events: network(game).history() })` — rather than have the
-script reconstruct an edge list from a snapshot. That is what makes recovery *byte-identical*:
-`edgeRows` keys every row's `t` on the event's own `at`, which a reconstruction would have had to
-invent. Verified against a real log, including a game torn down mid-run.
+They are worth reading for one design decision in particular. `examples/shirado2017`'s network is
+static and lives only on the batch scope, so a script left to reconstruct an edge list from a
+snapshot recovers an **empty** `edges.csv` — or, at best, one whose timestamps it has invented.
+Instead the example logs the package's own events verbatim —
+`net.log(game, { type: "graph", …, events: network(game).history() })` — which is what makes
+recovery *byte-identical*: `edgeRows` keys every row's `t` on the event's own `at`. Verified
+against a real log, including a game torn down mid-run.
 
 The generalisable rule: **log the events, not the state they add up to.** A snapshot can always be
 replayed from events; events cannot be recovered from a snapshot.

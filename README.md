@@ -1,11 +1,15 @@
 # empirica-networks
 
-Network experiments for [Empirica](https://empirica.ly): participants are nodes in a graph,
-and **each participant sees only their neighbours' state**.
+Network experiments for [Empirica](https://empirica.ly): participants are nodes in a graph, and **each participant sees only their neighbours' state**.
 
-Status: **M6 complete, 2026-08-16.** The mechanism works end to end and is covered by tests; two
-published network experiments are reconstructed here and exercised by the same suite. The public
-API is not frozen and **the package is not on npm yet** — see [Installing](#installing).
+Status: **it runs real games today, and is not yet published.** All three examples in this repo
+play end to end against a real Empirica server, and the read-privacy guarantee they depend on is
+enforced and tested, not just documented — see [Runnable examples](#runnable-examples) and
+[Verify it yourself](#verify-it-yourself). What doesn't hold yet: the public API is unfrozen, and
+the package stays `private: true` at `0.0.0` **on purpose**, pending disclosure of an unpatched
+upstream vulnerability to Empirica's maintainers (`PUBLICATION-PLAN.md` §1) — see
+[Installing](#installing). Development is tracked by milestone; **[M7](CHANGELOG.md#unreleased)**
+is the latest, complete as of 2026-08-16.
 
 Not affiliated with, or endorsed by, the Empirica project. The name is descriptive.
 
@@ -15,21 +19,17 @@ Not affiliated with, or endorsed by, the Empirica project. The name is descripti
 | **The API** | [`docs/API.md`](docs/API.md) — every export, with the reasoning behind each decision |
 | Something is silently wrong | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) — indexed by symptom, not by cause |
 | How it works inside | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the lifecycle, the publish path, where every value lives |
-| Choosing a structure | [`docs/TOPOLOGIES.md`](docs/TOPOLOGIES.md) — 15 generators, with their limits |
+| Choosing a structure | [`docs/TOPOLOGIES.md`](docs/TOPOLOGIES.md) — 14 generators, with their limits |
 | Planning a real study | [`docs/DEPLOYING.md`](docs/DEPLOYING.md) — the pre-flight checklist, and what is not yet documented |
 | Getting the data out | [`docs/DATA-AND-ANALYSIS.md`](docs/DATA-AND-ANALYSIS.md) — every column of every table |
 | A real study to read | [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md) — two reconstructed papers |
 | Known defects | [`ISSUES.md`](ISSUES.md) — ours and upstream's |
+| Artificial participants | [`docs/BOTS.md`](docs/BOTS.md) — the policy interface, placement, and why a bot's *name* is participant-visible |
 | Everything else | [`docs/`](docs/README.md) — the documentation index |
-| Why it is shaped this way | `MODULE-DESIGN.md` — the design record, kept alongside the investigation that produced it rather than in this repo |
 
 ## Read this before running a study on Empirica
 
-**Empirica has no write access control, and this affects your study whether or not you use this
-package.** Any participant who knows a node id can set any attribute on it — including on another
-participant's `player` scope, whose id every participant already knows, because Classic
-cross-links everyone to everyone. `protected: true` is documented as "not updatable by other
-Participants" and is **not enforced**.
+**Empirica has no write access control, and this affects your study whether or not you use this package.** Any participant who knows a node id can set any attribute on it — including on another participant's `player` scope, whose id every participant already knows, because Classic cross-links everyone to everyone. `protected: true` is documented as "not updatable by other Participants" and is **not enforced**.
 
 In practice, for a participant who opens the browser console:
 
@@ -39,26 +39,13 @@ In practice, for a participant who opens the browser console:
 
 What to do about it, in order:
 
-1. **Treat every participant-written value as untrusted input**, exactly as you would a form
-   field on a public website. Compute anything that matters server-side, from values you can
-   attribute.
-2. **Keep the record of account somewhere participants cannot write** — the batch scope. Both
-   reconstructions in this repo do this for payoffs, and say so at the call site.
-3. **Judge whether your design gives anyone a reason to bother.** A study where altering
-   someone else's state pays — a competitive game, a bonus tied to relative performance — is
-   exposed in a way a survey is not.
+1. **Treat every participant-written value as untrusted input**, exactly as you would a form field on a public website. Compute anything that matters server-side, from values you can attribute.
+2. **Keep the record of account somewhere participants cannot write** — the batch scope. Both reconstructions in this repo do this for payoffs, and say so at the call site.
+3. **Judge whether your design gives anyone a reason to bother.** A study where altering someone else's state pays — a competitive game, a bonus tied to relative performance — is exposed in a way a survey is not.
 
-This module does not, and cannot, claim that a participant's state is tamper-proof. Measured in
-`test/e2e/participant_write.test.ts` and `test/e2e/upstream_u1.test.ts`; mechanism in
-`docs/PLATFORM-NOTES.md` §4a; tracked as `ISSUES.md` U1, which is going through private
-disclosure to Empirica's maintainers (`docs/upstream/DISCLOSURE.md`).
+This module does not, and cannot, claim that a participant's state is tamper-proof. Measured in `test/e2e/participant_write.test.ts` and `test/e2e/upstream_u1.test.ts`; mechanism in `docs/PLATFORM-NOTES.md` §4a; tracked as `ISSUES.md` U1, which is going through private disclosure to Empirica's maintainers (`docs/upstream/DISCLOSURE.md`).
 
-**And every participant learns every co-player's recruitment identifier.** Same root cause —
-Classic cross-links everyone to every player scope — so the value of `?participantKey=` is
-delivered to everyone else in the game. If that key is a Prolific PID or an MTurk worker ID, your
-subjects are handed each other's, and platform worker IDs are stable across studies. Make
-`participantKey` an opaque per-study token and keep the mapping outside Empirica. Measured in
-`test/e2e/bots.test.ts`; `docs/PLATFORM-NOTES.md` §22; `ISSUES.md` U10.
+**And every participant learns every co-player's recruitment identifier.** Same root cause — Classic cross-links everyone to every player scope — so the value of `?participantKey=` is delivered to everyone else in the game. If that key is a Prolific PID or an MTurk worker ID, your subjects are handed each other's, and platform worker IDs are stable across studies. Make `participantKey` an opaque per-study token and keep the mapping outside Empirica. Measured in `test/e2e/bots.test.ts`; `docs/PLATFORM-NOTES.md` §22; `ISSUES.md` U10.
 
 ## Installing
 
@@ -90,15 +77,17 @@ and breaks every `instanceof` inside Empirica, with a symptom that names nothing
 participant stuck on "Waiting for other players" with a full game
 ([TROUBLESHOOTING](docs/TROUBLESHOOTING.md), `docs/PLATFORM-NOTES.md` §11).
 
-**The name is settled** (`MODULE-DESIGN.md` §13, decision 3): `empirica-networks`, unscoped,
-chosen over `@yale-hnl/empirica-networks` because discovery is the binding constraint in an
-ecosystem with no registry, no plugin API and no curated list. Renaming after the first publish
-would be a breaking change, which is why it was decided before rather than at publish time.
+**The name is settled**: `empirica-networks`, unscoped, chosen over `@yale-hnl/empirica-networks`
+because discovery is the binding constraint in an ecosystem with no registry, no plugin API and no
+curated list. Renaming after the first publish would be a breaking change, which is why it was
+decided before rather than at publish time (`PUBLICATION-PLAN.md` §2).
 
 ## Quickstart
 
-Three edits to a stock `empirica create` project. The first is **mandatory and silently fatal if
-skipped** ([O14](ISSUES.md) — nothing checks it for you yet).
+Three edits to a stock `empirica create` project. The first is **mandatory**, and skipping it is
+silently fatal in itself — nothing errors, and participants sit with empty neighbourhoods forever.
+The package checks for it: `assertKindsRegistered(networkKinds)` fails before the server starts,
+and failing that, an automatic check warns a few seconds into the first game.
 
 ```diff
   // server/src/index.js
@@ -160,10 +149,10 @@ appears nowhere in the bytes a tab received, while a player attribute does.
 
 **The network itself is private too.** The seed and realised edge list are recorded on the *batch*
 scope — the one durable scope measured not to be delivered to participants — so a finished run
-stays reproducible from stored data without handing the seating plan to the people inside it. They
-were briefly on the game scope, where every participant received both; that is fixed and locked by
-`test/e2e/topology_visibility.test.ts`, which checks the participant's own scope *and* the raw
-wire.
+stays reproducible from stored data without handing the seating plan to the people inside it. On
+the game scope, which is the obvious place for them, every participant receives both; that is
+locked out by `test/e2e/topology_visibility.test.ts`, which checks the participant's own scope
+*and* the raw wire.
 
 **What does not hold: write integrity.** Read privacy is structural; write integrity does not exist
 at all, anywhere in Empirica — see [above](#read-this-before-running-a-study-on-empirica).
@@ -196,6 +185,10 @@ them to a scope, and matching is by substring over raw wire frames, so a leak th
 nobody enumerated is still caught. The CLI compiles a copy of `@empirica/core` in, because
 Empirica cannot be loaded unbundled — it prints the bundled version alongside yours and warns if
 they differ, rather than implying it tested yours.
+
+It needs the Empirica CLI on PATH, boots its server in a temporary directory, and exits non-zero
+on a failure *or* on a run that could not start. Options and exit codes:
+[`docs/API.md`](docs/API.md#the-verify-cli).
 
 ## Runnable examples
 

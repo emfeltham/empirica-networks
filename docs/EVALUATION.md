@@ -1,6 +1,6 @@
 # Evaluating the platform
 
-`PUBLICATION-PLAN.md` §3, rewritten 2026-08-16 after the framing was corrected.
+The plan for `PUBLICATION-PLAN.md` §3.
 
 **The contribution is a platform.** The paper is a methods/tool paper extending Empirica to
 network-structured designs (§4). So the empirical section is a **platform evaluation**, not a
@@ -30,8 +30,8 @@ observation is load-bearing for everything below.
 
 ## 2. The instrument: simulated sessions at full scale
 
-Not a substitute for anything. It is the correct instrument for C1, C3, C4 and C5, and the only
-one that can produce C5 at all.
+Simulated sessions are the correct instrument for C1, C3, C4 and C5, and the only one that can
+produce C5 at all.
 
 **The machinery already exists.** `test/e2e/shirado2017.test.ts` imports
 `examples/shirado2017/server/src/callbacks.js` **unmodified** against a real Tajriba;
@@ -59,9 +59,9 @@ to get wrong in a write-up, where it would read as a result.
 
 ## 3. What simulation does better than people
 
-Not a consolation prize: **C5 is unreachable with a human sample.** Simulated participants can be
-told to drop out at a chosen second, never submit, disconnect mid-stage and return, or attempt a
-write they should not be able to make. Those are the failures a platform has to survive, and you
+**C5 is unreachable with a human sample.** Simulated participants can be told to drop out at a
+chosen second, never submit, disconnect mid-stage and return, or attempt a write they should not
+be able to make. Those are the failures a platform has to survive, and you
 cannot ask 17 people to produce them on cue — or ethically at all, in the last case.
 
 ## 4. The gap simulation leaves, and how to close most of it
@@ -77,17 +77,17 @@ React client and a real browser WebSocket inside a full-size network, at a fract
 twenty browser contexts. A second step after `simulate`, because Playwright at that scale needs
 its own measurement before it is trusted.
 
-## 5. What this takes off the critical path
+## 5. What is not on the critical path
 
 Simulated participants have synthetic identifiers, so U10 does not apply to them.
 
-- **U10 leaves §3's critical path.** It remains a live obligation on its own terms
+- **U10 does not gate the empirical section.** It is a live obligation on its own terms
   (`PUBLICATION-PLAN.md` §1), and it stays *out of* the paper by the standing decision to keep
-  disclosure separate from paper content — but it no longer gates the empirical section.
-- **IRB, the payment layer and recruitment leave the plan entirely.** The incentive work sketched
-  in the previous version of this document is **de-scoped, not deferred**.
-- Publication is then gated by §1's disclosure obligation and §2's API freeze, and by nothing in
-  the evaluation itself.
+  disclosure separate from paper content.
+- **IRB, a payment layer and recruitment are not part of this plan.** The incentive layer is
+  **de-scoped, not deferred**.
+- Publication is gated by §1's disclosure obligation and §2's API freeze, and by nothing in the
+  evaluation itself.
 
 ## 6. A real deployment, kept off the critical path
 

@@ -39,11 +39,11 @@ listener detector's shape analysis, the NDJSON sink's batching.
 **Cannot prove:** that any of it is wired up *to Empirica*. Every silent failure this package
 documents was a wiring failure, and no fake can tell you the real dispatcher behaves like the fake.
 
-**One qualification, added 2026-08-16.** `test/unit/fake_admin.ts` supplies a collector and an
+**One qualification.** `test/unit/fake_admin.ts` supplies a collector and an
 `EventContext`, which is everything `withNetwork` needs and does not construct — so the whole
 admin lifecycle (game start, provisioning, channels materialising, the chat relay, participant
-connect, game end) is drivable here in about a millisecond. The tier *can* now prove things about
-how our own handlers interact, and that widening has already paid for itself twice: the
+connect, game end) is drivable here in about a millisecond. The tier *can* prove things about
+how our own handlers interact, and that reach has paid for itself twice: the
 `lastOutbox` defect in `ISSUES.md` O5, which needs several sequential games to appear, and the
 seat-index defect in O4, which needs a player who has no `participantID` at game start. Neither
 was affordable in e2e — O8 measured its headroom at one participant wide, and the cost of a
@@ -233,21 +233,21 @@ So the flake tracks the weight of the *whole* run, not the number of e2e files, 
 
 ### The expensive shapes
 
-**1. ~~Opening extra wire subscriptions before the batch.~~ Fixed in the harness, 2026-08-16.**
-`wireStream()` used to call `part.changes()`, which opens a *whole new* GraphQL subscription — so
-watching n participants doubled the traffic the server carried for each of them, and doing it
-before `createBatch` starved Classic's assignment. That was the cause of `ISSUES.md` O8.
+**1. Opening extra wire subscriptions before the batch — handled by the harness.** A second
+GraphQL subscription per participant, which is what `part.changes()` opens, doubles the traffic the
+server carries for each of them, and opening it before `createBatch` starves Classic's assignment.
+That is the mechanism behind `ISSUES.md` O8.
 
-`makeSharedProvider` now `share()`s one subscription between the mode and every observer, so
+`makeSharedProvider` `share()`s one subscription between the mode and every observer, so
 `wireStream()` costs nothing and may be called whenever you like. **If your test subscribes after
 the scenario has started and needs the history, pass `recordWire: true` to `withScenario`** — it
 replays every frame since connect. Every leak test needs it, because the non-vacuity control has
 to be visible too.
 
 **2. Waiting for an absence.** Still expensive, and still worth avoiding. It costs a timeout by
-construction and is a weaker claim than the positive assertion usually available beside it. An
-`envelope.test.ts` arm that threw and then waited 8 s to confirm nothing published was rewritten
-to assert the warning positively via `onExceed: "warn"` — one server, **0.25 s**.
+construction and is a weaker claim than the positive assertion usually available beside it.
+`envelope.test.ts` asserts the warning positively via `onExceed: "warn"` — one server,
+**0.25 s** — rather than throwing and then waiting 8 s to confirm nothing published.
 
 **3. Running at a larger n than the claim needs.** `kind_registration.test.ts` at n=2 made
 `told.test.ts` fail twice consecutively; at n=1 the tier went green. Ask what the smallest

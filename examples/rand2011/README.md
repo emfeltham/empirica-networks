@@ -149,7 +149,8 @@ At game end, into `data/<gameID>/` (override with `RAND2011_OUT`):
 
 All keyed on `game_id`, so `rounds.csv` joins straight onto `edges.csv` — "did this person lose
 ties after defecting" is a merge, not a conversation with whoever ran the study. Flatten the
-views with `viewRows()`; see the README's export section.
+views with `viewRows()`; every column of every table is in
+[`docs/DATA-AND-ANALYSIS.md`](../../docs/DATA-AND-ANALYSIS.md).
 
 `views.ndjson` is on because `project()` here reads `stateOf()`, so a delivered view is **not**
 reconstructible afterwards from the edge log plus an attribute export. Those tell you what

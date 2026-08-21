@@ -83,9 +83,9 @@ Twenty participants each pick one of three colours and may change at any time. T
 - **`barabasiAlbert` at the paper's parameters**, staying inside the default envelope — asserted across 50 seeds, since a hub-forming generator is exactly the kind of thing that would quietly exceed it and take the study down at game start.
 - **Plain `.on(kind, key, …)` listeners coexisting with the package's own**, which is what makes a colour-change hook possible at all.
 
-**The agents — the paper's actual contribution — took a new entry point.** For M5 and M6 they were absent, and not as a scoping choice: **`@empirica/core@1.12.5` ships no artificial-player facility of any kind** (searched the shipped bundles for `bot`, `virtual`, `simulat`, `agent`, `artificial`, `robot`; `docs/PLATFORM-NOTES.md` §17). Empirica v1 had bots; v2 does not. What existed was the **human-only** arm — the paper's 30 control sessions, which is what its Fig. 1 is entirely about — which is a complete arm of the design rather than a broken version of the whole.
+**The agents — the paper's actual contribution — needed a new entry point**, because **`@empirica/core@1.12.5` ships no artificial-player facility of any kind** (searched the shipped bundles for `bot`, `virtual`, `simulat`, `agent`, `artificial`, `robot`; `docs/PLATFORM-NOTES.md` §17). Empirica v1 had bots; v2 does not.
 
-Since 2026-08-16 both arms are here. `empirica-networks/bots` runs each agent as a headless participant process — the only kind of thing Empirica can seat at a node — and the example ships all nine conditions (3 agents x 3 noise levels x 3 placements) plus the deterministic-agent control. Three things that were not obvious from the outside, each written up in [`docs/BOTS.md`](BOTS.md) and `ISSUES.md` O10:
+So both arms are here on top of `empirica-networks/bots`, which runs each agent as a headless participant process — the only kind of thing Empirica can seat at a node. The example ships the **human-only** arm, the paper's 30 control sessions and what its Fig. 1 is entirely about, plus all nine agent conditions (3 agents x 3 noise levels x 3 placements) and the deterministic-agent control. Three things that are not obvious from the outside, each written up in [`docs/BOTS.md`](BOTS.md) and `ISSUES.md` O10:
 
 - the **lifecycle** is where bots fail, and every way of failing is silent — a bot that never plays leaves the study waiting for a game that will never reach its player count, with no error anywhere;
 - **placement** needed a package change. The paper's independent variable is *where* the agents sit, and the topology function had no way to say which participant would occupy which node;
@@ -93,37 +93,29 @@ Since 2026-08-16 both arms are here. `empirica-networks/bots` runs each agent as
 
 Also left out: incentives, and the chromatic-polynomial solution-space covariate (computable offline from the exported `edges.csv`).
 
-## Two bugs these reconstructions found
+## Three traps these reconstructions surfaced
 
-Both were in the reconstructions themselves, both silent, both caught by e2e assertions rather
-than by reading the code. They are the argument for the shape of this milestone — an example
-whose behaviour is asserted rather than described — so they are recorded here and not only in
-the changelog.
+The examples exist to have their behaviour *asserted* rather than described, and these are what
+that bought: three silent defects, each caught by an e2e assertion rather than by reading the
+code.
 
-- **`watch` silently doubled as the server's read list.** `inspect()` filled each node's `state`
-  from the `watch` list and nothing else, so a private key the server needed but `project()` never
-  read came back `undefined` — indistinguishable from "not written yet". The omitted key was
-  the participants' rewiring answers: every answer was dropped, and the network never changed in
-  the condition whose defining feature is that it changes. **Fixed 2026-08-16**: `read` declares
-  server-only keys, and `net.stateOf()` throws for an undeclared one instead of returning
-  `undefined`. `ISSUES.md` O11.
+- **`watch` is not the server's read list.** `read` declares the keys the server needs, and
+  `net.stateOf()` throws for an undeclared one rather than returning `undefined` — which is
+  indistinguishable from "not written yet". Fill a node's `state` from `watch` alone and a key the
+  server needs but `project()` never reads comes back empty; in the Rand design that silently
+  drops every rewiring answer, and the network never changes in the condition whose defining
+  feature is that it changes. `ISSUES.md` O11.
 - **A lifecycle listener can only be registered once.** Empirica wraps `onStageEnded` and its
   siblings in a `unique` guard whose "already ran" marker is stored on the *scope*, so the first
-  callback to run sets it and every later registration silently returns. The Rand port was
-  written with one handler per stage; the second was dead code that looked live.
-  `docs/PLATFORM-NOTES.md` §18, `ISSUES.md` U8.
+  callback to run sets it and every later registration silently returns. Register each helper
+  once and dispatch inside it. `docs/PLATFORM-NOTES.md` §18, `ISSUES.md` U8.
+- **The analysis CSVs are written in `onGameEnded`**, which fires only when a game ends
+  *naturally*. A session that crashes, or a test that tears its server down first, gives you a
+  green run and an empty `data/`. Both reconstructions therefore write an append-only run log as
+  they go and ship a `recover.mjs` that rebuilds the same tables from it; the plumbing is in the
+  package as `log: { file }` and `net.log()`.
 
-A third, smaller one came out of the same work: `views: { file: "data/views.ndjson" }` used to
-fail with a bare `ENOENT` if the directory did not exist, thrown from inside `withNetwork` at
-game start, after participants had joined. It now creates the directory.
-
-**A fourth was found by looking in `data/` after a green run.** The analysis CSVs are written in
-`onGameEnded`, which fires only when a game ends *naturally* — and the e2e tests tear their servers
-down first, so the export path was exercised only on the ~20% of runs where the stochastic
-continuation draw happened to stop. A green suite and an empty `data/` at the same time. Both
-reconstructions now write an append-only run log as they go, and both ship a `recover.mjs` that
-rebuilds the same tables from it; the plumbing moved into the package as `log: { file }` and
-`net.log()` (`docs/M6-HARDENING.md` §2.1) once it had been written by hand twice.
+`docs/M6-HARDENING.md` is the full account of what each of these cost.
 
 ---
 

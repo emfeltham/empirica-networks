@@ -39,6 +39,12 @@ repository.
       `onGameEnded` fires only on a natural end.
 - [ ] **Nothing that matters is on a player or game scope.** Both are broadcast to every
       participant. Payoffs and any record of account belong on the batch scope. `ISSUES.md` U1
+- [ ] **`?participantKey=` is an opaque per-study token**, not a Prolific PID or an MTurk worker
+      ID. Every participant receives every co-player's, and platform worker IDs are stable across
+      studies — so keep the mapping outside Empirica. This is decided when you build the
+      recruitment links, and cannot be undone afterwards. `ISSUES.md` U10
+- [ ] **Bot identifiers, if any, are drawn from that same space.** Three 13-digit numbers among
+      24-character PIDs are the three bots, in order, to anyone who looks. `docs/BOTS.md` §1
 - [ ] **A dry run at the real *n***, with the real treatment, on the real host. Degree ×
       projection size is what a participant's connection carries, and it is capped at 64 KiB per
       publish by default.
@@ -102,8 +108,10 @@ and access control is never structural.
 It was neighbour-limited in transit; it is not anonymised at rest. Captured views, if enabled, are
 the only copy of what each participant was shown and cannot be regenerated.
 
-Back up the store and the NDJSON files; decide retention before the run; and remember that U1
-belongs in an IRB protocol's risk section for *any* Empirica study, not just this one.
+Back up the store and the NDJSON files; decide retention before the run; and remember that U1 and
+U10 belong in an IRB protocol's risk section for *any* Empirica study, not just this one — the
+first because a participant can alter another's data, the second because participants are handed
+each other's recruitment identifiers.
 
 ### Sessions beyond ~10 minutes are unverified
 
@@ -113,8 +121,8 @@ size.
 
 ## 3. What the real document will need to cover
 
-Recorded now so the demonstration study can be run with it in hand, and so the gaps are visible
-to anyone deciding whether this package is ready for their study:
+Recorded so the gaps are visible to anyone deciding whether this package is ready for their study,
+and so whoever writes the real document is not starting from a blank page:
 
 1. Bundling and serving — the Empirica CLI's production path, with exact commands and versions.
 2. Hosting shape — process supervision, TLS termination, websockets through a reverse proxy,

@@ -82,8 +82,7 @@ inside the CLI. The private channel is a custom kind, so it has to be registered
 >
 > Worth knowing why this is two checks rather than one: `withNetwork` is handed the listeners
 > collector, not the kind map, so it cannot verify the registration directly — it detects the
-> *consequence*. And for four milestones neither check ran at all, while this document claimed
-> one did (`ISSUES.md` O14).
+> *consequence*.
 >
 > The wait is 5 s for a small study and grows with the participant count, because channel
 > delivery queues behind Classic's game-start burst — at n=150 the first channel has been
@@ -276,6 +275,10 @@ Three arms, all required. A clean result with a silent control means the check i
 result with nothing delivered means the projection never ran. Most privacy tests are wrong in
 exactly one of those two ways.
 
+Run it from `server/`, where you installed the package, so it reports the `@empirica/core` your
+study actually has. Options, exit codes and the version-mismatch note:
+[API.md → The `verify` CLI](API.md#the-verify-cli).
+
 ## 8. Run a reconstruction of a published experiment
 
 Two complete designs ship in this repository, both rebuilt from their papers and both covered by the test suite. Start here if you want to see what a real study looks like rather than a demo:
@@ -341,13 +344,14 @@ many individually reasonable views can add up while every other limit stays happ
 
 | | |
 |---|---|
-| [`README.md`](../README.md) | the API reference, with the reasoning behind each decision |
+| [`docs/API.md`](API.md) | every export, by import path, with the reasoning behind each decision — and the `verify` CLI's options |
+| [`docs/TOPOLOGIES.md`](TOPOLOGIES.md) | the generator catalogue: parameters, connectivity, envelope implications. The page to read while *designing* |
 | [`docs/TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | when something is silently wrong. Indexed by symptom rather than by cause |
 | [`docs/DATA-AND-ANALYSIS.md`](DATA-AND-ANALYSIS.md) | §9 above in full: every table's columns, and reproducing a finished run |
+| [`docs/BOTS.md`](BOTS.md) | artificial participants: the policy interface, placement, counting them into `playerCount` |
 | [`docs/DEPLOYING.md`](DEPLOYING.md) | **before you plan a real study** — the pre-flight checklist, and what is not yet documented |
 | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) | how it works inside, if you want to know why any of the above is true |
 | [`docs/EXPERIMENTS.md`](EXPERIMENTS.md) | the two reconstructions: what they show, and what they are not |
 | [`docs/PLATFORM-NOTES.md`](PLATFORM-NOTES.md) | every platform constraint, with the date and version it was measured against |
 | [`docs/GLOSSARY.md`](GLOSSARY.md) | channel, projection, view, seat, told, envelope, U-numbers |
 | [`ISSUES.md`](../ISSUES.md) | what is known to be broken, ours and upstream's |
-| `MODULE-DESIGN.md` | why the package is shaped the way it is. Not in this repo — it is kept with the investigation that produced it |

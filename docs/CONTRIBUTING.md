@@ -168,6 +168,7 @@ Documentation is part of the change, not a follow-up.
 | If you changed | Update |
 |---|---|
 | A public export | [API.md](API.md) |
+| A CLI flag, or what `verify` prints | [API.md → The `verify` CLI](API.md#the-verify-cli) |
 | A generator | [TOPOLOGIES.md](TOPOLOGIES.md) |
 | Anything in the lifecycle or publish path | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | An exported row type or file format | [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md) |
@@ -201,12 +202,13 @@ everything else links to it. At publish time that is one edit rather than a sear
 Not yet applicable: the package is `private: true` at `0.0.0` pending disclosure. When it is:
 
 1. `PUBLICATION-PLAN.md` §1 — the disclosure window has to close first. This is blocking.
-2. Freeze the surface (§2) and give [API.md](API.md) a read-through against it. Note that `tell()`
-   and `useNetworkTold()` were added at M5 and belong in the freeze.
-3. Remove `private: true`, set a real semver, add a `CHANGELOG.md`.
+2. Freeze the surface (§2) and give [API.md](API.md) a read-through against it — the CLI's flags
+   and exit codes are surface too, and freeze with the rest.
+3. Remove `private: true`, set a real semver, and move `CHANGELOG.md`'s `[Unreleased]` section
+   under that version.
 4. Update the README's status line and the single "not published yet" block; drop the
    `node dist/verify/cli.cjs` forms in favour of `npx empirica-networks`.
-5. `npm run build && npm test && npm run check:links`, then publish.
+5. `npm run build && npm test && npm run check:links && npm run check:docs`, then publish.
 
 ## 8. Where the reasoning lives
 

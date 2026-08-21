@@ -186,38 +186,39 @@ delivered":
 
 So the record moved there, keyed by game id (`network:<gameID>`, `networkSeed:<gameID>`) since
 one batch holds many games. It stays durable, stays available for analysis and for restart
-recovery, and is no longer sent to anyone inside the experiment. Read it with `readNetwork(game)`
-and `readSeed(game)` rather than by key — the location is a privacy decision and may move again.
+recovery, and is not sent to anyone inside the experiment. Read it with `readNetwork(game)`
+and `readSeed(game)` rather than by key — the location is a privacy decision and may move.
 
-`GAME_KEYS` is now deliberately empty. Two separate things were kept on the game scope and both
-had to leave: the channel index (§4b) and the realised network (this note). The empty record is
-kept so the reason survives.
+`GAME_KEYS` is deliberately empty. Two things would naturally sit on the game scope and neither
+may: the channel index (§4b) and the realised network (this note). The empty record is kept so the
+reason survives.
 
-## 4d. A restart re-fires `game.start` — and used to reseat everyone ⚠️⚠️⚠️
+## 4d. A restart re-fires `game.start` ⚠️⚠️⚠️
 
 *Measured 2026-08-15, `@empirica/core@1.12.5`, by `test/e2e/restart.test.ts`.*
 
 Attribute listeners replay attributes the admin already holds (§12), and `start` is one of
 them — so `collector.on("game", "start", …)` **fires again for an already-running game** every
-time the callbacks process starts. That is useful (it is how recovery gets a chance to run) and
-it was, before this was found, destructive in two compounding ways.
+time the callbacks process starts. That is useful — it is how recovery gets its chance — and it
+is destructive in two compounding ways unless the handler is written for it.
 
-**1. Everyone was silently reseated.** The seed is stable, so `topology()` returned the same
-edge list. But the edge list is *index pairs*, and the index-to-person mapping came from
-`game.players` order — which is not stable across processes. Same ring, different people at
-each node. Measured: an actor's neighbour set changed across a restart with nothing logged.
-For a network experiment this corrupts the independent variable for the rest of the run.
+**1. Everyone is silently reseated.** The seed is stable, so `topology()` returns the same
+edge list. But the edge list is *index pairs*, and re-deriving the index-to-person mapping from
+`game.players` order gives a different answer, because that order is not stable across processes.
+Same ring, different people at each node. Measured: an actor's neighbour set changed across a
+restart with nothing logged. For a network experiment this corrupts the independent variable for
+the rest of the run.
 
-**2. Every participant got a second channel.** Provisioning saw an empty index and created
+**2. Every participant gets a second channel.** Provisioning sees an empty index and creates
 one, and Tajriba cannot unlink, so both links are permanent. The client keeps the channel it
 first selected while the server writes the new one, so the view **freezes forever**. Measured
 as a 30s timeout waiting for a post-restart change that never arrived.
 
 Both failures are silent, and they present as "the experiment got quiet".
 
-The fix makes each channel self-describing — `gameID`, `playerID` and `topologyIndex`, all
-immutable at creation — so a fresh process rebuilds the index by *reading* the channels rather
-than re-deriving it and getting a different answer. `game.start` discriminates on
+**What answers both:** each channel is self-describing — `gameID`, `playerID` and
+`topologyIndex`, all immutable at creation — so a fresh process rebuilds the index by *reading*
+the channels rather than re-deriving it. `game.start` discriminates on
 `game.get("networkSeed") !== undefined`: already set means a previous process networked this
 game, so recover instead of provisioning.
 
@@ -602,12 +603,11 @@ shape matches §16's mechanism, since the cost is Classic's O(n²) cross-linking
 the channel replay queues behind it, and it is why the curve cannot be extrapolated past the
 table.
 
-**What it cost us.** `ISSUES.md` O14 shipped a check that warns when no channel has materialised
-within a flat 5 s, justified by "channels materialise in milliseconds at every size in the
-envelope" — true, and a statement about small n only. At n=150 a healthy server had 14% of the
-deadline left; at n=200 the check told a run that went on to deliver every one of its 760
-receipts that its correct code was broken (`ISSUES.md` O15). The deadline now scales with the
-channels created, and the warning retracts itself if it turns out to have been impatient.
+**What it means for the registration check.** A flat 5 s deadline, justified by "channels
+materialise in milliseconds at every size in the envelope", is a statement about small n only: at
+n=150 a healthy server has 14% of it left, and at n=200 it fires on a run that goes on to deliver
+every one of its 760 receipts (`ISSUES.md` O15). So the deadline scales with the channels created,
+and the warning retracts itself if it turns out to have been impatient.
 
 **No upstream issue is filed for this one.** Delivery costing time proportional to work is
 ordinary; the fault was ours, in reading a small-n measurement as a property of the platform. It
@@ -687,12 +687,12 @@ is registered, wrapped, and then silently skipped at dispatch. Plain `.on(kind, 
 is why `withNetwork`'s own listeners and the `Empirica.on(NBHD_KIND, stateKey("color"), …)` in
 `examples/shirado2017` coexist happily.
 
-**How it presented.** `examples/rand2011` was written with two `onStageEnded` handlers, one per
-stage — the obvious structure. The second never ran once: rewiring answers were never applied,
-the network never changed in the condition whose entire point is that it changes, no feedback
-was ever delivered, and nothing errored anywhere. It presented as "the participants' answers do
-not seem to do anything", which is several wrong hypotheses away from the cause. Caught only
-because `test/e2e/rand2011.test.ts` asserts that the graph actually changes.
+**How it presents.** Write two `onStageEnded` handlers, one per stage — the obvious structure —
+and the second never runs. Measured in `examples/rand2011`: rewiring answers were never applied,
+the network never changed in the condition whose entire point is that it changes, no feedback was
+delivered, and nothing errored anywhere. It presents as "the participants' answers do not seem to
+do anything", which is several wrong hypotheses away from the cause. Caught only because
+`test/e2e/rand2011.test.ts` asserts that the graph actually changes.
 
 The same wrapper is why an extra `Empirica.onGameStart(...)` registered from a *test file*
 against a collector imported from an example never fires: the example already registered one.
@@ -703,14 +703,13 @@ Filed as `ISSUES.md` U8.
 
 ### 18a. It is detectable from outside — measured 2026-08-16
 
-`withNetwork` now warns about this at server start (`src/admin/listeners.ts`). Everything the
+`withNetwork` warns about this at server start (`src/admin/listeners.ts`). Everything the
 detector rests on was read off `@empirica/core@1.12.5` rather than inferred, and each fact rules
 out a naive version of the check:
 
 - **`collector.attributeListeners` is a plain `Array` of `{ placement, kind, key, callback }`**,
-  marked `/** @internal */` but readable on the instance. Not a Map, and not keyed — an earlier
-  note in `docs/M6-HARDENING.md` described it as `{"stage/ended/placement=1": 2}`, which was a
-  probe's own grouping mistaken for the field's shape.
+  marked `/** @internal */` but readable on the instance. Not a Map, and not keyed — a probe that
+  reports it as `{"stage/ended/placement=1": 2}` is showing you its own grouping, not the field.
 - **`unique()` returns `async (ctx, props) => {…}`.** Anonymous, arity 2, `AsyncFunction`. A
   named, synchronous or differently-arity callback therefore cannot be a wrapper, which is what
   lets a plain `.on("stage", "ended", function scoreRound() {})` be told apart from a duplicated
@@ -778,16 +777,16 @@ Clock spread across shards was ≤ 0.3 ms in every cell.
 
 Degree is a second-order term. What these cells track is **participants per client process**: n=50
 over 2 shards and n=100 over 4 both put 25 per process and both land near 10 ms, while n=20 over 2
-puts 10 per process and lands at 4 ms. That was already this bench's standing caveat about its own
-numbers (§8 of the README) — it turns out to also be why the degree limit was wrong.
+puts 10 per process and lands at 4 ms. That is the bench's standing caveat about its own numbers
+(the README's *Supported envelope*, `ISSUES.md` O1) — and it is also why the degree limit was
+wrong.
 
 **What this does NOT establish, stated because the limit it replaced was over-read in exactly this
 way.** The projection here is two fields, so these numbers are degree at *small view sizes*. Degree
 × view size is a different quantity, it is what a participant's uplink carries, and it is what
 SPIKE-REPORT §4's client-bandwidth finding was about — an n=100 complete graph at 24.9 KB per tick
 per participant is ~204 ms of transmission on a 1 Mbps uplink before any server cost. Nothing here
-contradicts that, and `maxNeighbourhoodBytes` exists to guard it now that degree alone no longer
-does.
+contradicts that, and `maxNeighbourhoodBytes` exists to guard it, since degree alone does not.
 
 Also unmeasured, and worth naming rather than leaving implied: real browsers (React reconciles on
 every published view), real WAN latency, and any dense cell above n = 50.
@@ -815,15 +814,15 @@ in ONE sweep, differing only in payload:
 
 Payload costs, and **it costs more at higher degree**: ~14.5× the bytes buys 1.9× the latency at
 d=19 and 2.9× at d=49. So degree × view size behaves like a product, which is what §19 said it
-had not established and what `maxNeighbourhoodBytes` was added on that suspicion.
+had not established, and it is the suspicion `maxNeighbourhoodBytes` guards.
 
-**The 64 KiB default now has a number behind it.** A design sitting just under the limit — 53 KiB
+**The 64 KiB default has a number behind it.** A design sitting just under the limit — 53 KiB
 per participant per publish, the densest realistic case in the n ≤ 50 regime — delivers at
 **67 ms p50** rather than the 10–25 ms a small-view design sees. Nothing was dropped: every
 expected receipt arrived at every size. So the limit is not a cliff, it is a slope, and 64 KiB is
 roughly where publish latency reaches 3× baseline while staying under 100 ms on this hardware.
-That is a defensible place for a footgun detector, and it is now a measured statement rather than
-a plausible one. One run showed a p99 of 258 ms against a 72 ms p95, so the tail at that size is
+That is a defensible place for a footgun detector, and it is a measured statement rather than a
+plausible one. One run showed a p99 of 258 ms against a 72 ms p95, so the tail at that size is
 worth more attention than the median.
 
 ### The sweep-level offset is the MACHINE'S POWER MANAGEMENT, and idle is the slow case
@@ -932,12 +931,12 @@ The suspect window is the subscription replay at process start, where player sco
 carrying a `gameID` from a previous run. That is U2's territory, it has not been reproduced, and
 `ISSUES.md` O4 stays open on the reproduction rather than being closed on this reading.
 
-**What this changed.** `withNetwork` re-provisions on `ParticipantConnect` as a net under that
-path, and writing a test for the net found the net broken — it created the repaired channel with
-no seat index, leaving the game unrecoverable at the next restart. Fixed, and covered by
-`test/unit/late_joiner.test.ts`. The transferable part is the method rather than the finding:
-reading the platform's own source settled in minutes a question that three milestones of "we could
-not construct it" had left open, and it cost nothing.
+**What this means for the package.** `withNetwork` re-provisions on `ParticipantConnect` as a net
+under that path, and the repaired channel carries a seat index like any other — without one the
+game is unrecoverable at the next restart, which is what `test/unit/late_joiner.test.ts` holds
+down. The transferable part is the method rather than the finding: reading the platform's own
+source settles in minutes questions that "we could not construct it" leaves open indefinitely, and
+it costs nothing.
 
 ## 22. Every participant receives every co-player's recruitment identifier ⚠️⚠️
 

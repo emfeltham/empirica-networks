@@ -67,8 +67,11 @@ The browser test asserts both: a non-neighbour's colour appears nowhere in the f
 You can also check the projection guarantee without a browser:
 
 ```sh
-npx empirica-networks verify --n 4
+node ../../dist/verify/cli.cjs verify --n 4   # from this clone, after `npm run build`
+npx empirica-networks verify --n 4            # once published
 ```
+
+Options and exit codes: [`docs/API.md`](../../docs/API.md#the-verify-cli).
 
 ## The four changes
 

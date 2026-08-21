@@ -40,8 +40,8 @@ does exactly this for the bundled examples.
 **Cause: `networkKinds` was not registered**, so the private channels are never modelled, and
 there is nothing to write views to.
 
-**Since 2026-08-16 this is detected** (`ISSUES.md` O14). Once the first game's channels have had
-time to come back and none has, you get:
+**This is detected.** Once the first game's channels have had time to come back and none has, you
+get:
 
 ```
 empirica-networks: 2 private channels were created 5s ago and none has materialised. Two
@@ -218,6 +218,23 @@ empirica-networks: project() reads player attribute(s) …
 **Fix:** add the key to `watch`. (Not `read` — mechanically identical, but `watch` is the one
 that says "the projection depends on this".)
 
+### Chat messages never arrive
+
+**First cause: chat is off.** It costs a listener and per-channel storage, so it is opt-in, and
+`useNeighborChat()` returns `undefined` until it is on.
+
+```js
+withNetwork(Empirica, { …, chat: true });      // or { history: 200 }
+```
+
+**Second cause: the recipient was not a neighbour when the message was sent.** A message goes to
+whoever is the sender's neighbour *at that moment*, plus the sender. Messages land on the
+**recipient's** channel, so a rewire stops new messages arriving without erasing the conversation
+already delivered — which is the intended behaviour and can read as "chat broke" in a design that
+rewires mid-conversation.
+
+`docs/API.md` `chat?:`
+
 ### A restart brought the server back, and no game resumed
 
 **Cause: upstream U2.** A full restart reloads the store, but `gameID` is never restored and no
@@ -230,6 +247,30 @@ a game ends *naturally*.
 
 `ISSUES.md` U2 · `docs/PLATFORM-NOTES.md` §4e
 
+### The session ran, and `data/` is empty
+
+**Cause: your exports are written in `onGameEnded`, which fires only when a game ends
+*naturally*.** A session that was killed, crashed, or stopped by hand never reaches it, and
+neither does a test that tears its server down first. Measured: a green run of
+`test/e2e/rand2011.test.ts` left `views.ndjson` and not one CSV.
+
+**Fix, and it has to be in place before the run:** turn on the run log and write to it as you go.
+
+```js
+withNetwork(Empirica, { …, log: { file: "data/run.ndjson" } });
+net.log(stage.currentGame, { type: "round", round, rows });
+```
+
+It is unbuffered by default, so a hard kill loses nothing, and one file covers the whole study —
+every record carries its `gameID`. Both reconstructions ship a `recover.mjs` that rebuilds their
+CSVs from it, byte-identically to a clean finish.
+
+**Log the events, not the state they add up to.** A script that reconstructs an edge list from a
+final snapshot recovers an empty `edges.csv` for a static network, or one whose timestamps it
+invented; logging `network(game).history()` verbatim recovers the real table.
+
+`docs/DATA-AND-ANALYSIS.md` §6 · `docs/GETTING-STARTED.md` §9
+
 ### Games do not reliably start at n ≥ 200
 
 **Cause: upstream U7.** Game start corrupts the websocket stream at scale — measured at 1 run in
@@ -239,6 +280,51 @@ a game ends *naturally*.
 margin.
 
 `ISSUES.md` U7 · `docs/PLATFORM-NOTES.md` §16
+
+### The bots are connected and the study never starts
+
+**Cause: the treatment's `playerCount` counts the bots.** It is the size of the network, so a
+twenty-node session with three agents needs **seventeen** people. Recruit `playerCount` humans
+instead and the games are permanently one short of full.
+
+It is not quite silent — a bot that sits in one non-playing phase for 30 s says so once, on
+stderr and in the log, and names this:
+
+```
+connected but not assigned to a game. Classic assigns on batch start, so either no batch is
+running, or the batch's games are already full. Remember the treatment's playerCount counts
+bots: recruit playerCount - botCount humans, not playerCount.
+```
+
+**Fix:** `run.phases()` is the first thing to read — it gives the current phase per bot, and each
+of `connecting → waiting → intro → starting → playing → ended` has its own stall reason naming
+what to check.
+
+`docs/BOTS.md` §3
+
+### The bots are in the game and never act
+
+Three causes, in the order they are worth checking.
+
+**A policy with no `onTick` only acts when something changed.** `onView` fires on the server's
+publish counter, so an agent that must move when nothing moved — which includes every
+deliberately-noisy one — needs `onTick` and a `tickMs`. Setting `onTick` without `tickMs` throws
+rather than producing a bot that never fires.
+
+**The view has not arrived.** `ctx.neighbors()` is `undefined` before the first publish, and a
+policy that returns early on `undefined` is correct; if it stays `undefined`, the bot's channel
+never materialised — see "empty neighbourhoods forever" above.
+
+**The condition never arrived.** A policy told its parameters over `ctx.told()` should wait
+rather than guess, so a `tell()` that was never sent leaves it idle by design. Warn loudly on the
+bot side when it does not arrive; `examples/shirado2017/server/bots.mjs` does, after ten seconds,
+once.
+
+And a policy that **throws** is caught, logged and swallowed — one failing agent must not leave
+the study a player short — so a bot that stopped acting after one tick is in the log, not in an
+exception.
+
+`docs/BOTS.md` §2, §5
 
 ### An offline analysis script dies on import
 
@@ -291,7 +377,13 @@ table is for finding the *context*.
 |---|---|---|
 | `the "nbhd" scope kind is not registered` | `networkKinds` not passed to `AdminContext.init` | GETTING-STARTED §3 |
 | `stateOf() was asked for private key …` | The key is in neither `watch` nor `read` | §1, "reads back as `undefined`" |
+| `topology exceeds the supported envelope` | The graph is denser than `maxDegree`. Refused **at game start**, before any channel exists, so the experiment is still abandonable. The message names the worst node and the two overrides | API.md, [Envelope](API.md#envelope) · TOPOLOGIES |
+| `N neighbour view(s) exceed … bytes` | One neighbour's projection is over `maxViewBytes` (8192) | API.md, [Envelope](API.md#envelope) |
+| `N participant(s) would receive more than … bytes in one publish` | Degree × view size is over `maxNeighbourhoodBytes` (64 KiB). Each view is individually legal; together they are not | API.md, [Envelope](API.md#envelope) |
+| `the projection at … is a function` / `a BigInt` / `contains a cycle` / `is a scope` | `project()` returned something JSON cannot carry, or the scope itself. Nothing was sent — validation runs before the publish | API.md, `project()` |
+| `no network for game …` | The game has not started, has ended, or `withNetwork()` was never called on this collector | ARCHITECTURE §3 |
 | `game … is not networked by this process` | Ended, never started, or lost to a restart (U2) | ARCHITECTURE §3 |
+| `game … was networked by a previous process but has no recorded edge list` | A restart found the game but not its network, so it cannot be recovered (warning) | `ISSUES.md` U2 |
 | `player … has no materialised channel in game …` | Channel has not arrived yet, or the player has no `participantID` | ARCHITECTURE §3 step 7 |
 | `player … is not in game …'s network` | Player is outside the topology — check your `order` assumptions | — |
 | `project() threw while building X's view of Y` | Your projection threw; the cause is attached | — |
@@ -303,8 +395,13 @@ table is for finding the *context*.
 | `the neighbourhood scope exists but its attributes are unreadable` | `DonesWiringError` — the client-side dones protocol broke, almost certainly an upstream version change | ARCHITECTURE §8 |
 | `the participant context was built without the network mode` | `modeFunc={EmpiricaNetwork}` is missing from `<EmpiricaParticipant>` | GETTING-STARTED §5 |
 | `EmpiricaClassic no longer returns "…"` | Upstream changed the classic context shape; the composed mode is out of date | ARCHITECTURE §6 |
-| `monitor() needs the handle returned by withNetwork()` | Pass `net`, not the collector | README, Watching a study live |
+| `monitor() needs the handle returned by withNetwork()` | Pass `net`, not the collector | API.md, [`monitor()`](API.md#monitornet-options) |
 | `cannot connect X to itself` | A self-loop was requested | — |
+| `runBots needs at least one identifier` | The list is the bot count; there is no `count` that invents names | BOTS §1 |
+| `duplicate bot identifier(s): …` | Two bots sharing a key are one participant with two sockets, and the game sits one short forever | BOTS §1 |
+| `a policy with onTick must set tickMs` | Without it the tick would never fire, so it is refused rather than silently idle | BOTS §2 |
+| `N of M bot identifier(s) …` | An identifier names itself (`bot`, `agent`, `robot`, …) and participants can read it (warning, U10) | BOTS §1 |
+| `bot X has been in phase "…" for …` | A bot has been stuck in one non-playing phase for 30 s (warning). The message names what to check for that phase | §1, "the bots are connected and the study never starts" |
 
 ---
 
