@@ -289,6 +289,17 @@ Two complete designs ship in this repository, both rebuilt from their papers and
 
 `docs/EXPERIMENTS.md` says what each one demonstrates, what was left out, and — importantly — what "reconstruction" means and why it is not "replication".
 
+> **None of this needs real participants.** Every example runs on your own machine with nobody
+> recruited: each one's README shows opening one browser tab per seat yourself, with a different
+> `?participantKey=` in each, so you play every role. Where you'd rather not open that many tabs,
+> [`docs/BOTS.md`](BOTS.md) covers filling some or all seats with headless scripted participants
+> instead — `examples/shirado2017`'s bot runner is the worked case.
+>
+> **Recommended order for someone new to the package:** `examples/minimal` first — four tabs,
+> five minutes, and you can watch the neighbour-limited visibility directly. Then
+> `examples/shirado2017`, to see a real published design where bots can fill the seats you'd
+> otherwise have to click through yourself.
+
 ## 9. Get the data out
 
 ```js
