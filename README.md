@@ -2,13 +2,13 @@
 
 Network experiments for [Empirica](https://empirica.ly): participants are nodes in a graph, and **each participant sees only their neighbours' state**.
 
-Status: **it runs real games today, and is not yet published.** All three examples in this repo
+Status: it runs real games today, and is not yet published. All three examples in this repository
 play end to end against a real Empirica server, and the read-privacy guarantee they depend on is
 enforced and tested, not just documented — see [Runnable examples](#runnable-examples) and
-[Verify it yourself](#verify-it-yourself). What doesn't hold yet: the public API is unfrozen, and
-the package stays `private: true` at `0.0.0` **on purpose**, pending disclosure of an unpatched
-upstream vulnerability to Empirica's maintainers (`PUBLICATION-PLAN.md` §1) — see
-[Installing](#installing). Development is tracked by milestone; **[M7](CHANGELOG.md#unreleased)**
+[Verifying the guarantee](#verifying-the-guarantee). What does not hold yet: the public API is
+unfrozen, and the package stays `private: true` at `0.0.0` **on purpose**, pending disclosure of an
+unpatched upstream vulnerability to Empirica's maintainers (`PUBLICATION-PLAN.md` §1) — see
+[Installation](#installation). Development is tracked by milestone; **[M7](CHANGELOG.md#unreleased)**
 is the latest, complete as of 2026-08-16.
 
 Not affiliated with, or endorsed by, the Empirica project. The name is descriptive.
@@ -27,9 +27,9 @@ Not affiliated with, or endorsed by, the Empirica project. The name is descripti
 | Artificial participants | [`docs/BOTS.md`](docs/BOTS.md) — the policy interface, placement, and why a bot's *name* is participant-visible |
 | Everything else | [`docs/`](docs/README.md) — the documentation index |
 
-## Read this before running a study on Empirica
+## Before running a study
 
-**Empirica has no write access control, and this affects your study whether or not you use this package.** Any participant who knows a node id can set any attribute on it — including on another participant's `player` scope, whose id every participant already knows, because Classic cross-links everyone to everyone. `protected: true` is documented as "not updatable by other Participants" and is **not enforced**.
+Empirica has no write access control, and this affects your study whether or not you use this package. Any participant who knows a node id can set any attribute on it — including on another participant's `player` scope, whose id every participant already knows, because Classic cross-links everyone to everyone. `protected: true` is documented as "not updatable by other Participants" and is **not enforced**.
 
 In practice, for a participant who opens the browser console:
 
@@ -39,15 +39,15 @@ In practice, for a participant who opens the browser console:
 
 What to do about it, in order:
 
-1. **Treat every participant-written value as untrusted input**, exactly as you would a form field on a public website. Compute anything that matters server-side, from values you can attribute.
-2. **Keep the record of account somewhere participants cannot write** — the batch scope. Both reconstructions in this repo do this for payoffs, and say so at the call site.
-3. **Judge whether your design gives anyone a reason to bother.** A study where altering someone else's state pays — a competitive game, a bonus tied to relative performance — is exposed in a way a survey is not.
+1. Treat every participant-written value as untrusted input, exactly as you would a form field on a public website. Compute anything that matters server-side, from values you can attribute.
+2. Keep the record of account somewhere participants cannot write — the batch scope. Both reconstructions in this repository do this for payoffs, and say so at the call site.
+3. Judge whether your design gives anyone a reason to bother. A study where altering someone else's state pays — a competitive game, a bonus tied to relative performance — is exposed in a way a survey is not.
 
 This module does not, and cannot, claim that a participant's state is tamper-proof. Measured in `test/e2e/participant_write.test.ts` and `test/e2e/upstream_u1.test.ts`; mechanism in `docs/PLATFORM-NOTES.md` §4a; tracked as `ISSUES.md` U1, which is going through private disclosure to Empirica's maintainers (`docs/upstream/DISCLOSURE.md`).
 
-**And every participant learns every co-player's recruitment identifier.** Same root cause — Classic cross-links everyone to every player scope — so the value of `?participantKey=` is delivered to everyone else in the game. If that key is a Prolific PID or an MTurk worker ID, your subjects are handed each other's, and platform worker IDs are stable across studies. Make `participantKey` an opaque per-study token and keep the mapping outside Empirica. Measured in `test/e2e/bots.test.ts`; `docs/PLATFORM-NOTES.md` §22; `ISSUES.md` U10.
+Every participant also learns every co-player's recruitment identifier. Same root cause — Classic cross-links everyone to every player scope — so the value of `?participantKey=` is delivered to everyone else in the game. If that key is a Prolific PID or an MTurk worker ID, your subjects are handed each other's, and platform worker IDs are stable across studies. Make `participantKey` an opaque per-study token and keep the mapping outside Empirica. Measured in `test/e2e/bots.test.ts`; `docs/PLATFORM-NOTES.md` §22; `ISSUES.md` U10.
 
-## Installing
+## Installation
 
 <a id="not-published-yet"></a>
 
@@ -72,17 +72,17 @@ npm --prefix client install /path/to/empirica-networks-0.0.0.tgz
 Requires **Node 20+** and the Empirica CLI (`curl https://install.empirica.dev | sh`). Install
 into **both** halves: the package ships server code and client code separately.
 
-Do **not** use a `file:` link. npm makes it a symlink, which loads two copies of `@empirica/core`
+Do **not** use a `file:` link. npm makes it a symbolic link, which loads two copies of `@empirica/core`
 and breaks every `instanceof` inside Empirica, with a symptom that names nothing — every
 participant stuck on "Waiting for other players" with a full game
 ([TROUBLESHOOTING](docs/TROUBLESHOOTING.md), `docs/PLATFORM-NOTES.md` §11).
 
-**The name is settled**: `empirica-networks`, unscoped, chosen over `@yale-hnl/empirica-networks`
+The name is settled: `empirica-networks`, unscoped, chosen over `@yale-hnl/empirica-networks`
 because discovery is the binding constraint in an ecosystem with no registry, no plugin API and no
 curated list. Renaming after the first publish would be a breaking change, which is why it was
 decided before rather than at publish time (`PUBLICATION-PLAN.md` §2).
 
-## Quickstart
+## Quick start
 
 Three edits to a stock `empirica create` project. The first is **mandatory**, and skipping it is
 silently fatal in itself — nothing errors, and participants sit with empty neighbourhoods forever.
@@ -127,19 +127,19 @@ import { useNeighbors, useNetworkState } from "empirica-networks/player/react";
 
 const neighbors = useNeighbors();          // undefined until the first publish
 const state = useNetworkState();
-state.set("choice", "A");                  // ✓ private. player.set() would broadcast
+state.set("choice", "A");                  // private. player.set() would broadcast
 ```
 
 [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md) walks the same path with the trap at each
 step named where it bites. [`docs/API.md`](docs/API.md) is the full surface.
 
-## The guarantee, and its limit
+## The guarantee and its limit
 
-**What holds.** A participant never receives a non-neighbour's projected state. Not "the UI
-doesn't render it" — the bytes never arrive. Each participant has a private channel scope linked
-to them alone, and projections are written only there.
+What holds is that a participant never receives a non-neighbour's projected state: the bytes
+themselves never arrive, rather than merely being hidden by the interface. Each participant has a
+private channel scope linked to them alone, and projections are written only there.
 
-**Where participants write matters.** Empirica cross-links every participant to every player
+Where participants write also matters. Empirica cross-links every participant to every player
 node, so anything written with `player.set(key, value)` is broadcast to **everyone**, whatever the
 topology. Projecting such a value restricts nothing — the raw attribute is already out. Write with
 `useNetworkState().set()`, and read on the server through `ctx.stateOf(neighbour)`.
@@ -147,17 +147,17 @@ topology. Projecting such a value restricts nothing — the raw attribute is alr
 `npm run test:browser` asserts both halves in real browsers: a non-neighbour's private value
 appears nowhere in the bytes a tab received, while a player attribute does.
 
-**The network itself is private too.** The seed and realised edge list are recorded on the *batch*
+The network itself is private too. The seed and realised edge list are recorded on the *batch*
 scope — the one durable scope measured not to be delivered to participants — so a finished run
 stays reproducible from stored data without handing the seating plan to the people inside it. On
 the game scope, which is the obvious place for them, every participant receives both; that is
 locked out by `test/e2e/topology_visibility.test.ts`, which checks the participant's own scope
 *and* the raw wire.
 
-**What does not hold: write integrity.** Read privacy is structural; write integrity does not exist
-at all, anywhere in Empirica — see [above](#read-this-before-running-a-study-on-empirica).
+Write integrity, however, does not hold. Read privacy is structural; write integrity does not
+exist at all, anywhere in Empirica — see [above](#before-running-a-study).
 
-## Verify it yourself
+## Verifying the guarantee
 
 The read guarantee is the whole point, so it ships as a command rather than a claim:
 
@@ -193,14 +193,14 @@ on a failure *or* on a run that could not start. Options and exit codes:
 ## Runnable examples
 
 Three, all in-package, each one's `callbacks.js` imported **unmodified** by a test in `test/e2e/`,
-so none of them can rot unnoticed. There is deliberately no template repo;
+so none of them can rot unnoticed. There is deliberately no template repository;
 `docs/M5-ADOPTION.md` §2 says why.
 
 | | What it is |
 |---|---|
 | [`examples/minimal`](examples/minimal) | A stock `empirica create` project with four files changed. Participants on a ring pick a colour and see only their two neighbours'. Start here |
-| [`examples/rand2011`](examples/rand2011) | **A reconstruction of the design in** Rand, Arbesman & Christakis (2011), *PNAS*. Cooperation in dynamic networks: rewiring during play, private decisions, four conditions |
-| [`examples/shirado2017`](examples/shirado2017) | **A reconstruction of** Shirado & Christakis (2017), *Nature*. Colour coordination on a scale-free network, with a global objective participants cannot see — both the control arm and the paper's autonomous-agent conditions |
+| [`examples/rand2011`](examples/rand2011) | A reconstruction of the design in Rand, Arbesman & Christakis (2011), *PNAS*. Cooperation in dynamic networks: rewiring during play, private decisions, four conditions |
+| [`examples/shirado2017`](examples/shirado2017) | A reconstruction of Shirado & Christakis (2017), *Nature*. Colour coordination on a scale-free network, with a global objective participants cannot see — both the control arm and the paper's autonomous-agent conditions |
 
 ```sh
 npm install && node scripts/example-install.mjs minimal   # or: npm run example:install, for all three
@@ -210,8 +210,8 @@ cd examples/minimal && empirica
 Open four windows with different `?participantKey=` values. Each sees 2 of the other 3, and a
 different 2.
 
-**Reconstructions, not replications.** Both ported designs were rebuilt from their papers. No data
-has been collected with them and nothing has been compared to the authors' results — see
+These are reconstructions, not replications: both designs were rebuilt from their papers, no data
+has been collected with them, and nothing has been compared to the authors' results — see
 [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md).
 
 ## Bots
@@ -246,18 +246,18 @@ make any comparison against humans a comparison of access rather than of behavio
 Three things worth knowing before you use it, each the subject of a section in
 [`docs/BOTS.md`](docs/BOTS.md):
 
-- **Recruit `playerCount − botCount` humans.** The treatment's count is the size of the network,
+- Recruit `playerCount − botCount` humans. The treatment's count is the size of the network,
   bots included. Getting it wrong gives a study that never starts — so the runner names it.
-- **Placement is a manipulation**, and it goes through `topology({ players })`, where `players[i]`
+- Placement is a manipulation, and it goes through `topology({ players })`, where `players[i]`
   is whoever will occupy index `i`. Relabel the graph rather than reordering people; that is what
   keeps the degree distribution identical across arms.
-- **A bot's name is participant-visible** (U10 above), so `runBots` takes an identifier list
+- A bot's name is participant-visible (U10 above), so `runBots` takes an identifier list
   rather than inventing one, and the server should recognise its bots by holding the list.
 
 `examples/shirado2017` is the worked case: 3 agents × 3 noise levels × 3 placements, which is the
 contribution of the paper it reconstructs.
 
-## Supported envelope
+## Supported environment
 
 Per-participant payload is O(d), independent of n; server egress is O(n·d).
 
@@ -285,9 +285,9 @@ beside it (`npm run bench -- --repeats 3`, 2026-08-16):
   n=200  d=8  p50 median 26.8ms   (one run in three completed — see U7)
 ```
 
-**Read the scale, not the value — and note that n barely predicts it.** Those ranges are not noise
-around a true figure. The same n=25 cell measured anywhere from 3.3 to 18.3 ms across one
-afternoon, while repeats *within* any sweep agreed to under 17%, and the cause is the measuring
+The scale matters here more than any single value, and n barely predicts the result. Those ranges
+are not noise around a true figure. The same n=25 cell measured anywhere from 3.3 to 18.3 ms across
+one afternoon, while repeats *within* any sweep agreed to under 17%, and the cause is the measuring
 machine rather than the package: **a busier host measures faster**, non-monotonically, because an
 idle laptop clocks its cores down (`docs/PLATFORM-NOTES.md` §21 — the coordinator burns 57% more
 CPU *time* for identical work when the machine is quiet). Repeats buy precision, not accuracy, so
@@ -299,7 +299,7 @@ hundreds of clients on one machine — real participants in separate browsers do
 own contribution is somewhere below these numbers and this bench cannot resolve it (`ISSUES.md`
 O1). The n ≥ 200 start failure is §16; the degree-cap correction is §19.
 
-**What a large per-neighbour payload costs**, paired inside one sweep so that offset cancels (§21):
+The following measurements show what a large per-neighbour payload costs, paired inside one sweep so that offset cancels (§21):
 
 ```
   n=20  d=19   2 fields  →  1.4KiB per publish   p50 11.5ms
@@ -311,7 +311,7 @@ O1). The n ≥ 200 start failure is §16; the degree-cap correction is §19.
 Nothing was dropped at any size, so the 64 KiB default is a **slope, not a cliff**: a design
 sitting against it delivers around 67 ms rather than 10–25 ms.
 
-The limits are **enforced, not just documented** — an out-of-envelope topology is refused at game
+The limits are enforced, not just documented — an out-of-envelope topology is refused at game
 start, before channels are provisioned, since Tajriba cannot unlink and a late failure would leave
 links behind. The three limits, what each rests on, and how to override them:
 [`docs/API.md`](docs/API.md#envelope).
@@ -326,7 +326,7 @@ npm run check:links     # documentation links
 npm run build
 ```
 
-[`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) has the repo layout, the build, and how to add
+[`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) has the repository layout, the build, and how to add
 things. [`docs/TESTING.md`](docs/TESTING.md) has the three tiers, what each one can and cannot
 prove, and — importantly — **how to read a red run before concluding it is a regression.**
 

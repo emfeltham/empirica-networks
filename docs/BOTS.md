@@ -3,26 +3,27 @@
 Artificial participants: `empirica-networks/bots`.
 
 Empirica v2 ships none — searched, measured, and recorded as
-[PLATFORM-NOTES §17](PLATFORM-NOTES.md#17-there-is-no-artificial-player-facility-). Empirica v1 had
+[PLATFORM-NOTES §16](PLATFORM-NOTES.md#16-there-is-no-artificial-player-facility-caution). Empirica v1 had
 them, so assuming they exist is the natural mistake. This entry point is the facility, built the
 only way the platform allows.
 
-**A bot here is a headless participant process.** It opens a real Tajriba session, runs the real
+A bot here is a headless participant process. It opens a real Tajriba session, runs the real
 participant mode, reads its neighbours through the same `project()` and writes through the same
 private channel a browser writes to. There is no server-side path, and that is a design constraint
 rather than an unfinished edge: a bot that could read a non-neighbour, see the graph, or learn the
 global state would be a different kind of object from the people it is mixed in with, and any
 comparison between them would be measuring the difference in access.
 
-It is also not a choice. This package's topology is defined over `game.players`; Empirica creates a
-player only for a connected participant, and provisioning skips players with no `participantID`. A
-node with no participant behind it has no seat and no private channel.
+This is also a structural requirement rather than a choice. This package's topology is defined over
+`game.players`; Empirica creates a player only for a connected participant, and provisioning skips
+players with no `participantID`. A node with no participant behind it has no seat and no private
+channel.
 
 ---
 
-## 1. Before anything else: bots are visible at the wire
+## 1. Visibility of bots on the wire
 
-**Every participant in a game receives every other participant's `participantIdentifier`** — the
+Every participant in a game receives every other participant's `participantIdentifier` — the
 raw value of `?participantKey=`. Classic writes it as an immutable attribute on the player scope at
 `PARTICIPANT_CONNECT`, and links every participant to every player node, so it arrives on
 everybody's wire. Measured 2026-08-16 against `@empirica/core@1.12.5`; witness
@@ -31,23 +32,24 @@ everybody's wire. Measured 2026-08-16 against `@empirica/core@1.12.5`; witness
 
 Two consequences, and they are separate.
 
-**For bots.** There is no naming scheme a bot can use that participants cannot read. `bot-1` is not
+For bots, there is no naming scheme a bot can use that participants cannot read. `bot-1` is not
 a private detail of your runner's configuration; it is on screen, in a browser, one
 `JSON.stringify` away. If your design does not tell subjects which of their neighbours are software
 — Shirado & Christakis (2017) does not — then a recognisable identifier is not a metadata leak, it
 is the manipulation disclosed.
 
-**For every study, bots or not.** In a deployed study `participantKey` carries the recruitment
-identity: the Prolific PID, the MTurk worker ID, whatever the recruitment URL put there. Co-players
-learn it. That is upstream's and affects every Empirica Classic study.
+For every study, whether it uses bots or not, `participantKey` carries the recruitment identity in
+a deployed study: the Prolific PID, the MTurk worker ID, whatever the recruitment URL put there.
+Co-players learn it. That is a property of the upstream platform, and it affects every Empirica
+Classic study.
 
 So the API is shaped around it:
 
 - `runBots` takes `identifiers`, and **requires** them. There is no `count` that invents names,
   because inventing them is the decision with the consequence.
 - `botIdentifiers(n)` generates keys shaped like the ones Empirica's own client generates — a
-  13-digit millisecond timestamp, matching `createNewParticipant`. **That is a development
-  default.** If your humans arrive as 24-character Prolific PIDs, three 13-digit numbers among them
+  13-digit millisecond timestamp, matching `createNewParticipant`. That is a development
+  default. If your humans arrive as 24-character Prolific PIDs, three 13-digit numbers among them
   are the three bots, in order.
 - The runner warns, once, if any identifier contains `bot`, `agent`, `robot`, `simulat`,
   `artificial`, `virtual`, `npc`, `fake`, `dummy`, `test` or `debug`. It is a heuristic with false
@@ -56,11 +58,11 @@ So the API is shaped around it:
   sharing one are one participant with two sockets: the game sits one player short of its count
   forever and nothing anywhere says why.
 
-**In a real run, pass identifiers drawn from the same space as your recruitment keys.**
+In a real run, pass identifiers drawn from the same space as your recruitment keys.
 
 ---
 
-## 2. The shape of it
+## 2. Structure of a bot script
 
 ```js
 // bots.mjs — plain `node bots.mjs`, no bundler, no tsx
@@ -98,7 +100,7 @@ batch: Classic reassigns a participant when their game finishes, and the runner 
 
 Every hook is **synchronous**. A returned promise is not awaited, and a write made after an `await`
 lands outside the runloop's flush and reaches nobody — the same trap
-[PLATFORM-NOTES §15](PLATFORM-NOTES.md#15-writes-only-count-inside-a-callback-) documents,
+[PLATFORM-NOTES §14](PLATFORM-NOTES.md#14-writes-only-count-inside-a-callback-caution) documents,
 arriving by another road. A throw is caught, logged and swallowed: with three bots in a
 twenty-person session, one policy failing must not leave the study one player short.
 
@@ -119,7 +121,7 @@ study that is killed mid-session should still have what its bots did.
 
 ---
 
-## 3. Counting: recruit `playerCount − botCount`
+## 3. Recruitment counts
 
 The treatment's `playerCount` is the size of the **network**, bots included. A twenty-node session
 with three bots needs seventeen people.
@@ -131,10 +133,10 @@ runner says it instead: a bot stuck in the `waiting` phase prints
 > running, or the batch's games are already full. Remember the treatment's playerCount counts bots:
 > recruit playerCount - botCount humans, not playerCount.
 
-The six phases are `connecting → waiting → intro → starting → playing → ended`. `run.phases()`
-returns the current one per bot and is the first thing to look at when a study will not start; each
-has a stall reason naming what to check. A bot that sits in any non-playing phase for 30 s warns
-once, on stderr and in the log.
+The six phases are `connecting`, `waiting`, `intro`, `starting`, `playing` and `ended`, in that
+order. `run.phases()` returns the current one per bot and is the first thing to look at when a
+study will not start; each has a stall reason naming what to check. A bot that sits in any
+non-playing phase for 30 s warns once, on stderr and in the log.
 
 ---
 
@@ -164,7 +166,7 @@ analysis could separate them afterwards. `examples/shirado2017/server/src/design
 `placeBots`, and `test/unit/shirado2017.test.ts` asserts the degree sequence is unchanged in every
 arm.
 
-**The server has to know which players are bots, and can only know by holding the list.** There is
+The server has to know which players are bots, and can only know by holding the list. There is
 no pattern to match on — see §1. Give the same identifiers to both processes:
 
 ```sh
@@ -177,9 +179,9 @@ Then, server-side, `player.get("participantIdentifier")` against that list.
 
 ---
 
-## 5. Telling a bot its condition
+## 5. Informing a bot of its condition
 
-Don't give the runner its own copy of the experimental condition. Two processes each reading their
+Do not give the runner its own copy of the experimental condition. Two processes each reading their
 own config is how a study runs 10%-noise agents and records them as 30%, with nothing anywhere
 disagreeing.
 
@@ -204,7 +206,7 @@ told. `project()` remains the only path by which one participant's data reaches 
 
 ---
 
-## 6. Analysis: record which nodes were bots
+## 6. Recording which nodes are bots
 
 Nothing in the data says which participants were software. That is the property the bots were built
 to have — same key, same kind of channel, same code path — so it has to be recorded deliberately:
@@ -221,12 +223,12 @@ the human-only arm — "no agents" and "agents with zero noise" are two differen
 
 ---
 
-## 7. Running it: plain `node`
+## 7. Running bots with plain `node`
 
 `empirica-networks/bots` ships as a **bundled CJS artefact**, and the export map has a single
 `default` condition rather than an `import` that would resolve and then fail. `@empirica/core/admin`
 — which the runner needs for `TajribaConnection` — cannot be loaded from bare Node ESM
-([§3a](PLATFORM-NOTES.md#3a-the-published-empiricacore-cannot-be-loaded-from-raw-node-at-all-)),
+([§3a](PLATFORM-NOTES.md#3a-the-published-empiricacore-cannot-be-loaded-from-raw-node-at-all-significant-risk)),
 so the package does that bundling once instead of asking every study to set up a bundler.
 
 Both forms work:
@@ -244,19 +246,19 @@ around will find it.
 
 ---
 
-## 8. What this does not do
+## 8. Limitations
 
-- **No reconnection policy.** A bot whose socket drops stays down. Tajriba's client reconnects, but
-  nothing here re-establishes a session or re-enters a game, and a restarted server cannot put
-  anyone back in their game anyway ([`ISSUES.md`](../ISSUES.md) U2).
-- **No lobby, consent or exit-survey behaviour.** The runner sets `introDone` and nothing else on
-  the player scope. A design whose intro steps gate on other player attributes needs the policy to
-  write them.
-- **No rate limiting.** `tickMs` is the only pace control. Three bots at 100 ms in a twenty-person
-  game will out-move the humans, and the speed of an agent is not a neutral parameter — see the
-  note on `BOT_INTERVAL_MS` in the Shirado example.
-- **No claim about how human-like anything is.** The runner puts an agent at a node and runs your
-  rule. Whether that rule resembles a person is your design's problem, and the paper you are
+- The runner provides no reconnection policy. A bot whose socket drops stays down. Tajriba's client
+  reconnects, but nothing here re-establishes a session or re-enters a game, and a restarted server
+  cannot put anyone back in their game anyway ([`ISSUES.md`](../ISSUES.md) U2).
+- The runner provides no lobby, consent or exit-survey behaviour. It sets `introDone` and nothing
+  else on the player scope. A design whose intro steps gate on other player attributes needs the
+  policy to write them.
+- The runner provides no rate limiting. `tickMs` is the only pace control. Three bots at 100 ms in
+  a twenty-person game will out-move the humans, and the speed of an agent is not a neutral
+  parameter — see the note on `BOT_INTERVAL_MS` in the Shirado example.
+- The runner makes no claim about how human-like anything is. It puts an agent at a node and runs
+  your rule. Whether that rule resembles a person is your design's problem, and the paper you are
   reconstructing is the place to argue it.
 
 ---

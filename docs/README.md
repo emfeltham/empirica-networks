@@ -21,7 +21,7 @@ Cut by what you are trying to do. If you are new, start at
 
 | | |
 |---|---|
-| [**DEPLOYING**](DEPLOYING.md) | **Read this before planning a real study.** Deployment is not yet documented, and this file says exactly how far the repository can take you — plus the pre-flight checklist and the parts known to be hard |
+| [**DEPLOYING**](DEPLOYING.md) | The file to read before planning a real study. Deployment is not yet documented, and this file says exactly how far the repository can take you — plus the pre-flight checklist and the parts known to be hard |
 | [**DATA-AND-ANALYSIS**](DATA-AND-ANALYSIS.md) | What a finished run produces, every column of every table, and how to reproduce a run from what is stored. One decision here has to be made *before* the run |
 
 ## Understanding or changing it
@@ -34,7 +34,7 @@ Cut by what you are trying to do. If you are new, start at
 | [**PLATFORM-NOTES**](PLATFORM-NOTES.md) | Every platform constraint, with the date and version it was measured against. The evidence the other documents cite |
 | [`../ISSUES.md`](../ISSUES.md) | Known defects. **U** is upstream, **O** is ours |
 
-## Process records — not user documentation
+## Keeping process records (not user documentation)
 
 Kept because the reasoning is worth more than the conclusion, and cited by the documents above.
 Nothing here is needed to use the package.
@@ -52,5 +52,5 @@ Nothing here is needed to use the package.
 
 `MODULE-DESIGN.md` — why the package is shaped the way it is — is deliberately **not** in this
 repository; it is kept with the investigation that produced it.
-[ARCHITECTURE](ARCHITECTURE.md) is the in-repo answer to *how it works*, which is the question
-most links to it were actually asking.
+[ARCHITECTURE](ARCHITECTURE.md) is the answer to *how it works* kept inside this repository, which
+is the question most links to it were actually asking.

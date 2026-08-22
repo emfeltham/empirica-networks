@@ -3,7 +3,7 @@
 For someone reading the source: a contributor, a reviewer, or the author in six months. It is
 organised by **mechanism**, walking the path a value takes from a participant's browser to their
 neighbour's screen. `MODULE-DESIGN.md` — kept with the investigation that produced it, not in
-this repo — is organised by *decision and its reasoning*, and is the place to find out why a
+this repository — is organised by *decision and its reasoning*, and is the place to find out why a
 shape was chosen rather than what it does.
 
 Every claim below names the file it lives in, and where a behaviour is pinned by a test, the
@@ -18,8 +18,9 @@ Written 2026-08-16, against the post-M6 surface (`@empirica/core` 1.12.5).
 
 Participants are nodes in a graph. Each participant owns one **private channel** — a modelled
 scope of custom kind `nbhd`, linked to that participant alone — and the server writes their
-projected view of their neighbours there and nowhere else. Not "the interface hides the rest":
-the bytes never arrive. The realised graph, its seed, and its mutation history are recorded on
+projected view of their neighbours there and nowhere else. The bytes describing the rest of the
+graph never reach the client at all; the interface does not merely hide them. The realised graph,
+its seed, and its mutation history are recorded on
 the **batch** scope, which is the only durable scope measured not to be delivered to participants
 (`test/e2e/scope_visibility.test.ts`), so a finished run is reproducible from stored data without
 handing the seating plan to the people inside it.
@@ -73,15 +74,16 @@ src/
   verify/             the `verify` CLI: harness, server, sentinel leak test, tcp cut
 ```
 
-**The entry-point rule, stated first because breaking it is silent.** `src/index.ts` re-exports
-only `shared/`. `admin`, `player`, `player/react` and `topology` are deliberately *not* pulled
-into one barrel — that is the mistake in `@empirica/core`'s own `index.ts`, which drags
+The entry-point rule is stated first because breaking it fails silently. `src/index.ts` re-exports
+only `shared/`. `admin`, `player`, `player/react` and `topology` are deliberately not pulled
+into a single module that re-exports everything — that is the mistake in `@empirica/core`'s own `index.ts`, which drags
 server-only code (and its `tmp` → `require("fs")` problem) into client bundles. Each is its own
 `exports` subpath in `package.json`. `monitor` is a further subpath off `admin` for the same
 reason plus one more: a server that never opts in never pulls `node:http` or the served page into
-its bundle, and *"does this deployment expose the whole graph"* stays answerable with one grep.
+its bundle, and the question *"does this deployment expose the whole graph"* stays answerable
+with one grep.
 
-**`bots` breaks the ESM rule deliberately, and the export map says so.** It reaches
+`bots` breaks the ESM rule deliberately, and the export map records that fact. It reaches
 `@empirica/core/admin` for `TajribaConnection` — the connection class lives there even though a
 bot is a participant — and that cannot be loaded from bare Node ESM (§3a). So it ships as a
 bundled CJS artefact under a single `default` condition, rather than as an `import` entry that
@@ -160,10 +162,10 @@ because Tajriba cannot *unlink*, so a re-link bug accumulates permanently); orde
 that `addScopes` preserves input order); and **the channel map is never participant-visible** —
 it lives in server memory only, keyed by game id.
 
-That last one is not tidiness. Empirica has no write access control (`ISSUES.md` U1), so a
-channel id is precisely the capability needed to inject into someone else's private channel. It
-was briefly on the game scope, and an e2e test caught every participant receiving every channel
-id.
+That last property is functionally necessary, not merely tidy. Empirica has no write access
+control (`ISSUES.md` U1), so a channel id is precisely the capability needed to inject into
+someone else's private channel. It was briefly on the game scope, and an end-to-end test caught
+every participant receiving every channel id.
 
 Each channel carries four immutable attributes, set at creation: `ownerParticipantID`,
 `playerID`, `gameID`, and `topologyIndex`. The last is the participant's seat number, and it is
@@ -209,9 +211,9 @@ in which the wrong people are neighbours, and the run looks normal for the rest 
 Called on every channel arrival, because channels stream in from the subscription with no
 completion signal. Idempotent, and gives up quietly until the last seat is filled.
 
-**Note what this does *not* fix.** A full server restart still does not put participants back in
-their game — `gameID` is never restored, upstream (`ISSUES.md` U2). Recovery here is about not
-*corrupting* a game that survives, not about resuming a crashed study. Nothing here can make a
+It is worth noting what this does not fix. A full server restart still does not put participants
+back in their game — `gameID` is never restored, upstream (`ISSUES.md` U2). Recovery here is about
+not corrupting a game that survives, not about resuming a crashed study. Nothing here can make a
 crashed study resumable.
 
 **10 — First publish**, or `awaitingPublish` until the last channel arrives. See §4.
@@ -228,8 +230,8 @@ experiment, and if it ever stops, every reconnecting participant silently goes b
 covers `ended`, `terminated` *and* `failed`). Flushes both sinks first — a game ending is the
 last moment its records are certainly still wanted — then drops nine structures keyed by game or
 channel, including one Empirica `Scope` object per participant, **and** the chat relay's
-per-player dedupe marks. One thing is deliberately *not* released per game: `endedGames`, a set
-of ids, which is what stops a finished game's channels being re-adopted when the kind
+per-player deduplication marks. One thing, `endedGames`, is deliberately kept rather than released
+per game: a set of ids that stops a finished game's channels being re-adopted when the kind
 subscription replays them. It is a few dozen bytes per game against one scope object per
 participant, and since `ISSUES.md` O5 it is **capped** rather than unbounded
 (`src/admin/retention.ts`). Forgetting the oldest is safe because the replay that would re-adopt
@@ -263,35 +265,34 @@ for each target
 
 Six properties worth naming:
 
-**All-or-nothing.** A channel that has not materialised returns `false` having published nothing.
-A partial publish leaves some participants with a stale view and no signal that they are stale,
-which is this package's characteristic failure mode.
+The publish is all-or-nothing: a channel that has not materialised returns `false` having
+published nothing. A partial publish leaves some participants with a stale view and no signal
+that they are stale, which is this package's characteristic failure mode.
 
-**Validate before write.** A publish is one batched RPC — the runloop coalesces every `set()`
-made during one callback into a single `setAttributes` (`admin/runloop.ts`) — so throwing during
-validation means nothing is sent, and no participant gets a partial or unsafe view. Publishing to
-*n* participants costs one round trip, not *n*.
+Validation happens before the write. A publish is one batched RPC — the runloop coalesces every
+`set()` made during one callback into a single `setAttributes` (`admin/runloop.ts`) — so throwing
+during validation means nothing is sent, and no participant gets a partial or unsafe view.
+Publishing to *n* participants costs one round trip, not *n*.
 
-**`project()` returning a scope is refused.** `validateProjection` (`projection.ts`) rejects it,
-along with cycles, `BigInt` and `NaN`. A scope holds a reference to the global attribute store,
-so publishing one would ship every attribute of every participant to that client — the exact
-inverse of the guarantee.
+If `project()` returns a scope, that value is refused. `validateProjection` (`projection.ts`)
+rejects it, along with cycles, `BigInt` and `NaN`. A scope holds a reference to the global
+attribute store, so publishing one would ship every attribute of every participant to that
+client — the exact inverse of the guarantee.
 
-**Recording proxies.** Both arguments are wrapped by `recordReads` (`reads.ts`), and
-`ctx.stateOf()` records too. Whatever `project()` reads is what the view depends on, and
-therefore what must be in `watch` for it to stay live. Empirica has no wildcard attribute
-listener, so the list cannot be inferred — but anything read and not listed is *reported* rather
-than silently going stale.
+Both arguments are wrapped by recording proxies, `recordReads` (`reads.ts`), and `ctx.stateOf()`
+records too. Whatever `project()` reads is what the view depends on, and therefore what must be
+in `watch` for it to stay live. Empirica has no wildcard attribute listener, so the list cannot
+be inferred, but anything read and not listed is reported rather than silently going stale.
 
-**Byte-identical suppression.** Without it, one player changing one attribute rewrites every
-neighbour's whole neighbourhood on the wire, and the client sees a change event for a value that
-did not change. It also makes the deliberate over-reach in `republishAround` free: a change to P
-republishes P's neighbours *and* P itself, because a projection may key off the viewer's own
+Byte-identical views are suppressed. Without that, one player changing one attribute rewrites
+every neighbour's whole neighbourhood on the wire, and the client sees a change event for a value
+that did not change. It also makes the deliberate over-reach in `republishAround` free: a change
+to P republishes P's neighbours and P itself, because a projection may key off the viewer's own
 state.
 
-**Views are `ephemeral`.** Nothing durable holds them. That is why view capture exists and why it
-is opt-in — and it is the difference between *what a participant was told* and *what they could
-have known*, which is all an edge log plus an attribute export can give you afterwards.
+Views are published `ephemeral`, so nothing durable holds them. That is why view capture exists
+and why it is opt-in, and it is the difference between what a participant was told and what they
+could have known, which is all an edge log plus an attribute export can give afterwards.
 
 ### What triggers a republish
 
@@ -328,32 +329,35 @@ The table the examples each write for themselves, generalised. **This is the who
 | **Run log** (`log: { file }`) | Nobody in the experiment — a file on the server | Whatever your analysis needs, written as the study happens |
 | **View sink** (`views: { file }`) | Same | Exactly what each participant was delivered, per delivery |
 
-Two prefixes on one scope rather than one, and that is not tidiness either: a participant can
-write anything to their own channel — it is the one scope they can certainly write to — so a
-shared namespace would let `state.set("offer", …)` overwrite a value the server authored, with no
-way for the server to tell. Separated, that collision is impossible. Both are prefixed rather
-than raw so a participant cannot overwrite `neighbors` or `_seq`.
+There are two prefixes on one scope rather than one for a functional reason, not a stylistic one:
+a participant can write anything to their own channel — it is the one scope they can certainly
+write to — so a shared namespace would let `state.set("offer", …)` overwrite a value the server
+authored, with no way for the server to tell. Separated, that collision is impossible. Both are
+prefixed rather than raw so a participant cannot overwrite `neighbors` or `_seq`.
 
-**Why the batch scope.** It is the one durable place participants cannot read. The realised
-network started on the game scope, where every participant received the full edge list and the
-seed: state stayed neighbour-limited but the *structure* did not, and for a design where the
-topology is the manipulation, that is a confound rather than a nicety (`PLATFORM-NOTES` §4b, §4c).
+The batch scope is used because it is the one durable place participants cannot read. The
+realised network started on the game scope, where every participant received the full edge list
+and the seed: state stayed neighbour-limited but the structure did not, and for a design where
+the topology is the manipulation, that is a confound rather than a nicety (`PLATFORM-NOTES` §4b,
+§4c).
 
-**Why the history is a log and not a snapshot.** They answer different questions and only one is
-answerable from a snapshot. `network:<gameID>` is what the graph *is*; `networkHistory:<gameID>`
-is how it got there. For a rewiring study the sequence *is* the independent variable, so
-overwriting a single edge list as ties change would destroy the thing being measured.
+The history is kept as a log rather than a snapshot because the two answer different questions,
+and only one is answerable from a snapshot. `network:<gameID>` is what the graph is;
+`networkHistory:<gameID>` is how it got there. For a rewiring study the sequence is the
+independent variable, so overwriting a single edge list as ties change would destroy the thing
+being measured.
 
-**And the in-memory log is authoritative, not the attribute.** Appending by reading the batch
-attribute back would be a read-modify-write against a value the server also echoes; two mutations
-in quick succession can interleave so the second reads a stale copy and overwrites the first —
-losing an event silently. Measured as a 1-in-6 flake before the in-memory log was made the source
-of truth. The attribute is a projection of it, not the other way round.
+The in-memory log, rather than the attribute, is treated as authoritative. Appending by reading
+the batch attribute back would be a read-modify-write against a value the server also echoes; two
+mutations in quick succession can interleave so the second reads a stale copy and overwrites the
+first, losing an event silently. This was measured as an intermittent failure in one run out of
+six before the in-memory log was made the source of truth. The attribute is a projection of it,
+not the other way round.
 
 ## 6. The client half
 
-`EmpiricaNetwork` (`player/mode.ts`) is **composed with `EmpiricaClassic`, not a reimplementation
-of it**:
+`EmpiricaNetwork` (`player/mode.ts`) is composed with `EmpiricaClassic`, rather than being a
+reimplementation of it:
 
 ```js
 export function EmpiricaNetwork(participantID, provider) {
@@ -370,32 +374,33 @@ so two consumers each receive everything. The returned object is a superset, whi
 that Classic still returns each of the six keys it merges, so a removal upstream is a loud error
 rather than a silently stripped key.
 
-**The `dones` protocol is the fragile part.** `Attributes` and `Scopes` resolve values only when
-their dones subjects are fed the set of updated node ids. Get it wrong and every scope
-materialises correctly and **every `.get()` returns `undefined`, with no error** — the single most
-confusing failure in this codebase. `networkContext` mirrors Classic's own wiring, and then
+The `dones` protocol is the fragile part of this arrangement. `Attributes` and `Scopes` resolve
+values only when their dones subjects are fed the set of updated node ids. Get it wrong and every
+scope materialises correctly while every `.get()` returns `undefined`, with no error — the single
+most confusing failure in this codebase. `networkContext` mirrors Classic's own wiring, and then
 self-checks: if updates arrived for our scope but `ownerParticipantID` is still unreadable, it
 throws `DonesWiringError` rather than serving empty views. The probe is `ownerParticipantID`, not
 `_seq`, because owner is immutable and present from the moment the scope exists, while `_seq`
 only appears at the first publish.
 
-**Channel selection is by owner, not first-wins.** Flush the dones subjects *first*, then select:
-selection depends on the owner attribute, which is only resolved by that flush. Selecting
-beforehand meant owner was still `undefined`, so with two channels present (a stale one plus
-ours) neither the owner match nor the single-channel fallback applied, and the mode silently kept
-serving the **stale channel**. Invisible in e2e, where a participant only ever sees one channel.
+Channel selection works by matching the owner, rather than by taking the first channel seen. The
+dones subjects are flushed first, and only then does selection happen, because selection depends
+on the owner attribute, which is only resolved by that flush. Selecting beforehand meant owner
+was still `undefined`, so with two channels present (a stale one plus ours) neither the owner
+match nor the single-channel fallback applied, and the mode silently kept serving the stale
+channel. Invisible in end-to-end testing, where a participant only ever sees one channel.
 
-**`undefined` and `[]` are different answers.** `Nbhd.published` exists because `neighbors`
+`undefined` and `[]` are different answers. `Nbhd.published` exists because `neighbors`
 returns `[]` both for "not published yet" and for "genuinely isolated". The hooks return
 `undefined` until a real view has arrived. Rendering an isolated node during startup is a silent
-data-validity bug, not a cosmetic one.
+data-validity bug rather than a cosmetic one.
 
-**The derivations are separable from React.** `neighborsOf`, `networkSelfOf`, `networkToldOf`,
+The derivations are kept separable from React. `neighborsOf`, `networkSelfOf`, `networkToldOf`,
 `networkStateOf`, `neighborChatOf` all live in `player/` and take a context — the hooks in
 `player/react/` are thin wrappers. Headless clients and bots need the same derivations, and the
 `verify` harness uses them.
 
-## 7. Determinism
+## 7. Determinism, and its limits
 
 ```
 game.id ──hashSeed──▶ seed ──makeRng──▶ rng ──topology(…)──▶ edges
@@ -408,22 +413,22 @@ the batch scope, so the graph a run actually used is recoverable from stored dat
 re-derived and hoped to match. `makeRng` and `shuffle` are exported so a design's own randomness
 can hang off the same seed. Pinned by `test/e2e/reproducibility.test.ts`.
 
-Seat assignment is *not* re-derivable: `game.players` order is not stable, which is why the seat
-lives on each channel as `topologyIndex` (§3 step 9).
+Seat assignment cannot be re-derived, because `game.players` order is not stable; that is why the
+seat lives on each channel as `topologyIndex` (§3 step 9).
 
 ## 8. The four version-fragile upstream contracts
 
 This package is built on public API, but four contracts are fragile across `@empirica/core`
 versions and **three of them fail silently**. They are enumerated in
 `.github/workflows/drift.yml`, which runs the suite against `@empirica/core@latest` every Monday
-and is *expected* to be the first thing that goes red after an upstream release — that is the
-signal, not a flake.
+and is expected to be the first thing that fails after an upstream release. That failure is the
+intended signal, rather than an intermittent test failure.
 
 | Contract | Failure mode | Witness |
 |---|---|---|
 | `TajribaProvider` constructor shape | Silent | mode tier |
 | The **`dones` protocol** | Silent — every `.get()` returns `undefined` | `test/mode/*`, and the `DonesWiringError` self-check |
-| `AdminContext.init` arity | Loud | e2e |
+| `AdminContext.init` parameter count | Loud | end-to-end tests |
 | `ListenersCollector.attributeListeners` and the `unique` wrapper shape | Silent — the U8 detector switches off and consumers stop being warned | `test/unit/listeners.test.ts`, `test/e2e/duplicate_listeners.test.ts` |
 
 The fourth is the only one that depends on an `@internal` field. The detector *calibrates* the
@@ -434,15 +439,16 @@ withdrawn.
 
 ## 9. What is held in memory, per process
 
-Because "does it leak" is a question with an answer here, and `net.stats()` exists so that answer
-is not "watch a heap graph and squint". `npm run soak` prints these alongside RSS.
+Whether a process leaks memory is a question this package can answer directly, and `net.stats()`
+exists so that the answer does not depend on inspecting a heap graph by eye. `npm run soak` prints
+these alongside RSS.
 
 | Structure | Keyed by | Released at |
 |---|---|---|
 | `networks`, `games`, `startedAt`, `seqByGame`, `historyByGame`, `recoveredOrder`, `gameNetworks` | game id | `releaseGame` |
 | `channelScopes`, `lastPublished` | channel scope id | `releaseGame`, via the channel map |
 | the channel index (`provision.ts`) | game id | `releaseChannels` |
-| `lastOutbox` (chat dedupe) | **player id** | `releaseGame`, via the seating order |
+| `lastOutbox` (chat deduplication) | **player id** | `releaseGame`, via the seating order |
 | `endedGames` | game id | never per game — deliberately; **capped** at `MAX_ENDED_GAMES` |
 | `reportedMissing` | key name | never; bounded by the key list |
 
@@ -451,11 +457,12 @@ they are the two that outlive a game, and everything else in that record should 
 between games (`test/e2e/retention.test.ts` asserts the whole shape).
 
 The `lastOutbox` row is the one worth reading twice. Being keyed by player rather than by game is
-what put it outside every game-keyed delete, and the cost of that was not memory: Classic reuses
-a participant's player scope across sequential games while the client's message counter restarts
-with each new channel, so a stale mark made the relay's duplicate guard swallow the opening
-messages of the next game, silently (`ISSUES.md` O5). When adding state here, the question that
-finds this class of bug is *what is this keyed by, and is that the thing that ends?*
+what put it outside every game-keyed delete. The cost of that choice was not a memory cost but a
+correctness one: Classic reuses a participant's player scope across sequential games while the
+client's message counter restarts with each new channel, so a stale mark made the relay's
+duplicate guard swallow the opening messages of the next game, silently (`ISSUES.md` O5). When
+adding state here, the question that finds this class of bug is what this new state is keyed by,
+and whether that is the thing that ends.
 
 ## 10. Reading further
 
@@ -466,4 +473,4 @@ finds this class of bug is *what is this keyed by, and is that the thing that en
 | [`PLATFORM-NOTES.md`](PLATFORM-NOTES.md) | the measurements every claim here rests on, dated and versioned |
 | [`GLOSSARY.md`](GLOSSARY.md) | channel, projection, view, seat, envelope, told |
 | [`../ISSUES.md`](../ISSUES.md) | what is known to be broken, ours and upstream's |
-| `MODULE-DESIGN.md` | why each of these shapes was chosen. Not in this repo |
+| `MODULE-DESIGN.md` | why each of these shapes was chosen. Not in this repository |

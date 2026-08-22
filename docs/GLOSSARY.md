@@ -17,7 +17,7 @@ non-neighbour. Empirica v2 ships no such facility; this one is `empirica-network
 **channel** — the private `nbhd` scope belonging to one participant. Created at game start, one
 per participant, linked to them alone. Everything neighbour-limited goes through it: the server
 writes their view here, they write their own private state here, and the server writes anything
-it tells them privately here. Its id is a capability (there is no write ACL — see *U1*), so the
+it tells them privately here. Its id is a capability (there is no write access control — see *U1*), so the
 map from participants to channels is never participant-visible. → [ARCHITECTURE §3
 step 7](ARCHITECTURE.md#3-the-lifecycle-end-to-end)
 
@@ -27,9 +27,9 @@ driven by feeding their dones subjects the set of updated node ids. Version-frag
 Self-checked by `DonesWiringError`. → [ARCHITECTURE §6](ARCHITECTURE.md#6-the-client-half)
 
 **envelope** — the enforced limits on what may be published: max degree, max bytes per view, and
-max bytes per participant per publish (`maxNeighbourhoodBytes`, 64 KiB). Degree alone is not the
-thing to watch; **degree × how much you project per neighbour** is what a participant's
-connection carries. Degree is checked at game start, before any channel exists, so a topology
+max bytes per participant per publish (`maxNeighbourhoodBytes`, 64 KiB). What a participant's
+connection actually carries is degree multiplied by how much is projected per neighbour, not
+degree alone. Degree is checked at game start, before any channel exists, so a topology
 that will not fit fails while the experiment is still abandonable.
 → [API §Envelope](API.md#envelope), and the README's *Supported envelope* for the measurements
 
@@ -78,8 +78,8 @@ is stored as well as the seed, so an analysis reads back the graph that was used
 re-deriving one and hoping it matches. → [DATA-AND-ANALYSIS §4](DATA-AND-ANALYSIS.md)
 
 **reconstruction** — a design rebuilt from its published paper, never run and never compared to
-the authors' results. Deliberately not called a *replication*: nothing here has reproduced
-anything. → [EXPERIMENTS.md](EXPERIMENTS.md)
+the authors' results. The term deliberately avoids *replication*, because nothing here has
+reproduced anything. → [EXPERIMENTS.md](EXPERIMENTS.md)
 
 **run log** — an append-only NDJSON file written *as the study happens* (`log: { file }`), for
 whatever your analysis needs. Exists because `onGameEnded` fires only when a game ends naturally,

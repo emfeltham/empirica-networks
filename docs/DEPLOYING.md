@@ -1,17 +1,17 @@
 # Deploying a study — not yet documented
 
-**Status, 2026-08-16: this package has never been deployed.** No study has been run with real
+As of 2026-08-16, this package has not been deployed. No study has been run with real
 participants, and no data has been collected with either reconstruction
 (`PUBLICATION-PLAN.md` §3). Every runnable instruction in this repository ends at `empirica` on
 localhost with a handful of `?participantKey=` URLs.
 
 This file is a placeholder that says so, rather than a guide assembled by reading Empirica's
-documentation and inferring the rest. Instructions that look right and have never been run are
-the exact hazard `docs/M5-ADOPTION.md` §1 calls **H-A** — a port that runs but silently deviates
+documentation and inferring the rest. Instructions that look correct and have never been run are
+the exact hazard `docs/M5-ADOPTION.md` §1 calls H-A — a reconstruction that runs but silently deviates
 — and a deployment guide is where that does the most damage, because the person who discovers
 the error is running a study with people in it.
 
-What *is* written down is the part that does not depend on having deployed: the decisions to make
+What is written down is the part that does not depend on having deployed: the decisions to make
 before you do, and the things known to be hard. Those are below.
 
 It will be written properly as a by-product of `PUBLICATION-PLAN.md` §3 — recorded while doing
@@ -19,9 +19,9 @@ it, dated and versioned like `PLATFORM-NOTES.md`, rather than reconstructed afte
 
 ---
 
-## 1. Pre-flight, before real participants
+## 1. Checks before real participants
 
-Every item here is checkable today, on localhost, and each one has bitten something in this
+Every item here is checkable today, on localhost, and each one has caused a problem in this
 repository.
 
 - [ ] **`networkKinds` is registered** in `server/src/index.js`. Silently fatal if not; it now
@@ -45,7 +45,7 @@ repository.
       recruitment links, and cannot be undone afterwards. `ISSUES.md` U10
 - [ ] **Bot identifiers, if any, are drawn from that same space.** Three 13-digit numbers among
       24-character PIDs are the three bots, in order, to anyone who looks. `docs/BOTS.md` §1
-- [ ] **A dry run at the real *n***, with the real treatment, on the real host. Degree ×
+- [ ] **A dry run at the real n**, with the real treatment, on the real host. Degree multiplied by
       projection size is what a participant's connection carries, and it is capped at 64 KiB per
       publish by default.
 - [ ] **The target regime is n ≤ 50.** At n ≥ 200 games do not reliably start — 1 run in 6,
@@ -53,16 +53,16 @@ repository.
 
 ## 2. The things known to be hard
 
-Not a procedure. These are the parts where a naive deployment goes wrong, and they are what the
+This is not a procedure. These are the parts where a naive deployment goes wrong, and they are what the
 real document will have to answer.
 
 ### A crashed study cannot be resumed
 
-A full server restart reloads the store, but `gameID` is never restored and **no game resumes**.
-It can also leave two player scopes for one participant. This is upstream (`ISSUES.md` U2) and no
+A full server restart reloads the store, but `gameID` is never restored and no game resumes. It
+can also leave two player scopes for one participant. This is upstream (`ISSUES.md` U2) and no
 amount of configuration changes it.
 
-So a crash, a deploy, or a `^C` mid-session **ends the games in progress**. Plan for that
+So a crash, a deploy, or a `^C` mid-session ends the games in progress. Plan for that
 outcome rather than for a recovery procedure that does not exist:
 
 - turn on the run log, so a killed study still leaves analysable data;
@@ -81,8 +81,8 @@ For a deployment this means: treat every participant-written value as untrusted 
 record of account on the batch scope, and judge whether your design gives anyone a reason to
 bother — a study where altering someone else's state pays is exposed in a way a survey is not.
 
-It also means **do not put an admin `srtoken` anywhere a browser can reach it.** With no write
-ACL, an admin credential is not a read-only view with a login; it is the ability to write any
+It also means an admin `srtoken` should never be placed anywhere a browser can reach it. With
+no write ACL, an admin credential is not a read-only view with a login; it is the ability to write any
 attribute on any node.
 
 ### The monitor shows exactly what participants must never see
@@ -91,7 +91,7 @@ The complete graph, the seating plan, and every participant's private state, on 
 binds to `127.0.0.1` and requires a per-run token for that reason, and it warns loudly if you
 bind it elsewhere.
 
-**Reach it through an SSH tunnel**, not by changing `host`:
+Reach it through an SSH tunnel, not by changing `host`:
 
 ```sh
 ssh -L 8080:127.0.0.1:<port> your-server
@@ -99,7 +99,7 @@ ssh -L 8080:127.0.0.1:<port> your-server
 
 The URL contains the token; treat it as the secret it is. The monitor holds no Empirica
 credential and there is no path from the page to `setAttribute` — that is structural, and
-`test/e2e/monitor.test.ts` asserts it against the raw wire. Who can *open* it is access control,
+`test/e2e/monitor.test.ts` asserts it against the raw wire. Who can open it is access control,
 and access control is never structural.
 
 ### Data at rest is identifiable
@@ -109,7 +109,7 @@ It was neighbour-limited in transit; it is not anonymised at rest. Captured view
 the only copy of what each participant was shown and cannot be regenerated.
 
 Back up the store and the NDJSON files; decide retention before the run; and remember that U1 and
-U10 belong in an IRB protocol's risk section for *any* Empirica study, not just this one — the
+U10 belong in an IRB protocol's risk section for any Empirica study, not just this one — the
 first because a participant can alter another's data, the second because participants are handed
 each other's recruitment identifiers.
 

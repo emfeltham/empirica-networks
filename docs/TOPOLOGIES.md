@@ -18,24 +18,24 @@ index-based**: it returns `Array<[number, number]>` over node indices `0…n-1`,
 maps indices onto participants. You can return any edge list you like, from anywhere — these are a
 convenience, not a gate.
 
-The function is called once per game with `{ game, players, playerCount, rng }`. **`players[i]` is
-the participant who will occupy index `i`**, which is what makes *who sits where* addressable: to
+The function is called once per game with `{ game, players, playerCount, rng }`. `players[i]` is
+the participant who will occupy index `i`, which is what makes *who sits where* addressable: to
 place particular participants at particular positions, relabel the graph you generated rather than
 reordering people. [BOTS §4](BOTS.md) is the worked case.
 
-## Three rules that apply to all of them
+## Rules that apply to all generators
 
-**1. Randomness is always seeded.** Every generator that makes a random choice takes an `rng`,
-and four of them **throw without one**. This is not tidiness: Breadboard used an unseeded
-generator, so a finished run stored the generator and its parameters but not the realised graph
-— and for a network experiment the realised graph is often the independent variable.
-`withNetwork` passes you a seeded `rng` and records the seed. Pinned by
+1. Randomness is always seeded. Every generator that makes a random choice takes an `rng`,
+and four of them **throw without one**. This requirement is about reproducibility, not tidiness:
+Breadboard used an unseeded generator, so a finished run stored the generator and its parameters
+but not the realised graph — and for a network experiment the realised graph is often the
+independent variable. `withNetwork` passes you a seeded `rng` and records the seed. Pinned by
 `test/e2e/reproducibility.test.ts`.
 
 Passing `rng` to a *deterministic* generator does something different and useful: it permutes
 **which participant occupies which structural position**. On a star, that decides who is the hub.
 
-**2. Degree is checked against the envelope at game start**, before provisioning and before
+2. Degree is checked against the envelope at game start, before provisioning and before
 anything is recorded — so an out-of-envelope topology fails while the experiment is still
 abandonable. The default cap is `n - 1` at n ≤ 50 and `16` above it, because those are the two
 regimes that have been measured, and the error says which one you hit.
@@ -43,7 +43,7 @@ regimes that have been measured, and the error says which one you hit.
 `complete`, `star` and `wheel` each have a node of degree `n - 1`, so they are fine at n ≤ 50 and
 out of the envelope **by construction** above it. That is a property of the shape, not a bug.
 
-**3. Nothing silently repairs a disconnected graph.** `erdosRenyi` and `geometricRandom` below
+3. Nothing silently repairs a disconnected graph. `erdosRenyi` and `geometricRandom` below
 their percolation thresholds, and `wattsStrogatz` through rewiring, all produce isolated nodes at
 some parameters. Resampling until connected would change the distribution you are sampling from,
 so `isConnected(n, edges)` is offered instead and the choice stays yours.
@@ -89,7 +89,7 @@ rather than stranding one participant.
 | `empty()` | 0 | No edges. Takes no arguments |
 | `fromEdgeList(n, edges)` | yours | Normalises: drops self-loops, deduplicates, orders each pair, sorts |
 
-**Route hand-built graphs through `fromEdgeList`.** A duplicate edge is harmless to `adjacency`
+Route hand-built graphs through `fromEdgeList`. A duplicate edge is harmless to `adjacency`
 but makes `edges.length` misreport the tie count in the *recorded* data — and the recorded edge
 list is what your analysis reads.
 
@@ -113,7 +113,7 @@ if (topology.maxDegree(n, edges) > 16 && n > 50) { /* resample, or raise the env
 if (!topology.isConnected(n, edges)) { /* your call, not the package's */ }
 ```
 
-## Choosing one
+## Choosing a topology
 
 | If you want | Use |
 |---|---|
@@ -126,7 +126,7 @@ if (!topology.isConnected(n, edges)) { /* your call, not the package's */ }
 | A no-structure control | `pairs`, or `empty` |
 | A specific published graph | `fromEdgeList` |
 
-## What is deliberately absent
+## Deliberate omissions
 
 Breadboard shipped sixteen generators; three are not reproduced here, and padding the list to
 sixteen would have made two of them lies.
@@ -136,14 +136,15 @@ sixteen would have made two of them lies.
 - **`lattice`** — the same as `grid`, offered as `grid(w, h, { periodic: true })`, which is the
   only distinction that matters (a torus has no boundary nodes, so degree is uniform).
 - **`smallWorldColoring`** — could not be reconstructed from the name with any confidence.
-  Guessing at a generator that decides who is adjacent to whom is not a guess worth making.
+  A generator that decides who is adjacent to whom should not be guessed at without that
+  confidence.
 
 ## Rendering and measuring elsewhere
 
 For anything beyond the measures above — centrality, communities, shortest paths, GEXF for
-Gephi — use [graphology](https://graphology.github.io) through the adapter. It is **not a
-dependency**, not even optional: the constructor is injected, so nothing here imports it and the
-subpath loads without it installed.
+Gephi — use [graphology](https://graphology.github.io) through the adapter. The package does not
+depend on graphology at all, optional or otherwise: the constructor is injected, so nothing here
+imports it and the subpath loads without it installed.
 
 ```js
 import { UndirectedGraph } from "graphology";
