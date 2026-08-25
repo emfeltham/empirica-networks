@@ -46,9 +46,16 @@ Nothing here is needed to use the package.
 | [DOCS-PLAN](DOCS-PLAN.md) | The plan these documents were written from, and the one item still open |
 | [EVALUATION](EVALUATION.md) | The paper's empirical section: what a *platform* has to prove, and why simulated sessions are the instrument |
 | [EVALUATION-RUNBOOK](EVALUATION-RUNBOOK.md) | How to build and run `simulate`, written to be handed to someone who has not worked on this package |
-| [`../PUBLICATION-PLAN.md`](../PUBLICATION-PLAN.md) | Disclosure → API freeze → platform evaluation → preprint |
 | [upstream/DISCLOSURE](upstream/DISCLOSURE.md) | The disclosure route and its checklist |
 | [upstream/U1](upstream/U1-no-write-access-control.md) · [upstream/U2](upstream/U2-restart-does-not-restore-games.md) | Drafted upstream reports |
+
+`PUBLICATION-PLAN.md` and `PAPER-OUTLINE.md` — the route to a preprint, and the preprint's own
+section plan — moved **out of this repository** on 2026-08-25, to the manuscript's working
+directory. They are about the paper rather than the package, and a repository that ships to
+adopters is the wrong home for a document tracking a submission. Documents here still cite
+`PUBLICATION-PLAN.md` by name where the reasoning depends on it; [EVALUATION](EVALUATION.md) is
+the part of that plan which stays, because what the platform has to prove is a fact about the
+platform.
 
 `MODULE-DESIGN.md` — why the package is shaped the way it is — is deliberately **not** in this
 repository; it is kept with the investigation that produced it.
