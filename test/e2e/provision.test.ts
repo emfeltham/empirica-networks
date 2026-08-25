@@ -54,7 +54,7 @@ test("provisions real channels, linked 1:1, each visible only to its owner", asy
   };
 
   await withScenario(
-    { n: N, kinds: networkKinds, listeners, modeFunc: EmpiricaClassic as any },
+    { n: N, kinds: networkKinds, recordWire: true, listeners, modeFunc: EmpiricaClassic as any },
     async ({ admin, participants }) => {
       const batch = await createBatch(admin, batchConfig(N, 1));
       await batch.running();
@@ -124,7 +124,7 @@ test("the channel index is never exposed on the game scope", async () => {
   };
 
   await withScenario(
-    { n: 2, kinds: networkKinds, listeners, modeFunc: EmpiricaClassic as any },
+    { n: 2, kinds: networkKinds, recordWire: true, listeners, modeFunc: EmpiricaClassic as any },
     async ({ admin, participants }) => {
       const batch = await createBatch(admin, batchConfig(2, 1));
       await batch.running();

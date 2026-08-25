@@ -36,6 +36,15 @@ jobs:
       - run: npm run check
       - run: npm test -- unit mode
 
+      # Documentation links, on one Node version only — the result cannot differ
+      # across them, and three copies of the same failure is noise. Relative
+      # paths and section anchors only, never external URLs: those would make a
+      # green run depend on other people's uptime. Anchors are the ones that
+      # actually rot here, since PLATFORM-NOTES numbers its sections by
+      # discovery order and therefore renumbers them.
+      - run: npm run check:links
+        if: matrix.node == '22'
+
   # The tier that proves the actual guarantee. Current Node only: it needs the
   # Empirica CLI and a real Tajriba, and running that three times over would
   # triple the slowest job to re-test the same server binary.
@@ -75,6 +84,13 @@ jobs:
       - run: npm run build
       - run: node dist/verify/cli.cjs verify --n 4
 
+      # Every `empirica-networks` import written in the docs, resolved against
+      # what was just built. Here rather than in the `unit` job because it needs
+      # dist, and this is the job that already builds. It catches the drift a
+      # link checker cannot see: an export renamed out from under a snippet that
+      # still reads correctly.
+      - run: npm run check:docs
+
       - name: Upload server logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -86,9 +102,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # The example is documentation, so nothing fails when the API moves under it.
-  # Its server half is covered by test/e2e/example.test.ts; this covers the
-  # client half, which only a real build can catch (imports, JSX, exports map).
+  # The examples are documentation, so nothing fails when the API moves under them.
+  # Their server halves are covered by test/e2e/example.test.ts, shirado2017.test.ts
+  # and rand2011.test.ts; this covers the client halves, which only a real build can
+  # catch (imports, JSX, exports map).
+  #
+  # ALL of them, via a script that iterates the directory. This job built only
+  # `minimal` until M6 Tier 4 — the line was written when there was one example, two
+  # more arrived in M5, and the line did not change, so their clients had never been
+  # built at all. A hard-coded path per example is how that happens twice.
   example:
     name: example builds
     runs-on: ubuntu-latest
@@ -104,4 +126,4 @@ jobs:
       # @empirica/core, and two copies break every instanceof inside Empirica.
       # See docs/PLATFORM-NOTES.md §11.
       - run: npm run example:install
-      - run: npm --prefix examples/minimal/client run build
+      - run: npm run example:build

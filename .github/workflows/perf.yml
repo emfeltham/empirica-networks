@@ -1,0 +1,128 @@
+name: perf
+
+# The bench and the soak, weekly — `ISSUES.md` O6.
+#
+# THE DECISION THIS ENCODES, because it is not the obvious one.
+#
+# O6 proposed "a weekly job that fails on regression against stored baselines".
+# Half of that is here and half is deliberately not, and the half that is missing
+# is the latency baseline.
+#
+# A GitHub-hosted runner is a shared 2-4 vCPU machine with no isolation
+# guarantee. The bench's dominant term is participants per PROCESS competing for
+# cores (`ISSUES.md` O1: sweeping participants-per-shard at n=100 moved p50 from
+# 43.1ms to 8.0ms without touching the package), so a latency threshold here
+# would measure the runner at least as much as the code. It would flap. A gate
+# that flaps gets muted, and a muted job is worse than no job because it reads as
+# coverage — which is exactly how the package ended up with `assertKindsRegistered`
+# exported and called by nothing for four milestones (O14).
+#
+# So the split is:
+#
+#   GATED   — correctness invariants that are exact and machine-independent.
+#             Every publish arrived (`delivered == expected`), no round went
+#             unseen, and every finished game released everything it held.
+#             These are what actually break when a regression lands, and they
+#             hold at any speed on any host.
+#
+#   RECORDED — every latency and memory figure, into the job summary. Visible as
+#             a trend without gating on it. If someone later wants a threshold,
+#             the history to set one from will exist, which it does not today.
+#
+# Weekly rather than per-PR: both harnesses take minutes and spawn hundreds of
+# participants, and neither answers a question a pull request usually raises.
+# `workflow_dispatch` is there for when one does.
+
+on:
+  schedule:
+    # Mondays, 07:00 UTC — an hour after the drift job, so a week where upstream
+    # moved reports the version change first and the performance consequence
+    # second, rather than two red jobs with no stated order between them.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Soak duration per arm, minutes"
+        default: "2"
+      max_n:
+        description: "Largest bench cell to run"
+        default: "50"
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  perf:
+    name: bench + soak
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+
+      - name: Install the Empirica CLI
+        run: |
+          curl -fsSL https://install.empirica.dev | sh
+          for d in /usr/local/bin "$HOME/.empirica/bin" "$HOME/.local/bin"; do
+            [ -x "$d/empirica" ] && echo "$d" >> "$GITHUB_PATH"
+          done
+          true
+      - run: empirica version
+
+      # `--max 50` is the target regime (`ISSUES.md`, "Decided, not open"), and
+      # it is also the largest n a 2-4 vCPU runner can host clients for without
+      # the harness's own contention swamping everything. n >= 200 is excluded
+      # from the gate regardless — it does not reliably start, and that is
+      # upstream's (U7).
+      #
+      # `--repeats 2` rather than 3: on a shared runner the third run buys less
+      # than it costs, and the numbers here are recorded rather than published.
+      # The three-run sweep that a published figure needs is a local one.
+      - name: Bench (gated on delivery, not on latency)
+        id: bench
+        run: |
+          set -o pipefail
+          npm run bench -- --assert --repeats 2 \
+            --max "${{ github.event.inputs.max_n || '50' }}" 2>&1 | tee bench.txt
+
+      - name: Soak (gated on retention, not on memory)
+        id: soak
+        if: always()
+        run: |
+          set -o pipefail
+          npm run soak -- --assert \
+            --minutes "${{ github.event.inputs.minutes || '2' }}" 2>&1 | tee soak.txt
+
+      # Recorded, always — including when a gate failed, since the numbers are
+      # usually how someone works out why.
+      - name: Record the figures
+        if: always()
+        run: |
+          {
+            echo "## Bench"
+            echo '```'
+            grep -E "n=|══" bench.txt || echo "(no output)"
+            echo '```'
+            echo "## Soak"
+            echo '```'
+            grep -E "tajriba RSS|node heap|games=|PLATEAU|GROWING" soak.txt || echo "(no output)"
+            echo '```'
+            echo ""
+            echo "Latency and memory are **recorded, not gated** — see this workflow's header."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload raw output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-output
+          path: |
+            bench.txt
+            soak.txt
+          if-no-files-found: ignore
+          retention-days: 90

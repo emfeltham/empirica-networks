@@ -8,24 +8,34 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 
 /**
  * The verify CLI prints which @empirica/core it was compiled against, so a user
- * can tell whether the run reflects their own install. That version is a literal
- * in cli.ts, which means it goes stale silently the moment someone bumps the
- * dependency — and a wrong version number is worse than none, because it is
- * stated with confidence.
+ * can tell whether the run reflects their own install. A wrong number there is
+ * worse than none, because it is stated with confidence.
+ *
+ * It used to print a literal of its own, checked against package.json by this
+ * test — while `src/verify/compat.ts` held a SECOND literal of the same number
+ * that nothing read and nothing checked (`ISSUES.md` O7b). There is now one
+ * declaration, `VERIFIED_CORE`, and `test/unit/upstream_pin.test.ts` holds it
+ * against the pin and against every `@empirica/core@…` citation in the docs.
+ * What is left to check here is that the CLI has not grown a private copy again.
  */
-test("BUNDLED_CORE matches the @empirica/core actually being bundled", () => {
+test("the CLI prints the one pin declaration rather than a literal of its own", () => {
   const cli = fs.readFileSync(path.join(root, "src/verify/cli.ts"), "utf8");
-  const match = cli.match(/const BUNDLED_CORE = "([^"]+)"/);
-  assert.ok(match, "cli.ts declares BUNDLED_CORE");
 
-  const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
-  const declared = pkg.devDependencies?.["@empirica/core"];
-  assert.ok(declared, "package.json pins @empirica/core as a devDependency");
+  assert.match(
+    cli,
+    /import \{ VERIFIED_CORE \} from "\.\/compat\.js"/,
+    "cli.ts takes the version from src/verify/compat.ts"
+  );
+  assert.match(cli, /\$\{VERIFIED_CORE\}/, "…and prints it");
 
+  // The failure this guards: someone hardcodes 1.12.5 — or worse, a stale
+  // 1.12.4 — back into cli.ts, and the two numbers drift apart again in silence.
+  const literal = cli.match(/=\s*"\d+\.\d+\.\d+"/);
   assert.equal(
-    match![1],
-    declared.replace(/^[\^~]/, ""),
-    `cli.ts says it bundles ${match![1]} but package.json builds against ${declared}`
+    literal,
+    null,
+    `cli.ts declares a version literal of its own (${literal?.[0]}). ` +
+      `The pin is declared once, in src/verify/compat.ts.`
   );
 });
 

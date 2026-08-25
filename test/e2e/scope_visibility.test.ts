@@ -50,9 +50,23 @@ test("MEASUREMENT: is the batch scope hidden from participants?", async () => {
   };
 
   await withScenario(
-    { n: N, kinds: networkKinds, listeners, modeFunc: EmpiricaNetwork },
+    { n: N, kinds: networkKinds, recordWire: true, listeners, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
-      // Capture every frame each participant receives, below the mode.
+      /**
+       * Capture every frame each participant receives, below the mode.
+       *
+       * Opened BEFORE the batch exists, and it has to be: the batch sentinel is
+       * written by the `_.on("batch", …)` listener above, which fires the moment
+       * `createBatch` lands. A subscription opened after that could miss the very
+       * frame this test exists to look for, and the absence would then mean nothing.
+       *
+       * That timing used to be expensive — `wireStream()` opened a SECOND GraphQL
+       * subscription per participant, and three of them competing with Classic's
+       * O(n²) assignment burst made this the worst victim of `ISSUES.md` O8, at
+       * 1-2 failures in 12-15 runs. It is free now: the harness shares one
+       * subscription between the mode and every observer. **0/20 since**
+       * (2026-08-16).
+       */
       const frames = participants.map(() => [] as string[]);
       const subs = participants.map((p, i) =>
         p.wireStream().subscribe((change: unknown) => {
@@ -63,15 +77,11 @@ test("MEASUREMENT: is the batch scope hidden from participants?", async () => {
       try {
         const batch = await createBatch(admin, batchConfig(N, 1));
         await batch.running();
-        // Longer than the default, because roughly 1 run in 3 this stalls
-        // in-suite while passing 6/6 alone, even with e2e running serially.
-        //
-        // The headroom was originally justified by this test being the heaviest
-        // in the suite — it opens an extra wire subscription per participant on
-        // top of the mode's own. That explanation is WRONG: `topology_visibility`
-        // later stalled on the same wait and does nothing of the kind. It is the
-        // shared assignment path, not this test's weight. Kept as an unexplained
-        // mitigation, recorded honestly in ISSUES.md O8.
+        // 90 s rather than the default 30, kept as a courtesy to a slow CI box
+        // rather than as a mitigation. It was originally headroom for O8, which
+        // this file suffered worst — and it never once helped, because a stalled
+        // scenario stays stalled for 90 s as readily as for 30. O8's cause was
+        // found in the harness on 2026-08-16 and this file has been 0/20 since.
         await waitFor(
           () => participants.every((p) => modeOf(p).player.getValue()?.get("gameID")),
           { label: "gameID assigned", timeoutMs: 90_000 }

@@ -1,0 +1,168 @@
+factors:
+  - desc: >
+      Participants per session, AGENTS INCLUDED. The paper used exactly 20 nodes in
+      every session (4,000 subjects over 230 sessions), so 20 is the design. 6 is
+      for trying it out with a handful of browser windows.
+
+      Recruit playerCount MINUS botCount humans. A 20-node session with 3 agents
+      needs 17 people; recruiting 20 leaves the game one seat short forever, which
+      is the one mistake this arrangement can predict — so the runner names it in
+      its stall message rather than sitting there quietly.
+    name: playerCount
+    values:
+      - value: 6
+      - value: 20
+
+  - desc: >
+      How many autonomous agents sit in the network. The paper used 3 in every
+      agent condition, and 0 in its 30 control sessions.
+
+      Agents are a SEPARATE PROCESS — `server/bots.mjs`, on
+      `empirica-networks/bots`. Setting this above 0 without starting that process
+      gives a session that never starts; the server logs an error naming both
+      halves of the contract.
+    name: botCount
+    values:
+      - value: 0
+      - value: 3
+
+  - desc: >
+      "we manipulated the level of behavioural randomness of the bots (0%, 10%,
+      30%)". With probability botNoise an agent picks a colour at random instead of
+      resolving a conflict.
+
+      0 is the deterministic-agent control, which is NOT the human-only arm: an
+      agent that never errs is still an agent. The paper's finding is at 0.1.
+    name: botNoise
+    values:
+      - value: 0
+      - value: 0.1
+      - value: 0.3
+
+  - desc: >
+      Where the agents sit, by degree. Barabási–Albert produces hubs, so "central"
+      (the three highest-degree nodes) and "peripheral" (the three lowest) are
+      genuinely different positions in the same graph.
+
+      Placement RELABELS the generated graph rather than changing it, so every
+      condition draws from the same distribution of network structures. A "central"
+      arm whose degree distribution also differed would be confounded at the root.
+    name: botPlacement
+    values:
+      - value: central
+      - value: peripheral
+      - value: random
+
+treatments:
+  # ---------------------------------------------------------------- control
+  - desc: >
+      The paper's control arm: 20 participants on a Barabási–Albert network (each
+      new node attached with two links), three colours, five minutes, humans only.
+      This is what the paper's Fig. 1 is about — its 30 control sessions.
+    name: Colour coordination (n=20, humans only)
+    factors:
+      playerCount: 20
+      botCount: 0
+
+  - desc: >
+      Six participants, no agents. NOT the paper's design — six windows is what one
+      person can drive by hand. A 6-node preferential-attachment graph is small
+      enough that the coordination problem is nearly trivial, so use this to see the
+      mechanism work and do not read anything into the solution time.
+    name: Colour coordination (n=6, demo only)
+    factors:
+      playerCount: 6
+      botCount: 0
+
+  # ------------------------------------------------------------- 3 x 3 agents
+  #
+  # The paper's contribution: 3 noise levels x 3 placements, 3 agents each, 17
+  # humans. Start `server/bots.mjs` with the same SHIRADO2017_BOT_KEYS the server
+  # has. The cell to look at is central x 10% — that is the paper's result.
+
+  - desc: 3 agents on the three highest-degree nodes, deterministic (0% noise). 17 humans.
+    name: "n=20, 3 agents: central, 0% noise"
+    factors:
+      playerCount: 20
+      botCount: 3
+      botPlacement: central
+      botNoise: 0
+
+  - desc: >
+      3 agents on the three highest-degree nodes, 10% noise. 17 humans. THE PAPER'S
+      FINDING: locally noisy agents in central positions improved global
+      coordination.
+    name: "n=20, 3 agents: central, 10% noise"
+    factors:
+      playerCount: 20
+      botCount: 3
+      botPlacement: central
+      botNoise: 0.1
+
+  - desc: 3 agents on the three highest-degree nodes, 30% noise. 17 humans.
+    name: "n=20, 3 agents: central, 30% noise"
+    factors:
+      playerCount: 20
+      botCount: 3
+      botPlacement: central
+      botNoise: 0.3
+
+  - desc: 3 agents on random nodes, deterministic (0% noise). 17 humans.
+    name: "n=20, 3 agents: random, 0% noise"
+    factors:
+      playerCount: 20
+      botCount: 3
+      botPlacement: random
+      botNoise: 0
+
+  - desc: 3 agents on random nodes, 10% noise. 17 humans.
+    name: "n=20, 3 agents: random, 10% noise"
+    factors:
+      playerCount: 20
+      botCount: 3
+      botPlacement: random
+      botNoise: 0.1
+
+  - desc: 3 agents on random nodes, 30% noise. 17 humans.
+    name: "n=20, 3 agents: random, 30% noise"
+    factors:
+      playerCount: 20
+      botCount: 3
+      botPlacement: random
+      botNoise: 0.3
+
+  - desc: 3 agents on the three lowest-degree nodes, deterministic (0% noise). 17 humans.
+    name: "n=20, 3 agents: peripheral, 0% noise"
+    factors:
+      playerCount: 20
+      botCount: 3
+      botPlacement: peripheral
+      botNoise: 0
+
+  - desc: 3 agents on the three lowest-degree nodes, 10% noise. 17 humans.
+    name: "n=20, 3 agents: peripheral, 10% noise"
+    factors:
+      playerCount: 20
+      botCount: 3
+      botPlacement: peripheral
+      botNoise: 0.1
+
+  - desc: 3 agents on the three lowest-degree nodes, 30% noise. 17 humans.
+    name: "n=20, 3 agents: peripheral, 30% noise"
+    factors:
+      playerCount: 20
+      botCount: 3
+      botPlacement: peripheral
+      botNoise: 0.3
+
+  # --------------------------------------------------------- demo with agents
+  - desc: >
+      Six nodes, 3 central agents at 10% noise, so THREE browser windows drive a
+      session that has agents in it. Demo only — at n=6 the problem is nearly
+      trivial and half the network is software, so read nothing into the outcome.
+    name: "n=6, 3 agents: central, 10% noise (demo only)"
+    factors:
+      playerCount: 6
+      botCount: 3
+      botPlacement: central
+      botNoise: 0.1

@@ -1,0 +1,73 @@
+factors:
+  - desc: >
+      Participants per session. The paper ran 785 subjects over 40 sessions,
+      mean network size 19.6 (SD 6.4), so 20 is the paper's own scale and the
+      default here. 6 is for trying it out with a handful of browser windows.
+    name: playerCount
+    values:
+      - value: 6
+      - value: 20
+
+  - desc: >
+      Which of the paper's four network conditions this session runs. The values
+      are the keys of CONDITIONS in server/src/design.js, and an unknown value
+      throws at game start rather than falling through to some default arm.
+    name: condition
+    values:
+      # "the social network is regenerated randomly after every round, creating
+      # a well-mixed population."
+      - value: random
+      # "the network is static and remains in its initial configuration for the
+      # duration of the experiment."
+      - value: fixed
+      # "in the viscous condition, the network updates relatively infrequently,
+      # with k = 10% of pairings potentially changing each round."
+      - value: viscous
+      # "in the fluid condition, the network updates relatively frequently, with
+      # k = 30% of pairings potentially changing each round." The arm where the
+      # paper finds cooperation is robust and stable.
+      - value: fluid
+
+treatments:
+  - desc: >
+      Fluid dynamic at the paper's scale. The headline condition: 30% of pairs
+      get a rewiring decision each round, and this is where cooperation is
+      sustained.
+    name: Fluid (n=20)
+    factors:
+      playerCount: 20
+      condition: fluid
+
+  - desc: >
+      Viscous dynamic at the paper's scale. 10% of pairs per round — too slow to
+      make defection maladaptive, and cooperation declines.
+    name: Viscous (n=20)
+    factors:
+      playerCount: 20
+      condition: viscous
+
+  - desc: >
+      Fixed network at the paper's scale. The static control, in which the paper
+      reproduces earlier null results for static networks.
+    name: Fixed (n=20)
+    factors:
+      playerCount: 20
+      condition: fixed
+
+  - desc: >
+      Random rewiring at the paper's scale. A well-mixed population, recreating
+      the classic tragedy of the commons.
+    name: Random (n=20)
+    factors:
+      playerCount: 20
+      condition: random
+
+  - desc: >
+      Six participants, fluid. NOT the paper's design — six windows is what one
+      person can drive by hand, and at n=6 there are 15 pairs, so a round offers
+      about 5 rewiring decisions rather than 57. Use it to watch the mechanism
+      work; do not read anything into the behaviour.
+    name: Fluid (n=6, demo only)
+    factors:
+      playerCount: 6
+      condition: fluid

@@ -36,8 +36,15 @@ await build({
   alias: { "empirica-networks": path.join(root, "src") },
 });
 
-execFileSync(process.execPath, [path.join(outDir, "envelope.cjs"), ...process.argv.slice(2)], {
-  stdio: "inherit",
-  cwd: root,
-  env: { ...process.env, BENCH_SHARD: path.join(outDir, "shard.cjs") },
-});
+// The exit code is FORWARDED, not rethrown: `--assert` makes this gate CI
+// (`ISSUES.md` O6), and execFileSync's own throw would bury a legible
+// "3 receipts missing" report under an ESM stack trace from a wrapper script.
+try {
+  execFileSync(process.execPath, [path.join(outDir, "envelope.cjs"), ...process.argv.slice(2)], {
+    stdio: "inherit",
+    cwd: root,
+    env: { ...process.env, BENCH_SHARD: path.join(outDir, "shard.cjs") },
+  });
+} catch (e) {
+  process.exit(typeof e.status === "number" ? e.status : 1);
+}

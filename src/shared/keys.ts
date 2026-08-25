@@ -153,6 +153,40 @@ export function stateKey(key: string): string {
 }
 
 /**
+ * Namespace for values the SERVER writes to ONE participant's channel.
+ *
+ * The counterpart to `STATE_PREFIX`, and a separate namespace rather than the
+ * same one for a reason that is not tidiness: a participant can write anything
+ * to their own channel — it is the one scope they can certainly write to (§4a) —
+ * so a shared namespace would let `state.set("offer", …)` overwrite a value the
+ * server authored, with no way for the server to tell. Separated, that collision
+ * is impossible and each side's keys mean exactly one thing.
+ *
+ * Added in M5 for a gap the first four milestones never surfaced: `project()`
+ * runs only over a viewer's CURRENT neighbours, so there was no way for the
+ * server to tell one participant one fact about a NON-neighbour. That is exactly
+ * what Rand, Arbesman & Christakis (2011) do in their rewiring round — a subject
+ * offered the chance to form a new tie is shown that person's last action, and by
+ * definition they are not yet a neighbour. `docs/M5-ADOPTION.md` §7 has the full
+ * account, including the four routes that do not work.
+ *
+ * This does NOT weaken the module's guarantee, and the distinction is worth being
+ * precise about rather than reassuring about. Values written here are authored by
+ * the experiment's own server code, are delivered to exactly one participant's
+ * own channel, and are validated by the same `validateProjection` as a view.
+ * `project()` remains the only path by which **one participant's data reaches
+ * another**. What was previously conflated is "the server tells you something"
+ * with "you learn about someone else" — two different acts, and only the second
+ * is what the projection exists to control.
+ */
+export const TOLD_PREFIX = "told:";
+
+/** Attribute key on an nbhd scope for one server-authored private value. */
+export function toldKey(key: string): string {
+  return `${TOLD_PREFIX}${key}`;
+}
+
+/**
  * Reserved state key: a participant's outgoing message slot.
  *
  * Chat needs a participant to SEND, and a participant can only write to their

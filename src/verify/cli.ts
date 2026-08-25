@@ -13,10 +13,11 @@
  */
 import { createRequire } from "node:module";
 import { setLogLevel } from "@empirica/core/console";
+// The version printed below is NOT declared here. It is the repository's single
+// pin declaration (src/verify/compat.ts), because a CLI that prints a version
+// number of its own is a CLI that can print the wrong one — see the note there.
+import { VERIFIED_CORE } from "./compat.js";
 import { formatLeakResult, runLeakCheck } from "./leak_test.js";
-
-/** Version of @empirica/core compiled into this CLI. */
-const BUNDLED_CORE = "1.12.5";
 
 /**
  * The @empirica/core version actually installed where the CLI is being run.
@@ -109,11 +110,11 @@ async function main(): Promise<number> {
   try {
     if (!args.quiet) {
       const installed = installedCoreVersion();
-      process.stdout.write(`  @empirica/core bundled into this CLI : ${BUNDLED_CORE}\n`);
+      process.stdout.write(`  @empirica/core bundled into this CLI : ${VERIFIED_CORE}\n`);
       process.stdout.write(`  @empirica/core installed here        : ${installed ?? "could not determine"}\n`);
-      if (installed && installed !== BUNDLED_CORE) {
+      if (installed && installed !== VERIFIED_CORE) {
         process.stdout.write(
-          `\n  NOTE: these differ. This run verifies the mechanism against ${BUNDLED_CORE},\n` +
+          `\n  NOTE: these differ. This run verifies the mechanism against ${VERIFIED_CORE},\n` +
             `  not against your installed ${installed}. Empirica cannot be loaded unbundled\n` +
             `  (see the module's PLATFORM-NOTES), so the CLI must compile a copy in.\n`
         );
