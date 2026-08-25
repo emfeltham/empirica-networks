@@ -1440,29 +1440,19 @@ recorded the requirement as met. This is precisely the failure M5 §8 confessed 
 trap was known, documented, audited, and shipped anyway."* Twice now, the audit's own weakest
 point has been treating a documented intention as a done thing.
 
-**Why it is not a one-line fix.** `withNetwork` receives the collector, not the kind map — the map
-is passed to `AdminContext.init` in a different file — so it cannot check registration directly.
+**Why it is not a one-line fix.** `withNetwork` receives the collector, not the kind map — the map is passed to `AdminContext.init` in a different file — so it cannot check registration directly.
+
 Two routes, neither free:
 
-- **Direct.** Reach the kind map from the `"start"` context, if it is reachable at all, and call
-  the existing assertion. Cheapest if `ctx` exposes it; needs checking against `@empirica/core`
-  internals, which is the dependency `.github/workflows/drift.yml` exists to police.
-- **Indirect, and probably right.** Detect the *consequence*: a game started, channels were
-  provisioned, and no `nbhd` scope materialised within some window. That is the same shape as the
-  existing `pendingChannelsMessage` warning, uses only public API, and catches other causes of the
-  same symptom. Costs a timer and a decision about the window.
+- **Direct.** Reach the kind map from the `"start"` context, if it is reachable at all, and call the existing assertion. Cheapest if `ctx` exposes it; needs checking against `@empirica/core` internals, which is the dependency `.github/workflows/drift.yml` exists to police.
+- **Indirect, and probably right.** Detect the *consequence*: a game started, channels were provisioned, and no `nbhd` scope materialised within some window. That is the same shape as the existing `pendingChannelsMessage` warning, uses only public API, and catches other causes of the same symptom. Costs a timer and a decision about the window.
 
-**Fixed by the indirect route, 2026-08-16.** `withNetwork` now arms a one-shot check after the
-first game's channels are provisioned: if channels were demonstrably created and **none** has
-materialised within `REGISTRATION_CHECK_MS` (5 s), it warns with the diff.
+**Fixed by the indirect route, 2026-08-16.** `withNetwork` now arms a one-shot check after the first game's channels are provisioned: if channels were demonstrably created and **none** has materialised within `REGISTRATION_CHECK_MS` (5 s), it warns with the diff.
 
 ```
-empirica-networks: 2 private channels were created 5s ago and NONE has materialised, so the
-"nbhd" scope kind is almost certainly not registered.
-Every participant will sit with an empty neighbourhood, and nothing else will report it.
+empirica-networks: 2 private channels were created 5s ago and NONE has materialised, so the "nbhd" scope kind is almost certainly not registered. Every participant will sit with an empty neighbourhood, and nothing else will report it.
   … the diff …
-If it IS registered, this is something else — a stalled subscription.
-net.inspect(gameID).pendingChannels lists who is missing.
+If it IS registered, this is something else — a stalled subscription. net.inspect(gameID).pendingChannels lists who is missing.
 ```
 
 Four decisions worth keeping.
