@@ -100,8 +100,10 @@ Four smaller gaps carry no O-number and are named here so they are not mistaken 
 - **Monitor coverage residue** (`ISSUES.md:1190`): the tooltip's positioning arithmetic, the game
   picker, and every colour claim in the palette comment.
 - **`views.csv`** remains open under M2 decision 5 (`ISSUES.md:1512`).
-- **The leak checker knows one topology.** `LeakCheckOptions.topology` accepts only `"ring"`
-  (`src/verify/leak_test.ts:39`), while `docs/TOPOLOGIES.md` ships fourteen generators.
+- ~~**The leak checker knows one topology.**~~ **Done 2026-09-11.** `topology` now takes a name or
+  the study's own generator, and what a run can establish is computed from the realised graph
+  (`src/verify/topologies.ts`). Found and fixed in passing: `--topology` had been reported as
+  honoured while being ignored — `ISSUES.md` O16.
 
 ---
 

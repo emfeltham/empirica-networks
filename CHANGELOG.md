@@ -143,6 +143,15 @@ reasoning as well as the change:
   silently, so a study could have taken the path in every session it ran and left nothing behind.
   Zero is the expected value and is the evidence; `npm run soak` prints the pair in its summary.
 
+- **The leak check runs any topology, not only a ring (2026-09-11).** `runLeakCheck`'s `topology`
+  takes a name (`ring`, `star`, `wheel`, `pairs`, `ladder`, `complete`) or the same generator
+  function a study hands `withNetwork` — so a study can verify the graph it actually runs,
+  including a `fromEdgeList` one, rather than a ring standing in for it. What a run can establish
+  is now computed from the realised graph: a participant adjacent to everyone (a star's hub) or to
+  nobody (a disconnected graph) is counted and excused instead of failing the run, and a graph
+  where *no* participant has a non-neighbour is refused. `src/verify/topologies.ts` holds that
+  accounting, pure over `(n, edges)` and unit-tested across all fourteen generators.
+
 ### Documentation
 
 - New: [`docs/API.md`](docs/API.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
@@ -157,6 +166,26 @@ reasoning as well as the change:
   documented `empirica-networks` import, resolved against the built package).
 
 ### Fixed
+
+- **The leak check did not retain its wire history, and could have failed spuriously
+  (2026-09-11).** `runLeakCheck` subscribes to each participant's wire after the scenario has
+  started, but did not pass `recordWire: true` — so `wireStream()` was a plain `share()` and the
+  subscription saw nothing published before it opened. If the first publish had won that race, arm
+  3 would read `delivered: 0` and the run would fail for a reason unrelated to the guarantee.
+  `docs/TESTING.md` §3 had asked for this from "every leak test" and `withScenario`'s own docstring
+  says the same; this file was the one not honouring it. **Argued from the code, never observed** —
+  measured 0/8 before and 0/8 after at 7.1s per repetition, so the measurement shows the fix is
+  free rather than that the race was firing. It also makes every arm strictly stronger: arm 1 now
+  scans frames from before the subscription, where previously a leak that early was invisible.
+
+- **`verify --topology` was reported as honoured and silently ignored** (`ISSUES.md` O16).
+  It was parsed with a cast, so every string typechecked and none took effect:
+  `verify --topology=star` ran a **ring** and printed `topology: star of N … PASS`. A false
+  attestation from the one command a reviewer runs to decide whether the central claim holds. The
+  name is now resolved and an unknown one refused. In the same class and fixed with it, arm 1
+  printed a numerator with no denominator — `0` reads identically whether four non-neighbour pairs
+  were examined and none leaked or the graph was complete and none existed — so it now prints
+  `0/4 pairs`, and a run whose denominator is zero fails rather than passing.
 
 - **`runBots({ url })` was documented with the wrong scheme, in every place it was documented.**
   Six occurrences said `ws://localhost:3000/query` — `README.md`, `docs/API.md` (twice),

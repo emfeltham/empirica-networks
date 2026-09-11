@@ -168,11 +168,11 @@ node dist/verify/cli.cjs verify --n 4     # from a clone today, after `npm run b
 npx empirica-networks verify --n 4        # once published
 ```
 
-It boots a real Tajriba, connects four headless participants on a ring, and checks the wire:
+It boots a real Tajriba, connects four headless participants on a ring by default (`--topology` takes `star`, `wheel`, `pairs` or `ladder` too), and checks the wire:
 
 ```
-  non-neighbour sentinels received : 0   (must be 0)
-  neighbour sentinels delivered    : 8/8 (non-vacuity)
+  non-neighbour sentinels received : 0/4 pairs  (must be 0)
+  neighbour sentinels delivered    : 8/8  (non-vacuity)
   control values observed          : 12  (must be > 0, proves detection works)
 
   PASS

@@ -102,7 +102,7 @@ Some of the most important ones:
 
 | | Proves |
 |---|---|
-| `leak.test.ts`, `scope_visibility.test.ts` | non-neighbours receive nothing; the batch scope is not delivered |
+| `leak.test.ts`, `scope_visibility.test.ts` | non-neighbours receive nothing, across a ring, a star and a disconnected graph; a shape that could prove nothing is refused; the batch scope is not delivered |
 | `topology_visibility.test.ts` | the seed and edge list do not reach participants |
 | `restart.test.ts`, `restart_full.test.ts` | a restart does not silently reseat anyone |
 | `duplicate_listeners.test.ts` | the U8 detector fires, and if it ever fails by saying the second handler *did* run, upstream has fixed U8 and the warning should be withdrawn |
@@ -157,13 +157,16 @@ This is not a test tier. It is the command a reviewer would run, which is why CI
 itself rather than only the library it wraps. It has three required components:
 
 ```
-  non-neighbour sentinels received : 0   (must be 0)
-  neighbour sentinels delivered    : 8/8 (non-vacuity)
+  non-neighbour sentinels received : 0/4 pairs  (must be 0)
+  neighbour sentinels delivered    : 8/8  (non-vacuity)
   control values observed          : 12  (must be > 0, proves detection works)
 ```
 
 A clean result with a silent control means the check is blind; a clean result with nothing
-delivered means the projection never ran. Most privacy tests are wrong in exactly one of those
+delivered means the projection never ran. A clean result with **no candidate pairs** — the
+denominator on the first line — means nothing was examined at all, which is why the denominator is
+printed and why a topology that would produce one is refused before the run starts
+(`--topology=complete`, or `--topology=wheel` at n=4, which is the same graph). Most privacy tests are wrong in exactly one of those
 two ways, so both are reported as failures.
 
 Sentinels are high-entropy tokens injected into projections and matched by substring against raw

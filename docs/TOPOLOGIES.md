@@ -113,6 +113,34 @@ if (topology.maxDegree(n, edges) > 16 && n > 50) { /* resample, or raise the env
 if (!topology.isConnected(n, edges)) { /* your call, not the package's */ }
 ```
 
+## What the leak check can say about each
+
+`npx empirica-networks verify --topology <name>` reproduces the neighbour-limited visibility
+guarantee on a shape, and the shape decides what a pass is worth. Two properties of the *realised*
+graph matter, and neither is a function of `n`:
+
+- A participant adjacent to **everyone** has no non-neighbour, so the check cannot speak to them.
+  A star's or wheel's hub, and every node of `complete`.
+- A participant adjacent to **nobody** receives no neighbour view, so there is nothing to confirm
+  arrived. `empty`, and `erdosRenyi`/`geometricRandom`/`wattsStrogatz` below their thresholds.
+
+Either is fine in moderation — they are counted and reported. A graph where *every* participant is
+in one of those states is **refused**, because a pass would mean nothing: that is `complete` at any
+`n`, `empty`, and `wheel(4)`, which is `complete(4)` wearing a different name.
+
+`--topology` takes the shapes that need no further argument: `ring`, `star`, `wheel`, `pairs`,
+`ladder`, `complete`. Everything else takes a parameter a flag cannot carry, so it is reached by
+handing `runLeakCheck` the same function you hand `withNetwork` — which is also the only way to
+check a `fromEdgeList` graph, and the reason to prefer it generally: it verifies the graph your
+study runs rather than a stand-in for it.
+
+```js
+await runLeakCheck({
+  n: 12,
+  topology: ({ playerCount, rng }) => wattsStrogatz(playerCount, 4, 0.1, { rng }),
+});
+```
+
 ## Choosing a topology
 
 | If you want | Use |
