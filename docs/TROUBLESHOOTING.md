@@ -282,6 +282,20 @@ margin.
 
 `ISSUES.md` U7 · `docs/PLATFORM-NOTES.md` Section 16
 
+### The bot process dies immediately with `invalid URL`, and the stack names no frame
+
+**Cause:** `url` carries a websocket scheme. Tajriba accepts only the HTTP endpoint and derives
+`ws://` (or `wss://`) from it itself, so `ws://localhost:3000/query` — which reads like the right
+answer — is rejected. It is rejected by `throw "invalid URL"`, a bare **string**: it carries no
+stack, so the report shows only Node's ESM loader and nothing from this package or from your
+script. That missing stack is the whole difficulty; it makes the `url` argument look exonerated.
+
+**Fix:** pass `http://localhost:3000/query`. `runBots` now checks the scheme itself, before it
+connects, and says this — if you are seeing the bare string instead, the bots bundle predates the
+check.
+
+`docs/BOTS.md` Section 2
+
 ### The bots are connected and the study never starts
 
 **Cause:** the treatment's `playerCount` counts the bots. It is the size of the network, so a
@@ -398,6 +412,7 @@ table is for finding the *context*.
 | `EmpiricaClassic no longer returns "…"` | Upstream changed the classic context shape; the composed mode is out of date | ARCHITECTURE Section 6 |
 | `monitor() needs the handle returned by withNetwork()` | Pass `net`, not the collector | API.md, [`monitor()`](API.md#monitornet-options) |
 | `cannot connect X to itself` | A self-loop was requested | — |
+| `url must start with http:// or https://` | The HTTP endpoint was given a websocket scheme. Checked here because Tajriba rejects it with the bare string `"invalid URL"`, which has no stack and names no frame | Section 1, "dies immediately with `invalid URL`" |
 | `runBots needs at least one identifier` | The list is the bot count; there is no `count` that invents names | BOTS Section 1 |
 | `duplicate bot identifier(s): …` | Two bots sharing a key are one participant with two sockets, and the game sits one short forever | BOTS Section 1 |
 | `a policy with onTick must set tickMs` | Without it the tick would never fire, so it is refused rather than silently idle | BOTS Section 2 |

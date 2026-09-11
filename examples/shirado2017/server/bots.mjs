@@ -48,7 +48,7 @@ if (args.includes("--keys")) {
   process.exit(0);
 }
 
-const url = process.env["SHIRADO2017_TAJRIBA_URL"] ?? "ws://localhost:3000/query";
+const url = process.env["SHIRADO2017_TAJRIBA_URL"] ?? "http://localhost:3000/query";
 const keys = (process.env["SHIRADO2017_BOT_KEYS"] ?? "")
   .split(",")
   .map((s) => s.trim())

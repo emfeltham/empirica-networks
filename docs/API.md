@@ -716,7 +716,7 @@ fail. Both `import` and `require` work.
 import { botIdentifiers, runBots } from "empirica-networks/bots";
 
 const run = await runBots({
-  url: "ws://localhost:3000/query",
+  url: "http://localhost:3000/query",
   identifiers: process.env.BOT_KEYS.split(","),
   seed: 1,
   policy: {
@@ -734,7 +734,7 @@ const run = await runBots({
 
 | option | |
 |---|---|
-| `url` | Tajriba endpoint, e.g. `ws://localhost:3000/query` |
+| `url` | Tajriba endpoint, e.g. `http://localhost:3000/query`. The HTTP address, not the websocket one — Tajriba derives `ws://`/`wss://` itself and rejects a url that already carries a websocket scheme. |
 | `identifiers` | one participant key per bot. **Required** — the list is the count, and the server usually needs the same list |
 | `policy` | the behaviour; see below |
 | `seed` | seeds each bot's `ctx.rng` from `(seed, identifier)`. Default 1, fixed rather than time-derived so bot behaviour is reproducible by default |

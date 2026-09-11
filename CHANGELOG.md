@@ -137,6 +137,26 @@ reasoning as well as the change:
 
 ### Fixed
 
+- **`runBots({ url })` was documented with the wrong scheme, in every place it was documented.**
+  Six occurrences said `ws://localhost:3000/query` — `README.md`, `docs/API.md` (twice),
+  `docs/BOTS.md`, the `BotRunOptions.url` JSDoc, and the `SHIRADO2017_TAJRIBA_URL` fallback in
+  `examples/shirado2017/server/bots.mjs`. Tajriba accepts only an HTTP address and derives the
+  websocket one itself; given a `ws://` url its `wsURL` getter runs `throw "invalid URL"` — a
+  **string**, so it carries no stack, and the process dies with Node's ESM loader frames and no
+  frame in this package or the caller's. Every documented bot command was therefore broken as
+  written, and produced the least diagnosable error the platform can emit.
+
+  Found by an outside tester working the Getting Started path on a fresh machine, who correctly
+  eliminated the folder, the package, the Node version, the identifiers, the example's design
+  module and its log setup, and still could not reach it — the missing stack is what made the
+  URL argument itself look exonerated.
+
+  The suite never caught it because every test builds its url from
+  `src/verify/server.ts` (`http://`) and passes that to `runBots`. Nothing exercised the string
+  the documentation told users to type. `runBots` now rejects a non-HTTP url up front, before
+  identifier validation, with an `Error` that names the fix, and `test/e2e/bots.test.ts` asserts
+  the rejection against the exact documented-and-wrong string.
+
 - **`ISSUES.md` O7b** — a **version pin with a guard in only one direction**.
   `.github/workflows/drift.yml` fires when upstream moves; nothing fired when *we* move to it, and
   forty claims across `src`, `test` and `docs` are dated to `@empirica/core@1.12.5` under the

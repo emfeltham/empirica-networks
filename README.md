@@ -226,7 +226,7 @@ at the wire.
 import { runBots } from "empirica-networks/bots";
 
 await runBots({
-  url: "ws://localhost:3000/query",
+  url: "http://localhost:3000/query",
   identifiers: process.env.BOT_KEYS.split(","),
   policy: {
     tickMs: 1500,

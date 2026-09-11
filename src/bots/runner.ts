@@ -29,7 +29,12 @@ import { botPhase, stallMessage, type BotObservation, type BotPhase } from "./li
 import type { BotContext, BotPolicy } from "./policy.js";
 
 export interface BotRunOptions<T = unknown> {
-  /** Tajriba endpoint, e.g. `ws://localhost:3000/query`. */
+  /**
+   * Tajriba endpoint, e.g. `http://localhost:3000/query`.
+   *
+   * The HTTP address, not the websocket one: Tajriba derives `ws://`/`wss://`
+   * from it itself, and rejects a url that already carries a websocket scheme.
+   */
   url: string;
   /**
    * One identifier per bot. The list IS the count.
@@ -125,6 +130,18 @@ interface BotState<T> {
  */
 export async function runBots<T = unknown>(opts: BotRunOptions<T>): Promise<BotRun> {
   const { url, identifiers, policy } = opts;
+  // Checked here, and first, because this is the one bad argument that produces
+  // no usable diagnosis downstream. Tajriba accepts only an HTTP address and
+  // derives the websocket one from it; anything else makes it `throw "invalid
+  // URL"` — a bare string, so it carries no stack, and the report shows only
+  // Node's ESM loader with no frame in this package or the caller's.
+  if (!/^https?:\/\//.test(url)) {
+    throw new Error(
+      `empirica-networks: url must start with http:// or https:// (got ${JSON.stringify(url)}). ` +
+        "Tajriba derives the websocket address itself, so pass the HTTP endpoint: " +
+        "http://localhost:3000/query."
+    );
+  }
   assertIdentifiers(identifiers);
   if (policy.onTick && !(typeof policy.tickMs === "number" && policy.tickMs > 0)) {
     throw new Error(

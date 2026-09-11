@@ -133,6 +133,34 @@ async function seatEveryone(admin: AdminHandle, humans: { mode: unknown }[], run
   });
 }
 
+/**
+ * The scheme check, and the one test in this file that needs no server.
+ *
+ * `url` is the HTTP endpoint: Tajriba derives the websocket address from it and
+ * rejects anything already carrying a websocket scheme by throwing the bare
+ * STRING "invalid URL" — no stack, no frame in this package, and the reported
+ * stack shows only Node's ESM loader. The docs said `ws://` for a release and
+ * the suite never noticed, because every test here passes `server.url`, which is
+ * http. So the documented-and-wrong string is asserted directly.
+ */
+test("a websocket url is rejected with a real Error, not Tajriba's bare string", async () => {
+  await assert.rejects(
+    () => runBots({ url: "ws://localhost:3000/query", identifiers: BOT_KEYS, policy: {} }),
+    (err: unknown) =>
+      err instanceof Error &&
+      /http:\/\//.test(err.message) &&
+      err.message.includes("ws://localhost:3000/query"),
+    "ws:// must name the fix"
+  );
+
+  // The check runs before identifier validation: a run with both problems should
+  // report the one that is otherwise undiagnosable.
+  await assert.rejects(
+    () => runBots({ url: "wss://example.org/query", identifiers: ["dup", "dup"], policy: {} }),
+    (err: unknown) => err instanceof Error && /must start with http/.test(err.message)
+  );
+});
+
 test("bots play a real game: they seat it, they are placed, and their writes project", async () => {
   const Empirica = new ClassicListenersCollector();
   Empirica.onGameStart(({ game }) => {

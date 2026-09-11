@@ -69,7 +69,7 @@ In a real run, pass identifiers drawn from the same space as your recruitment ke
 import { botIdentifiers, runBots } from "empirica-networks/bots";
 
 const run = await runBots({
-  url: "ws://localhost:3000/query",
+  url: "http://localhost:3000/query",
   identifiers: process.env.BOT_KEYS.split(","),
   seed: 1,
   policy: {
@@ -84,6 +84,12 @@ const run = await runBots({
   },
 });
 ```
+
+`url` is the **HTTP** endpoint, not the websocket one. Tajriba derives `ws://` from `http://` (and
+`wss://` from `https://`) itself, and rejects a url that already carries a websocket scheme — so
+`ws://localhost:3000/query`, which reads like the right answer, is the wrong one. `runBots` checks
+the scheme and says so; left to Tajriba it throws the bare string `"invalid URL"`, which has no
+stack and names no frame in this package.
 
 `runBots` resolves once every bot has a session, not when a game ends. One fleet plays a whole
 batch: Classic reassigns a participant when their game finishes, and the runner follows that —

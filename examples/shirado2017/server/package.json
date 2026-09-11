@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "dependencies": {
     "@empirica/core": "1.12.5",
     "empirica-networks": "file:../../../empirica-networks-0.0.0.tgz",
