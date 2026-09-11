@@ -25,8 +25,8 @@
  *    choice loud.
  *
  * 2. **For everyone else, bots or not.** In a deployed study `participantKey`
- *    carries the recruitment identity — the Prolific PID, the MTurk worker ID,
- *    whatever the recruitment URL put there. Co-players learn it. That is
+ *    carries the recruitment identity — the Prolific PID, whatever the
+ *    recruitment URL put there. Co-players learn it. That is
  *    upstream's, affects every Empirica Classic study rather than only networked
  *    ones, and is filed as `ISSUES.md` U10.
  */

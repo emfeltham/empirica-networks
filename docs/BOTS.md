@@ -39,7 +39,7 @@ a private detail of your runner's configuration; it is on screen, in a browser, 
 is the manipulation disclosed.
 
 For every study, whether it uses bots or not, `participantKey` carries the recruitment identity in
-a deployed study: the Prolific PID, the MTurk worker ID, whatever the recruitment URL put there.
+a deployed study: the Prolific PID, whatever the recruitment URL put there.
 Co-players learn it. That is a property of the upstream platform, and it affects every Empirica
 Classic study.
 

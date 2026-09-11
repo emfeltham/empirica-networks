@@ -295,7 +295,7 @@ reasoning as well as the change:
 
 - **U1** — no write access control anywhere in Empirica. Affects every Empirica study.
 - **U10** — every participant receives every co-player's `participantIdentifier`, i.e. the raw
-  `?participantKey=`. In a deployed study that is the Prolific PID or MTurk worker ID. Affects
+  `?participantKey=`. In a deployed study that is the recruitment-platform participant ID. Affects
   every Empirica Classic study; same root cause as U1.
 - **U9** — `attributes(scopeID)` always returns `internal system error`, so there is no working way
   to enumerate a scope's attributes at any layer.

@@ -72,9 +72,9 @@ in the game**. Classic writes it immutably on the player scope at `PARTICIPANT_C
 `startGame` links every participant to every player node, so it is broadcast to people who never
 asked for it and whose interface never shows it.
 
-In a deployed study that key is the recruitment identity: the Prolific PID, the MTurk worker ID,
-whatever the recruitment URL supplied. Platform worker IDs are stable across studies, so this hands
-strangers a cross-study re-identification handle. Affects **every Empirica Classic study**, not
+In a deployed study that key is the recruitment identity: the Prolific PID, whatever the
+recruitment URL supplied. Such identifiers are stable across studies, so this hands strangers a
+cross-study re-identification handle. Affects **every Empirica Classic study**, not
 only networked ones, and does not depend on this package — the same two lines run whether or not
 `withNetwork` is installed.
 

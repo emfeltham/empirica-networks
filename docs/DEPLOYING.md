@@ -39,10 +39,11 @@ repository.
       `onGameEnded` fires only on a natural end.
 - [ ] **Nothing that matters is on a player or game scope.** Both are broadcast to every
       participant. Payoffs and any record of account belong on the batch scope. `ISSUES.md` U1
-- [ ] **`?participantKey=` is an opaque per-study token**, not a Prolific PID or an MTurk worker
-      ID. Every participant receives every co-player's, and platform worker IDs are stable across
-      studies — so keep the mapping outside Empirica. This is decided when you build the
-      recruitment links, and cannot be undone afterwards. `ISSUES.md` U10
+- [ ] **`?participantKey=` is an opaque per-study token**, not a Prolific PID or any other
+      recruitment-platform identifier. Every participant receives every co-player's, and such
+      identifiers are stable across studies — so keep the mapping outside Empirica. This is
+      decided when you build the recruitment links, and cannot be undone afterwards.
+      `ISSUES.md` U10
 - [ ] **Bot identifiers, if any, are drawn from that same space.** Three 13-digit numbers among
       24-character PIDs are the three bots, in order, to anyone who looks. `docs/BOTS.md` §1
 - [ ] **A dry run at the real n**, with the real treatment, on the real host. Degree multiplied by
