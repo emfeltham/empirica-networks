@@ -997,9 +997,9 @@ frames. All were present, in both directions, along with the key `participantIde
 This matters in two unrelated ways.
 
 The first is participant privacy. In a deployed study, `participantKey` carries the recruitment
-identity, such as a Prolific participant ID, an MTurk worker ID, or whatever the recruitment URL
-put there. Co-players learn it. Platform worker IDs are stable across studies, so this is a
-cross-study re-identification handle passed between strangers. It affects every Empirica Classic
+identity, such as a Prolific participant ID, or whatever the recruitment URL put there. Co-players
+learn it. Such identifiers are stable across studies, so this is a cross-study re-identification
+handle passed between strangers. It affects every Empirica Classic
 study, not only networked ones, and is independent of this package: the same two lines run
 whether or not `withNetwork` is installed.
 

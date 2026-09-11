@@ -257,7 +257,8 @@ test("bots play a real game: they seat it, they are placed, and their writes pro
 
 test("a co-player's recruitment identifier is on the wire — U10", async () => {
   // The measurement `src/bots/identity.ts` is built around. In a deployed study
-  // `participantKey` is the Prolific PID or the MTurk worker ID, so this is not
+  // `participantKey` is the Prolific PID or another recruitment-platform
+  // identifier, so this is not
   // only about bots: co-players learn each other's recruitment identity.
   const Empirica = new ClassicListenersCollector();
   Empirica.onGameStart(({ game }) => {

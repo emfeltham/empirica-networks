@@ -124,7 +124,7 @@ Empirica itself, generally not fixable here. **O** is ours. The ones you are mos
 | **U2** | A full restart does not put participants back in their game. A crashed study cannot be resumed |
 | **U7** | Game start corrupts the websocket stream at n ≥ 200 |
 | **U8** | A lifecycle listener can only be registered once, silently |
-| **U10** | Every participant receives every co-player's recruitment identifier — a Prolific PID or MTurk worker ID if that is what `?participantKey=` carried |
+| **U10** | Every participant receives every co-player's recruitment identifier — a Prolific PID, say, if that is what `?participantKey=` carried |
 | **O1** | The published latency figures are single runs on one machine, and are upper bounds. Read them as a scale, not a value |
 | **O4** | Late-joiner provisioning is a net under a path nobody has reproduced: a player with no `participantID` gets no channel, and one unprovisioned player blocks every publish in the game |
 

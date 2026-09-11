@@ -47,7 +47,7 @@ What to do about it, in order:
 
 This module does not, and cannot, claim that a participant's state is tamper-proof. Measured in `test/e2e/participant_write.test.ts` and `test/e2e/upstream_u1.test.ts`; mechanism in `docs/PLATFORM-NOTES.md` §4a; tracked as `ISSUES.md` U1, which is going through private disclosure to Empirica's maintainers (`docs/upstream/DISCLOSURE.md`).
 
-Every participant also learns every co-player's recruitment identifier. Same root cause — Classic cross-links everyone to every player scope — so the value of `?participantKey=` is delivered to everyone else in the game. If that key is a Prolific PID or an MTurk worker ID, your subjects are handed each other's, and platform worker IDs are stable across studies. Make `participantKey` an opaque per-study token and keep the mapping outside Empirica. Measured in `test/e2e/bots.test.ts`; `docs/PLATFORM-NOTES.md` §22; `ISSUES.md` U10.
+Every participant also learns every co-player's recruitment identifier. Same root cause — Classic cross-links everyone to every player scope — so the value of `?participantKey=` is delivered to everyone else in the game. If that key is a recruitment-platform participant ID — a Prolific PID, say — your subjects are handed each other's, and such identifiers are stable across studies. Make `participantKey` an opaque per-study token and keep the mapping outside Empirica. Measured in `test/e2e/bots.test.ts`; `docs/PLATFORM-NOTES.md` §22; `ISSUES.md` U10.
 
 ## Installation
 
