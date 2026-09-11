@@ -91,6 +91,11 @@ const run = await runBots({
 the scheme and says so; left to Tajriba it throws the bare string `"invalid URL"`, which has no
 stack and names no frame in this package.
 
+If the policy imports the study's rules from the server's own source — it should, so that one
+file is the rule and the bots are not a second implementation of it — name that shared file
+`.mjs`, not `.js`. [Section 7](#7-running-bots-with-plain-node) says why, and why the obvious
+alternative breaks the server's build.
+
 `runBots` resolves once every bot has a session, not when a game ends. One fleet plays a whole
 batch: Classic reassigns a participant when their game finishes, and the runner follows that —
 `onEnd`, then `onStart` for the next game.
@@ -168,7 +173,7 @@ the degrees you want.
 Relabelling matters beyond convenience. It keeps the degree distribution identical across arms, so
 a "central" condition differs from a "peripheral" one only in *who sits where*. A placement
 implemented by generating a different graph would manipulate structure and position at once, and no
-analysis could separate them afterwards. `examples/shirado2017/server/src/design.js` has a worked
+analysis could separate them afterwards. `examples/shirado2017/server/src/design.mjs` has a worked
 `placeBots`, and `test/unit/shirado2017.test.ts` asserts the degree sequence is unchanged in every
 arm.
 
@@ -250,6 +255,32 @@ One consequence, stated rather than left to be discovered: the bundle carries it
 policy sees plain JSON and plain accessors — but a bot script that starts passing scope objects
 around will find it.
 
+### The module the bot script shares with the server
+
+Give it an `.mjs` extension. This is a two-line rule with a fifteen-minute failure behind it, in
+both directions.
+
+The Empirica scaffold's `server/package.json` declares no `"type"`, so a `.js` file of ESM syntax
+is a CommonJS file to Node. Importing one from `bots.mjs` fails, below Node 20.19, with
+`SyntaxError: Unexpected token 'export'` pointing at a line of your own valid ESM; from Node 20.19
+it is reparsed as ESM and merely warns `MODULE_TYPELESS_PACKAGE_JSON`, so the same script runs on
+one machine and not another. The reflex fix — adding `"type": "module"` — breaks the server
+instead: `npm run build` bundles `src/index.js` to **CommonJS** with esbuild and nothing writes a
+`package.json` into `dist/`, so `dist/index.js` inherits the field, loads as ESM, and dies with
+`ReferenceError: require is not defined` before the server listens.
+
+The extension is the fix that costs nothing:
+
+```
+server/
+  package.json      # no "type" field — the scaffold's build depends on that
+  src/design.mjs    # the rules: imported by callbacks.js AND by bots.mjs
+  src/index.js      # bundled to CommonJS by esbuild, as the scaffold expects
+  bots.mjs          # plain `node bots.mjs`
+```
+
+`examples/shirado2017` is laid out exactly this way, and so is its offline `recover.mjs`.
+
 ---
 
 ## 8. Limitations
@@ -277,7 +308,7 @@ actual contribution.
 
 | | |
 |---|---|
-| `server/src/design.js` | `botChoice` and `placeBots`: pure, imports nothing, unit-tested |
+| `server/src/design.mjs` | `botChoice` and `placeBots`: pure, imports nothing, unit-tested |
 | `server/src/callbacks.js` | placement, `tell`-ing each agent its noise level, and `is_bot` in the export |
 | `server/bots.mjs` | the runner process — when to ask, and what to do with the answer |
 | `.empirica/treatments.yaml` | the eleven arms |

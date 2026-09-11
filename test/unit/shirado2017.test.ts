@@ -31,7 +31,7 @@ import {
   placeBots,
   sessionRows,
   // @ts-expect-error - plain JS example module, deliberately untyped
-} from "../../examples/shirado2017/server/src/design.js";
+} from "../../examples/shirado2017/server/src/design.mjs";
 import { edgeRows, parseNdjson, toCSV } from "../../src/admin/export.js";
 import type { EdgeEvent } from "../../src/shared/keys.js";
 

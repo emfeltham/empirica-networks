@@ -91,7 +91,7 @@ reasoning as well as the change:
 
 - **`examples/shirado2017` now has both arms**, including the paper's actual contribution: 3
   agents x 3 noise levels x 3 placements, plus the deterministic-agent control. The agents run as
-  `server/bots.mjs`; all their behaviour is `botChoice` and `placeBots` in `design.js`, which
+  `server/bots.mjs`; all their behaviour is `botChoice` and `placeBots` in `design.mjs`, which
   imports nothing and is unit-tested.
 
   Two arrangements in it are the general lesson rather than the example's detail. **The condition
@@ -156,6 +156,22 @@ reasoning as well as the change:
   the documentation told users to type. `runBots` now rejects a non-HTTP url up front, before
   identifier validation, with an `Error` that names the fix, and `test/e2e/bots.test.ts` asserts
   the rejection against the exact documented-and-wrong string.
+
+- **A bot script cannot import an ESM `.js` module from an Empirica `server/`, and the fix for
+  that breaks the server.** The scaffold's `server/package.json` declares no `"type"`, so
+  `bots.mjs` importing the study's own rules from `src/design.js` dies on Node below 20.19 with
+  `SyntaxError: Unexpected token 'export'` at a line of valid ESM — and only warns above it, so
+  the same script runs on one machine and not another. Adding `"type": "module"` moves the failure
+  rather than removing it: `npm run build` bundles `src/index.js` to CommonJS with esbuild and
+  writes no `package.json` into `dist/`, so the bundle then loads as ESM and the server dies at
+  startup with `ReferenceError: require is not defined` — including under the `empirica` CLI,
+  which is the documented way to run the example.
+
+  `examples/shirado2017/server/src/design.js` is now `design.mjs` and the `"type"` field is gone,
+  which is the one arrangement where both plain `node` and the scaffold's build are correct.
+  `docs/BOTS.md` §7 states the rule for studies writing their own bot script, §2 points at it, and
+  `docs/TROUBLESHOOTING.md` §1 carries both error strings, since neither names the file that is
+  actually wrong.
 
 - **`ISSUES.md` O7b** — a **version pin with a guard in only one direction**.
   `.github/workflows/drift.yml` fires when upstream moves; nothing fired when *we* move to it, and

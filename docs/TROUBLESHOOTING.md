@@ -341,6 +341,39 @@ an exception.
 
 `docs/BOTS.md` Section 2, Section 5
 
+### The bot script dies importing the study's own rules, with `Unexpected token 'export'`
+
+```
+SyntaxError: Unexpected token 'export'
+    at .../server/src/design.js:31
+```
+
+**Cause:** the Empirica scaffold's `server/package.json` declares no `"type"`, so Node reads a
+`.js` file as CommonJS — and the shared rules module is ESM. The stack names your file and not
+this package, and the line it names is valid, so the file itself looks exonerated. Node 20.19 and
+later reparse as ESM and only warn (`MODULE_TYPELESS_PACKAGE_JSON`); below that it is fatal, which
+is why the same `bots.mjs` runs on one machine and not another.
+
+**Fix:** rename the shared module to `.mjs` and update the import in the callbacks and in the bot
+script. Do **not** add `"type": "module"` to `server/package.json` — it silences this and breaks
+the server's build instead, which is the next entry.
+
+`docs/BOTS.md` Section 7
+
+### The server dies at startup with `require is not defined in ES module scope`
+
+**Cause:** `"type": "module"` in `server/package.json`. The scaffold's `npm run build` runs esbuild
+with `--platform=node --bundle` and no `--format`, so the bundle is **CommonJS**, and the build
+copies no `package.json` into `dist/` — `dist/index.js` inherits the field and Node loads a
+CommonJS bundle as ESM. `npm run dev`, and the `empirica` CLI path that runs it, both fail before
+anything listens. The message names `dist/index.js`, a minified line 1, and the `package.json` two
+directories up, so it reads as a bundler problem.
+
+**Fix:** remove the field. If it was added to make plain `node` accept an ESM `.js` file — the
+entry above — rename that file to `.mjs` instead.
+
+`docs/BOTS.md` Section 7
+
 ### An offline analysis script dies on import
 
 ```

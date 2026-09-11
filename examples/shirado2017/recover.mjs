@@ -24,17 +24,21 @@
  * stopped watching" into a measurement. `t_ms` on the last row of `changes.csv` is
  * the only honest statement about how long it ran.
  *
- * NOTE ON A WARNING YOU WILL SEE. Node prints
- * `MODULE_TYPELESS_PACKAGE_JSON ... Reparsing as ES module` for `design.js`. It is
- * harmless — Node is observing that the Empirica scaffold's `server/package.json`
- * declares no `"type"`, so it guesses, correctly. Adding `"type": "module"` there
- * would silence it and break the scaffold's own build, which bundles `src/index.js`
- * to CommonJS with esbuild. Left as-is deliberately.
+ * WHY THE SHARED MODULE IS `design.mjs` AND NOT `design.js`. This file and
+ * `server/bots.mjs` both import it with plain `node`, and the Empirica scaffold's
+ * `server/package.json` declares no `"type"` — so under Node below 20.19 a `.js`
+ * file of ESM syntax is parsed as CommonJS and dies with
+ * `SyntaxError: Unexpected token 'export'` (above it, Node reparses and warns
+ * `MODULE_TYPELESS_PACKAGE_JSON`). Adding `"type": "module"` to fix that breaks the
+ * scaffold's own build instead, which bundles `src/index.js` to CommonJS with
+ * esbuild: `dist/index.js` would then be read as ESM and die with
+ * `ReferenceError: require is not defined`. The extension is the fix that costs
+ * nothing — `docs/BOTS.md` §7.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { edgeRows, parseNdjson, toCSV } from "empirica-networks/export";
-import { exportFiles, fromLog } from "./server/src/design.js";
+import { exportFiles, fromLog } from "./server/src/design.mjs";
 
 const [logPath, onlyGame] = process.argv.slice(2);
 if (!logPath) {
