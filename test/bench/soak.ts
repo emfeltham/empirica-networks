@@ -226,9 +226,23 @@ async function armLongGame(minutes: number): Promise<void> {
 
     const rssSlope = slopeBytesPerMinute(samples, (s) => s.rssBytes);
     const heapSlope = slopeBytesPerMinute(samples, (s) => s.heapBytes);
+    // The longest real run in this repository, so it is the best standing
+    // observation of `ISSUES.md` O4 — an entry that can be closed by ruling the
+    // path out AT RUNTIME rather than by inference, and that had no runtime to
+    // consult until these counters existed. Zero is the expected line and is
+    // the evidence; anything else is the reproduction three milestones of
+    // reading upstream's source could not produce.
+    const o4 = handle!.stats();
+    const seen = o4.pendingAtStart + o4.lateProvisioned;
     console.log(
       `\n  tajriba RSS : ${verdict(rssSlope, rssSlope * 60)}` +
         `\n  node heap   : ${verdict(heapSlope, heapSlope * 60)}` +
+        `\n  late joins  : ${
+          seen === 0
+            ? "none — pendingAtStart 0, lateProvisioned 0 (ISSUES.md O4 still unobserved)"
+            : `*** OBSERVED *** pendingAtStart ${o4.pendingAtStart}, ` +
+              `lateProvisioned ${o4.lateProvisioned} — RECORD THIS ON ISSUES.md O4`
+        }` +
         `\n  ${samples.length} samples, ${writes} publishes, slope fitted over the second half\n`
     );
   } finally {

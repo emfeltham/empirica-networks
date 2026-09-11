@@ -3,10 +3,14 @@
  * reason: the published @empirica/core cannot be loaded from raw Node in either
  * module system (docs/PLATFORM-NOTES.md §3a).
  *
- * Two entry points, because participants now run in child processes: the
- * coordinator (server + callbacks + admin) and the shard (participants). The
- * shard's built path is handed over in BENCH_SHARD rather than computed inside
- * the bundle, which has no reliable notion of where it came from.
+ * Three entry points. Participants run in child processes, so there is the
+ * coordinator (server + callbacks + admin) and the shard (participants); and
+ * since `--clients` those child processes can be on another machine, so there
+ * is the agent that hosts them there (`--agent`, test/bench/host.ts).
+ *
+ * The shard's built path is handed over in BENCH_SHARD rather than computed
+ * inside the bundle, which has no reliable notion of where it came from — and
+ * the agent needs it for exactly the same reason, since it is what forks them.
  */
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -23,6 +27,7 @@ fs.mkdirSync(outDir, { recursive: true });
 await build({
   entryPoints: [
     path.join(root, "test/bench/envelope.ts"),
+    path.join(root, "test/bench/host.ts"),
     path.join(root, "test/bench/shard.ts"),
   ],
   outdir: outDir,
@@ -39,8 +44,13 @@ await build({
 // The exit code is FORWARDED, not rethrown: `--assert` makes this gate CI
 // (`ISSUES.md` O6), and execFileSync's own throw would bury a legible
 // "3 receipts missing" report under an ESM stack trace from a wrapper script.
+// `--agent` selects the client host instead of the coordinator. Same script and
+// same build, because the two have to agree on the shard bundle and the frame
+// format, and a separate entry point is how those quietly drift apart.
+const entry = process.argv.includes("--agent") ? "host.cjs" : "envelope.cjs";
+
 try {
-  execFileSync(process.execPath, [path.join(outDir, "envelope.cjs"), ...process.argv.slice(2)], {
+  execFileSync(process.execPath, [path.join(outDir, entry), ...process.argv.slice(2)], {
     stdio: "inherit",
     cwd: root,
     env: { ...process.env, BENCH_SHARD: path.join(outDir, "shard.cjs") },

@@ -204,6 +204,32 @@ the batch.
 
 `docs/ARCHITECTURE.md` Section 3 step 7 · `ISSUES.md` O4
 
+### The log says a player "connected with NO private channel and was provisioned on the spot"
+
+**This is not a fault, and there is nothing to fix.** The repair path did its job: that player has
+their channel, and every participant's neighbourhood publishes. The message is loud because the
+*occurrence* is interesting, not because the game is in trouble.
+
+```
+empirica-networks: player "…" in game … connected with NO private
+  channel and was provisioned on the spot.
+```
+
+`ISSUES.md` O4 is open on whether the platform can produce this state at all — a player who is in
+`game.players` and has no `participantID` — and across three milestones it has never been
+observed, only argued about from reading upstream's source. If you are seeing this line, you have
+the observation the entry is waiting for.
+
+What is worth writing down, because it is gone from the log by the time anyone looks: your
+`@empirica/core` version, whether the server had just restarted (the suspect window is the
+subscription replay at process start — `docs/PLATFORM-NOTES.md` §20, and `ISSUES.md` U2's
+territory), and `net.stats().lateProvisioned`. Add it to O4.
+
+The counters are `net.stats().pendingAtStart` and `net.stats().lateProvisioned`, both per process
+and neither reset between games. `npm run soak` prints the pair.
+
+`docs/API.md` `net.stats()` · `ISSUES.md` O4
+
 ### Views never update after the first publish
 
 **Cause:** the key your `project()` reads is not in `watch`. Empirica has no wildcard attribute

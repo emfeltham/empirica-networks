@@ -158,6 +158,32 @@ export function pendingChannelsMessage(pending: string[], playerCount: number): 
 }
 
 /**
+ * A late provision actually happened, which is the observation `ISSUES.md` O4
+ * has been waiting three milestones for.
+ *
+ * The repair itself is routine — `provisionChannels` is idempotent, the player
+ * gets their channel, the game runs. What is not routine is that it fired at
+ * all: the whole entry rests on the platform never producing a player who is in
+ * `game.players` and has no `participantID`, and that has only ever been
+ * *argued*, from reading upstream's source. One occurrence settles it.
+ *
+ * So this is loud, and it asks for the two facts that a later reader cannot
+ * recover: which upstream version, and what the process was doing. Both are
+ * gone from the log by the time anyone notices a counter.
+ */
+export function lateProvisionMessage(playerID: string, gameID: string): string {
+  return (
+    `empirica-networks: player "${playerID}" in game ${gameID} connected with NO private\n` +
+    `  channel and was provisioned on the spot. The game is fine — this is the repair path\n` +
+    `  working, and every participant's neighbourhood now publishes.\n` +
+    `  It is reported because it is EVIDENCE, not a fault: ISSUES.md O4 is open on whether\n` +
+    `  the platform can produce this state at all, and it has never been observed. Please\n` +
+    `  record the @empirica/core version, whether the server had just restarted, and\n` +
+    `  net.stats().lateProvisioned, on that entry.`
+  );
+}
+
+/**
  * Ensure every player in `game` has a private channel. Safe to call repeatedly.
  */
 export async function provisionChannels(

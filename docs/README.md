@@ -43,6 +43,7 @@ Nothing here is needed to use the package.
 |---|---|
 | [M5-ADOPTION](M5-ADOPTION.md) | The adoption milestone: distribution shape, which experiments and why, and the trap audit |
 | [M6-HARDENING](M6-HARDENING.md) | The hardening milestone: what the shipped examples surfaced, and what each fix cost. Complete as of 2026-08-16 |
+| [`../NEXT_STEPS.md`](../NEXT_STEPS.md) | What is left to do on the package: the critical path to `0.1.0`, the open defects, and what is deliberately not scheduled. Dated 2026-09-11 |
 | [DOCS-PLAN](DOCS-PLAN.md) | The plan these documents were written from, and the one item still open |
 | [EVALUATION](EVALUATION.md) | The paper's empirical section: what a *platform* has to prove, and why simulated sessions are the instrument |
 | [EVALUATION-RUNBOOK](EVALUATION-RUNBOOK.md) | How to build and run `simulate`, written to be handed to someone who has not worked on this package |

@@ -158,6 +158,8 @@ test("a game's chat dedupe state is released with the game", async () => {
       endedGames: 1,
       chatSeqs: 0,
       firstChannelMs: undefined,
+      pendingAtStart: 0,
+      lateProvisioned: 0,
     },
     "everything released except the id of the game itself, which is deliberate"
   );
@@ -168,6 +170,11 @@ test("a game's chat dedupe state is released with the game", async () => {
   // is one-shot per process (`ISSUES.md` O15), so clearing it per game would
   // make the figure describe the most recent game instead of the coldest one.
   assert.equal(typeof after.firstChannelMs, "number", "the measurement outlives the game");
+  // `pendingAtStart` and `lateProvisioned` arrived the same way and stay for the
+  // same kind of reason. They count occurrences, not held objects, and the
+  // question they answer is "has this PROCESS ever seen the O4 path" — which a
+  // per-game reset would erase exactly when it finally mattered. Zero here is
+  // the ordinary case and is also the evidence.
 });
 
 test("a participant who chatted in one game is heard in the next", async () => {

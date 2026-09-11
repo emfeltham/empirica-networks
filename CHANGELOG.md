@@ -121,6 +121,27 @@ reasoning as well as the change:
 - `npm run bench -- --assert` and `npm run soak -- --assert` — exit non-zero on a **delivery** or
   **retention** regression, never on a slow or memory-hungry one. This is what lets both run in CI
   (`ISSUES.md` O6, `.github/workflows/perf.yml`, weekly).
+- **The bench can run its participants on a second machine (2026-09-11).** `npm run bench --
+  --agent` on the client host, `--clients HOST:PORT` on the server host. Until now "sharded" meant
+  more processes on the same machine, so every published figure included the participants competing
+  with the server for cores — an upper bound, and a systematic one that repeats cannot touch. The
+  timing survives the split without a clock protocol because both endpoints of every sample are
+  participants and all of them are on the client host; the server never timestamps anything
+  (`test/bench/host.ts`).
+- **Every run reports the clock conditions it was measured under, and `--absolute` refuses to run a
+  sweep that could not produce an absolute figure (2026-09-11).** Host, CPU, governor and turbo
+  state for both machines, because `ISSUES.md` O1's finding is that the host's frequency decision
+  moves the number by 5× while the run looks identical. `--absolute` requires fixed clocks on both
+  hosts, clients off the server host, and three repeats; `--attest-clocks "<why>"` covers the case
+  the kernel cannot confirm — a cloud instance without burst exposes no `cpufreq` sysfs — and the
+  words are printed with the numbers (`test/bench/clocks.ts`).
+
+- **The late-joiner repair path is counted and announced instead of silent (2026-09-11).**
+  `net.stats().pendingAtStart` and `net.stats().lateProvisioned`, both per process and neither
+  reset between games, plus a warning when the repair fires. `ISSUES.md` O4 offers "ruled out at
+  runtime rather than by inference" as a way to close, and that was unavailable: the repair fired
+  silently, so a study could have taken the path in every session it ran and left nothing behind.
+  Zero is the expected value and is the evidence; `npm run soak` prints the pair in its summary.
 
 ### Documentation
 

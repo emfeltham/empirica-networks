@@ -179,7 +179,7 @@ wire frames — so a leak through a channel nobody enumerated is still caught.
 | `scripts/test-browser.mjs` | Playwright, real browsers. Discovers `test/browser/*.ts`, one process each; takes a substring filter, and errors on a filter that matches nothing |
 | `scripts/example-install.mjs` | packs and installs into the examples, as a tarball rather than a `file:` link |
 | `scripts/example-build.mjs` | builds each example's client. Catches import-resolution errors a parse check cannot |
-| `scripts/bench.mjs` | end-to-end publish latency, plus first-channel latency (`ISSUES.md` O15) reported even for runs that do not complete. `--dense` for the degree sweep, `--payload` for degree × view size, `--repeats` for a published figure |
+| `scripts/bench.mjs` | end-to-end publish latency, plus first-channel latency (`ISSUES.md` O15) reported even for runs that do not complete. `--dense` for the degree sweep, `--payload` for degree × view size, `--repeats` for a published figure, `--clients` to put the participants on another machine |
 | `scripts/soak.mjs` | long-run memory. Prints `net.stats()` alongside RSS |
 | `scripts/ceiling.mjs` | the U7 reproduction. `CEILING_PLAIN=1` runs it without this package |
 
@@ -202,6 +202,62 @@ bench's dominant term is participants per process competing for cores, so a late
 would fluctuate unpredictably. A check that fluctuates is typically disabled, and a disabled job
 appears to provide coverage while providing none. Latency and memory are recorded to the job
 summary instead, so the history needed to set a threshold will eventually exist.
+
+### Two machines: `--clients`, and what an absolute number costs
+
+Every bench figure in this repository is an **upper bound**, and the reason is the harness rather
+than the package: the participants and the server share one host, so at any interesting n they
+compete for the same cores. It is measurable — p50 at n=100 fell 43.1 → 10.1 → 8.0 ms purely by
+spreading the shards thinner (`--perShard`) — and it is systematic, so repeats cannot touch it.
+`ISSUES.md` O1 is that entry.
+
+```sh
+npm run bench -- --agent --port 7411              # on the client machine
+npm run bench -- --clients 10.0.0.7:7411 --repeats 3   # on the server machine
+```
+
+The coordinator keeps the server, the callbacks and the admin; the agent forks every shard. The
+control channel is newline-delimited JSON over one TCP connection carrying the same messages
+`fork()` IPC carried, so a sweep without `--clients` takes the path it always did.
+
+**Why the timing still means anything across the split.** The bench has no clock protocol: the
+writer stamps the send time inside the value and the recipient subtracts it on flush. Two machines'
+clocks differ by more than the quantity being measured, so that would normally be fatal — and it is
+not, because *both endpoints of every sample are participants*, and all participants are on the
+client host. The server never timestamps anything. This is also why the agent forks all shards
+locally: split them across two client hosts and the measurement becomes an NTP offset.
+
+Three practical things. The coordinator advertises an address for the remote participants to dial
+and **guesses** it from the first non-internal IPv4 — a host with a VPN or a container bridge has
+several answers, so read the printed line and use `--advertise` when it is wrong. The agent takes
+one coordinator at a time and refuses a second, because two sweeps sharing a client host measure
+each other. And there is no authentication on the port: the intended deployment is two hosts on a
+private network for the length of one sweep.
+
+### `--absolute`: the sweep refuses rather than mislabels
+
+The other half of O1 is the host's own clock. The same cell measured 3.3 to 18.3 ms across one
+session while repeats *within* a sweep agreed to 4–17%, and the cause was DVFS — the coordinator
+burned 1.1 CPU-seconds idle against 0.7 loaded for identical work (`docs/PLATFORM-NOTES.md` §21).
+A bench that leaves the machine nearly idle asks for the slowest clock it has.
+
+So every run now prints the host, CPU, governor and turbo state of both machines, and `--absolute`
+refuses to start unless all three of O1's conditions hold: fixed clocks on both hosts, clients off
+the server host, and at least three repeats. Pinned means `performance` on every CPU *and* boost
+off; only Linux can prove it. A cloud instance without burst often exposes no `cpufreq` sysfs at
+all, so `--attest-clocks "<why>"` lets you assert it in words, which are then printed beside the
+numbers.
+
+```
+$ npm run bench -- --absolute
+  NOT an absolute measurement — 3 condition(s) unmet:
+    - server host …: darwin exposes no CPU governor, so frequency cannot be pinned (ISSUES.md O1)
+    - participants share this host with the server (--clients)
+    - --repeats 1, and SPIKE-REPORT §5-6 asks for 3
+```
+
+It gates the sweep; it does not certify the result. Meeting the conditions is necessary and not
+sufficient.
 
 ## 4. Reading a red run
 
