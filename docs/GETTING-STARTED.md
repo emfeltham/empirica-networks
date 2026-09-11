@@ -14,7 +14,7 @@ Participants are nodes in a graph, and each participant receives only their neig
 
 Requires Node 20+ and the Empirica CLI (`curl https://install.empirica.dev | sh`).
 
-Start from a stock Empirica project — `empirica create my-study` — and add this package to both halves, because it ships server code and client code separately:
+Start from a stock Empirica project (`empirica create my-study`) and add this package to both halves, because it ships server code and client code separately:
 
 ```sh
 npm --prefix server install empirica-networks
@@ -40,7 +40,7 @@ npm --prefix client install empirica-networks
 > Counting strings in the bundle does not reveal it; comparing class identity does
 > (`classicKinds.game === networkKinds.game` → `false`).
 >
-> Use a packed tarball instead. Measured and written up in `docs/PLATFORM-NOTES.md` §11.
+> Use a packed tarball instead; this is measured and written up in `docs/PLATFORM-NOTES.md` §11.
 
 ## 3. The mandatory edit
 
@@ -72,7 +72,7 @@ inside the CLI. The private channel is a custom kind, so it has to be registered
 > 2. The subscription is only slow. …
 > ```
 >
-> To fail *before* the server starts instead, call the eager check where you build the map:
+> To fail before the server starts instead, call the eager check where you build the map:
 >
 > ```js
 > import { assertKindsRegistered, networkKinds } from "empirica-networks/admin";
@@ -80,11 +80,11 @@ inside the CLI. The private channel is a custom kind, so it has to be registered
 > ```
 >
 > It is worth knowing why this is two checks rather than one: `withNetwork` is handed the listeners
-> collector, not the kind map, so it cannot verify the registration directly — it detects the
-> *consequence*.
+> collector, not the kind map, so it cannot verify the registration directly: it detects the
+> consequence.
 >
 > The wait is 5 s for a small study and grows with the participant count, because channel
-> delivery queues behind Classic's game-start burst — at n=150 the first channel has been
+> delivery queues behind Classic's game-start burst; at n=150 the first channel has been
 > measured taking 4.3 s on a healthy server (`ISSUES.md` O15). If the warning turns out to have
 > been impatient, the package retracts it in the same log rather than leaving you with an
 > accusation it cannot support.
@@ -112,11 +112,11 @@ export const net = withNetwork(Empirica, {
 ```
 
 `project()` is the only path by which one participant's data reaches another. Return plain
-data — returning the scope itself is refused, because a scope holds a reference to the global
+data; returning the scope itself is refused, because a scope holds a reference to the global
 attribute store and publishing one would ship every attribute of every participant to that
 client.
 
-Every private key must be declared in one of the two lists. `watch` is for keys `project()` reads —
+Every private key must be declared in one of the two lists. `watch` is for keys `project()` reads:
 a change republishes the views that can see it. `read` is for keys only your server consumes: a
 submitted answer, a decision. They behave identically, so putting a key in the wrong one is
 harmless; leaving it out of both is not.
@@ -134,7 +134,7 @@ Empirica.onStageEnded(({ stage }) => {
 >
 > `net.inspect().nodes[i].state[key]` gives you the same values, and returns `undefined` for an
 > undeclared key, an ended game, a player outside the graph, and a participant whose channel has
-> not materialised — all of which look identical to "they have not written it yet".
+> not materialised, all of which look identical to "they have not written it yet".
 >
 > That is how the Rand 2011 reconstruction ran a whole study in which the manipulation did
 > nothing: `rewireAnswers` was undeclared, every answer read back as "not submitted", and the
@@ -144,7 +144,7 @@ Empirica.onStageEnded(({ stage }) => {
 > `stateOf()` throws for all four, naming the fix. Use `inspect()` for the seating plan and for
 > the monitor; use `stateOf()` for anything a listener acts on.
 
-To act the *moment* a participant writes one of those keys, add `onPrivateState`:
+To act the moment a participant writes one of those keys, add `onPrivateState`:
 
 ```js
 withNetwork(Empirica, {
@@ -156,10 +156,10 @@ withNetwork(Empirica, {
 });
 ```
 
-Player ids and values, never scopes. It arrives after the republish that write triggered, so a
-handler that ends the stage does it with everyone's view already current — and it must be
-**synchronous**, because a write after an `await` inside it lands outside the runloop's flush and
-reaches nobody.
+The handler receives player ids and values, never scopes. It fires after the republish that the
+write triggered, so a handler that ends the stage does so with everyone's view already current. It
+must also be synchronous, because a write made after an `await` inside it lands outside the
+runloop's flush and reaches nobody.
 
 ## 5. Writing participant state
 
@@ -176,8 +176,8 @@ player.set("choice", "A");   // ✗ BROADCAST to every participant, whatever you
 ```
 
 Empirica cross-links every participant to every player node, so anything written with
-`player.set()` is readable by everyone. Projecting such a value restricts nothing — the raw
-attribute is already out, and the experiment runs, the screens look right, and the network has
+`player.set()` is readable by everyone. Projecting such a value restricts nothing: the raw
+attribute is already out, the experiment runs, the screens look right, and the network has
 stopped being the manipulation.
 
 The mirror of this on the server: read neighbour state through `ctx.stateOf(neighbour)`, not
@@ -196,18 +196,18 @@ the whole intro/exit flow keep working.
 
 > ### Caution: `useNeighbors()` returns `undefined` before the first publish
 >
-> And `[]` only for a genuinely isolated node. Those are not the same, and the hook refuses
+> It returns `[]` only for a genuinely isolated node. Those are not the same, and the hook refuses
 > to conflate them: returning `[]` while loading would render a participant as isolated, look
 > entirely normal, and quietly corrupt the data. Branch on it the way you already branch on
 > `usePlayer()`.
 
 ## 6. Custom listeners
 
-Two constraints, both of which fail silently.
+Two constraints apply here, and both fail silently.
 
 Each lifecycle helper must be registered exactly once. `onGameStart`, `onRoundStart`, `onStageStart`,
 `onStageEnded`, `onRoundEnded` and `onGameEnded` are wrapped in a `unique` guard whose "already
-ran" marker is stored on the *scope*, so it is shared by every listener for that event. The
+ran" marker is stored on the scope, so it is shared by every listener for that event. The
 first callback to run sets it, and every later one silently returns. Splitting handlers by
 concern is the obvious structure and it does not work:
 
@@ -237,8 +237,9 @@ empirica-networks: a lifecycle listener is registered more than once, and ONLY T
 
 The warning should be read rather than trusted blindly. It cannot tell a duplicated helper from two
 plain `Empirica.on("stage", "ended", cb)` calls when both callbacks are anonymous two-argument async
-functions — those are legitimate and all of them run. The message says so. And it can only detect
-what it can see, so it should be treated as a safeguard under the rule above, not a replacement for it.
+functions; those are legitimate and all of them run. The message says so, and it can only detect
+what it can see, so it should be treated as a safeguard under the rule above rather than a
+replacement for it.
 
 Writes only count inside a callback. The runloop flushes the `set()` calls made while it is
 processing one. A mutation driven from a timer, an HTTP handler or a test updates the server's
@@ -270,9 +271,9 @@ It boots a real Tajriba, connects four headless participants on a ring by defaul
   PASS
 ```
 
-Three arms, all required. A clean result with a silent control means the check is blind; a clean
-result with nothing delivered means the projection never ran. Most privacy tests are wrong in
-exactly one of those two ways.
+There are three arms, and all are required. A clean result with a silent control means the check
+is blind; a clean result with nothing delivered means the projection never ran. Most privacy tests
+are wrong in exactly one of those two ways.
 
 Run it from `server/`, where you installed the package, so it reports the `@empirica/core` your
 study actually has. Options, exit codes and the version-mismatch note:
@@ -282,19 +283,19 @@ study actually has. Options, exit codes and the version-mismatch note:
 
 Two complete designs ship in this repository, both rebuilt from their papers and both covered by the test suite. Start here if you want to see what a real study looks like rather than a demo:
 
-- **[`examples/rand2011`](../examples/rand2011)** — Rand, Arbesman & Christakis (2011), PNAS. Cooperation in dynamic networks: rewiring during play, private cooperation decisions, four conditions.
-- **[`examples/shirado2017`](../examples/shirado2017)** — Shirado & Christakis (2017), Nature. The colour coordination game: a static scale-free network, continuous play, and a global objective participants cannot see.
-- **[`examples/minimal`](../examples/minimal)** — the smallest thing that demonstrates the guarantee. Four files changed from a stock project.
+- [`examples/rand2011`](../examples/rand2011) — Rand, Arbesman & Christakis (2011), PNAS. Cooperation in dynamic networks: rewiring during play, private cooperation decisions, four conditions.
+- [`examples/shirado2017`](../examples/shirado2017) — Shirado & Christakis (2017), Nature. The colour coordination game: a static scale-free network, continuous play, and a global objective participants cannot see.
+- [`examples/minimal`](../examples/minimal) — the smallest thing that demonstrates the guarantee. Four files changed from a stock project.
 
-`docs/EXPERIMENTS.md` says what each one demonstrates, what was left out, and — importantly — what "reconstruction" means and why it is not "replication".
+`docs/EXPERIMENTS.md` says what each one demonstrates, what was left out, and, importantly, what "reconstruction" means and why it is not "replication".
 
 > None of this needs real participants. Every example runs on your own machine with nobody
 > recruited: each one's README shows opening one browser tab per seat yourself, with a different
 > `?participantKey=` in each, so you play every role. Where you would rather not open that many tabs,
 > [`docs/BOTS.md`](BOTS.md) covers filling some or all seats with headless scripted participants
-> instead — `examples/shirado2017`'s bot runner is the worked case.
+> instead. `examples/shirado2017`'s bot runner is the worked case.
 >
-> For someone new to the package, the recommended order is `examples/minimal` first — four tabs,
+> For someone new to the package, the recommended order is `examples/minimal` first: four tabs,
 > five minutes, and you can watch the neighbour-limited visibility directly. Then
 > `examples/shirado2017`, to see a real published design where bots can fill the seats you would
 > otherwise have to click through yourself.
@@ -314,7 +315,7 @@ toCSV(snapshotRows(game.id, history));   // the full edge list at each event
 
 These take a game id and an event log, not Empirica objects, so the same functions run offline over data collected months ago. `edges.csv` includes the initial graph, so a study that never rewires still exports its network rather than an empty file.
 
-View capture should be turned on if `project()` does anything beyond passing values through — bucketing, adding noise, reading `stateOf()`. Views are published `ephemeral`, so nothing durable holds them, and what a participant was actually told cannot be reconstructed afterwards from the edge log plus an attribute export. Those give what someone could have known.
+View capture should be turned on if `project()` does anything beyond passing values through: bucketing, adding noise, reading `stateOf()`. Views are published `ephemeral`, so nothing durable holds them, and what a participant was actually told cannot be reconstructed afterwards from the edge log plus an attribute export. Those give what someone could have known.
 
 ```js
 withNetwork(Empirica, { …, views: { file: "data/views.ndjson" } });
@@ -322,7 +323,7 @@ withNetwork(Empirica, { …, views: { file: "data/views.ndjson" } });
 
 Then flatten offline with `viewRows()`, reading the file back with `parseNdjson()`. Both reconstructions do this; see their READMEs for the table layouts.
 
-The run log should also be turned on, because CSVs are written only when the game ends. A study that is killed, crashes, or is stopped never gets there — and after `ISSUES.md` U2 a crash mid-study is the normal shape of something going wrong, since a restarted server cannot resume a game anyway. Measured: a clean run of the Rand 2011 reconstruction's own tests left a views log and not one CSV.
+The run log should also be turned on, because CSVs are written only when the game ends. A study that is killed, crashes, or is stopped never gets there. After `ISSUES.md` U2, a crash mid-study is the normal shape of something going wrong, since a restarted server cannot resume a game anyway. This was measured: a clean run of the Rand 2011 reconstruction's own tests left a views log and not one CSV.
 
 ```js
 withNetwork(Empirica, { …, log: { file: "data/run.ndjson" } });
@@ -332,15 +333,15 @@ Empirica.onStageEnded(({ stage }) => {
 });
 ```
 
-One file for the whole study — every record carries its `gameID` — and every record is on disk as it is written, with no buffer, because a log whose purpose is surviving a kill should not be holding its newest rows in memory. `net.log` throws if you never configured a log, so a study cannot quietly record nothing. Both reconstructions ship a `recover.mjs` that rebuilds their CSVs from it, byte-identically to a clean finish.
+One file covers the whole study (every record carries its `gameID`), and every record is on disk as it is written, with no buffer, because a log whose purpose is surviving a kill should not be holding its newest rows in memory. `net.log` throws if you never configured a log, so a study cannot quietly record nothing. Both reconstructions ship a `recover.mjs` that rebuilds their CSVs from it, byte-identically to a clean finish.
 
 ## 10. Known limits
 
 | | |
 |---|---|
-| **Target regime** | **n ≤ 50, at any density.** Everything is measured with margin here, including complete graphs |
+| Target regime | n ≤ 50, at any density. Everything is measured with margin here, including complete graphs |
 | Sparse (d ≤ 16), n ≤ 150 | measured on this implementation; see the README's envelope table |
-| n ≥ 200 | **games do not reliably start** — 1 run in 6. Upstream, reproduces with stock Classic (`ISSUES.md` U7) |
+| n ≥ 200 | games do not reliably start (1 run in 6). This is upstream and reproduces with stock Classic (`ISSUES.md` U7) |
 | Dense graphs above n = 50 | unmeasured, and capped at degree 16 by default. Per-participant payload is O(degree), so this is where client bandwidth binds |
 | Sessions beyond ~10 minutes | unverified |
 
@@ -348,18 +349,18 @@ What matters is not degree alone, but degree multiplied by how much is projected
 is what a participant's connection carries, and `maxNeighbourhoodBytes` (64 KiB) caps it, because
 many individually reasonable views can add up while every other limit stays within bounds.
 
-A crashed study cannot be resumed. A full server restart never reassigns participants to their game — the store reloads, but `gameID` is never restored and no game resumes. It can also leave two player scopes for one participant. This is an upstream limitation (`ISSUES.md` U2), and no amount of documentation or configuration changes it, so plan for a crash mid-study to end the games in progress.
+A crashed study cannot be resumed. A full server restart never reassigns participants to their game: the store reloads, but `gameID` is never restored and no game resumes. It can also leave two player scopes for one participant. This is an upstream limitation (`ISSUES.md` U2), and no amount of documentation or configuration changes it, so plan for a crash mid-study to end the games in progress.
 
 ## Where to go next
 
 | | |
 |---|---|
-| [`docs/API.md`](API.md) | every export, by import path, with the reasoning behind each decision — and the `verify` CLI's options |
-| [`docs/TOPOLOGIES.md`](TOPOLOGIES.md) | the generator catalogue: parameters, connectivity, envelope implications. The page to read while *designing* |
+| [`docs/API.md`](API.md) | every export, by import path, with the reasoning behind each decision, and the `verify` CLI's options |
+| [`docs/TOPOLOGIES.md`](TOPOLOGIES.md) | the generator catalogue: parameters, connectivity, envelope implications. The page to read while designing |
 | [`docs/TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | when something is silently wrong. Indexed by symptom rather than by cause |
 | [`docs/DATA-AND-ANALYSIS.md`](DATA-AND-ANALYSIS.md) | §9 above in full: every table's columns, and reproducing a finished run |
 | [`docs/BOTS.md`](BOTS.md) | artificial participants: the policy interface, placement, counting them into `playerCount` |
-| [`docs/DEPLOYING.md`](DEPLOYING.md) | **before you plan a real study** — the pre-flight checklist, and what is not yet documented |
+| [`docs/DEPLOYING.md`](DEPLOYING.md) | read before you plan a real study: the pre-flight checklist, and what is not yet documented |
 | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) | how it works inside, if you want to know why any of the above is true |
 | [`docs/EXPERIMENTS.md`](EXPERIMENTS.md) | the two reconstructions: what they show, and what they are not |
 | [`docs/PLATFORM-NOTES.md`](PLATFORM-NOTES.md) | every platform constraint, with the date and version it was measured against |

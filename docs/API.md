@@ -1,7 +1,7 @@
 # API reference
 
 Organised by import path, so the line at the top of your file tells you which section to open.
-Each entry carries the reasoning behind the decision, which is the part worth reading — this is
+Each entry carries the reasoning behind the decision, which is the part worth reading. This is
 hand-written rather than generated from types for that reason.
 
 > This surface is not yet frozen. `PUBLICATION-PLAN.md` §2 freezes it at the first publish, and
@@ -15,7 +15,7 @@ hand-written rather than generated from types for that reason.
 | `empirica-networks/player/react` | the above, plus React | client components |
 | `empirica-networks/topology` | nothing | anywhere |
 | `empirica-networks/topology/graphology` | nothing (constructor injected) | anywhere |
-| `empirica-networks/export` | **nothing at all** | offline analysis scripts, plain `node` |
+| `empirica-networks/export` | nothing at all | offline analysis scripts, plain `node` |
 | `empirica-networks` | nothing | anywhere; shared keys and helpers only |
 
 The root module deliberately does not re-export the others. Combining admin, player and React into
@@ -30,7 +30,7 @@ The package also ships one binary, `empirica-networks`, which is not imported fr
 ## Four rules that cut across everything
 
 1. `project()` is the only path by which one participant's data reaches another. The server
-   telling *you* something is a different act, with its own path (`tell()`).
+   telling you something is a different act, with its own path (`tell()`).
 2. Mutate only from inside a listener. The runloop flushes the writes made while it is processing
    a callback. A mutation from a timer, an HTTP handler or a test updates the server's own state
    correctly and then reaches nobody, with no error. Reads are safe anywhere.
@@ -140,8 +140,8 @@ of Y`, with the original attached as `cause`.
 Both declare private keys. They are unioned internally and behave identically, so misfiling a key
 between them cannot break anything.
 
-- **`watch`** — keys `project()` reads. A change republishes the views that can see it.
-- **`read`** — keys only your server consumes: a submitted answer, a decision.
+- `watch` — keys `project()` reads. A change republishes the views that can see it.
+- `read` — keys only your server consumes: a submitted answer, a decision.
 
 One list covers both the player scope and the private channel, deliberately: which scope a key
 lives on is your choice and can change, and two lists would turn a moved key into silently frozen
@@ -160,7 +160,7 @@ empirica-networks: project() reads player attribute(s) "score" that are not in
 ```
 
 Leave both empty for a static network whose projection never changes. Listing a key `project()`
-ignores costs one listener and no wire traffic — a republished view comes out byte-identical and
+ignores costs one listener and no wire traffic; a republished view comes out byte-identical and
 is suppressed.
 
 ##### `seed?: number`
@@ -179,8 +179,7 @@ Neighbour-scoped chat, off by default because it costs a listener and per-channe
 wire payload both.
 
 A message goes to whoever is the sender's neighbour at that moment, plus the sender. It uses the
-same channel as everything else, under a different key, so there is no second privacy path, which
-is the point.
+same channel as everything else, under a different key, so there is no second privacy path.
 
 Sending and receiving take different routes on purpose. A participant can only write to their own
 channel, so `send` writes to an outbox there and the server distributes the message. Writing
@@ -197,7 +196,7 @@ Record what each participant was actually shown. Off by default; see
 [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md) for when to turn it on and what the rows mean.
 
 Buffered at 256 records by default and flushed on a full batch, a 2-second idle, a game ending,
-and process exit — so a hard kill loses at most one batch.
+and process exit, so a hard kill loses at most one batch.
 
 ##### `log?: { file?: string, onRecord?: (r: LogRecord) => void, batch?: number }`
 
@@ -242,8 +241,8 @@ This is a configuration field rather than a `net.onPrivateState(…)` method, an
 deliberate refusal: a method invites registration after the admin has started, and a listener
 registered too late is a listener that never fires. A field is read before anything is wired.
 
-The alternative it replaced was reaching into the package's key layout —
-`Empirica.on(NBHD_KIND, stateKey("color"), …)` — which requires knowing that a plain `.on` escapes
+The alternative it replaced was reaching into the package's key layout,
+`Empirica.on(NBHD_KIND, stateKey("color"), …)`, which requires knowing that a plain `.on` escapes
 the `unique` guard, and which fires only because `withNetwork` subscribed the admin to the `nbhd`
 kind. Copied into a project that does not call `withNetwork`, those three lines produce a listener
 that never runs, and nothing indicates the problem.
@@ -256,7 +255,7 @@ Third argument to `project()`.
 |---|---|
 | `game` | the admin game scope |
 | `viewerIndex`, `neighbourIndex` | positions in the topology |
-| `stateOf(player)` | `{ get(key) }` — a player's **private** state |
+| `stateOf(player)` | `{ get(key) }` — a player's private state |
 
 Use `ctx.stateOf(neighbour).get("choice")`, not `neighbour.get("choice")`. A player attribute is
 broadcast to every participant, so projecting one restricts nothing; only values written to a
@@ -264,7 +263,7 @@ private channel are actually neighbour-limited.
 
 #### `NetworkHandle`
 
-Returned by `withNetwork`. All of it is safe to call from anywhere — nothing here writes to a
+Returned by `withNetwork`. All of it is safe to call from anywhere: nothing here writes to a
 scope.
 
 ##### `net.stateOf(game, playerID, key)`
@@ -356,13 +355,13 @@ number that decides whether someone is told their server is misconfigured should
 the person being told.
 
 `pendingAtStart` and `lateProvisioned` are occurrence counts rather than resource counts, and they
-do not reset between games — the question they answer is whether this *process* ever saw the
+do not reset between games: the question they answer is whether this process ever saw the
 late-joiner path, and a per-game reset would clear the record exactly when it started to matter.
-**Zero is the expected value, and zero is the point.** `ISSUES.md` O4 is open on whether the
+Zero is the expected value. `ISSUES.md` O4 is open on whether the
 platform can produce a player who is in `game.players` with no `participantID` at all; the entry
 can be closed by reproducing that or by ruling it out at runtime, and until these counters existed
 the repair fired silently, so there was no runtime to consult. A non-zero `lateProvisioned` means
-the repair worked and your game is fine — and that you are holding the observation the entry has
+the repair worked and your game is fine, and that you are holding the observation the entry has
 been waiting for. `npm run soak` prints the pair in its summary.
 
 ### `network(game): GameNetwork`
@@ -450,7 +449,7 @@ const ctx = await AdminContext.init(url, sessionTokenPath, "callbacks", token, {
 
 | | |
 |---|---|
-| `networkKinds` | `classicKinds` plus the `nbhd` entry. **Mandatory** |
+| `networkKinds` | `classicKinds` plus the `nbhd` entry. Mandatory |
 | `Nbhd` | the admin-side channel scope class |
 | `REGISTRATION_DIFF` | the two-line diff, as a string |
 | `assertKindsRegistered(kinds)` | throws `KindsNotRegisteredError` with that diff |
@@ -521,7 +520,7 @@ Limits on what may be published, enforced by default.
 |---|---|---|
 | `maxDegree` | `n - 1` at n ≤ 50, `16` above | A topology too dense for the measured regime |
 | `maxViewBytes` | 8192 | One neighbour's view being enormous |
-| `maxNeighbourhoodBytes` | 65536 (64 KiB) | **Degree × view size** — many reasonable views adding up |
+| `maxNeighbourhoodBytes` | 65536 (64 KiB) | Degree × view size, many reasonable views adding up |
 
 Degree is checked at game start, before provisioning and before anything is recorded, so an
 out-of-envelope topology fails while the experiment is still abandonable.
@@ -554,7 +553,7 @@ Also exported: `resolveEnvelope`, `defaultMaxDegree`, `DEFAULT_ENVELOPE`, `MEASU
 | `provisionChannels`, `readChannels`, `resetChannels` | channel plumbing; `resetChannels` is a test seam |
 | `makeViewSink`, `makeLogSink`, `makeNdjsonSink` | the NDJSON writers |
 | `topology` | the whole [topology namespace](TOPOLOGIES.md) |
-| `edgeRows`, `snapshotRows`, `viewRows`, `parseNdjson`, `toCSV`, `historyIsConsistent` | re-exported from `/export` — **but see the warning there** |
+| `edgeRows`, `snapshotRows`, `viewRows`, `parseNdjson`, `toCSV`, `historyIsConsistent` | re-exported from `/export`, but see the warning there |
 
 ---
 
@@ -651,7 +650,7 @@ import { useNeighbors, useNetworkSelf, useNetworkState } from "empirica-networks
 |---|---|---|
 | `useNeighbors<T>()` | `T[]` — exactly what `project()` returned, in topology order | before the first publish |
 | `useNetworkSelf()` | `{ playerID, degree, … }` | before the channel is provisioned |
-| `useNetworkState()` | `{ get, set }` — **this participant's private state** | before the channel is provisioned |
+| `useNetworkState()` | `{ get, set }` — this participant's private state | before the channel is provisioned |
 | `useNetworkTold()` | `{ get }` — server-authored values. No `set` | before the channel is provisioned |
 | `useNeighborChat()` | `{ messages, send }` | chat off, or before provisioning |
 | `useNbhd()` | the raw `Nbhd` scope | before the channel is provisioned |
@@ -690,7 +689,7 @@ TypeScript users can name the projection: `useNeighbors<{ id: string; choice: st
 
 ## `empirica-networks/topology` · `/topology/graphology`
 
-See **[TOPOLOGIES.md](TOPOLOGIES.md)** — 14 generators, 6 measures, and the graphology bridge,
+See [TOPOLOGIES.md](TOPOLOGIES.md): 14 generators, 6 measures, and the graphology bridge,
 with the parameters, connectivity guarantees and envelope implications of each.
 
 ---
@@ -698,7 +697,7 @@ with the parameters, connectivity guarantees and envelope implications of each.
 ## `empirica-networks/export`
 
 The pure row builders: `edgeRows`, `snapshotRows`, `viewRows`, `parseNdjson`, `toCSV`,
-`historyIsConsistent`. Schemas in **[DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md)**.
+`historyIsConsistent`. Schemas in [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md).
 
 > Import these from `/export`, not `/admin`, in anything run outside the Empirica CLI. The
 > functions are identical, since `/admin` re-exports them, but `/admin` also pulls in
@@ -746,8 +745,8 @@ const run = await runBots({
 
 | option | |
 |---|---|
-| `url` | Tajriba endpoint, e.g. `http://localhost:3000/query`. The HTTP address, not the websocket one — Tajriba derives `ws://`/`wss://` itself and rejects a url that already carries a websocket scheme. |
-| `identifiers` | one participant key per bot. **Required** — the list is the count, and the server usually needs the same list |
+| `url` | Tajriba endpoint, e.g. `http://localhost:3000/query`. The HTTP address, not the websocket one. Tajriba derives `ws://`/`wss://` itself and rejects a url that already carries a websocket scheme. |
+| `identifiers` | one participant key per bot. Required: the list is the count, and the server usually needs the same list |
 | `policy` | the behaviour; see below |
 | `seed` | seeds each bot's `ctx.rng` from `(seed, identifier)`. Default 1, fixed rather than time-derived so bot behaviour is reproducible by default |
 | `log` | `(record) => void`. Default: one JSON line per record on stdout |
@@ -835,7 +834,7 @@ node dist/verify/cli.cjs verify --n 4     # from a clone, after `npm run build`
 
 | Option | Default | |
 |---|---|---|
-| `-n`, `--n <count>` | 4 | Participants. **Minimum 4**, and refused below that: below it every named topology makes everyone everyone's neighbour, so there is no non-neighbour and a pass would prove nothing |
+| `-n`, `--n <count>` | 4 | Participants. Minimum 4, and refused below that: below it every named topology makes everyone everyone's neighbour, so there is no non-neighbour and a pass would prove nothing |
 | `--topology <name>` | `ring` | `ring`, `star`, `wheel`, `pairs`, `ladder`, `complete`. Refused when the shape could prove nothing — see below |
 | `-q`, `--quiet` | off | Print `PASS` or `FAIL` and nothing else. The CI form |
 | `-h`, `--help` | | Usage |
@@ -874,16 +873,16 @@ longest to earn: `0` alone reads the same whether four non-neighbour pairs were 
 leaked, or the graph was complete and no such pair existed. The second is a check that establishes
 nothing while announcing a PASS, which is the failure this command exists to make impossible.
 
-**Which shapes it will run.** A topology is refused, before anything boots, when its own graph
-says the run could not establish the guarantee — no non-neighbour anywhere (arm 1 has nothing to
+Which shapes it will run is decided as follows. A topology is refused, before anything boots, when its own graph
+says the run could not establish the guarantee: no non-neighbour anywhere (arm 1 has nothing to
 examine) or no edges at all (arm 3 expects nothing to arrive). That refuses `complete` at every
-`n`, and `wheel` at `n = 4`, where a hub plus a three-node rim *is* the complete graph. Shapes
-that excuse only *some* participants are run and reported: a star's hub is adjacent to everyone,
+`n`, and `wheel` at `n = 4`, where a hub plus a three-node rim is the complete graph. Shapes
+that excuse only some participants are run and reported: a star's hub is adjacent to everyone,
 so the verdict says `not covered: 1 adjacent to everyone` and the check still establishes the
 guarantee for the spokes.
 
-The parameterised generators — `grid`, `ringLattice`, `wattsStrogatz`, `barabasiAlbert`,
-`erdosRenyi`, `geometricRandom` — take an argument a flag cannot carry. They are reachable by
+The parameterised generators (`grid`, `ringLattice`, `wattsStrogatz`, `barabasiAlbert`,
+`erdosRenyi`, `geometricRandom`) take an argument a flag cannot carry. They are reachable by
 handing `runLeakCheck` the same generator function you hand `withNetwork`, which is also how to
 check a `fromEdgeList` graph:
 

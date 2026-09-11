@@ -33,7 +33,7 @@ Examples of unacceptable behaviour:
 
 ## Security and disclosure
 
-This project handles vulnerability reports privately and on a stated timeline — see
+This project handles vulnerability reports privately and on a stated timeline; see
 [`docs/upstream/DISCLOSURE.md`](docs/upstream/DISCLOSURE.md) for the route used for findings in
 Empirica itself. Reporting a security issue in good faith is always welcome and will never be
 treated as a hostile act. Please report privately rather than in a public issue.
@@ -41,7 +41,7 @@ treated as a hostile act. Please report privately rather than in a public issue.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behaviour may be reported to the
-maintainer at **eric.feltham@aya.yale.edu**. All complaints will be reviewed and investigated
+maintainer at eric.feltham@aya.yale.edu. All complaints will be reviewed and investigated
 promptly and fairly, and the privacy and security of the reporter will be respected.
 
 Maintainers are responsible for clarifying and enforcing these standards and will take

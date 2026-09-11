@@ -1,7 +1,7 @@
 # Platform constraints, verified
 
-Everything here was checked at runtime against **`@empirica/core@1.12.5`** and
-**`@empirica/tajriba@1.7.3`** on **2026-08-14**, not read from documentation. The checks should
+Everything here was checked at runtime against `@empirica/core@1.12.5` and
+`@empirica/tajriba@1.7.3` on 2026-08-14, rather than read from documentation. The checks should
 be re-run when either dependency is updated, since several of these are the kind of thing that
 changes silently.
 
@@ -64,7 +64,7 @@ module systems fail:
 | CJS (`require`) | core's nested `@empirica/tajriba@1.7.0` has no `exports` main → `ERR_PACKAGE_PATH_NOT_EXPORTED` |
 
 Note that the ESM failure is triggered by importing anything at all from
-`@empirica/core/admin/classic` — the module that re-exports everything eagerly loads `connection_test_helper`, which pulls
+`@empirica/core/admin/classic`: the module that re-exports everything eagerly loads `connection_test_helper`, which pulls
 in `tmp`. There is no need to call `withTajriba` to encounter it.
 
 The fix is to bundle the package, which resolves both failures. This is not a workaround: it is
@@ -92,7 +92,7 @@ for two independent reasons:
    becomes a benchmark of Tajriba's logger instead.
 
 `src/verify/server.ts` therefore spawns `empirica tajriba` directly on an explicitly chosen
-free port and polls `/query` for readiness — around 60 lines, with no `tmp` dependency and no
+free port and polls `/query` for readiness, around 60 lines, with no `tmp` dependency and no
 stderr parsing.
 
 `startTajriba` itself appears in the shipped chunk but is not in the public `.d.ts`; only the
@@ -158,8 +158,8 @@ participant in the game by `classic.ts:304-324`.
 
 ## 4c. The batch scope is the one place participants cannot read (confirmed)
 
-*Measured 2026-08-15, `@empirica/core@1.12.5`, by `test/e2e/scope_visibility.test.ts` and
-`test/e2e/topology_visibility.test.ts`.*
+Measured 2026-08-15, `@empirica/core@1.12.5`, by `test/e2e/scope_visibility.test.ts` and
+`test/e2e/topology_visibility.test.ts`.
 
 `withNetwork` records the seed and realised edge list so a finished run is reproducible from
 stored data. These records started on the game scope, which broke the rule stated above, and
@@ -198,7 +198,7 @@ kept so the reason survives.
 
 ## 4d. A restart re-fires `game.start` (critical)
 
-*Measured 2026-08-15, `@empirica/core@1.12.5`, by `test/e2e/restart.test.ts`.*
+Measured 2026-08-15, `@empirica/core@1.12.5`, by `test/e2e/restart.test.ts`.
 
 Attribute listeners replay attributes the admin already holds (§11), and `start` is one of
 them, so `collector.on("game", "start", …)` fires again for an already-running game every time
@@ -240,7 +240,7 @@ see §4e, which measured it and found that recovery usually never gets the chanc
 
 ## 4e. A full restart does not put participants back in their game (critical)
 
-*Measured 2026-08-15, `@empirica/core@1.12.5`, by `test/e2e/restart_full.test.ts`.*
+Measured 2026-08-15, `@empirica/core@1.12.5`, by `test/e2e/restart_full.test.ts`.
 
 Restarting the whole `empirica` process, whether from a crash, a deploy, or `^C`, reloads the
 store without difficulty. The batch, the players, the private channels and their links all come
@@ -275,7 +275,7 @@ This behaviour was hidden for a time by a bug in the project's own test harness.
 killed the `empirica` CLI wrapper, which execs the real server as a child process, so the server
 was orphaned rather than stopped, and the "restart" reconnected to the process that had never
 died. 379 orphaned processes had accumulated across one session. This was fixed with
-`detached: true` plus a process-group kill, and is guarded by a test in `harness.test.ts` — a
+`detached: true` plus a process-group kill, and is guarded by a test in `harness.test.ts`, since a
 leak of this kind is invisible in continuous integration and shows up locally as a flake in
 whatever test runs next.
 
@@ -309,8 +309,8 @@ silently" on the strength of it.
 
 `withNetwork` cannot assert on `"ready"`: it holds the collector, not the kind map, and reaching
 the map needs an `@internal` field plus a `protected` member of `Scopes`. So the shipped check
-instead observes the consequence — channels created by `addScopes` that never materialise as
-modelled scopes — and warns after 5 seconds. See `ISSUES.md` O14; witness
+instead observes the consequence (channels created by `addScopes` that never materialise as
+modelled scopes) and warns after 5 seconds. See `ISSUES.md` O14; witness
 `test/e2e/kind_registration.test.ts`.
 
 ## 7. A headless participant needs no non-public API (confirmed)
@@ -329,7 +329,7 @@ So the test harness needs no `ParticipantModeContext` (which is exported by no s
 
 ## 8. Hooks cannot be rendered against a synthetic mode (caution)
 
-*Measured 2026-08-14, `@empirica/core@1.12.5`, `react@18.3.1`.*
+Measured 2026-08-14, `@empirica/core@1.12.5`, `react@18.3.1`.
 
 `usePartModeCtx` reads its data from `ParticipantCtx`, a React context created at module load
 in `player/react/EmpiricaParticipant.tsx`. It is not exported from any single re-export module; only the
@@ -362,7 +362,7 @@ catches this; it is the main reason for the deferred M2 Playwright smoke test.
 
 ## 9. `ephemeral` attributes still survive a reconnect (confirmed)
 
-*Measured 2026-08-14, `@empirica/core@1.12.5`.*
+Measured 2026-08-14, `@empirica/core@1.12.5`.
 
 Neighbourhood views are written with `{ephemeral: true}`, since they are derived data,
 republished on demand, and persisting them would grow the store on every tick for no benefit.
@@ -388,7 +388,7 @@ this handler currently fixes.
 
 ## 10. A `file:` link to this package loads two copies of `@empirica/core` (significant risk)
 
-*Measured 2026-08-15, `@empirica/core@1.12.5`, esbuild 0.14.47 (the scaffold's bundler).*
+Measured 2026-08-15, `@empirica/core@1.12.5`, esbuild 0.14.47 (the scaffold's bundler).
 
 `examples/minimal` originally depended on this package with `"empirica-networks": "file:../../.."`.
 npm creates a symbolic link to the repository root, and the repository root has its own
@@ -427,7 +427,7 @@ and it is why `tsup.config.ts` keeps `@empirica/core` external.
 
 ## 11. Attribute listeners do not subscribe the admin to anything (significant risk)
 
-*Measured 2026-08-15, `@empirica/core@1.12.5`.*
+Measured 2026-08-15, `@empirica/core@1.12.5`.
 
 `_.on(kind, key, cb)` looks as though it subscribes to that attribute. It does not.
 `subscribeAttribute(kind, key)` (`admin/attributes.ts`) only creates a local `ReplaySubject`
@@ -472,7 +472,7 @@ failure so easy to miss by eye.
 
 ## 12. `EmpiricaClassic` never stops its animation-frame loop (caution)
 
-*Measured 2026-08-15, `@empirica/core@1.12.5`, Node 20.*
+Measured 2026-08-15, `@empirica/core@1.12.5`, Node 20.
 
 Instantiating the participant mode starts a self-rescheduling frame loop that has no teardown.
 Under Node there is no `requestAnimationFrame`, so core polyfills it with `setTimeout` and
@@ -499,9 +499,9 @@ assumption.
 
 ## 13. Memory: what grows, and what does not (confirmed)
 
-*Measured 2026-08-15, `@empirica/core@1.12.5`, by `npm run soak` (file store, not the harness
+Measured 2026-08-15, `@empirica/core@1.12.5`, by `npm run soak` (file store, not the harness
 default of `--tajriba.store.mem`; with the memory store everything is resident by construction
-and the measurement would mean nothing).*
+and the measurement would mean nothing).
 
 The exploratory prototype named server memory as its top remaining unknown, on the grounds that `ephemeral`
 views live in Tajriba's memory for the lifetime of a game. That concern turned out to be
@@ -535,7 +535,7 @@ published.
 
 ## 14. Writes only count inside a callback (caution)
 
-*Measured 2026-08-15 while building the rewiring handle in `src/admin/with_network.ts`.*
+Measured 2026-08-15 while building the rewiring handle in `src/admin/with_network.ts`.
 
 The runloop flushes the `scope.set()` calls made while it is processing a callback. A write
 issued from anywhere else, such as a timer, an HTTP handler, test code, or a `queueMicrotask`
@@ -553,7 +553,7 @@ Two consequences follow, both learned the hard way:
 
 ## 15. Game start corrupts the websocket stream at scale (significant risk)
 
-*Measured 2026-08-15, `@empirica/core@1.12.5`, by `npm run bench` and `test/bench/ceiling.ts`.*
+Measured 2026-08-15, `@empirica/core@1.12.5`, by `npm run bench` and `test/bench/ceiling.ts`.
 
 Above roughly n=150, participants intermittently fail to reach the game at all. The client
 dies on a malformed frame from the server:
@@ -598,7 +598,7 @@ Filed as ISSUES.md U7.
 
 ### 15a. The same burst delays channel materialisation, measured 2026-08-16
 
-*`npm run bench -- --repeats 3`, sparse d=8, 25 participants per shard, `@empirica/core@1.12.5`.*
+Measured with `npm run bench -- --repeats 3`, sparse d=8, 25 participants per shard, `@empirica/core@1.12.5`.
 
 Section 15 is about the participants the burst loses. This is about what it makes everyone else
 wait for. The figure is the time from the first `addScopes` request to the first `nbhd` scope
@@ -633,7 +633,7 @@ because the number did not exist anywhere until it was needed.
 
 ## 16. There is no artificial-player facility (caution)
 
-*Measured 2026-08-15, `@empirica/core@1.12.5`, by searching the shipped bundles.*
+Measured 2026-08-15, `@empirica/core@1.12.5`, by searching the shipped bundles.
 
 Empirica v2 ships no bots, agents, or simulated participants of any kind. A search of
 `node_modules/@empirica/core/dist/*.{js,cjs}` for `bot`, `virtual`, `simulat`, `agent`,
@@ -664,7 +664,7 @@ original estimate got wrong are worth keeping in mind:
 - The estimate of "about thirty lines of public API" was right about the connection and wrong
   about the facility as a whole. The connection is thirty lines, but the lifecycle a participant
   has to traverse before it can act has six named phases, and every way of getting them wrong is
-  silent: a bot that never plays throws nothing and times nothing out, it simply leaves a study
+  silent: a bot that never plays throws nothing and times nothing out; it simply leaves a study
   waiting for a game that will never reach its player count. `src/bots/lifecycle.ts` is that
   state machine, and it is larger than the socket code.
 - The claim that a bot is "indistinguishable from a human at the wire" is true of everything the
@@ -673,11 +673,11 @@ original estimate got wrong are worth keeping in mind:
 
 ## 17. An `onStageEnded`-style listener can only be registered once (significant risk)
 
-*Measured 2026-08-15, `@empirica/core@1.12.5`, while building `examples/rand2011`; the mechanism
-was then read directly off `dist/admin.cjs` rather than inferred.*
+Measured 2026-08-15, `@empirica/core@1.12.5`, while building `examples/rand2011`; the mechanism
+was then read directly off `dist/admin.cjs` rather than inferred.
 
-`ClassicListenersCollector`'s lifecycle helpers — `onGameStart`, `onRoundStart`, `onStageStart`,
-`onStageEnded`, `onRoundEnded`, `onGameEnded` — all register through `this.unique.on(...)`, and
+`ClassicListenersCollector`'s lifecycle helpers (`onGameStart`, `onRoundStart`, `onStageStart`,
+`onStageEnded`, `onRoundEnded`, `onGameEnded`) all register through `this.unique.on(...)`, and
 the `unique` wrapper is:
 
 ```js
@@ -761,7 +761,7 @@ indicates that the warning should be withdrawn.
 
 ### 17b. `warn()` writes to `console.log`, not `console.warn`
 
-*Measured 2026-08-16, `dist/chunk-TIKLWCJI.js`.*
+Measured 2026-08-16, `dist/chunk-TIKLWCJI.js`.
 
 Every level in `@empirica/core/console` goes through one `createLogger` that calls
 `console.log(...)`. So a test that swaps `console.warn` to capture a warning captures nothing,
@@ -777,8 +777,8 @@ divert all output and hide the harness's own diagnostics on a failure.
 
 ## 18. Degree costs less than the envelope assumed, measured 2026-08-16
 
-*`npm run bench -- --dense`, `@empirica/core@1.12.5`, 60 rounds per cell, participants sharded
-across child processes, macOS, loopback. One run per cell.*
+Measured with `npm run bench -- --dense`, `@empirica/core@1.12.5`, 60 rounds per cell, participants sharded
+across child processes, macOS, loopback. One run per cell.
 
 The default `maxDegree` was 16 and was documented as measured. It was, but the measurement
 (SPIKE-REPORT §4) swept sparse graphs while varying n, so it constrains n, not degree. The
@@ -806,7 +806,7 @@ It is worth stating explicitly what this does not establish, because the limit i
 over-read in exactly this way. The projection here is two fields, so these numbers describe
 degree at small view sizes. Degree times view size is a different quantity: it is what a
 participant's uplink carries, and it is what SPIKE-REPORT §4's client-bandwidth finding was
-about — an n=100 complete graph at 24.9 KB per tick per participant is roughly 204 ms of
+about: an n=100 complete graph at 24.9 KB per tick per participant is roughly 204 ms of
 transmission on a 1 Mbps uplink before any server cost. Nothing here contradicts that, and
 `maxNeighbourhoodBytes` exists to guard it, since degree alone does not.
 
@@ -815,8 +815,8 @@ reconciles on every published view), real WAN latency, and any dense cell above 
 
 ## 19. Degree by view size, measured, and what a bench figure is worth
 
-**Measured 2026-08-16, `npm run bench -- --bytes --repeats 2`, `@empirica/core@1.12.5`,
-100 rounds per run, participants sharded across processes.**
+Measured 2026-08-16, `npm run bench -- --bytes --repeats 2`, `@empirica/core@1.12.5`,
+100 rounds per run, participants sharded across processes.
 
 There are two results here. The first replaces a guess with a number; the second concerns the
 first result's own reliability, and is the more important of the two.
@@ -850,7 +850,7 @@ attention than the median.
 
 ### The sweep-level offset is caused by the machine's power management, and idle is the slow case
 
-**Measured 2026-08-16.** `ISSUES.md` O1 carried an unexplained offset of roughly fivefold: the
+Measured 2026-08-16. `ISSUES.md` O1 carried an unexplained offset of roughly fivefold: the
 same cell (n=25, d=8) measured between 3.3 ms and 18.3 ms across the session, while repeats
 within any one sweep agreed to under 17 percent. Six hypotheses were eliminated by measurement
 (see O1). The seventh was tested by imposing known CPU load: 14 cores, three conditions, three
@@ -907,7 +907,7 @@ Repeats within a sweep agree to within 3–9 percent and disagree across sweeps 
 2.5. Whatever produces that offset is shared by everything in a sweep, so `--repeats` measures
 precision rather than accuracy, and a tight spread is not evidence that a number is correct. The
 cause is not identified. It is not orphaned servers (checked: 2 live processes), not accumulated
-writes (the 20-versus-100-round control is the refutation — a plausible mechanism existed, since
+writes (the 20-versus-100-round control is the refutation: a plausible mechanism existed, since
 Tajriba is append-only per attribute, and it turned out to be wrong), and not within-run drift
 (the first-third-versus-last-third comparison is flat in every cell above).
 
@@ -924,7 +924,7 @@ loss at n≥200). This was a single occurrence and has not been characterised fu
 
 ## 20. `game.players` and `player.participantID` come from two different mechanisms
 
-**Read directly off `@empirica/core@1.12.5` `dist/admin-classic.cjs` on 2026-08-16.** Not
+Read directly off `@empirica/core@1.12.5` `dist/admin-classic.cjs` on 2026-08-16. Not
 measured at runtime, and the difference matters for what it licenses; see the last paragraph.
 
 ```js
@@ -968,8 +968,8 @@ left open indefinitely, and it costs nothing.
 
 ## 21. Every participant receives every co-player's recruitment identifier (significant risk)
 
-*Measured 2026-08-16, `@empirica/core@1.12.5`, at the wire. Witness: `test/e2e/bots.test.ts`,
-"a co-player's recruitment identifier is on the wire". Filed as `ISSUES.md` U10.*
+Measured 2026-08-16, `@empirica/core@1.12.5`, at the wire. Witness: `test/e2e/bots.test.ts`,
+"a co-player's recruitment identifier is on the wire". Filed as `ISSUES.md` U10.
 
 `participantIdentifier`, the raw value of `?participantKey=`, is delivered to every other
 participant in the game. Two upstream lines put it there, and neither is doing anything unusual:

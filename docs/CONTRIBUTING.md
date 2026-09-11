@@ -1,6 +1,6 @@
 # Contributing
 
-For someone changing the package. If you are trying to *use* it, start at
+For someone changing the package. If you are trying to use it, start at
 [GETTING-STARTED](GETTING-STARTED.md); if you are trying to understand it, start at
 [ARCHITECTURE](ARCHITECTURE.md).
 
@@ -11,7 +11,7 @@ npm run check && npm test -- unit mode     # fast; no server needed
 npm test                                    # the whole thing; needs the Empirica CLI
 ```
 
-**Prerequisites:** Node 20+ and the Empirica CLI (`curl https://install.empirica.dev | sh`).
+Prerequisites: Node 20+ and the Empirica CLI (`curl https://install.empirica.dev | sh`).
 
 ---
 
@@ -34,35 +34,35 @@ docs/          see docs/README.md
 
 ## 2. Rules beyond style
 
-Each of these has a failure behind it, and each fails **silently** if broken.
+Each of these has a failure behind it, and each fails silently if broken.
 
 ### The entry-point rule
 
-`src/index.ts` re-exports **only** `shared/`. Never re-export `admin`, `player`, `react` or
+`src/index.ts` re-exports only `shared/`. Never re-export `admin`, `player`, `react` or
 `topology` from it. Combining them into a single entry point is the mistake in `@empirica/core`'s own
-`index.ts`, which drags server-only code — and its `tmp` → `require("fs")` problem — into client
+`index.ts`, which drags server-only code (and its `tmp` → `require("fs")` problem) into client
 bundles. Each is its own `exports` subpath.
 
 Corollaries:
 
 - `src/player/**` must never import from `src/admin/**`. A client bundle that reaches
   `@empirica/core/admin` is broken in a way that only shows up in the consumer's build.
-- `src/admin/export.ts` must have no runtime imports at all — not even `node:fs`. It is the
+- `src/admin/export.ts` must have no runtime imports at all, not even `node:fs`. It is the
   `empirica-networks/export` entry, which analysts load from plain Node. Pinned by
   `test/unit/export_isolation.test.ts`. This is why `parseNdjson` takes text rather than a path.
 - `monitor` stays behind its own subpath, so a server that never opts in never loads
-  `node:http` or the served page, and *"does this deployment expose the whole graph"* is one grep.
+  `node:http` or the served page, and "does this deployment expose the whole graph" is one grep.
 
 ### Keys go in `src/shared/keys.ts`
 
 Every scope kind and attribute key, in one place. An early exploratory version scattered these
-literals across five files — `"nbhd"` alone appeared in four — which is how the
-`player`-vs-`nbhd` distinction, *the entire privacy guarantee*, became easy to get wrong by typo.
+literals across five files (`"nbhd"` alone appeared in four), which is how the
+`player`-vs-`nbhd` distinction, the entire privacy guarantee, became easy to get wrong by typo.
 Centralised, a rename is a compile error rather than a silent leak.
 
 ### Nothing of ours goes on the game scope
 
-`GAME_KEYS` is a named, **empty** record, and it should stay that way. The game scope is delivered
+`GAME_KEYS` is a named, empty record, and it should stay that way. The game scope is delivered
 to every participant. Two things were kept there and both had to move: the channel index (whose
 ids are, with no write ACL, the capability to write into someone else's channel) and the realised
 network.
@@ -70,10 +70,10 @@ network.
 ### Per-game state is keyed by game, or `releaseGame` will not find it
 
 Nine of the module's structures are keyed by game id and are dropped in `releaseGame`. Anything
-keyed by something else has to be released there **explicitly**, and the question to ask of new
-state is *what is this keyed by, and is that the thing that ends?*
+keyed by something else has to be released there explicitly, and the question to ask of new
+state is what this is keyed by, and whether that is the thing that ends.
 
-The cost of getting it wrong is more than memory. `lastOutbox` — the chat relay's duplicate guard —
+The cost of getting it wrong is more than memory. `lastOutbox` (the chat relay's duplicate guard)
 is keyed by player, so it survived its game; Classic reuses a participant's player scope across
 sequential games while the client's message counter restarts with each new channel, so the stale
 mark made the relay swallow the opening messages of the next game with nothing logged
@@ -92,9 +92,9 @@ npm run build     # tsup
 
 Two build groups in `tsup.config.ts`, and the split is not stylistic:
 
-- **`lib`** — ESM, `@empirica/*` and React **external**. Bundling core would give the consumer two
+- `lib`: ESM, `@empirica/*` and React external. Bundling core would give the consumer two
   copies of the `Scope` class, and every `instanceof` would silently start failing.
-- **`verify-cli`** — CJS, and **nothing external**, including `@empirica/core` itself. Bare Node
+- `verify-cli`: CJS, and nothing external, including `@empirica/core` itself. Bare Node
   ESM refuses `cross-fetch/polyfill` (a legacy directory subpath with no `exports` map) with
   `ERR_UNSUPPORTED_DIR_IMPORT`; leaving core external makes the CLI `require()` it and die on
   core's nested `@empirica/tajriba` having no CJS export.
@@ -102,39 +102,39 @@ Two build groups in `tsup.config.ts`, and the split is not stylistic:
   The honest consequence: the CLI verifies against the `@empirica/core` this package was built
   against, not the consumer's copy. It prints both versions and warns on mismatch rather than
   implying otherwise.
-- **`bots`** — CJS, nothing external, for the same reason: a bot needs `TajribaConnection` from
+- `bots`: CJS, nothing external, for the same reason: a bot needs `TajribaConnection` from
   `@empirica/core/admin`. Its `exports` entry has a single `default` condition rather than an
-  `import`, because an ESM entry here would resolve and then fail on the researcher's machine —
+  `import`, because an ESM entry here would resolve and then fail on the researcher's machine:
   the export map should not offer a path that cannot work.
 
 The clean happens in `scripts/clean-dist.mjs`, not in a config. tsup runs the three groups
-**concurrently**, so `clean: true` in one races the others' output: it silently deleted
+concurrently, so `clean: true` in one races the others' output: it silently deleted
 `dist/bots/index.d.cts` after tsup had reported writing it, and the only symptom would have been
 a consumer's editor quietly losing every type in `empirica-networks/bots`.
 
 Adding an entry point means three edits, and missing one fails late: `tsup.config.ts` `entry`,
 `package.json` `exports`, and a test that imports it through the built path. A declared entry that
 does not exist fails `npm run build`; an `exports` entry that does not exist fails only in the
-*consumer's* build, which is worse.
+consumer's build, which is worse.
 
 ## 4. Adding things
 
-**A topology generator.** Pure, index-based, returns `Edge[]`. Takes `opts.rng` if it makes any
-random choice, and **throws without one** if the result would otherwise be irreproducible.
+A topology generator: pure, index-based, returns `Edge[]`. Takes `opts.rng` if it makes any
+random choice, and throws without one if the result would otherwise be irreproducible.
 Refuse degenerate parameters rather than returning something that is not what it claims
 (`ring(2)` throws). Needs: a unit test, a row in [TOPOLOGIES.md](TOPOLOGIES.md) stating degree,
 whether it can disconnect, and its envelope implications.
 
-**A `NetworkConfig` field.** A field rather than a method, when the thing must be known before
-wiring — a method invites registration after the admin has started, and a listener registered too
-late never fires (this is why `onPrivateState` is a field). Needs: an e2e test, an
-[API.md](API.md) entry, and a sentence on what happens when it is *not* set.
+A `NetworkConfig` field: a field rather than a method, when the thing must be known before
+wiring, since a method invites registration after the admin has started, and a listener registered
+too late never fires (this is why `onPrivateState` is a field). Needs: an e2e test, an
+[API.md](API.md) entry, and a sentence on what happens when it is not set.
 
-**A client hook.** Put the derivation in `src/player/` and make the hook a thin wrapper — headless
+A client hook: put the derivation in `src/player/` and make the hook a thin wrapper, since headless
 clients and the verify harness need the same logic. Return `undefined` for "not resolved yet" and
 never conflate it with an empty result. Needs: a mode test.
 
-**A new silent-failure guard.** Prefer, in order: (1) make it impossible by construction;
+A new silent-failure guard: prefer, in order: (1) make it impossible by construction;
 (2) throw, naming the fix and the corrected code to paste; (3) warn once, and say what the warning
 cannot distinguish; (4) document it in [TROUBLESHOOTING](TROUBLESHOOTING.md) indexed by symptom.
 Do not stop at (4) if (1)–(3) are reachable.
@@ -147,20 +147,20 @@ See [TESTING.md](TESTING.md) for the tiers and what each can prove. The rules fo
   if your test subscribes after the scenario starts and needs the history, pass
   `recordWire: true` to `withScenario`. Getting this wrong is how `ISSUES.md` O8 lived for four
   milestones.
-- Anything that could fail silently needs an e2e witness. The unit tier is blind to *the
-  platform's* wiring, and that is where every documented failure in this package lives. The unit
+- Anything that could fail silently needs an e2e witness. The unit tier is blind to the
+  platform's wiring, and that is where every documented failure in this package lives. The unit
   tier can observe failures in this package's own wiring, however: `test/unit/fake_admin.ts`
-  supplies a collector and an event context, so the admin lifecycle is drivable there — the right
+  supplies a collector and an event context, so the admin lifecycle is drivable there: the right
   home for anything needing several sequential games, or a specific arrival order. Two defects were
   found that way (`ISSUES.md` O4, O5). See [TESTING §1](TESTING.md#1-the-three-tiers) for where
   that stops being true.
 - Ask what the smallest scenario is that can observe the behaviour. The cost of a test is a
-  property of the test — one file was spending two full games on a warning that fires before any
+  property of the test: one file was spending two full games on a warning that fires before any
   participant connects, and the participant-free version costs 0.27 s.
 - A guard needs a test that fails when the guard is removed. Removing `onPrivateState`'s one
   call site fails two tests; that is the standard.
 - Examples are documentation and are imported unmodified by e2e, so an API change that breaks
-  one breaks the suite. That is deliberate — do not fix it by loosening the test.
+  one breaks the suite. That is deliberate: do not fix it by loosening the test.
 
 ## 6. Documentation
 
@@ -174,28 +174,28 @@ Documentation is part of the change, not a follow-up.
 | Anything in the lifecycle or publish path | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | An exported row type or file format | [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md) |
 | Anything that can now fail differently | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
-| A measured fact about the platform | [PLATFORM-NOTES.md](PLATFORM-NOTES.md), **with the date and the version** |
+| A measured fact about the platform | [PLATFORM-NOTES.md](PLATFORM-NOTES.md), with the date and the version |
 | A defect you found and did not fix | [`../ISSUES.md`](../ISSUES.md) |
 
 Conventions, which the existing documents follow:
 
 - Cite the witness. A claim about behaviour names the test that pins it. "Impossible by
-  construction" must name a test; a claim resting on package code must name the **call site**, not
+  construction" must name a test; a claim resting on package code must name the call site, not
   the definition. Both rules exist because `ISSUES.md` O14 broke the second one and shipped for
   four milestones.
 - Date and version every measurement. "Measured 2026-08-16 against `@empirica/core@1.12.5`",
   not "measured". The version half is enforced: `test/unit/upstream_pin.test.ts` fails when the
   `@empirica/core` pin is bumped and lists every claim still citing the old one. That is a prompt
-  to **re-measure**, not to find-and-replace — the new version is the reason to doubt the number.
-- Give every `../ISSUES.md` entry a *Done when*. An entry without one is a claim nobody has
+  to re-measure, not to find-and-replace: the new version is the reason to doubt the number.
+- Give every `../ISSUES.md` entry a "Done when". An entry without one is a claim nobody has
   undertaken to check: O7b had none, and turned out to assert a gap that did not exist. The `U`
-  entries are exempt — they close upstream, not here. `O1` and `O4` are the two of ours still
+  entries are exempt: they close upstream, not here. `O1` and `O4` are the two of ours still
   without one.
 - Record what a plan got wrong, above the plan rather than instead of it. Both milestone
   documents do this, and the corrections are the most useful parts of them.
-- **`npm run check:links`** validates relative paths and section anchors. It runs in CI.
+- `npm run check:links` validates relative paths and section anchors. It runs in CI.
 
-The "not published yet" caveat lives in **one place** — the README's Installing section — and
+The "not published yet" caveat lives in one place (the README's Installing section), and
 everything else links to it. At publish time that is one edit rather than a search.
 
 ## 7. Releasing
@@ -203,8 +203,8 @@ everything else links to it. At publish time that is one edit rather than a sear
 The package is `private: true` at `0.0.0` pending disclosure, so this section does not yet apply.
 Once it is published:
 
-1. `PUBLICATION-PLAN.md` §1 — the disclosure window has to close first. This is blocking.
-2. Freeze the surface (§2) and give [API.md](API.md) a read-through against it — the CLI's flags
+1. `PUBLICATION-PLAN.md` §1: the disclosure window has to close first. This is blocking.
+2. Freeze the surface (§2) and give [API.md](API.md) a read-through against it: the CLI's flags
    and exit codes are surface too, and freeze with the rest.
 3. Remove `private: true`, set a real semver, and move `CHANGELOG.md`'s `[Unreleased]` section
    under that version.
@@ -214,8 +214,8 @@ Once it is published:
 
 ## 8. Design rationale
 
-`MODULE-DESIGN.md` — why the package is shaped the way it is — is deliberately **not** in this
+`MODULE-DESIGN.md` (why the package is shaped the way it is) is deliberately not in this
 repository; it is kept with the investigation that produced it. Within this repository,
-[ARCHITECTURE](ARCHITECTURE.md) answers *how it works*, the two milestone documents
+[ARCHITECTURE](ARCHITECTURE.md) answers how it works, the two milestone documents
 ([M5](M5-ADOPTION.md), [M6](M6-HARDENING.md)) carry the decisions and what they cost, and
 [PLATFORM-NOTES](PLATFORM-NOTES.md) is the evidence everything else cites.
