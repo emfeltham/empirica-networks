@@ -43,7 +43,7 @@ import {
   conflictCount,
   isSolved,
   // @ts-expect-error - plain JS example module, deliberately untyped
-} from "../../examples/shirado2017/server/src/design.js";
+} from "../../examples/shirado2017/server/src/design.mjs";
 
 /**
  * Eight, not the paper's twenty.

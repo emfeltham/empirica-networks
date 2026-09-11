@@ -103,7 +103,7 @@ asked for. If either is wrong, nothing downstream means anything.
 ## 4. Step 2 — the simulated participants
 
 Seventeen or twenty simulated participants, driven by `runBots` with a policy that plays the
-colour game. `docs/BOTS.md` describes the interface; `botChoice` in the example's `design.js` is
+colour game. `docs/BOTS.md` describes the interface; `botChoice` in the example's `design.mjs` is
 an existing implementation of the rule.
 
 **The vacuity rule, and it constrains the whole evaluation.** If the simulated participants use

@@ -33,7 +33,7 @@
  */
 import fs from "node:fs";
 import { botIdentifiers, runBots } from "empirica-networks/bots";
-import { BOT_COUNT, BOT_INTERVAL_MS, botChoice } from "./src/design.js";
+import { BOT_COUNT, BOT_INTERVAL_MS, botChoice } from "./src/design.mjs";
 
 const args = process.argv.slice(2);
 const flag = (name, fallback) => {
@@ -48,7 +48,7 @@ if (args.includes("--keys")) {
   process.exit(0);
 }
 
-const url = process.env["SHIRADO2017_TAJRIBA_URL"] ?? "ws://localhost:3000/query";
+const url = process.env["SHIRADO2017_TAJRIBA_URL"] ?? "http://localhost:3000/query";
 const keys = (process.env["SHIRADO2017_BOT_KEYS"] ?? "")
   .split(",")
   .map((s) => s.trim())
@@ -80,7 +80,7 @@ const logStream = fs.createWriteStream(logFile, { flags: "a" });
 /**
  * A "locally noisy autonomous agent".
  *
- * All the behaviour is `botChoice` in `src/design.js` — pure, imports nothing,
+ * All the behaviour is `botChoice` in `src/design.mjs` — pure, imports nothing,
  * unit-tested. What is left here is when to call it and what to do with the answer,
  * which is the part that needs a live channel.
  *

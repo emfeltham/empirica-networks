@@ -282,6 +282,20 @@ margin.
 
 `ISSUES.md` U7 · `docs/PLATFORM-NOTES.md` Section 16
 
+### The bot process dies immediately with `invalid URL`, and the stack names no frame
+
+**Cause:** `url` carries a websocket scheme. Tajriba accepts only the HTTP endpoint and derives
+`ws://` (or `wss://`) from it itself, so `ws://localhost:3000/query` — which reads like the right
+answer — is rejected. It is rejected by `throw "invalid URL"`, a bare **string**: it carries no
+stack, so the report shows only Node's ESM loader and nothing from this package or from your
+script. That missing stack is the whole difficulty; it makes the `url` argument look exonerated.
+
+**Fix:** pass `http://localhost:3000/query`. `runBots` now checks the scheme itself, before it
+connects, and says this — if you are seeing the bare string instead, the bots bundle predates the
+check.
+
+`docs/BOTS.md` Section 2
+
 ### The bots are connected and the study never starts
 
 **Cause:** the treatment's `playerCount` counts the bots. It is the size of the network, so a
@@ -326,6 +340,39 @@ leave the study a player short; so a bot that stopped acting after one tick is i
 an exception.
 
 `docs/BOTS.md` Section 2, Section 5
+
+### The bot script dies importing the study's own rules, with `Unexpected token 'export'`
+
+```
+SyntaxError: Unexpected token 'export'
+    at .../server/src/design.js:31
+```
+
+**Cause:** the Empirica scaffold's `server/package.json` declares no `"type"`, so Node reads a
+`.js` file as CommonJS — and the shared rules module is ESM. The stack names your file and not
+this package, and the line it names is valid, so the file itself looks exonerated. Node 20.19 and
+later reparse as ESM and only warn (`MODULE_TYPELESS_PACKAGE_JSON`); below that it is fatal, which
+is why the same `bots.mjs` runs on one machine and not another.
+
+**Fix:** rename the shared module to `.mjs` and update the import in the callbacks and in the bot
+script. Do **not** add `"type": "module"` to `server/package.json` — it silences this and breaks
+the server's build instead, which is the next entry.
+
+`docs/BOTS.md` Section 7
+
+### The server dies at startup with `require is not defined in ES module scope`
+
+**Cause:** `"type": "module"` in `server/package.json`. The scaffold's `npm run build` runs esbuild
+with `--platform=node --bundle` and no `--format`, so the bundle is **CommonJS**, and the build
+copies no `package.json` into `dist/` — `dist/index.js` inherits the field and Node loads a
+CommonJS bundle as ESM. `npm run dev`, and the `empirica` CLI path that runs it, both fail before
+anything listens. The message names `dist/index.js`, a minified line 1, and the `package.json` two
+directories up, so it reads as a bundler problem.
+
+**Fix:** remove the field. If it was added to make plain `node` accept an ESM `.js` file — the
+entry above — rename that file to `.mjs` instead.
+
+`docs/BOTS.md` Section 7
 
 ### An offline analysis script dies on import
 
@@ -398,6 +445,7 @@ table is for finding the *context*.
 | `EmpiricaClassic no longer returns "…"` | Upstream changed the classic context shape; the composed mode is out of date | ARCHITECTURE Section 6 |
 | `monitor() needs the handle returned by withNetwork()` | Pass `net`, not the collector | API.md, [`monitor()`](API.md#monitornet-options) |
 | `cannot connect X to itself` | A self-loop was requested | — |
+| `url must start with http:// or https://` | The HTTP endpoint was given a websocket scheme. Checked here because Tajriba rejects it with the bare string `"invalid URL"`, which has no stack and names no frame | Section 1, "dies immediately with `invalid URL`" |
 | `runBots needs at least one identifier` | The list is the bot count; there is no `count` that invents names | BOTS Section 1 |
 | `duplicate bot identifier(s): …` | Two bots sharing a key are one participant with two sockets, and the game sits one short forever | BOTS Section 1 |
 | `a policy with onTick must set tickMs` | Without it the tick would never fire, so it is refused rather than silently idle | BOTS Section 2 |

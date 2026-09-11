@@ -16,7 +16,7 @@
  * which nodes they were. See the README, and `ISSUES.md` O10 for why it took a new
  * entry point rather than a config flag.
  *
- * Every rule lives in `./design.js`, which imports nothing and is unit-tested by
+ * Every rule lives in `./design.mjs`, which imports nothing and is unit-tested by
  * `test/unit/shirado2017.test.ts`.
  */
 import fs from "node:fs";
@@ -31,7 +31,7 @@ import {
   exportFiles,
   isSolved,
   placeBots,
-} from "./design.js";
+} from "./design.mjs";
 
 export const Empirica = new ClassicListenersCollector();
 

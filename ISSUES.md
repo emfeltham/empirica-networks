@@ -1286,7 +1286,7 @@ disagreeing.
 **One reconstruction ambiguity, resolved explicitly rather than buried.** Whether the noisy draw
 includes the colour an agent already has is not settled by what was reconstructed. It is uniform
 over all three here, so an eps of 0.3 produces an observable change about 0.2 of the time; the
-alternative convention would make eps the rate of visible change. Stated in `design.js` and
+alternative convention would make eps the rate of visible change. Stated in `design.mjs` and
 asserted in the unit tier, because any comparison with the paper's numbers depends on it. The agent
 interval is likewise a stated choice, not a measurement — an agent's speed is not neutral, and one
 that moved every 50 ms would dominate a session regardless of its noise.
