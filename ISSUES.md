@@ -252,8 +252,8 @@ kill; arguably the CLI should forward signals.
 
 ### O1. Bench figures are single runs, and are upper bounds — **debt**
 
-**Evidence:** `test/bench/envelope.ts`, `test/bench/shard.ts`, `test/bench/soak.ts`;
-SPIKE-REPORT §5–6.
+**Evidence:** `test/bench/envelope.ts`, `test/bench/shard.ts`, `test/bench/host.ts`,
+`test/bench/clocks.ts`, `test/bench/soak.ts`; SPIKE-REPORT §5–6.
 
 **Sharding is done** (2026-08-15): participants run in child processes, this process holds only
 the server, callbacks and admin, and the send time rides inside the value so no clock protocol
@@ -362,6 +362,48 @@ What survives, and is now the practice:
 fixed clocks — bare-metal Linux with the governor pinned, or a cloud instance without burst —
 hosting the clients off the server host.
 
+**Worked 2026-09-11. The specification is now executable; what is left is hardware.** Both of its
+clauses were things the bench could not express, so the entry could only be satisfied by someone
+remembering it. Both are now flags, and a sweep that does not meet them says so in its own output.
+
+**1. Clients off the server host — `test/bench/host.ts`.** `npm run bench -- --agent` runs a client
+host that forks shards on demand; `npm run bench -- --clients HOST:PORT` makes the coordinator use
+it instead of `fork()`. The shard messages are unchanged and carried as newline-delimited JSON over
+one TCP connection, so a local sweep takes the same path it always did.
+
+The thing to check before believing any of it is the clock, because the bench times a one-way
+delivery with no clock protocol: the writer stamps `absNow()` inside the value and the recipient
+subtracts it. Across two machines that would be nonsense — NTP on a LAN is worth about a
+millisecond against a quantity often under ten. It survives because **both endpoints of every
+sample are participants**, and every participant is on the client host; the server is the only
+thing on the other machine and it never timestamps anything. That is also why the agent forks all
+shards locally rather than the coordinator addressing several agents, and why it refuses a second
+coordinator instead of queueing it.
+
+**2. Fixed clocks — `test/bench/clocks.ts`.** Every run now prints the host, the CPU, the governor
+and the turbo state of both machines, because O1's whole finding is that the host's clock decision
+moves the number by 5× while the run looks identical. Pinned means both halves: `performance` on
+every CPU *and* boost off, since turbo makes the ceiling a function of thermal headroom and a long
+sweep then drifts downward through itself. Only Linux can prove either; macOS exposes no governor,
+and a cloud instance that genuinely has no burst usually exposes no `cpufreq` sysfs either — so
+`--attest-clocks "<why>"` lets an operator assert what the kernel cannot confirm, and the words are
+printed with the numbers.
+
+**3. `--absolute` refuses to run a sweep that could not produce one.** Three conditions: fixed
+clocks on *both* hosts (the client host stamps the receipt), clients off the server host, and
+`--repeats 3`. It gates the sweep; it does not certify the result.
+
+**What is not done is the measurement itself, and no machine here can do it.** The development host
+is darwin/arm64 — `--absolute` exits 2 on it, naming all three unmet conditions, which is the
+correct behaviour and not a substitute for the number. The transport was verified over loopback
+with the agent in a second process: two cells × two repeats, shards respawned between cells, 100%
+receipts, p50 within 0.0 ms of the same cells run locally. That proves the plumbing and proves
+nothing about the physics.
+
+*Now done when:* a pinned bare-metal Linux host and a second machine for the clients run
+`npm run bench -- --clients HOST:PORT --absolute --repeats 3`, and the result is recorded in
+`docs/PLATFORM-NOTES.md` §21 beside the DVFS finding it answers.
+
 ### ~~O2. Long-session soak not run~~ — **closed 2026-08-15 by stating the limit**
 
 `npm run soak` defaults to ~10 minutes. Tajriba RSS plateaus over that window (PLATFORM-NOTES
@@ -382,7 +424,8 @@ become unconditional.
 
 ### O4. Late-joiner provisioning is a net under a path we could not construct — **the net was broken; still no reproduction**
 
-**Evidence:** `src/admin/with_network.ts` ParticipantConnect handler.
+**Evidence:** `src/admin/with_network.ts` ParticipantConnect handler;
+`net.stats().lateProvisioned`.
 
 A player with no `participantID` at game start is reported as `pending` and re-provisioned on
 connect. Classic sets `participantID` from an immutable attribute in its own `player` listener,
@@ -420,10 +463,39 @@ resolved far enough to act on by reading upstream's shipped source for ten minut
 remaining defect was found by writing a test for code nobody expected to run. An untestable path
 is not a harmless one, and *unreproducible* was doing work here that *unreachable* had not earned.
 
-*Covered by:* `test/unit/late_joiner.test.ts` (4), server-free against `test/unit/fake_admin.ts`.
+*Covered by:* `test/unit/late_joiner.test.ts` (6), server-free against `test/unit/fake_admin.ts`.
 
-*Still done when:* the platform path is reproduced — the mechanism in §20 says where to look —
-or ruled out at runtime rather than by inference.
+**Worked 2026-09-11. The second half of the done-when was unavailable, and now is not.**
+
+"Ruled out at runtime rather than by inference" could not be acted on, because there was no
+runtime to consult: the repair path fired **silently**. A study could have taken it in every
+session it ever ran and left nothing behind — which is a fair description of how an entry stays
+open for three milestones on an argument from reading upstream's source.
+
+Two counters on `net.stats()`, both per PROCESS and neither reset between games, since the
+question is whether this process ever saw it:
+
+- `pendingAtStart` — players skipped at game start for having no `participantID`.
+- `lateProvisioned` — players given a channel by the connect-time repair.
+
+Counted separately because they are not the same event. A player pending at start who later
+connects increments both, in that order; one that increments only `lateProvisioned` had a
+`participantID` all along and lost a channel some other way, which would be a different defect
+wearing this one's clothes.
+
+The repair also **says so out loud** now (`lateProvisionMessage`), and the message is written to be
+read as evidence rather than as a fault: the game is fine, and the reader is holding the
+observation this entry wants. It asks for the two facts a later reader cannot recover — the
+`@empirica/core` version and whether the server had just restarted — because the suspect window is
+the subscription replay at process start (§20), which is U2's territory.
+
+`npm run soak` prints the pair in its summary, being the longest real run in the repository. **First
+observation, 2026-09-11:** `--minutes 1`, arm A, n=20 against a real Classic server —
+`pendingAtStart 0, lateProvisioned 0`. One negative result on a short run is not a rule-out; it is
+the first datum this entry has ever had that is not an inference.
+
+*Still done when:* the platform path is reproduced — the mechanism in §20 says where to look — or
+`lateProvisioned` is zero across a real deployment, which is the first thing to read off one.
 
 ### ~~O5. `endedGames` grows with the number of games a process runs~~ — **fixed 2026-08-16**
 

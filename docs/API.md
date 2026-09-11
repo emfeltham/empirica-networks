@@ -341,6 +341,8 @@ prints the latter alongside RSS.
 | `endedGames` | finished games still remembered by id |
 | `chatSeqs` | chat dedupe marks held, one per participant who has sent a message |
 | `firstChannelMs` | ms from the first `addScopes` to the first channel arriving, or `undefined` |
+| `pendingAtStart` | players skipped at game start for having no `participantID`, since process start |
+| `lateProvisioned` | players given a channel by the connect-time repair path, since process start |
 
 The first three return to zero between games; `endedGames` and `chatSeqs` are the exceptions, and
 are reported for that reason. `endedGames` grows by one per game ended and is capped
@@ -352,6 +354,16 @@ game end.
 kind-registration warning above is racing against, measured once per process and never revised. A
 number that decides whether someone is told their server is misconfigured should be readable by
 the person being told.
+
+`pendingAtStart` and `lateProvisioned` are occurrence counts rather than resource counts, and they
+do not reset between games — the question they answer is whether this *process* ever saw the
+late-joiner path, and a per-game reset would clear the record exactly when it started to matter.
+**Zero is the expected value, and zero is the point.** `ISSUES.md` O4 is open on whether the
+platform can produce a player who is in `game.players` with no `participantID` at all; the entry
+can be closed by reproducing that or by ruling it out at runtime, and until these counters existed
+the repair fired silently, so there was no runtime to consult. A non-zero `lateProvisioned` means
+the repair worked and your game is fine — and that you are holding the observation the entry has
+been waiting for. `npm run soak` prints the pair in its summary.
 
 ### `network(game): GameNetwork`
 

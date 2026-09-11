@@ -23,6 +23,7 @@ import {
 } from "./registration.js";
 import {
   adoptChannel,
+  lateProvisionMessage,
   pendingChannelsMessage,
   provisionChannels,
   readChannels,
@@ -392,6 +393,32 @@ export interface NetworkStats {
    * that a game-keyed sweep would miss, and it did.
    */
   chatSeqs: number;
+  /**
+   * Players skipped at game start for having no `participantID`, since process
+   * start. Not a resource count; see `lateProvisioned`.
+   */
+  pendingAtStart: number;
+  /**
+   * Players provisioned by the connect-time repair path, since process start.
+   *
+   * Here for one purpose: `ISSUES.md` O4 can be closed by reproducing the
+   * platform path OR by ruling it out **at runtime rather than by inference**,
+   * and until this counter existed there was no runtime to consult. The repair
+   * fired silently, so a study could have hit the path a hundred times and left
+   * no trace of it — which is precisely the shape of an entry that stays open
+   * for three milestones on an argument from reading upstream's source.
+   *
+   * Zero is the expected value and is the evidence. It does NOT reset between
+   * games: the question is whether this process ever saw it, and a per-game
+   * counter would answer a question nobody asked.
+   *
+   * Counted separately from `pendingAtStart` because they are not the same
+   * event. A player pending at start who later connects increments both, in
+   * that order; one that increments only `lateProvisioned` had a
+   * `participantID` all along and lost a channel some other way, which would be
+   * a different defect wearing O4's clothes.
+   */
+  lateProvisioned: number;
 }
 
 export interface NetworkHandle {
@@ -560,6 +587,9 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    */
   let firstProvisionAt: number | undefined;
   let firstChannelMs: number | undefined;
+  /** Per PROCESS, not per game — see `NetworkStats.lateProvisioned`. */
+  let pendingAtStart = 0;
+  let lateProvisioned = 0;
   /**
    * The warning this process has already printed, if it printed one — so that a
    * channel arriving afterwards can retract it rather than leaving a false
@@ -849,7 +879,10 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     // send a partial view — so one unprovisioned player blocks EVERY view in
     // the game, not just their own. That is the right call (a partial publish
     // leaves participants stale with no signal), but it must not be silent.
-    if (pending.length > 0) warn(pendingChannelsMessage(pending, players.length));
+    if (pending.length > 0) {
+      pendingAtStart += pending.length;
+      warn(pendingChannelsMessage(pending, players.length));
+    }
 
     // Channel scopes arrive asynchronously via the listener above; if they are
     // not all present yet, publish once they are.
@@ -999,6 +1032,13 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       // player: they were in `game.players` all along, missing a channel rather
       // than a seat.
       if (!readChannels(game)[player.id]) {
+        // Counted and said out loud BEFORE the repair, so the record survives a
+        // `provisionChannels` that throws. O4's done-when offers "ruled out at
+        // runtime rather than by inference" as a way to close, and a repair that
+        // leaves no trace makes that impossible: the path could have run in
+        // every study ever conducted with this package and nobody would know.
+        lateProvisioned += 1;
+        warn(lateProvisionMessage(player.id, gameID));
         await provisionChannels(ctx, game, (playerID) => state.order.indexOf(playerID));
         if (!publishAll(game)) awaitingPublish.add(gameID);
         continue;
@@ -1751,6 +1791,8 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       cachedViews: lastPublished.size,
       endedGames: endedGames.size,
       chatSeqs: lastOutbox.size,
+      pendingAtStart,
+      lateProvisioned,
     }),
     activeGames: () =>
       [...games.keys()]

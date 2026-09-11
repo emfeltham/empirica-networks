@@ -7,9 +7,10 @@ play end to end against a real Empirica server, and the read-privacy guarantee t
 enforced and tested, not just documented — see [Runnable examples](#runnable-examples) and
 [Verifying the guarantee](#verifying-the-guarantee). What does not hold yet: the public API is
 unfrozen, and the package stays `private: true` at `0.0.0` **on purpose**, pending disclosure of an
-unpatched upstream vulnerability to Empirica's maintainers (`PUBLICATION-PLAN.md` §1) — see
-[Installation](#installation). Development is tracked by milestone; **[M7](CHANGELOG.md#unreleased)**
-is the latest, complete as of 2026-08-16.
+unpatched upstream vulnerability to Empirica's maintainers ([`NEXT_STEPS.md`](NEXT_STEPS.md) §1) —
+see [Installation](#installation). Development is tracked by milestone;
+**[M7](CHANGELOG.md#unreleased)** is the latest, complete as of 2026-08-16, and
+[`NEXT_STEPS.md`](NEXT_STEPS.md) is what remains.
 
 Not affiliated with, or endorsed by, the Empirica project. The name is descriptive.
 
@@ -24,6 +25,7 @@ Not affiliated with, or endorsed by, the Empirica project. The name is descripti
 | Getting the data out | [`docs/DATA-AND-ANALYSIS.md`](docs/DATA-AND-ANALYSIS.md) — every column of every table |
 | A real study to read | [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md) — two reconstructed papers |
 | Known defects | [`ISSUES.md`](ISSUES.md) — ours and upstream's |
+| What is left to do | [`NEXT_STEPS.md`](NEXT_STEPS.md) — the route to a first release, the open defects, and what is deliberately not scheduled |
 | Artificial participants | [`docs/BOTS.md`](docs/BOTS.md) — the policy interface, placement, and why a bot's *name* is participant-visible |
 | Everything else | [`docs/`](docs/README.md) — the documentation index |
 

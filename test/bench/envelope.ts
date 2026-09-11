@@ -14,6 +14,10 @@
  *   npm run bench -- --repeats 3        # what SPIKE-REPORT §5-6 asks for
  *   npm run bench -- --dense --payload 1024   # degree x VIEW SIZE, not degree alone
  *
+ * And, for the absolute figure `ISSUES.md` O1 still wants, two machines:
+ *   npm run bench -- --agent                          # on the client host
+ *   npm run bench -- --clients 10.0.0.7:7411 --absolute --repeats 3
+ *
  * What is measured is END-TO-END publish latency: the wall time from a watched
  * attribute changing to a neighbour's client holding the new value. That is the
  * number a participant experiences, and it includes everything this package adds
@@ -44,6 +48,7 @@
  * participant is in a shard (test/bench/shard.ts).
  */
 import { fork, type ChildProcess } from "node:child_process";
+import net from "node:net";
 import os from "node:os";
 import { networkKinds } from "../../src/admin/kinds.js";
 import { resetChannels } from "../../src/admin/provision.js";
@@ -57,6 +62,8 @@ import {
   startCallbacks,
 } from "../../src/verify/harness.js";
 import { withServer } from "../../src/verify/server.js";
+import { clockFacts, describeClocks, type ClockFacts } from "./clocks.js";
+import { frames } from "./wire.js";
 import type { Sample } from "./shard.js";
 
 interface Cell {
@@ -151,6 +158,10 @@ const flag = (name: string, dflt: number): number => {
   const i = argv.indexOf(`--${name}`);
   return i >= 0 && argv[i + 1] ? Number(argv[i + 1]) : dflt;
 };
+const text = (name: string): string | undefined => {
+  const i = argv.indexOf(`--${name}`);
+  return i >= 0 && argv[i + 1] && !argv[i + 1]!.startsWith("--") ? argv[i + 1] : undefined;
+};
 const ROUNDS = flag("rounds", 100);
 /** Gap between writes. Above the expected latency, so rounds do not overlap. */
 const ROUND_MS = flag("roundMs", 250);
@@ -216,6 +227,58 @@ const PAYLOAD = Math.max(0, flag("payload", 0));
  * job red for a documented upstream defect.
  */
 const ASSERT = argv.includes("--assert");
+/**
+ * `--clients host:port`: run the participants on ANOTHER MACHINE (`host.ts`).
+ *
+ * The second clause of `ISSUES.md` O1's specification. Without it "sharded"
+ * means "more processes on this machine", so every figure includes the
+ * participants competing with the server for the same cores — which is the
+ * confound the bench's own caveat names, and the reason p50 at n=100 fell
+ * 43.1 -> 10.1 -> 8.0 ms purely by spreading the harness thinner.
+ *
+ * The measurement stays valid across the split because both endpoints of every
+ * sample are participants and every participant is on the client host; the
+ * server never timestamps anything. `host.ts` has the argument in full.
+ */
+const CLIENTS = text("clients");
+/**
+ * `--advertise host`: the address the remote participants should dial.
+ *
+ * `withServer` returns `http://localhost:PORT/query`, which is correct for a
+ * shard on this host and useless for one that is not. Tajriba already binds
+ * every interface (`--tajriba.server.addr :PORT`), so only the URL is wrong.
+ * Defaulted by guess below, because a mandatory flag for a value the host
+ * usually knows is a flag people get wrong once per session.
+ */
+const ADVERTISE = text("advertise");
+/**
+ * `--attest-clocks "<why>"`: assert fixed clocks the kernel cannot prove.
+ *
+ * The escape hatch `clocks.ts` explains: a cloud instance that genuinely has no
+ * burst typically exposes no `cpufreq` sysfs, so refusing to believe anything
+ * the kernel will not confirm would lock out one of the two machines O1 asks
+ * for. The words are printed with the numbers, so the claim travels with them.
+ */
+const ATTEST = text("attest-clocks");
+/**
+ * `--absolute`: refuse to run unless this sweep could produce an absolute figure.
+ *
+ * `ISSUES.md` O1 ends with a specification rather than a wish, and this is the
+ * specification executed instead of remembered. Three conditions, each of which
+ * was learned the hard way:
+ *
+ *   1. Fixed clocks on BOTH hosts. The 5x offset O1 chased was DVFS, and it is
+ *      shared by everything in a sweep — so it is invisible to repeats and
+ *      fatal to an absolute number. The client host counts because it stamps
+ *      the receipt.
+ *   2. Clients off the server host, which is what `--clients` is for.
+ *   3. At least three runs per cell, which is what SPIKE-REPORT §5-6 asked for
+ *      before any number is published.
+ *
+ * Conditions 1 and 3 are necessary and not sufficient, and the flag does not
+ * pretend otherwise: it gates the sweep, it does not certify the result.
+ */
+const ABSOLUTE = argv.includes("--absolute");
 
 /** Above this, a cell failing to start is upstream's known defect, not a regression. */
 const ASSERT_MAX_N = 200;
@@ -247,44 +310,37 @@ function percentile(sorted: number[], p: number): number {
   return sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))]!;
 }
 
-interface Shard {
-  proc: ChildProcess;
-  /** Global participant indices this shard owns, in local order. */
-  offset: number;
-  count: number;
-  degrees: number[];
-  clockRef: number;
-  /** Resolve whatever the coordinator is currently waiting on. */
-  expect: (t: string) => Promise<any>;
+/**
+ * The coordinator's handle on one shard, wherever that shard is running.
+ *
+ * Introduced when `--clients` did: the loop below used to hold a `ChildProcess`
+ * and call `.send()` on it, which is the one thing a shard on another machine
+ * cannot be. The messages are unchanged — `fork()` IPC and the TCP framing
+ * carry exactly the same objects — so this is a change of address, not of
+ * protocol, and a local sweep goes down the same path it always did.
+ */
+interface Link {
+  send(msg: unknown): void;
+  /** The first message of type `t`. Rejects if the shard reports failure or exits first. */
+  expect(t: string): Promise<any>;
+  /** Resolves when the shard is gone, or after `ms`, whichever is first. */
+  waitExit(ms: number): Promise<void>;
+  kill(): void;
 }
 
-function spawnShard(url: string, index: number, offset: number, count: number): Shard {
-  const proc = fork(SHARD_ENTRY!, [], {
-    env: {
-      ...process.env,
-      BENCH_URL: url,
-      BENCH_INDEX: String(index),
-      BENCH_COUNT: String(count),
-    },
-    stdio: ["ignore", "inherit", "inherit", "ipc"],
-  });
-  // A shard that dies takes its IPC channel with it, and `.send()` to a closed
-  // channel raises an asynchronous `error` EVENT — not a throw, so no try/catch
-  // around the call can see it, and an unhandled `error` on an EventEmitter is
-  // fatal to the coordinator. Measured 2026-08-16: the n=200 sweep for
-  // `ISSUES.md` O15 lost its second and third repeats this way, after the first
-  // had already recorded the shard loss as a result. The whole design of the
-  // loop below is that a cell which cannot start is DATA; a crash here threw
-  // that away in the one place it was most needed.
-  proc.on("error", () => {
-    /* the exit handler in `expect` is what reports this, with a reason */
-  });
-  const shard: Shard = {
-    proc,
-    offset,
-    count,
-    degrees: [],
-    clockRef: 0,
+/** The event surface a `Link` needs, which both transports can supply. */
+interface Events {
+  onMessage(h: (m: any) => void): void;
+  offMessage(h: (m: any) => void): void;
+  onExit(h: (c: number | null) => void): void;
+  offExit(h: (c: number | null) => void): void;
+  exited(): boolean;
+}
+
+function linkOver(index: number, ev: Events, send: (m: unknown) => void, kill: () => void): Link {
+  return {
+    send,
+    kill,
     expect: (t: string) =>
       new Promise((resolve, reject) => {
         const onMessage = (msg: any) => {
@@ -301,15 +357,227 @@ function spawnShard(url: string, index: number, offset: number, count: number): 
           reject(new Error(`shard ${index} exited (${code}) while waiting for "${t}"`));
         };
         const cleanup = () => {
-          proc.off("message", onMessage);
-          proc.off("exit", onExit);
+          ev.offMessage(onMessage);
+          ev.offExit(onExit);
         };
-        proc.on("message", onMessage);
-        proc.on("exit", onExit);
+        ev.onMessage(onMessage);
+        ev.onExit(onExit);
+      }),
+    waitExit: (ms: number) =>
+      new Promise<void>((res) => {
+        if (ev.exited()) return res();
+        const h = () => {
+          clearTimeout(timer);
+          ev.offExit(h);
+          res();
+        };
+        const timer = setTimeout(() => {
+          ev.offExit(h);
+          res();
+        }, ms);
+        ev.onExit(h);
       }),
   };
-  return shard;
 }
+
+interface Shard {
+  link: Link;
+  /** Global participant indices this shard owns, in local order. */
+  offset: number;
+  count: number;
+  degrees: number[];
+  clockRef: number;
+}
+
+/** Where the participants live. Local unless `--clients` says otherwise. */
+interface ClientHost {
+  facts: ClockFacts;
+  where: string;
+  spawn(index: number, url: string, count: number): Link;
+  close(): void;
+}
+
+function localHost(): ClientHost {
+  return {
+    facts: clockFacts(),
+    where: "this host",
+    close: () => {},
+    spawn: (index, url, count) => {
+      const proc = fork(SHARD_ENTRY!, [], {
+        env: {
+          ...process.env,
+          BENCH_URL: url,
+          BENCH_INDEX: String(index),
+          BENCH_COUNT: String(count),
+        },
+        stdio: ["ignore", "inherit", "inherit", "ipc"],
+      });
+      // A shard that dies takes its IPC channel with it, and `.send()` to a closed
+      // channel raises an asynchronous `error` EVENT — not a throw, so no try/catch
+      // around the call can see it, and an unhandled `error` on an EventEmitter is
+      // fatal to the coordinator. Measured 2026-08-16: the n=200 sweep for
+      // `ISSUES.md` O15 lost its second and third repeats this way, after the first
+      // had already recorded the shard loss as a result. The whole design of the
+      // loop below is that a cell which cannot start is DATA; a crash here threw
+      // that away in the one place it was most needed.
+      proc.on("error", () => {
+        /* the exit handler in `expect` is what reports this, with a reason */
+      });
+      return linkOver(
+        index,
+        {
+          onMessage: (h) => proc.on("message", h),
+          offMessage: (h) => proc.off("message", h),
+          onExit: (h) => proc.on("exit", h as any),
+          offExit: (h) => proc.off("exit", h as any),
+          exited: () => proc.exitCode !== null,
+        },
+        (m) => {
+          if (proc.exitCode === null) {
+            try {
+              proc.send(m as any);
+            } catch {
+              /* the exit handler reports it */
+            }
+          }
+        },
+        () => {
+          try {
+            proc.kill("SIGKILL");
+          } catch {
+            /* already gone */
+          }
+        }
+      );
+    },
+  };
+}
+
+/**
+ * `--clients host:port`. One connection, every shard multiplexed over it.
+ *
+ * One connection rather than one per shard because the shards must share a host
+ * for the clock argument to hold (`host.ts`), so there is nothing to gain from
+ * addressing them separately and a real way to get it wrong.
+ */
+async function remoteHost(where: string): Promise<ClientHost> {
+  const at = where.lastIndexOf(":");
+  const host = at > 0 ? where.slice(0, at) : where;
+  const port = at > 0 ? Number(where.slice(at + 1)) : 7411;
+  if (!Number.isFinite(port)) throw new Error(`--clients ${where}: not a host:port`);
+
+  interface Slot {
+    handlers: Set<(m: any) => void>;
+    exits: Set<(c: number | null) => void>;
+    /** `undefined` while it is still running. */
+    code: number | null | undefined;
+  }
+  const slots = new Map<number, Slot>();
+  const slotOf = (i: number): Slot => {
+    let s = slots.get(i);
+    if (!s) slots.set(i, (s = { handlers: new Set(), exits: new Set(), code: undefined }));
+    return s;
+  };
+
+  const sock = net.connect({ host, port });
+  sock.setNoDelay(true);
+  const facts = await new Promise<ClockFacts>((resolve, reject) => {
+    const fail = (e: unknown) =>
+      reject(
+        new Error(
+          `--clients ${where}: ${e instanceof Error ? e.message : String(e)} ` +
+            `— is \`npm run bench -- --agent\` running there?`
+        )
+      );
+    sock.once("error", fail);
+    sock.on(
+      "data",
+      frames((f) => {
+        if (f?.t === "busy") {
+          fail(new Error("the client host already has a coordinator"));
+          return;
+        }
+        if (f?.t === "hello") {
+          sock.off("error", fail);
+          resolve(f.facts as ClockFacts);
+          return;
+        }
+        if (typeof f?.i !== "number") return;
+        const slot = slotOf(f.i);
+        if (f.exit !== undefined) {
+          slot.code = f.exit;
+          for (const h of [...slot.exits]) h(f.exit);
+          return;
+        }
+        for (const h of [...slot.handlers]) h(f.m);
+      })
+    );
+  });
+
+  // The coordinator dying is the client host's cue to kill its participants, so
+  // the socket closing must not be silent here either: a sweep that keeps going
+  // after the shards are gone would report every remaining cell as a failure to
+  // start and bury the one line that says why.
+  sock.on("close", () => {
+    for (const [, slot] of slots) {
+      if (slot.code === undefined) {
+        slot.code = null;
+        for (const h of [...slot.exits]) h(null);
+      }
+    }
+  });
+  sock.on("error", () => {
+    /* reported through the exits above */
+  });
+
+  const write = (v: unknown) => {
+    if (!sock.destroyed) sock.write(JSON.stringify(v) + "\n");
+  };
+
+  return {
+    facts,
+    where: `${facts.host} (${where})`,
+    close: () => sock.end(),
+    spawn: (index, url, count) => {
+      slots.delete(index);
+      const slot = slotOf(index);
+      write({ t: "spawn", i: index, url, count });
+      return linkOver(
+        index,
+        {
+          onMessage: (h) => slot.handlers.add(h),
+          offMessage: (h) => slot.handlers.delete(h),
+          onExit: (h) => slot.exits.add(h),
+          offExit: (h) => slot.exits.delete(h),
+          exited: () => slot.code !== undefined,
+        },
+        (m) => write({ i: index, m }),
+        () => write({ t: "kill", i: index })
+      );
+    },
+  };
+}
+
+/**
+ * The address a machine that is not this one should use to reach this one.
+ *
+ * A guess, and it is printed rather than assumed correct: a host with a VPN, a
+ * container bridge or two NICs has several answers and this picks the first
+ * non-internal IPv4. `--advertise` is the override, and the printed line is how
+ * you find out you need it — before a sweep spends ten minutes failing to
+ * connect.
+ */
+function guessAddress(): string {
+  for (const addrs of Object.values(os.networkInterfaces())) {
+    for (const a of addrs ?? []) {
+      if (a.family === "IPv4" && !a.internal) return a.address;
+    }
+  }
+  return os.hostname();
+}
+
+/** Where the participants run. Replaced in `main` when `--clients` is given. */
+let clients: ClientHost = localHost();
 
 const describeCell = (c: Cell): string =>
   `  n=${String(c.n).padStart(3)}  d=${String(degreeOfCell(c)).padStart(2)}` +
@@ -438,11 +706,23 @@ async function runCell(cell: Cell): Promise<CellResult> {
         const callbacks = await startCallbacks(server, networkKinds, listeners);
         const shards: Shard[] = [];
 
+        // `withServer` reports `http://localhost:PORT/query`, which is right for a
+        // shard on this host and unreachable from any other. Tajriba binds every
+        // interface already, so only the name has to change.
+        const clientURL = CLIENTS
+          ? `http://${ADVERTISE ?? guessAddress()}:${server.port}/query`
+          : server.url;
         try {
           let offset = 0;
           for (let i = 0; i < shardCount; i++) {
             const count = Math.floor(n / shardCount) + (i < n % shardCount ? 1 : 0);
-            shards.push(spawnShard(server.url, i, offset, count));
+            shards.push({
+              link: clients.spawn(i, clientURL, count),
+              offset,
+              count,
+              degrees: [],
+              clockRef: 0,
+            });
             offset += count;
           }
           // Machine and coordinator state, captured per run rather than per sweep.
@@ -457,14 +737,14 @@ async function runCell(cell: Cell): Promise<CellResult> {
           const cpuAtStart = process.cpuUsage();
           const wallAtStart = Date.now();
 
-          const readies = await Promise.all(shards.map((s) => s.expect("ready")));
+          const readies = await Promise.all(shards.map((s) => s.link.expect("ready")));
           readies.forEach((r, i) => (shards[i]!.clockRef = r.clockRef));
 
           const batch = await createBatch(admin, batchConfig(n, 1));
           await batch.running();
 
-          const playing = shards.map((s) => s.expect("playing"));
-          for (const s of shards) s.proc.send({ t: "play" });
+          const playing = shards.map((s) => s.link.expect("playing"));
+          for (const s of shards) s.link.send({ t: "play" });
           const played = await Promise.all(playing);
           played.forEach((p, i) => (shards[i]!.degrees = p.degrees));
 
@@ -480,7 +760,7 @@ async function runCell(cell: Cell): Promise<CellResult> {
           for (let r = 0; r < ROUNDS; r++) {
             const global = r % n;
             const s = shards.find((x) => global >= x.offset && global < x.offset + x.count)!;
-            s.proc.send({ t: "write", local: global - s.offset, round: r });
+            s.link.send({ t: "write", local: global - s.offset, round: r });
             if (r >= WARMUP) expected += degreeOf(global);
             await new Promise((res) => setTimeout(res, ROUND_MS));
           }
@@ -489,8 +769,8 @@ async function runCell(cell: Cell): Promise<CellResult> {
           await new Promise((res) => setTimeout(res, 2_000));
           const collected = await Promise.all(
             shards.map((s) => {
-              const p = s.expect("samples");
-              s.proc.send({ t: "collect" });
+              const p = s.link.expect("samples");
+              s.link.send({ t: "collect" });
               return p;
             })
           );
@@ -570,26 +850,11 @@ async function runCell(cell: Cell): Promise<CellResult> {
               `, clock spread ${clockSpread.toFixed(1)}ms`
           );
 
-          for (const s of shards) s.proc.send({ t: "bye" });
-          await Promise.all(
-            shards.map(
-              (s) =>
-                new Promise<void>((res) => {
-                  if (s.proc.exitCode !== null) return res();
-                  s.proc.on("exit", () => res());
-                  setTimeout(() => res(), 5_000);
-                })
-            )
-          );
+          for (const s of shards) s.link.send({ t: "bye" });
+          await Promise.all(shards.map((s) => s.link.waitExit(5_000)));
           return result;
         } finally {
-          for (const s of shards) {
-            try {
-              s.proc.kill("SIGKILL");
-            } catch {
-              /* already gone */
-            }
-          }
+          for (const s of shards) s.link.kill();
           try {
             await callbacks.stop();
           } catch {
@@ -608,9 +873,41 @@ async function runCell(cell: Cell): Promise<CellResult> {
   }
 }
 
+/**
+ * `--absolute`'s check, as a list of what is missing rather than a boolean.
+ *
+ * Returned instead of thrown so the same list can be printed as a warning on an
+ * ordinary sweep. A number measured with two of the three conditions met is not
+ * worthless — it is just not absolute, and the difference should be legible in
+ * the output rather than known by the person who ran it.
+ */
+function absoluteGaps(server: ClockFacts, client: ClockFacts): string[] {
+  const gaps: string[] = [];
+  const pinned = (f: ClockFacts, role: string) => {
+    if (f.pinned || ATTEST) return;
+    gaps.push(`${role} host ${f.host}: ${f.why}`);
+  };
+  pinned(server, "server");
+  if (!CLIENTS) {
+    gaps.push("participants share this host with the server (--clients)");
+  } else {
+    pinned(client, "client");
+    if (client.host === server.host) {
+      gaps.push(`the client host reports the same hostname as this one (${client.host})`);
+    }
+  }
+  if (REPEATS < 3) gaps.push(`--repeats ${REPEATS}, and SPIKE-REPORT §5-6 asks for 3`);
+  return gaps;
+}
+
 async function main(): Promise<void> {
   if (!SHARD_ENTRY) {
     throw new Error("BENCH_SHARD is not set — run this through `npm run bench`");
+  }
+  const serverFacts = clockFacts();
+  if (CLIENTS) {
+    clients.close();
+    clients = await remoteHost(CLIENTS);
   }
   console.log("\n  empirica-networks — end-to-end publish latency\n");
   console.log(
@@ -619,6 +916,31 @@ async function main(): Promise<void> {
       `  ${REPEATS} run(s) per cell, fresh server each` +
       `${PAYLOAD > 0 ? `, +${PAYLOAD}B padding per neighbour view` : ""}\n`
   );
+  // Provenance, on every run and not only on an `--absolute` one. `ISSUES.md`
+  // O1's whole finding is that the host's clock decision moves the number by 5x
+  // while the run looks identical, so a figure quoted without the host it came
+  // from is missing the term that dominates it.
+  console.log(`  server host: ${describeClocks(serverFacts, ATTEST)}`);
+  console.log(
+    `  participants: ${clients.where}` +
+      (CLIENTS ? ` — ${describeClocks(clients.facts, ATTEST)}` : " — SAME HOST as the server")
+  );
+  const gaps = absoluteGaps(serverFacts, clients.facts);
+  if (gaps.length === 0) {
+    console.log("  absolute: every condition in ISSUES.md O1 is met by this sweep\n");
+  } else {
+    console.log(`  NOT an absolute measurement — ${gaps.length} condition(s) unmet:`);
+    for (const g of gaps) console.log(`    - ${g}`);
+    console.log("");
+    if (ABSOLUTE) {
+      console.error(
+        "  --absolute: refusing to run. These figures would be relative ones\n" +
+          "  wearing an absolute label, which is the failure ISSUES.md O1 records.\n"
+      );
+      clients.close();
+      process.exit(2);
+    }
+  }
   const cells = argv.includes("--bytes")
     ? BYTES_CELLS
     : argv.includes("--dense")
@@ -665,13 +987,22 @@ async function main(): Promise<void> {
       "  contributes up to d of them: the tail is the slowest neighbour, not an\n" +
       "  average one. Receipts are taken on the mode's own flush — the moment a\n" +
       "  real client could first render — not by polling.\n" +
-      "\n  CAVEATS. Participants are sharded across processes, but all of them\n" +
-      "  and the server are on ONE MACHINE, so at large n they compete for cores\n" +
-      "  and the network is loopback: no real WAN latency is included here. The\n" +
-      "  dominant term is participants per PROCESS rather than n, so every figure\n" +
-      "  is an upper bound that keeps falling as the harness is spread thinner\n" +
-      "  (`--perShard`). That confound is the one thing repeats cannot fix: it is\n" +
-      "  systematic, so it biases all three runs the same way.\n" +
+      (CLIENTS
+        ? "\n  CAVEATS. Participants are on a separate host, so they no longer\n" +
+          "  compete with the server for cores — the confound that made every\n" +
+          "  earlier figure an upper bound (`ISSUES.md` O1). What they now include\n" +
+          "  instead is the REAL LINK between the two hosts, which is a property of\n" +
+          "  your network and belongs in any quotation of these numbers. Both\n" +
+          "  endpoints of every sample are participants on that one host, so the\n" +
+          "  timing needs no clock protocol across the split (`host.ts`).\n"
+        : "\n  CAVEATS. Participants are sharded across processes, but all of them\n" +
+          "  and the server are on ONE MACHINE, so at large n they compete for cores\n" +
+          "  and the network is loopback: no real WAN latency is included here. The\n" +
+          "  dominant term is participants per PROCESS rather than n, so every figure\n" +
+          "  is an upper bound that keeps falling as the harness is spread thinner\n" +
+          "  (`--perShard`). That confound is the one thing repeats cannot fix: it is\n" +
+          "  systematic, so it biases all three runs the same way. `--clients` is how\n" +
+          "  it comes off: run the participants on another host (`test/bench/host.ts`).\n") +
       (REPEATS > 1
         ? "  Quote the ══ summary line, not an individual run.\n"
         : "  Each line is a SINGLE run; SPIKE-REPORT.md §5-6 asks for three with\n" +
@@ -683,6 +1014,7 @@ async function main(): Promise<void> {
           "  sizes. For degree x view size — what `maxNeighbourhoodBytes` guards —\n" +
           "  use `--payload`.\n")
   );
+  clients.close();
 }
 
 main().then(

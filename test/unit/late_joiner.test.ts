@@ -121,6 +121,63 @@ test("the repaired channel carries the player's REAL seat, not -1", async () => 
   );
 });
 
+test("the repair is COUNTED and said out loud, because it has never been observed", async () => {
+  // `ISSUES.md` O4 can be closed two ways: reproduce the platform path, or rule
+  // it out "at runtime rather than by inference". The second was unavailable
+  // until this counter existed — the repair fired silently, so a study could
+  // have taken this path in every session it ever ran and left nothing behind.
+  // Three milestones of the entry rest on an argument from reading upstream's
+  // source, and one observation would settle it either way.
+  const lines: string[] = [];
+  const originalLog = console.log;
+  // `console.log`, not `console.warn`: `warn()` from `@empirica/core/console`
+  // routes every level through `console.log` (PLATFORM-NOTES §18b).
+  console.log = (...args: unknown[]) => {
+    lines.push(args.map((a) => String(a)).join(" "));
+  };
+  try {
+    const { collector, ctx, net } = experiment();
+    const p3 = { id: "p3", participantID: undefined as string | undefined };
+    const game = makeGame("g1", ["p1", "p2", p3], new FakeScope("b"));
+    await startGame(collector, ctx, game);
+
+    // Non-vacuity: the pending player is counted where they are first skipped,
+    // which is a different place from where they are repaired.
+    assert.equal(net.stats().pendingAtStart, 1, "counted at game start");
+    assert.equal(net.stats().lateProvisioned, 0, "nothing repaired yet");
+
+    game.players[2]!.participantID = "participant-p3";
+    await connectParticipant(collector, ctx, "participant-p3");
+
+    assert.equal(net.stats().lateProvisioned, 1, "the repair is on the record");
+    assert.equal(
+      lines.filter((l) => l.includes("connected with NO private")).length,
+      1,
+      "and said once, naming the player and the game"
+    );
+
+    // The path everyone actually takes must not touch either number, or zero
+    // stops being evidence of anything.
+    await connectParticipant(collector, ctx, "participant-p1");
+    assert.equal(net.stats().lateProvisioned, 1, "an ordinary connect is not an occurrence");
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+test("a process that never sees the path reports zero, which is the evidence", async () => {
+  const { collector, ctx, net } = experiment();
+  const game = makeGame("g1", ["p1", "p2", "p3"], new FakeScope("b"));
+  await startGame(collector, ctx, game);
+  await connectParticipant(collector, ctx, "participant-p2");
+
+  assert.deepEqual(
+    { pending: net.stats().pendingAtStart, late: net.stats().lateProvisioned },
+    { pending: 0, late: 0 },
+    "a healthy process is distinguishable from an uninstrumented one"
+  );
+});
+
 test("a connect for a participant who already has a channel creates nothing", async () => {
   // The net has to be free on the path everyone actually takes: one idempotent
   // no-op call per connect, no second channel. Tajriba cannot unlink, so a
