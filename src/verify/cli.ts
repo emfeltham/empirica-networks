@@ -18,6 +18,7 @@ import { setLogLevel } from "@empirica/core/console";
 // number of its own is a CLI that can print the wrong one — see the note there.
 import { VERIFIED_CORE } from "./compat.js";
 import { formatLeakResult, runLeakCheck } from "./leak_test.js";
+import { CLI_TOPOLOGY_NAMES, preflightCliTopology } from "./topologies.js";
 
 /**
  * The @empirica/core version actually installed where the CLI is being run.
@@ -43,7 +44,8 @@ function installedCoreVersion(): string | undefined {
 interface Args {
   command: string;
   n: number;
-  topology: "ring";
+  /** Unvalidated as parsed; `main` refuses an unknown or vacuous one. */
+  topology: string;
   quiet: boolean;
   help: boolean;
 }
@@ -58,8 +60,12 @@ function parseArgs(argv: string[]): Args {
     else if (a === "--quiet" || a === "-q") args.quiet = true;
     else if (a === "--n" || a === "-n") args.n = Number(argv[++i]);
     else if (a.startsWith("--n=")) args.n = Number(a.slice(4));
-    else if (a === "--topology") args.topology = argv[++i] as "ring";
-    else if (a.startsWith("--topology=")) args.topology = a.slice(11) as "ring";
+    // Stored as written. The casts that used to be here (`as "ring"`) made every
+    // string typecheck and none of them take effect: `--topology=star` ran a ring
+    // and the verdict printed "topology: star". A verification tool reporting a
+    // shape it did not run is the one bug it must not have.
+    else if (a === "--topology") args.topology = argv[++i] ?? "";
+    else if (a.startsWith("--topology=")) args.topology = a.slice(11);
     else rest.push(a);
   }
   args.command = rest[0] ?? "";
@@ -74,7 +80,12 @@ Usage:
 
 Options:
   -n, --n <count>        participants (default 4, minimum 4)
-      --topology <name>  ring (default)
+      --topology <name>  ring (default), star, wheel, pairs, ladder, complete
+                         Refused when the shape would prove nothing: a complete
+                         graph has no non-neighbour to leak to, and a wheel of 4
+                         is a complete graph. Parameterised generators (grid,
+                         wattsStrogatz, erdosRenyi, …) take an argument a flag
+                         cannot carry — pass the generator to runLeakCheck().
   -q, --quiet            only print the verdict
   -h, --help             show this
 
@@ -94,9 +105,22 @@ async function main(): Promise<number> {
 
   if (!Number.isFinite(args.n) || args.n < 4) {
     process.stderr.write(
-      `\n  n must be at least 4: on a smaller ring everyone is everyone's neighbour,\n` +
-        `  so there is no non-neighbour and the check proves nothing.\n\n`
+      `\n  n must be at least 4: below that every named topology makes everyone\n` +
+        `  everyone's neighbour, so there is no non-neighbour and the check proves\n` +
+        `  nothing.\n\n`
     );
+    return 1;
+  }
+
+  // Refused before anything boots. Every named shape is pure over `n`, so whether
+  // the run could establish the guarantee is knowable now rather than twenty
+  // seconds from now — and the same accounting the run itself uses decides it, so
+  // there is no list of known-bad names to keep in step. It catches `complete` at
+  // any n and `wheel` at 4 (hub plus a three-node rim is K4) without naming
+  // either.
+  const preflight = preflightCliTopology(args.topology, args.n);
+  if ("refusal" in preflight) {
+    process.stderr.write(`\n  ${preflight.refusal}\n\n`);
     return 1;
   }
 

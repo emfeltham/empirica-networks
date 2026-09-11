@@ -40,10 +40,30 @@ test("the CLI prints the one pin declaration rather than a literal of its own", 
 });
 
 test("the leak check's minimum n is documented in the CLI help", () => {
-  // n<4 makes the check vacuous (everyone is everyone's neighbour on a smaller
-  // ring). The CLI must say so rather than silently accept and report a
-  // meaningless PASS.
+  // n<4 makes the check vacuous (below it every named topology makes everyone
+  // everyone's neighbour). The CLI must say so rather than silently accept and
+  // report a meaningless PASS.
   const cli = fs.readFileSync(path.join(root, "src/verify/cli.ts"), "utf8");
   assert.match(cli, /minimum 4/, "help text states the minimum");
   assert.match(cli, /args\.n < 4/, "the minimum is actually enforced");
+});
+
+test("--topology is validated too, not cast and ignored", () => {
+  // The same principle as the test above, asserted for the other flag because it
+  // was NOT held there. `--topology` used to be parsed as `argv[++i] as "ring"`:
+  // every string typechecked, none took effect, and `--topology=star` ran a ring
+  // while the verdict printed "topology: star of N … PASS". A tool whose whole
+  // purpose is to be trusted about the guarantee reported a shape it had not run.
+  //
+  // A source-text test for the same reason as the one above: `cli.ts` imports
+  // `@empirica/core/console` and calls `main()` at module scope, so the unit tier
+  // cannot load it. The accounting it delegates to IS unit-loadable, and is
+  // covered directly in `leak_vacuity.test.ts`.
+  const cli = fs.readFileSync(path.join(root, "src/verify/cli.ts"), "utf8");
+  assert.doesNotMatch(
+    cli,
+    /topology\s*=\s*[^;]*\bas\s+"ring"/,
+    "the unchecked cast is back, and with it a flag that is reported but not honoured"
+  );
+  assert.match(cli, /preflightCliTopology/, "an unknown or vacuous topology is refused");
 });

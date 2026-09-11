@@ -835,8 +835,8 @@ node dist/verify/cli.cjs verify --n 4     # from a clone, after `npm run build`
 
 | Option | Default | |
 |---|---|---|
-| `-n`, `--n <count>` | 4 | Participants. **Minimum 4**, and refused below that: on a smaller ring everyone is everyone's neighbour, so there is no non-neighbour and a pass would prove nothing |
-| `--topology <name>` | `ring` | The only value today |
+| `-n`, `--n <count>` | 4 | Participants. **Minimum 4**, and refused below that: below it every named topology makes everyone everyone's neighbour, so there is no non-neighbour and a pass would prove nothing |
+| `--topology <name>` | `ring` | `ring`, `star`, `wheel`, `pairs`, `ladder`, `complete`. Refused when the shape could prove nothing — see below |
 | `-q`, `--quiet` | off | Print `PASS` or `FAIL` and nothing else. The CI form |
 | `-h`, `--help` | | Usage |
 
@@ -860,11 +860,38 @@ report the study's own `@empirica/core`.
   empirica-networks verify — neighbour-limited visibility
   topology: ring of 4
 
-  non-neighbour sentinels received : 0   (must be 0)
-  neighbour sentinels delivered    : 8/8 (non-vacuity)
+  non-neighbour sentinels received : 0/4 pairs  (must be 0)
+  neighbour sentinels delivered    : 8/8  (non-vacuity)
   control values observed          : 12  (must be > 0, proves detection works)
 
+  note: ring of 4: degree 2-2, 4 non-neighbour pairs examined
+
   PASS
+```
+
+Every arm prints against what it was measured over, and arm 1's denominator is the one that took
+longest to earn: `0` alone reads the same whether four non-neighbour pairs were examined and none
+leaked, or the graph was complete and no such pair existed. The second is a check that establishes
+nothing while announcing a PASS, which is the failure this command exists to make impossible.
+
+**Which shapes it will run.** A topology is refused, before anything boots, when its own graph
+says the run could not establish the guarantee — no non-neighbour anywhere (arm 1 has nothing to
+examine) or no edges at all (arm 3 expects nothing to arrive). That refuses `complete` at every
+`n`, and `wheel` at `n = 4`, where a hub plus a three-node rim *is* the complete graph. Shapes
+that excuse only *some* participants are run and reported: a star's hub is adjacent to everyone,
+so the verdict says `not covered: 1 adjacent to everyone` and the check still establishes the
+guarantee for the spokes.
+
+The parameterised generators — `grid`, `ringLattice`, `wattsStrogatz`, `barabasiAlbert`,
+`erdosRenyi`, `geometricRandom` — take an argument a flag cannot carry. They are reachable by
+handing `runLeakCheck` the same generator function you hand `withNetwork`, which is also how to
+check a `fromEdgeList` graph:
+
+```js
+await runLeakCheck({
+  n: 12,
+  topology: ({ playerCount, rng }) => topology.wattsStrogatz(playerCount, 4, 0.1, { rng }),
+});
 ```
 
 There are three arms, all required. A clean result with a silent control means the check is

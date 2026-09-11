@@ -414,6 +414,38 @@ minutes: unverified" as a row. A multi-hour run would buy one observation at the
 of machine time, and the *mechanism* question it would answer — does Tajriba accumulate per
 write? — is already answered no. Reopen if a study is planned that runs long enough to care.
 
+### ~~O16. `verify --topology` was reported as honoured and silently ignored~~ — **fixed 2026-09-11**
+
+**Evidence:** `src/verify/cli.ts` `parseArgs`; `test/unit/cli_version.test.ts`.
+
+`--topology` was parsed as `argv[++i] as "ring"` — a cast, so every string typechecked — and
+`runLeakCheck` never read the value, hardcoding `ring(playerCount)`. The name was carried as far
+as `formatLeakResult`, which printed it. So `verify --topology=star -n 8` ran a **ring** and
+reported:
+
+```
+  topology: star of 8
+  …
+  PASS
+```
+
+Filed at the severity it has rather than the size it has. This is one command, and the command is
+the artefact a reviewer runs to decide whether the package's central claim is true; a false
+attestation from it is worth more than a crash, because a crash is not believed. The same
+principle was already written down for the *other* flag, in `test/unit/cli_version.test.ts`: "The
+CLI must say so rather than silently accept and report a meaningless PASS." It was asserted for
+`-n` and not for `--topology`.
+
+Fixed with the topology widening, since one change makes the flag both honoured and meaningful:
+the name resolves through `CLI_TOPOLOGIES` (`src/verify/topologies.ts`), an unknown one is refused
+with the list, and `test/unit/cli_version.test.ts` now fails if the cast returns.
+
+**A second, quieter version of the same fault, fixed alongside.** Arm 1 printed a bare
+`non-neighbour sentinels received : 0`. That line reads identically whether six non-neighbour
+pairs were examined and none leaked, or the graph was complete and no such pair existed — a
+numerator with no denominator cannot be falsified. It now prints `0/6 pairs`, and a run whose
+denominator is zero fails instead of passing.
+
 ### O3. `restart_full` asserts conditionally, pending U2
 
 The test reports which way the reassignment race went and asserts our recovery only in runs
