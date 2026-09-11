@@ -7,6 +7,7 @@ dist/
 # packed tarball used by examples/minimal (see `npm run example:install`)
 *.tgz
 .tmp-bench/
+.tmp-simulate/
 .tmp-soak/
 .tmp-test-one/
 .tmp-test-repeat/
@@ -15,3 +16,6 @@ dist/
 # examples/rand2011/README.md). Ignored so an interrupted test run cannot leave
 # CSVs staged as if they were source.
 data/
+
+# simulate output — kept locally, too large and too machine-specific to track
+results/

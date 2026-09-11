@@ -58,6 +58,7 @@
     "test:browser": "node scripts/test-browser.mjs",
     "example:install": "node scripts/example-install.mjs",
     "bench": "node scripts/bench.mjs",
+    "simulate": "node scripts/simulate.mjs",
     "soak": "node scripts/soak.mjs",
     "test:repeat": "node scripts/e2e-repeat.mjs",
     "example:build": "node scripts/example-build.mjs"

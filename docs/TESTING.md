@@ -185,6 +185,7 @@ wire frames — so a leak through a channel nobody enumerated is still caught.
 | `scripts/bench.mjs` | end-to-end publish latency, plus first-channel latency (`ISSUES.md` O15) reported even for runs that do not complete. `--dense` for the degree sweep, `--payload` for degree × view size, `--repeats` for a published figure, `--clients` to put the participants on another machine |
 | `scripts/soak.mjs` | long-run memory. Prints `net.stats()` alongside RSS |
 | `scripts/ceiling.mjs` | the U7 reproduction. `CEILING_PLAIN=1` runs it without this package |
+| `scripts/simulate.mjs` | the platform evaluation (`docs/EVALUATION-RUNBOOK.md`): the shipped Shirado reconstruction at its own n, across arms and seeds, **keeping** every output file, then auditing `views.ndjson` for C1. The one harness that does not throw its sessions away. `--seeds`, `--arms`, `--n`, `--out` |
 
 Everything that touches `@empirica/core/admin` is bundled to CJS first, for the same reason every
 time (`docs/PLATFORM-NOTES.md`, Section 3a).
