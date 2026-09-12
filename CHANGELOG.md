@@ -6,8 +6,8 @@ versions follow [semantic versioning](https://semver.org/spec/v2.0.0.html) from 
 ## [Unreleased]
 
 Nothing has been released. The package is `private: true` at `0.0.0` while an unpatched
-upstream vulnerability goes through disclosure; see `PUBLICATION-PLAN.md` §1. This section will
-become `0.1.0` at the first publish, and the API freeze (`PUBLICATION-PLAN.md` §2) is what makes
+upstream vulnerability goes through disclosure; see `NEXT_STEPS.md` §1.1. This section will
+become `0.1.0` at the first publish, and the API freeze (`NEXT_STEPS.md` §1.2) is what makes
 the entries below meaningful as a baseline rather than a moving target.
 
 Development history to that point is recorded by milestone, in the documents that carry the
@@ -243,7 +243,8 @@ reasoning as well as the change:
   every watched private value stayed drawn, and the table view kept the full seating plan. The
   page's own comment had claimed the opposite since M4 ("deliberately not keep showing the last
   picture"): an operator who scrolled past the banner read a dead study as a running one, which is
-  the misreport `MODULE-DESIGN.md` §15.5 exists to prevent.
+  the misreport the design record kept outside this repository (`MODULE-DESIGN.md` §15.5; see
+  `docs/README.md`) exists to prevent.
 
   Found by writing the test the issue asked for: the served script was the one surface with no
   behavioural coverage. Witness: `test/browser/monitor_page.ts`, real Chromium against the real

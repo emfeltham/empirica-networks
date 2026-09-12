@@ -416,7 +416,7 @@ graph:
 import { edgeRows, snapshotRows, viewRows, parseNdjson, toCSV } from "empirica-networks/export";
 ```
 
-`docs/PLATFORM-NOTES.md` Section 3a · `ISSUES.md` O13
+`docs/PLATFORM-NOTES.md` Section 3a · `ISSUES.md` O18
 
 ### The e2e suite is red on a rotating victim, with a "gameID assigned" timeout
 

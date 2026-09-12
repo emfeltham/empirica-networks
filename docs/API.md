@@ -4,8 +4,9 @@ Organised by import path, so the line at the top of your file tells you which se
 Each entry carries the reasoning behind the decision, which is the part worth reading. This is
 hand-written rather than generated from types for that reason.
 
-> This surface is not yet frozen. `PUBLICATION-PLAN.md` §2 freezes it at the first publish, and
-> this page is the inventory that freeze signs off. Until then, anything here can still change.
+> This surface is not yet frozen. The API freeze (`NEXT_STEPS.md` §1.2) applies at the first
+> publish, and this page is the inventory that freeze signs off. Until then, anything here can
+> still change.
 
 | Path | Loads | Use from |
 |---|---|---|

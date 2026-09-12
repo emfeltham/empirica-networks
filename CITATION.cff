@@ -2,15 +2,13 @@ cff-version: 1.2.0
 title: "empirica-networks: neighbour-limited visibility for Empirica experiments"
 message: >-
   If you use this software in research, please cite it. A methods paper is in
-  preparation (see PUBLICATION-PLAN.md); until it exists, cite the software.
+  preparation; until it exists, cite the software.
 type: software
 authors:
   - family-names: Feltham
     given-names: Eric Martin
     email: eric.feltham@aya.yale.edu
-# TODO: set once the repository has a remote — there is none as of 2026-08-16,
-# and a plausible-looking URL that 404s is worse than an absent field.
-# repository-code: "https://github.com/…/empirica-networks"
+repository-code: "https://github.com/emfeltham/empirica-networks"
 abstract: >-
   Network experiments for Empirica. Participants are nodes in a graph and each
   receives only their neighbours' projected state — enforced at the wire rather

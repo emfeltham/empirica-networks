@@ -49,7 +49,7 @@ Every participant also learns every co-player's recruitment identifier. The root
 >
 > The package is `"private": true` at `0.0.0`, deliberately: U1 above is an unpatched
 > cross-participant write vulnerability affecting every Empirica study, and it is going through
-> disclosure first (`PUBLICATION-PLAN.md`). Publishing an install path before that window closes
+> disclosure first (`NEXT_STEPS.md` §1.1). Publishing an install path before that window closes
 > gets the order wrong, and `private: true` is the only thing standing between a stray
 > `npm publish` and an outcome that cannot be undone.
 >
@@ -67,7 +67,7 @@ Requires Node 20+ and the Empirica CLI (`curl https://install.empirica.dev | sh`
 
 Do not use a `file:` link. npm turns it into a symbolic link, which loads two copies of `@empirica/core` and breaks every `instanceof` inside Empirica. The resulting symptom names nothing in particular: every participant is stuck on "Waiting for other players" with a full game (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) and `docs/PLATFORM-NOTES.md` §11).
 
-The name is settled as `empirica-networks`, unscoped, chosen over `@yale-hnl/empirica-networks` because discovery is the binding constraint in an ecosystem with no registry, no plugin API, and no curated list. Renaming after the first publish would be a breaking change, which is why the decision was made before publication rather than at it (`PUBLICATION-PLAN.md` §2).
+The name is settled as `empirica-networks`, unscoped, chosen over `@yale-hnl/empirica-networks` because discovery is the binding constraint in an ecosystem with no registry, no plugin API, and no curated list. Renaming after the first publish would be a breaking change, which is why the decision was made before publication rather than at it (the API freeze, `NEXT_STEPS.md` §1.2).
 
 ## Quick start
 

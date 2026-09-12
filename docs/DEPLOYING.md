@@ -1,9 +1,10 @@
 # Deploying a study — not yet documented
 
 As of 2026-08-16, this package has not been deployed. No study has been run with real
-participants, and no data has been collected with either reconstruction
-(`PUBLICATION-PLAN.md` §3). Every runnable instruction in this repository ends at `empirica` on
-localhost with a handful of `?participantKey=` URLs.
+participants, and no data has been collected with either reconstruction; the deployment itself
+is tracked with the manuscript, outside this repository (`NEXT_STEPS.md` §5). Every runnable
+instruction in this repository ends at `empirica` on localhost with a handful of
+`?participantKey=` URLs.
 
 This file is a placeholder that says so, rather than a guide assembled by reading Empirica's
 documentation and inferring the rest. Instructions that look correct and have never been run are
@@ -14,7 +15,7 @@ discovers the error is running a study with people in it.
 What is written down is the part that does not depend on having deployed: the decisions to make
 before you do, and the things known to be hard. Those are below.
 
-It will be written properly as a by-product of `PUBLICATION-PLAN.md` §3: recorded while doing
+It will be written properly as a by-product of that deployment: recorded while doing
 it, dated and versioned like `PLATFORM-NOTES.md`, rather than reconstructed afterwards.
 
 ---

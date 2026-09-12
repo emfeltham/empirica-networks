@@ -203,9 +203,9 @@ everything else links to it. At publish time that is one edit rather than a sear
 The package is `private: true` at `0.0.0` pending disclosure, so this section does not yet apply.
 Once it is published:
 
-1. `PUBLICATION-PLAN.md` §1: the disclosure window has to close first. This is blocking.
-2. Freeze the surface (§2) and give [API.md](API.md) a read-through against it: the CLI's flags
-   and exit codes are surface too, and freeze with the rest.
+1. The disclosure window has to close first (`NEXT_STEPS.md` §1.1). This is blocking.
+2. Freeze the surface (`NEXT_STEPS.md` §1.2) and give [API.md](API.md) a read-through against it:
+   the CLI's flags and exit codes are surface too, and freeze with the rest.
 3. Remove `private: true`, set a real semver, and move `CHANGELOG.md`'s `[Unreleased]` section
    under that version.
 4. Update the README's status line and the single "not published yet" block; drop the

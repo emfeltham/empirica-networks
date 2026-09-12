@@ -69,7 +69,8 @@ changelog can honestly be renamed `0.1.0`.
 - `"private": true` at `"0.0.0"` (`package.json:3-4`), deliberately: it is "the only thing standing
   between a stray `npm publish` and a published package with an unpatched upstream hole in it"
   (`README.md:56`).
-- No `repository` field, and no git remote (`docs/DOCS-PLAN.md:456`).
+- ~~No `repository` field, and no git remote (`docs/DOCS-PLAN.md:456`).~~ Fixed 2026-09-11: a
+  remote now exists, and `package.json` carries `repository`, `author`, `homepage` and `bugs`.
 - No release workflow. `.github/workflows/` is `ci.yml`, `drift.yml`, `perf.yml` — nothing
   tag-triggered, no `npm publish` anywhere.
 - Every install instruction goes through `npm pack` and a `file:` tarball (`README.md:67`). That
@@ -168,13 +169,18 @@ Each is deliberate; none is free.
 
 ## 7. Hygiene, found while writing this
 
-- **Dangling citations.** `PUBLICATION-PLAN.md` is cited from `README.md:10`, `CHANGELOG.md:8`,
-  `ISSUES.md:1515`, `docs/DEPLOYING.md:5,17`, `docs/DOCS-PLAN.md:184` and `docs/EVALUATION.md`, and
-  is not in the repository. `docs/README.md:52` explains the move, but only a reader who finds that
-  paragraph learns it. Either restate the gate at the citation site or mark it out-of-repo.
-- **`ISSUES.md` reuses two numbers.** O12 is both `ISSUES.md:1195` and `ISSUES.md:1341`; O13 is both
-  `ISSUES.md:1213` and `ISSUES.md:1386`. All four are closed, so nothing is lost — but a citation
-  to "O12" is now ambiguous, and this repository cites issue numbers from source comments.
+- ~~**Dangling citations.**~~ Fixed 2026-09-11 in every user-facing document: `README.md`,
+  `CHANGELOG.md`, `ISSUES.md`, `docs/API.md`, `docs/GETTING-STARTED.md`, `docs/DEPLOYING.md` and
+  `docs/CONTRIBUTING.md` no longer cite `PUBLICATION-PLAN.md` bare — each site now points at
+  `NEXT_STEPS.md`'s equivalent section, or, for the deployment citation, says plainly that the
+  document lives outside this repository. The process records (`docs/DOCS-PLAN.md`,
+  `docs/EVALUATION.md`, this file) still cite it bare, which is fine — a reader of those already
+  knows to expect that, per `docs/README.md`'s own distinction between user documentation and
+  process records.
+- ~~**`ISSUES.md` reused two numbers.**~~ Fixed 2026-09-11: the earlier, M5-era entries that had
+  collided with M6's O12 and O13 are renumbered O17 (`Data written only at game end`) and O18
+  (`The offline export helpers could not be imported offline`); every citing document was updated
+  to match.
 - **`examples/rand2011/recover.mjs` carries the hazard fixed in `shirado2017` on 2026-09-11.** It
   imports an ESM `server/src/design.js` from a package with no `"type"`, which is fatal below Node
   20.19 and merely warns above it (`docs/BOTS.md` §7). The fix is the `.mjs` extension.

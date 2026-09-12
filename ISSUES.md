@@ -12,7 +12,7 @@ closed the two silent ones, both of which produced invalid data from a study tha
 O11 is fixed, and U8 remains upstream's defect but is now detected and warned about at server
 start. Tier 2 moved the run log and the participant-write hook out of the copied surface and into
 the package (O12, O13). Tier 3 settled the API-coherence items that were free before
-`PUBLICATION-PLAN.md`'s freeze and breaking after it.
+the API freeze and breaking after it (`NEXT_STEPS.md` §1.2).
 
 Tier 4 is also done, as of 2026-08-16, and its lead item was abandoned on measurement. The example
 clients now all build (in CI, via a script that iterates the directory rather than a hard-coded
@@ -1277,7 +1277,7 @@ dead study as a running one, the misreport MODULE-DESIGN §15.5 exists to preven
 through the one surface that had no test. Fixed: `gone()` drops the payload and clears the graph,
 the panels and the table; `apply()` re-enables the scrubber if a game comes back.
 
-Worth recording alongside O7b and O13: the comment describing the intended behaviour was written,
+Worth recording alongside O7b and O18: the comment describing the intended behaviour was written,
 believed, and cited as the design for one day short of a milestone, while the code did the other
 thing. Prose is not coverage, whichever document it sits in.
 
@@ -1301,7 +1301,7 @@ arithmetic, the game picker (it needs two games and reloads the page), and every
 the palette comment: the test asserts which slot each node gets, not that the slots clear a
 contrast gate.
 
-### ~~O12. Data written only at game end~~ — **fixed 2026-08-15**
+### ~~O17. Data written only at game end~~ — **fixed 2026-08-15**
 
 **Evidence:** measured by looking in `data/` after a green run of `test/e2e/rand2011.test.ts` and
 finding only `views.ndjson` and not one CSV.
@@ -1319,7 +1319,7 @@ produce byte-identical CSVs, so recovered data cannot quietly differ from normal
 `test/e2e/rand2011.test.ts` asserts the log is on disk while the game is still running, with the
 absence of the CSVs asserted alongside it so the test cannot pass by looking at a finished game.
 
-### ~~O13. The offline export helpers could not be imported offline~~ — **fixed 2026-08-15**
+### ~~O18. The offline export helpers could not be imported offline~~ — **fixed 2026-08-15**
 
 **Evidence:** writing `examples/rand2011/recover.mjs` and having it die on
 `ERR_UNSUPPORTED_DIR_IMPORT: cross-fetch/polyfill` before executing a line.
@@ -1437,7 +1437,8 @@ in the first place, and it is why the fix is a declaration plus a loud accessor 
 enumeration.
 
 `inspect()` is unchanged in shape and still returns `undefined` for all of these, since it is the
-monitor's payload and has to stay plain, serialisable data (`MODULE-DESIGN.md` §15.4). So this is a
+monitor's payload and has to stay plain, serialisable data (`MODULE-DESIGN.md` §15.4, the design
+record kept outside this repository — see `docs/README.md`). So this is a
 split of labour, not a deprecation: `inspect()` for the seating plan and for observation,
 `stateOf()` for anything a listener acts on.
 
@@ -1630,7 +1631,7 @@ These are not defects; they are recorded so the boundary of M1 stays legible. Se
 | ~~Edge-history export~~ | Done 2026-08-15. `edgeRows`/`snapshotRows`/`toCSV` in the Breadboard `Connected`/`Disconnected` shape, plus `historyIsConsistent`. Pure functions over an event log, so they run offline on stored data. `views.csv` remains open (decision 5). |
 | ~~Live network monitor~~ | Done 2026-08-15. `monitor(handle)` serves a loopback-bound page from the callbacks process: live graph, per-node state, history scrubber, publish counts and unmaterialised channels. Not sigma and not in the template repo; `MODULE-DESIGN.md` §15 says why, and what it rules out structurally versus by convention. The served page is covered by `test/browser/monitor_page.ts` as of 2026-08-16, which found and fixed a stale-graph defect on `gone`; see O9 for what remains uncovered. |
 | ~~Template repo~~ | Rejected 2026-08-15 at M5, not deferred. Fork-and-adapt is the ecosystem pattern and the reason not to ship a fork point: anything in a template is code you cannot patch, and only the in-package path is testable by this suite. All three examples ship in-package and each one's `callbacks.js` is imported unmodified by `test/e2e/`. Reasoning: `docs/M5-ADOPTION.md` §2, `MODULE-DESIGN.md` §6. |
-| ~~Package name / `@yale-hnl` scope~~ | Settled 2026-08-15 by the maintainer as `empirica-networks`, unscoped. Discovery is the binding constraint in an ecosystem with no registry. Publishing itself stays blocked on U1 disclosure (`PUBLICATION-PLAN.md` step 1), which is why `private: true` is still set. |
+| ~~Package name / `@yale-hnl` scope~~ | Settled 2026-08-15 by the maintainer as `empirica-networks`, unscoped. Discovery is the binding constraint in an ecosystem with no registry. Publishing itself stays blocked on U1 disclosure (`NEXT_STEPS.md` §1.1), which is why `private: true` is still set. |
 
 ---
 

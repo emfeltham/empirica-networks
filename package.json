@@ -5,6 +5,15 @@
   "type": "module",
   "description": "Network experiments for Empirica: neighbour-limited visibility, topologies, and rewiring.",
   "license": "MIT",
+  "author": "Eric Martin Feltham <eric.feltham@aya.yale.edu>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/emfeltham/empirica-networks.git"
+  },
+  "homepage": "https://github.com/emfeltham/empirica-networks#readme",
+  "bugs": {
+    "url": "https://github.com/emfeltham/empirica-networks/issues"
+  },
   "sideEffects": false,
   "files": [
     "dist"
