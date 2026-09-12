@@ -26,7 +26,7 @@ import {
   createBatch,
   waitFor,
   withScenario,
-} from "../../src/verify/harness.js";
+} from "../../src/harness/harness.js";
 // The example's own callbacks, exactly as a user would have them.
 import { Empirica } from "../../examples/minimal/server/src/callbacks.js";
 

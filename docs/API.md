@@ -789,7 +789,7 @@ comparison between two different games.
 
 Keys shaped like the ones Empirica's own client generates, a 13-digit millisecond timestamp
 matching `createNewParticipant`. This is a development default. Every participant receives every
-co-player's `participantIdentifier` ([U10](../ISSUES.md)), so in a deployed study, pass keys drawn
+co-player's `participantIdentifier` ([U10](upstream/ISSUES.md)), so in a deployed study, pass keys drawn
 from the same space as the study's recruitment keys, or use three 13-digit numbers among
 24-character Prolific PIDs as the three bots, in order.
 

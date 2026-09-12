@@ -45,7 +45,7 @@ import {
   withScenario,
   type AdminHandle,
   type Participant,
-} from "../../src/verify/harness.js";
+} from "../../src/harness/harness.js";
 
 const HUMANS = 2;
 const BOTS = 2;

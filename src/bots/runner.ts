@@ -7,7 +7,7 @@
  * shortcut anywhere in this file, and that is the point rather than a
  * restriction — see the note at the top of `./policy.ts`.
  *
- * Built on `../verify/compat.ts` deliberately, not on a second copy of the same
+ * Built on `../harness/compat.ts` deliberately, not on a second copy of the same
  * three calls. That file is the one place every contract with `@empirica/core`
  * lives, so a version bump that breaks a bot breaks it in the same place it
  * breaks the harness, and gets fixed once.
@@ -22,7 +22,7 @@ import { hashSeed, makeRng, type Rng } from "../admin/seed.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../player/mode.js";
 import { networkStateOf } from "../player/state.js";
 import { networkSelfOf, networkToldOf } from "../player/view.js";
-import { makeSharedProvider, openParticipantSession } from "../verify/compat.js";
+import { makeSharedProvider, openParticipantSession } from "../harness/compat.js";
 import { waitForValue } from "../shared/wait.js";
 import { assertIdentifiers, botMarkerWarning } from "./identity.js";
 import { botPhase, stallMessage, type BotObservation, type BotPhase } from "./lifecycle.js";

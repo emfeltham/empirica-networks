@@ -44,11 +44,11 @@ const PIN = (() => {
 })();
 
 test("VERIFIED_CORE is the pinned @empirica/core", () => {
-  // src/verify/compat.ts is read as TEXT rather than imported: it pulls
+  // src/harness/compat.ts is read as TEXT rather than imported: it pulls
   // @empirica/core/admin, which cannot be loaded unbundled and is what separates
   // the unit tier from e2e (docs/PLATFORM-NOTES.md §3a). Same idiom as
   // cli_version.test.ts.
-  const compat = fs.readFileSync(path.join(root, "src/verify/compat.ts"), "utf8");
+  const compat = fs.readFileSync(path.join(root, "src/harness/compat.ts"), "utf8");
   const match = compat.match(/export const VERIFIED_CORE = "([^"]+)"/);
   assert.ok(match, "compat.ts declares VERIFIED_CORE");
   assert.equal(

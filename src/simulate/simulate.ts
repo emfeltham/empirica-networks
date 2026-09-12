@@ -57,7 +57,7 @@ import { makeRng } from "../admin/seed.js";
 import { barabasiAlbert } from "../topology/index.js";
 import { EmpiricaNetwork } from "../player/mode.js";
 import { runBots, botIdentifiers, type BotContext, type BotPolicy } from "../bots/index.js";
-import { batchConfig, createBatch, waitFor, withScenario } from "./harness.js";
+import { batchConfig, createBatch, waitFor, withScenario } from "../harness/harness.js";
 import {
   auditViews,
   canonicalEdges,
@@ -67,7 +67,7 @@ import {
   structuralEdges,
   type AuditResult,
   type IndexEdge,
-} from "./audit.js";
+} from "../verify/audit.js";
 
 // The example, imported unmodified. `SHIRADO2017_OUT` is read as this module
 // loads, which is why a session runs in a child whose env was set before it

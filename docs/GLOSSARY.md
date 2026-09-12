@@ -115,8 +115,9 @@ it; view capture (`views: { file }`) is the only record of what a participant wa
 as distinct from what they could have known, which is all an edge log plus an
 attribute export can reconstruct. → [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md)
 
-**U-numbers / O-numbers** — issue ids in [`ISSUES.md`](../ISSUES.md). U is upstream, in
-Empirica itself, generally not fixable here. O is ours. The ones you are most likely to meet:
+**U-numbers / O-numbers** — issue ids for, respectively, [`docs/upstream/ISSUES.md`](upstream/ISSUES.md)
+and [`../ISSUES.md`](../ISSUES.md). U is upstream, in Empirica itself, generally not fixable
+here. O is ours. The ones you are most likely to meet:
 
 | | |
 |---|---|

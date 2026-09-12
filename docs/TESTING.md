@@ -267,7 +267,7 @@ sufficient.
 
 There are two causes, and neither indicates a regression. Check both before concluding anything.
 
-### Orphaned harness servers — `ISSUES.md` U6
+### Orphaned harness servers — `docs/upstream/ISSUES.md` U6
 
 The Empirica CLI execs a versioned binary as its own child, so killing the CLI leaves the real
 server running and holding its port. Accumulated orphans starve player assignment, and the suite
@@ -402,7 +402,7 @@ each to name its version.
 
 That is the point. A pin bump is more than a find-and-replace operation: each of those lines is a
 measurement, and the new version is precisely the reason to doubt it. The test also holds the
-single pin declaration (`VERIFIED_CORE`, `src/verify/compat.ts`) against `package.json`, and
+single pin declaration (`VERIFIED_CORE`, `src/harness/compat.ts`) against `package.json`, and
 `cli_version.test.ts` checks that the verify CLI still prints that one rather than a copy. It
 deliberately does not assert that the installed core matches the pin: `drift.yml` installs
 `@empirica/core@latest` with `--no-save`, so such an assertion would fail first and mask the
@@ -420,5 +420,5 @@ Recorded rather than implied.
 
 Two entries left this list on 2026-08-16, and the removals are worth as much as the list: the
 monitor's browser script (O9) and `admin.taj.attributes()` (O7) are both exercised now. The
-attributes result was that the API does not work at all; see `ISSUES.md` U9. A gap list is only
+attributes result was that the API does not work at all; see `docs/upstream/ISSUES.md` U9. A gap list is only
 useful if closing something removes it, and only honest if what closing revealed is written down.

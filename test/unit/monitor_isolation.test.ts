@@ -91,7 +91,7 @@ test("only the monitor may open a socket", () => {
     if (file === allowed) continue;
     // The test harness spawns and probes a Tajriba server; that is a client, not
     // a listener, and it never ships in the library entries.
-    if (file.includes(`${path.sep}verify${path.sep}`)) continue;
+    if (file.includes(`${path.sep}harness${path.sep}`)) continue;
     if (/from\s+["']node:http["']/.test(fs.readFileSync(file, "utf8"))) {
       offenders.push(path.relative(SRC, file));
     }

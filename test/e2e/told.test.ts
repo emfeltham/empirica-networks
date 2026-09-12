@@ -28,7 +28,7 @@ import {
   withScenario,
   type AdminHandle,
   type Participant,
-} from "../../src/verify/harness.js";
+} from "../../src/harness/harness.js";
 
 const N = 4;
 /** Game attribute used to drive a server-side action from inside a listener. */
@@ -150,7 +150,7 @@ test("a told value reaches its target and NOBODY else — including the person i
       // anything is told.
       //
       // Free, and safe to do this early — `wireStream()` shares the mode's own
-      // subscription rather than opening a second one (`src/verify/compat.ts`).
+      // subscription rather than opening a second one (`src/harness/compat.ts`).
       // Until 2026-08-16 it opened another, and doing that for four participants
       // before `running()` doubled the wire traffic the server carried through
       // Classic's O(n²) game-start burst: this file failed **4/12** on `gameID

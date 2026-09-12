@@ -33,25 +33,25 @@ repository.
       `undefined`, which is indistinguishable from "they did not submit"; this is how a whole
       reconstruction ran with its manipulation doing nothing. `ISSUES.md` O11
 - [ ] No lifecycle listener is registered twice. Check the server's startup output for the
-      duplicate warning. Only the first ever runs. `ISSUES.md` U8
+      duplicate warning. Only the first ever runs. `docs/upstream/ISSUES.md` U8
 - [ ] View capture is on if `project()` does anything beyond passing values through. It
       cannot be turned on retroactively. `docs/DATA-AND-ANALYSIS.md`
 - [ ] The run log is on (`log: { file }`) if losing a killed session's data would matter.
       `onGameEnded` fires only on a natural end.
 - [ ] Nothing that matters is on a player or game scope. Both are broadcast to every
-      participant. Payoffs and any record of account belong on the batch scope. `ISSUES.md` U1
+      participant. Payoffs and any record of account belong on the batch scope. `docs/upstream/ISSUES.md` U1
 - [ ] `?participantKey=` is an opaque per-study token, not a Prolific PID or any other
       recruitment-platform identifier. Every participant receives every co-player's, and such
       identifiers are stable across studies, so keep the mapping outside Empirica. This is
       decided when you build the recruitment links, and cannot be undone afterwards.
-      `ISSUES.md` U10
+      `docs/upstream/ISSUES.md` U10
 - [ ] Bot identifiers, if any, are drawn from that same space. Three 13-digit numbers among
       24-character PIDs are the three bots, in order, to anyone who looks. `docs/BOTS.md` §1
 - [ ] A dry run at the real n, with the real treatment, on the real host. Degree multiplied by
       projection size is what a participant's connection carries, and it is capped at 64 KiB per
       publish by default.
 - [ ] The target regime is n ≤ 50. At n ≥ 200 games do not reliably start; 1 run in 6,
-      upstream, reproduces without this package. `ISSUES.md` U7
+      upstream, reproduces without this package. `docs/upstream/ISSUES.md` U7
 
 ## 2. The things known to be hard
 
@@ -61,7 +61,7 @@ real document will have to answer.
 ### A crashed study cannot be resumed
 
 A full server restart reloads the store, but `gameID` is never restored and no game resumes. It
-can also leave two player scopes for one participant. This is upstream (`ISSUES.md` U2) and no
+can also leave two player scopes for one participant. This is upstream (`docs/upstream/ISSUES.md` U2) and no
 amount of configuration changes it.
 
 So a crash, a deploy, or a `^C` mid-session ends the games in progress. Plan for that
@@ -77,7 +77,7 @@ outcome rather than for a recovery procedure that does not exist:
 
 Any participant who knows a node id can set any attribute on it, including on another
 participant's player scope. `protected: true` is documented as preventing this and does not
-(`ISSUES.md` U1, currently in private disclosure).
+(`docs/upstream/ISSUES.md` U1, currently in private disclosure).
 
 For a deployment this means: treat every participant-written value as untrusted input, keep the
 record of account on the batch scope, and judge whether your design gives anyone a reason to

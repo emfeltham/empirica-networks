@@ -5,7 +5,7 @@ import { withNetwork, type NetworkConfig } from "../admin/with_network.js";
 import { EmpiricaNetwork } from "../player/mode.js";
 import { adjacency, type Edge } from "../topology/index.js";
 import { CLI_TOPOLOGIES, accountVacuity } from "./topologies.js";
-import { batchConfig, createBatch, gameInit, waitFor, withScenario } from "./harness.js";
+import { batchConfig, createBatch, gameInit, waitFor, withScenario } from "../harness/harness.js";
 
 /**
  * The leak check: does a participant ever receive a non-neighbour's state?

@@ -19,7 +19,7 @@
  *
  * This test previously claimed the opposite. It passed because `server.stop()`
  * killed the CLI wrapper and orphaned the real server, so nothing was ever
- * actually restarted — see `src/verify/server.ts`. Fixing that turned this from
+ * actually restarted — see `src/harness/server.ts`. Fixing that turned this from
  * a green test into an accurate one.
  *
  * Deliberately not built on `withScenario`, which owns the server lifecycle.
@@ -43,8 +43,8 @@ import {
   startCallbacks,
   uniqueNS,
   waitFor,
-} from "../../src/verify/harness.js";
-import { freePort, startServer, type Server } from "../../src/verify/server.js";
+} from "../../src/harness/harness.js";
+import { freePort, startServer, type Server } from "../../src/harness/server.js";
 
 const N = 4;
 

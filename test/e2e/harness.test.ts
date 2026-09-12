@@ -15,8 +15,8 @@ import {
   gameInit,
   waitFor,
   withScenario,
-} from "../../src/verify/harness.js";
-import { startServer } from "../../src/verify/server.js";
+} from "../../src/harness/harness.js";
+import { startServer } from "../../src/harness/server.js";
 
 test("harness boots a server, connects participants, and reaches a stage", async () => {
   const N = 2;

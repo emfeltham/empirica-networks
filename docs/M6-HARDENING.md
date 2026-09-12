@@ -33,7 +33,7 @@ Everything the examples surfaced, with what happened to it.
 
 | # | What | Class | Status |
 |---|---|---|---|
-| 1 | **A lifecycle listener can only be registered once, silently** — `onStageEnded` and siblings share a `unique` marker stored on the *scope*, so only the first ever runs | upstream, silent | **detected 2026-08-16** (defect still upstream) — `ISSUES.md` U8 · §1.2 |
+| 1 | **A lifecycle listener can only be registered once, silently** — `onStageEnded` and siblings share a `unique` marker stored on the *scope*, so only the first ever runs | upstream, silent | **detected 2026-08-16** (defect still upstream) — `docs/upstream/ISSUES.md` U8 · §1.2 |
 | 2 | **`watch` silently doubles as the server's read list** — a private key `project()` never touches reads back `undefined` from `inspect()`, indistinguishable from "not written" | ours, silent | **done 2026-08-16** — `ISSUES.md` O11 · §1.1 |
 | 3 | **No server→participant private write path** — `project()` cannot express "tell one subject one fact about a non-neighbour" | ours, blocking | **fixed in M5** — `tell()`, `MODULE-DESIGN.md` §17 |
 | 4 | **Data written only at game end** — a killed or crashed study produced no CSVs; Shirado's dependent variable was in process memory | ours, data loss | **done 2026-08-16** — `ISSUES.md` O12 · §2.1; the plan's `readNdjson(path)` turned out to be ruled out by an invariant |
@@ -186,7 +186,7 @@ direction. `MODULE-DESIGN.md` §10's list of three is now four.)*
 
 **Done, and the plan above was wrong about two things.** Shipped: `src/admin/listeners.ts`,
 the `"start"` hook extension, `test/unit/listeners.test.ts` (11) and
-`test/e2e/duplicate_listeners.test.ts` (2). `ISSUES.md` U8 records the detector; PLATFORM-NOTES
+`test/e2e/duplicate_listeners.test.ts` (2). `docs/upstream/ISSUES.md` U8 records the detector; PLATFORM-NOTES
 §18a records the measurements. U8 itself stays open — it is upstream's dispatcher.
 
 1. **The shape claim above is wrong.** `attributeListeners` is a plain **`Array` of
@@ -688,19 +688,21 @@ keeps its plan above a **Done** note.
   one example's token as a working default, and the comment is the part that survives being copied.
   Left alone deliberately: all three still declare `name = "scaffold-probe"`, which is a copied
   scaffold artefact but not one I can change and verify without booting each example's dev server.
-- **Close O11 and U8 in `ISSUES.md`** when 1.1 and 1.2 land, and file U8 upstream — it is the
-  strongest candidate after U1 and U2, with the shortest reproduction on the list.
+- **Close O11 in `ISSUES.md` and U8 in `docs/upstream/ISSUES.md`** when 1.1 and 1.2 land, and file
+  U8 upstream — it is the strongest candidate after U1 and U2, with the shortest reproduction on
+  the list.
 
-  **Half done, and the remaining half is not mine to do quietly.** O11 and U8 are closed in
-  `ISSUES.md` (Tier 1). Filing U8 upstream is an outward-facing act on a public tracker, so it is left
-  for the maintainer to send rather than done unasked — and `PUBLICATION-PLAN.md` step 1 sequences U1's
+  **Half done, and the remaining half is not mine to do quietly.** O11 is closed in `ISSUES.md`,
+  and U8 in `docs/upstream/ISSUES.md` (Tier 1). Filing U8 upstream is an outward-facing act on a
+  public tracker, so it is left for the maintainer to send rather than done unasked — and
+  `PUBLICATION-PLAN.md` step 1 sequences U1's
   disclosure ahead of it anyway.
 
 ## Not doing, and why
 
 - **O10, the Shirado bots.** Not a fix; a project. It needs a headless participant process per
   bot, a policy interface, and a way to keep bots out of the participant count a treatment
-  declares. The hard part already exists in `src/verify/harness.ts`
+  declares. The hard part already exists in `src/harness/harness.ts`
   (`connectParticipant`), and `docs/PLATFORM-NOTES.md` §17 records the route. It should be its own
   milestone with its own justification, not a line item here.
 - **Fixing U3, U4, U5, U6, U7, U8 upstream.** Reported, worked around, out of our hands.

@@ -62,7 +62,7 @@ src/
     chat.ts           neighborChatOf
     react/index.ts    the hooks, which are thin wrappers over the above
   bots/               artificial participants; a PARTICIPANT process, not a server-side object
-    runner.ts         runBots: sessions, the poll loop, hook dispatch. Reuses verify/compat.ts
+    runner.ts         runBots: sessions, the poll loop, hook dispatch. Reuses harness/compat.ts
     lifecycle.ts      the six phases as a pure function, and the stall reasons. Zero imports
     identity.ts       identifier generation and the U10 warnings. Zero imports
     policy.ts         the BotPolicy / BotContext types. Type-only imports, so it bundles to nothing
@@ -70,7 +70,10 @@ src/
     index.ts          14 generators + 6 measures (adjacency, degrees, meanDegree, maxDegree,
                       components, isConnected). Pure, index-based, zero imports
     graphology.ts     the graphology bridge, kept behind its own subpath
-  verify/             the `verify` CLI: harness, server, sentinel leak test, tcp cut
+  verify/             the `verify` CLI: sentinel leak test, topology preflight, the ndjson audit
+  harness/            shared Tajriba harness: spawn+probe a real server, session compat shims,
+                      a TCP-cut chaos utility — used by `verify`, `simulate` and every e2e test
+  simulate/           the `simulate` tool: batch-run simulated sessions for the evaluation paper
 ```
 
 The entry-point rule is stated first because breaking it fails silently. `src/index.ts` re-exports
@@ -89,7 +92,7 @@ CJS artefact under a single `default` condition, rather than as an `import` entr
 resolve cleanly and then fail on the researcher's machine. The cost is a second copy of
 `@empirica/core` inside that bundle; nothing crosses the boundary, because a policy is handed
 plain JSON and plain accessors rather than scope objects. `src/bots/runner.ts` is built on
-`src/verify/compat.ts` rather than on its own copy of the same three calls, so a version bump that
+`src/harness/compat.ts` rather than on its own copy of the same three calls, so a version bump that
 breaks a bot breaks it in the one file where every upstream contract lives.
 
 ## 3. The lifecycle, end to end
@@ -106,7 +109,7 @@ Two things happen, and the timing of both is deliberate:
 
 - `ctx.scopeSub({ kinds: ["nbhd"] })` subscribes the admin to channel scopes. This is
   load-bearing specifically for reading what participants write: attribute listeners subscribe
-  nothing on their own (`docs/PLATFORM-NOTES.md` §12, `ISSUES.md` U3). Publishing worked without
+  nothing on their own (`docs/PLATFORM-NOTES.md` §12, `docs/upstream/ISSUES.md` U3). Publishing worked without
   it for a long time, because creation-time attributes arrive inside the `addScopes` response, but
   a participant's later write is never delivered, and the listener waiting for it simply never
   runs.
@@ -162,7 +165,7 @@ preserves input order); and the channel map is never participant-visible, living
 only, keyed by game id.
 
 That last property is functionally necessary, not merely a matter of tidiness. Empirica has no
-write access control (`ISSUES.md` U1), so a channel id is precisely the capability needed to inject
+write access control (`docs/upstream/ISSUES.md` U1), so a channel id is precisely the capability needed to inject
 into someone else's private channel. It was briefly on the game scope, and an end-to-end test
 caught every participant receiving every channel id.
 
@@ -210,7 +213,7 @@ Called on every channel arrival, because channels stream in from the subscriptio
 completion signal. Idempotent, and gives up quietly until the last seat is filled.
 
 It is worth noting what this does not fix. A full server restart still does not put participants
-back in their game: `gameID` is never restored, upstream (`ISSUES.md` U2). Recovery here is about
+back in their game: `gameID` is never restored, upstream (`docs/upstream/ISSUES.md` U2). Recovery here is about
 not corrupting a game that survives, not about resuming a crashed study. Nothing here can make a
 crashed study resumable.
 

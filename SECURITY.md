@@ -16,8 +16,9 @@ Some issues surfaced while building this package are in the underlying [Empirica
 platform rather than in this code. Those are tracked separately, under `docs/upstream/`, with
 their own disclosure route and status recorded in
 [`docs/upstream/DISCLOSURE.md`](docs/upstream/DISCLOSURE.md). Please use that route, not this one,
-for anything that is a defect in Empirica rather than in this package — `ISSUES.md` distinguishes
-the two (entries numbered U are upstream, O are this package's own).
+for anything that is a defect in Empirica rather than in this package: `ISSUES.md` tracks this
+package's own defects (O-numbered), and [`docs/upstream/ISSUES.md`](docs/upstream/ISSUES.md)
+tracks Empirica's (U-numbered).
 
 ## Scope
 

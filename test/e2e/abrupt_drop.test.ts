@@ -10,7 +10,7 @@
  * server does not recognise as a return — the participant would come back to a
  * blank neighbourhood, which on screen is indistinguishable from still loading.
  *
- * The drop is produced with a TCP relay (`src/verify/tcp_cut.ts`) rather than by
+ * The drop is produced with a TCP relay (`src/harness/tcp_cut.ts`) rather than by
  * reaching into `@empirica/tajriba` for the socket, so this depends on no
  * internals.
  */
@@ -29,8 +29,8 @@ import {
   uniqueNS,
   waitFor,
   withScenario,
-} from "../../src/verify/harness.js";
-import { tcpCut } from "../../src/verify/tcp_cut.js";
+} from "../../src/harness/harness.js";
+import { tcpCut } from "../../src/harness/tcp_cut.js";
 
 const N = 4;
 

@@ -15,7 +15,7 @@
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join, dirname, resolve, relative } from "node:path";
 
-const ROOT = resolve(import.meta.dirname, "..");
+const ROOT = resolve(import.meta.dirname, "../..");
 const SKIP = new Set(["node_modules", "dist", ".git", ".tmp-test", ".tmp-bench", ".tmp-soak", ".tmp-test-one"]);
 
 /** Every .md file in the repo, minus vendored and generated trees. */

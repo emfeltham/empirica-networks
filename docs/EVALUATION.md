@@ -119,4 +119,4 @@ the finding, and it leads the paper.
 ---
 
 *See also: `PUBLICATION-PLAN.md`, `docs/EXPERIMENTS.md`, `docs/BOTS.md`, `docs/TESTING.md`,
-`ISSUES.md` U7/U10.*
+`docs/upstream/ISSUES.md` U7/U10.*

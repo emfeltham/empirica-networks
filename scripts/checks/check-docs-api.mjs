@@ -24,7 +24,7 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname, resolve, relative } from "node:path";
 
-const ROOT = resolve(import.meta.dirname, "..");
+const ROOT = resolve(import.meta.dirname, "../..");
 const PKG = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
 const SKIP = new Set(["node_modules", "dist", ".git"]);
 

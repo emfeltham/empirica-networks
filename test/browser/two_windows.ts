@@ -26,7 +26,7 @@ import { chromium, type Browser, type Page } from "playwright";
 // connectAdmin opens (and closes) its own connection, so this file needs no
 // direct @empirica/tajriba import — which it could not have anyway, since that
 // package is deliberately not a dependency (duplicate-copy hazard).
-import { batchConfig, connectAdmin, createBatch } from "../../src/verify/harness.js";
+import { batchConfig, connectAdmin, createBatch } from "../../src/harness/harness.js";
 
 // This file is bundled to CJS before running (@empirica/core cannot be loaded
 // from raw Node — docs/PLATFORM-NOTES.md §3a), and `import.meta.url` is empty

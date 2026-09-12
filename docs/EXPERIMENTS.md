@@ -98,7 +98,7 @@ Also left out: incentives, and the chromatic-polynomial solution-space covariate
 The examples exist to have their behaviour asserted rather than described, and these are what that bought: three silent defects, each caught by an e2e assertion rather than by reading the code.
 
 - `watch` is not the server's read list. `read` declares the keys the server needs, and `net.stateOf()` throws for an undeclared one rather than returning `undefined`, which is indistinguishable from "not written yet". Fill a node's `state` from `watch` alone and a key the server needs but `project()` never reads comes back empty; in the Rand design that silently drops every rewiring answer, and the network never changes in the condition whose defining feature is that it changes. `ISSUES.md` O11.
-- A lifecycle listener can only be registered once. Empirica wraps `onStageEnded` and its siblings in a `unique` guard whose "already ran" marker is stored on the scope, so the first callback to run sets it and every later registration silently returns. Register each helper once and dispatch inside it. `docs/PLATFORM-NOTES.md` §18, `ISSUES.md` U8.
+- A lifecycle listener can only be registered once. Empirica wraps `onStageEnded` and its siblings in a `unique` guard whose "already ran" marker is stored on the scope, so the first callback to run sets it and every later registration silently returns. Register each helper once and dispatch inside it. `docs/PLATFORM-NOTES.md` §18, `docs/upstream/ISSUES.md` U8.
 - The analysis CSVs are written in `onGameEnded`, which fires only when a game ends naturally. A session that crashes, or a test that tears its server down first, gives you a green run and an empty `data/`. Both reconstructions therefore write an append-only run log as they go and ship a `recover.mjs` that rebuilds the same tables from it; the plumbing is in the package as `log: { file }` and `net.log()`.
 
 `docs/M6-HARDENING.md` is the full account of what each of these cost.
@@ -113,4 +113,4 @@ The examples exist to have their behaviour asserted rather than described, and t
 - Turn on view capture and keep `views.ndjson`. It is the audit trail for the privacy claim on your data rather than on this package's tests.
 - Turn on the run log (`log: { file }`) and keep `run.ndjson`. It is the difference between a session that died at four minutes leaving four minutes of data and leaving none.
 - Read [the write-access warning](../README.md#before-running-a-study). Both designs give participants a reason to want to alter someone else's state, and Empirica cannot stop them.
-- Plan for a crash to end the session. A full server restart never puts participants back in their game (`ISSUES.md` U2).
+- Plan for a crash to end the session. A full server restart never puts participants back in their game (`docs/upstream/ISSUES.md` U2).

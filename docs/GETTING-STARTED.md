@@ -323,7 +323,7 @@ withNetwork(Empirica, { …, views: { file: "data/views.ndjson" } });
 
 Then flatten offline with `viewRows()`, reading the file back with `parseNdjson()`. Both reconstructions do this; see their READMEs for the table layouts.
 
-The run log should also be turned on, because CSVs are written only when the game ends. A study that is killed, crashes, or is stopped never gets there. After `ISSUES.md` U2, a crash mid-study is the normal shape of something going wrong, since a restarted server cannot resume a game anyway. This was measured: a clean run of the Rand 2011 reconstruction's own tests left a views log and not one CSV.
+The run log should also be turned on, because CSVs are written only when the game ends. A study that is killed, crashes, or is stopped never gets there. After `docs/upstream/ISSUES.md` U2, a crash mid-study is the normal shape of something going wrong, since a restarted server cannot resume a game anyway. This was measured: a clean run of the Rand 2011 reconstruction's own tests left a views log and not one CSV.
 
 ```js
 withNetwork(Empirica, { …, log: { file: "data/run.ndjson" } });
@@ -341,7 +341,7 @@ One file covers the whole study (every record carries its `gameID`), and every r
 |---|---|
 | Target regime | n ≤ 50, at any density. Everything is measured with margin here, including complete graphs |
 | Sparse (d ≤ 16), n ≤ 150 | measured on this implementation; see the README's envelope table |
-| n ≥ 200 | games do not reliably start (1 run in 6). This is upstream and reproduces with stock Classic (`ISSUES.md` U7) |
+| n ≥ 200 | games do not reliably start (1 run in 6). This is upstream and reproduces with stock Classic (`docs/upstream/ISSUES.md` U7) |
 | Dense graphs above n = 50 | unmeasured, and capped at degree 16 by default. Per-participant payload is O(degree), so this is where client bandwidth binds |
 | Sessions beyond ~10 minutes | unverified |
 
@@ -349,7 +349,7 @@ What matters is not degree alone, but degree multiplied by how much is projected
 is what a participant's connection carries, and `maxNeighbourhoodBytes` (64 KiB) caps it, because
 many individually reasonable views can add up while every other limit stays within bounds.
 
-A crashed study cannot be resumed. A full server restart never reassigns participants to their game: the store reloads, but `gameID` is never restored and no game resumes. It can also leave two player scopes for one participant. This is an upstream limitation (`ISSUES.md` U2), and no amount of documentation or configuration changes it, so plan for a crash mid-study to end the games in progress.
+A crashed study cannot be resumed. A full server restart never reassigns participants to their game: the store reloads, but `gameID` is never restored and no game resumes. It can also leave two player scopes for one participant. This is an upstream limitation (`docs/upstream/ISSUES.md` U2), and no amount of documentation or configuration changes it, so plan for a crash mid-study to end the games in progress.
 
 ## Where to go next
 

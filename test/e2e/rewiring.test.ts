@@ -40,7 +40,7 @@ import {
   waitFor,
   withScenario,
   type AdminHandle,
-} from "../../src/verify/harness.js";
+} from "../../src/harness/harness.js";
 
 const N = 4;
 const CMD_KEYS = ["rewireCmd0", "rewireCmd1", "rewireCmd2"] as const;

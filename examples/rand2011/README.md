@@ -159,7 +159,7 @@ someone could have known.
 ### If the run ends early
 
 The CSVs above are written only when a game ends. A study that is killed, crashes, or is stopped
-mid-session never reaches that point, and after `ISSUES.md` U2 a crash mid-study is treated as the normal shape
+mid-session never reaches that point, and after `docs/upstream/ISSUES.md` U2 a crash mid-study is treated as the normal shape
 of "something went wrong", because a restarted server cannot put participants back into their game
 anyway. The session ends regardless, and the rounds that did complete are real
 data.
@@ -219,4 +219,4 @@ Both were real bugs in this code, both silent, both caught by the e2e tests.
 - `onStageEnded` can only be registered once: Empirica's lifecycle helpers are wrapped in a
   `unique` guard whose marker is stored on the scope, so a second registration never runs. This
   file was written with one handler per stage, and the second was dead. See
-  `docs/PLATFORM-NOTES.md` §18 and `ISSUES.md` U8.
+  `docs/PLATFORM-NOTES.md` §18 and `docs/upstream/ISSUES.md` U8.

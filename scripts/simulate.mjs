@@ -27,7 +27,7 @@ fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
 await build({
-  entryPoints: [path.join(root, "src/verify/simulate.ts")],
+  entryPoints: [path.join(root, "src/simulate/simulate.ts")],
   outdir: outDir,
   bundle: true,
   platform: "node",

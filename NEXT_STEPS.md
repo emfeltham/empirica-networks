@@ -36,7 +36,7 @@ passed, but nothing was ever submitted — so the two-week courtesy period never
 stale, not expired, and the distinction is the whole of what to do next: submit, then re-date from
 the day of submission.
 
-Order, from `DISCLOSURE.md` and `ISSUES.md:37`:
+Order, from `DISCLOSURE.md` and `docs/upstream/ISSUES.md:13`:
 
 1. **U1 with U10, privately**, through GitHub's advisory form. U10 travels with U1 rather than
    separately: same repository, same maintainer, and one of the two is a security report already.
@@ -52,7 +52,7 @@ actually submitted.
 
 `CHANGELOG.md:8` makes the freeze a precondition for the changelog meaning anything — "the API
 freeze is what makes the entries below meaningful as a baseline rather than a moving target" — and
-points at `PUBLICATION-PLAN.md` §2, which is not here. `ISSUES.md:14` already treats the freeze as
+points at `PUBLICATION-PLAN.md` §2, which is not here. `ISSUES.md:16` already treats the freeze as
 in force ("the API-coherence items that were free before the freeze and breaking after it"), so
 the package is being governed by a rule it does not state.
 
@@ -89,18 +89,18 @@ Three O-numbers are open (`ISSUES.md`, where an unstruck `###` header means open
 
 | | State | Done when |
 |---|---|---|
-| **O1** — bench figures are single runs and upper bounds (debt) | `ISSUES.md:253`. Narrowed twice. The specification became executable on 2026-09-11 — `--clients` puts the participants on a second machine, `--absolute` refuses a sweep that could not produce an absolute figure — so what is left is **hardware, not code** | A pinned bare-metal Linux host and a second machine for the clients run `npm run bench -- --clients HOST:PORT --absolute --repeats 3`, and the figure is recorded in `docs/PLATFORM-NOTES.md` §21 |
-| **O3** — `restart_full` asserts conditionally | `ISSUES.md:375`. Blocked, not stalled | U2 is resolved and the `if (!restored) return;` branch is removed (`ISSUES.md:381`) |
-| **O4** — late-joiner provisioning is a net under a path we could not construct | `ISSUES.md:383`. One real defect inside it was fixed; on 2026-09-11 the path stopped being silent — `net.stats().lateProvisioned` counts it, the soak reports it, and the first datum (n=20, one minute, real Classic) is zero | The platform path is reproduced — `docs/PLATFORM-NOTES.md` §20 says where to look — or `lateProvisioned` is zero across a real deployment, which is now the first thing to read off one |
+| **O1** — bench figures are single runs and upper bounds (debt) | `ISSUES.md:31`. Narrowed twice. The specification became executable on 2026-09-11 — `--clients` puts the participants on a second machine, `--absolute` refuses a sweep that could not produce an absolute figure — so what is left is **hardware, not code** | A pinned bare-metal Linux host and a second machine for the clients run `npm run bench -- --clients HOST:PORT --absolute --repeats 3`, and the figure is recorded in `docs/PLATFORM-NOTES.md` §21 |
+| **O3** — `restart_full` asserts conditionally | `ISSUES.md:229`. Blocked, not stalled | U2 is resolved and the `if (!restored) return;` branch is removed (`ISSUES.md:235`) |
+| **O4** — late-joiner provisioning is a net under a path we could not construct | `ISSUES.md:237`. One real defect inside it was fixed; on 2026-09-11 the path stopped being silent — `net.stats().lateProvisioned` counts it, the soak reports it, and the first datum (n=20, one minute, real Classic) is zero | The platform path is reproduced — `docs/PLATFORM-NOTES.md` §20 says where to look — or `lateProvisioned` is zero across a real deployment, which is now the first thing to read off one |
 
 Four smaller gaps carry no O-number and are named here so they are not mistaken for covered:
 
 - **Channel index is not rebuilt after a restart** (`src/admin/provision.ts:62`). Recovery is
   possible — nbhd scopes carry immutable owner/playerID attributes — and is not implemented. Moot
   while U2 stands, since no game resumes anyway; it becomes the next obstacle the day U2 is fixed.
-- **Monitor coverage residue** (`ISSUES.md:1190`): the tooltip's positioning arithmetic, the game
+- **Monitor coverage residue** (`ISSUES.md:1074`): the tooltip's positioning arithmetic, the game
   picker, and every colour claim in the palette comment.
-- **`views.csv`** remains open under M2 decision 5 (`ISSUES.md:1512`).
+- **`views.csv`** remains open under M2 decision 5 (`ISSUES.md:1406`).
 - ~~**The leak checker knows one topology.**~~ **Done 2026-09-11.** `topology` now takes a name or
   the study's own generator, and what a run can establish is computed from the realised graph
   (`src/verify/topologies.ts`). Found and fixed in passing: `--topology` had been reported as
@@ -121,7 +121,7 @@ is no work in this section — it is listed so it is not mistaken for work.
 
 [`docs/EVALUATION-RUNBOOK.md`](docs/EVALUATION-RUNBOOK.md) is a step-by-step spec written to be
 handed to someone who has not worked on this package. None of the six files it names exists:
-`src/verify/simulate.ts`, `src/verify/audit.ts`, a `simulate` command in `src/verify/cli.ts`,
+`src/simulate/simulate.ts`, `src/verify/audit.ts`, a `simulate` command in `src/verify/cli.ts`,
 `scripts/simulate.mjs`, the `"simulate"` npm script, `test/unit/audit.test.ts`. Its own estimate is
 about five days, with the browser hybrid (§9) a separate week and out of scope.
 

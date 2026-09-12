@@ -130,7 +130,7 @@ two plain `Empirica.on("stage", "ended", cb)` calls when both callbacks are anon
 async functions, and those are legitimate. Plain `Empirica.on(kind, key, cb)` is not affected
 by U8.
 
-`docs/PLATFORM-NOTES.md` Section 18, Section 18a · `ISSUES.md` U8
+`docs/PLATFORM-NOTES.md` Section 18, Section 18a · `docs/upstream/ISSUES.md` U8
 
 ### A mutation reaches nobody, and the server's own state looks correct
 
@@ -222,7 +222,7 @@ the observation the entry is waiting for.
 
 What is worth writing down, because it is gone from the log by the time anyone looks: your
 `@empirica/core` version, whether the server had just restarted (the suspect window is the
-subscription replay at process start, `docs/PLATFORM-NOTES.md` §20, and `ISSUES.md` U2's
+subscription replay at process start, `docs/PLATFORM-NOTES.md` §20, and `docs/upstream/ISSUES.md` U2's
 territory), and `net.stats().lateProvisioned`. Add it to O4.
 
 The counters are `net.stats().pendingAtStart` and `net.stats().lateProvisioned`, both per process
@@ -272,7 +272,7 @@ Plan for a crash mid-study to end the games in progress, and turn on the run log
 (`log: { file }`) so a killed study still leaves analysable data; `onGameEnded` only fires when
 a game ends naturally.
 
-`ISSUES.md` U2 · `docs/PLATFORM-NOTES.md` Section 4e
+`docs/upstream/ISSUES.md` U2 · `docs/PLATFORM-NOTES.md` Section 4e
 
 ### The session ran, and `data/` is empty
 
@@ -306,7 +306,7 @@ Cause: upstream U7. Game start corrupts the websocket stream at scale: measured 
 Fix: stay inside the measured regime. n ≤ 50 at any density is where everything here has
 margin.
 
-`ISSUES.md` U7 · `docs/PLATFORM-NOTES.md` Section 16
+`docs/upstream/ISSUES.md` U7 · `docs/PLATFORM-NOTES.md` Section 16
 
 ### The bot process dies immediately with `invalid URL`, and the stack names no frame
 
@@ -457,7 +457,7 @@ table is for finding the context.
 | `the projection at … is a function` / `a BigInt` / `contains a cycle` / `is a scope` | `project()` returned something JSON cannot carry, or the scope itself. Nothing was sent; validation runs before the publish | API.md, `project()` |
 | `no network for game …` | The game has not started, has ended, or `withNetwork()` was never called on this collector | ARCHITECTURE Section 3 |
 | `game … is not networked by this process` | Ended, never started, or lost to a restart (U2) | ARCHITECTURE Section 3 |
-| `game … was networked by a previous process but has no recorded edge list` | A restart found the game but not its network, so it cannot be recovered (warning) | `ISSUES.md` U2 |
+| `game … was networked by a previous process but has no recorded edge list` | A restart found the game but not its network, so it cannot be recovered (warning) | `docs/upstream/ISSUES.md` U2 |
 | `player … has no materialised channel in game …` | Channel has not arrived yet, or the player has no `participantID` | ARCHITECTURE Section 3 step 7 |
 | `player … is not in game …'s network` | Player is outside the topology: check your `order` assumptions | — |
 | `project() threw while building X's view of Y` | Your projection threw; the cause is attached | — |

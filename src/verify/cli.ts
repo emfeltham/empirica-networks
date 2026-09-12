@@ -14,9 +14,9 @@
 import { createRequire } from "node:module";
 import { setLogLevel } from "@empirica/core/console";
 // The version printed below is NOT declared here. It is the repository's single
-// pin declaration (src/verify/compat.ts), because a CLI that prints a version
+// pin declaration (src/harness/compat.ts), because a CLI that prints a version
 // number of its own is a CLI that can print the wrong one — see the note there.
-import { VERIFIED_CORE } from "./compat.js";
+import { VERIFIED_CORE } from "../harness/compat.js";
 import { formatLeakResult, runLeakCheck } from "./leak_test.js";
 import { CLI_TOPOLOGY_NAMES, preflightCliTopology } from "./topologies.js";
 

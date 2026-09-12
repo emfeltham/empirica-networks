@@ -49,7 +49,7 @@ Then read, in this order, and do not skip them — every trap in §10 comes from
 
 ## 1. The rig you are building on, and what it does not cover
 
-**Use the test harness, not the `empirica` dev server.** `withScenario` in `src/verify/harness.ts`
+**Use the test harness, not the `empirica` dev server.** `withScenario` in `src/harness/harness.ts`
 boots a real Tajriba, starts callbacks, connects participants and tears everything down.
 `test/e2e/shirado2017.test.ts` already drives the example's **unmodified**
 `server/src/callbacks.js` through it. That is the proven path and it is what you extend.
@@ -62,7 +62,7 @@ covers the server, the package, the channels and the data pipeline — which is 
 
 | File | What it is |
 |---|---|
-| `src/verify/simulate.ts` | the run loop: arms × seeds → sessions, keeping output |
+| `src/simulate/simulate.ts` | the run loop: arms × seeds → sessions, keeping output |
 | `src/verify/audit.ts` | reads a results directory, checks C1 and C4, prints a verdict |
 | `src/verify/cli.ts` | add a `simulate` command beside `verify` |
 | `scripts/simulate.mjs` | bundles to CJS and runs it, exactly like `scripts/bench.mjs` |
@@ -197,7 +197,7 @@ the part that ran is complete and readable:
 | Participant never submits | a policy that returns without writing |
 | Session killed outright | end the process mid-game; `run.ndjson` must still reconstruct |
 
-**What "passes" means:** not that the session survives — some will not, and `ISSUES.md` U2 says a
+**What "passes" means:** not that the session survives — some will not, and `docs/upstream/ISSUES.md` U2 says a
 full restart never restores participants to their game. It means **the data for what did happen
 is intact and says what happened.** A session that dies and leaves an honest partial record is a
 pass. One that dies and leaves nothing, or leaves a record implying it completed, is a failure.
@@ -232,7 +232,7 @@ pass. One that dies and leaves nothing, or leaves a record implying it completed
 
 A directory of results, and a short written report containing:
 
-- the machine, the date, and the `@empirica/core` version (`src/verify/compat.ts` has the pin)
+- the machine, the date, and the `@empirica/core` version (`src/harness/compat.ts` has the pin)
 - sessions attempted, completed, and failed — with the reasons, not just the count
 - the audit output: records checked, leaks, missing deliveries, vacuous sessions
 - which sessions were checked for C4, and the outcome
@@ -248,4 +248,4 @@ why at length.
 ---
 
 *See also: `docs/EVALUATION.md`, `docs/BOTS.md`, `docs/TESTING.md`,
-`examples/shirado2017/README.md`, `ISSUES.md` O1/O8/U2/U7.*
+`examples/shirado2017/README.md`, `ISSUES.md` O1/O8, `docs/upstream/ISSUES.md` U2/U7.*

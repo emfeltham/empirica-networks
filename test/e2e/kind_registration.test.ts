@@ -51,7 +51,7 @@ import {
   waitFor,
   withScenario,
   type AdminHandle,
-} from "../../src/verify/harness.js";
+} from "../../src/harness/harness.js";
 
 test.beforeEach(() => resetChannels());
 

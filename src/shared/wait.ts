@@ -1,7 +1,7 @@
 /**
  * Condition-based waiting. Zero dependencies — deliberately.
  *
- * These were originally inside verify/harness.ts, which imports
+ * These were originally inside harness/harness.ts, which imports
  * @empirica/core/admin and therefore cannot be loaded without bundling (see
  * docs/PLATFORM-NOTES.md §3a). That meant these pure functions could not be
  * unit-tested at all. Pure utilities do not belong behind an unloadable import.

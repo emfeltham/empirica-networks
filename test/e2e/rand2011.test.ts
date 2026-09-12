@@ -34,7 +34,7 @@ import {
   withScenario,
   type AdminHandle,
   type Participant,
-} from "../../src/verify/harness.js";
+} from "../../src/harness/harness.js";
 // The experiment's own callbacks, exactly as a user would have them.
 import { Empirica, net } from "../../examples/rand2011/server/src/callbacks.js";
 // ...and its rules, so expectations are derived rather than restated.

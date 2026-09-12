@@ -16,7 +16,7 @@ This project is not affiliated with, or endorsed by, the Empirica project.
 | Planning a real study | [`docs/DEPLOYING.md`](docs/DEPLOYING.md) — the pre-flight checklist, and what is not yet documented |
 | Getting the data out | [`docs/DATA-AND-ANALYSIS.md`](docs/DATA-AND-ANALYSIS.md) — every column of every table |
 | A real study to read | [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md) — two reconstructed papers |
-| Known defects | [`ISSUES.md`](ISSUES.md) — ours and upstream's |
+| Known defects | [`ISSUES.md`](ISSUES.md) — ours; [`docs/upstream/ISSUES.md`](docs/upstream/ISSUES.md) — Empirica's |
 | What is left to do | [`NEXT_STEPS.md`](NEXT_STEPS.md) — the route to a first release, the open defects, and what is deliberately not scheduled |
 | Artificial participants | [`docs/BOTS.md`](docs/BOTS.md) — the policy interface, placement, and why a bot's name is participant-visible |
 | Everything else | [`docs/`](docs/README.md) — the documentation index |
@@ -37,9 +37,9 @@ What to do about it, in order:
 2. Keep the record of account somewhere participants cannot write — the batch scope. Both reconstructions in this repository do this for payoffs, and say so at the call site.
 3. Judge whether your design gives anyone a reason to bother. A study where altering someone else's state pays — a competitive game, a bonus tied to relative performance — is exposed in a way a survey is not.
 
-This module does not, and cannot, claim that a participant's state is tamper-proof. This is measured in `test/e2e/participant_write.test.ts` and `test/e2e/upstream_u1.test.ts`, with the mechanism described in `docs/PLATFORM-NOTES.md` §4a and tracked as `ISSUES.md` U1, which is going through private disclosure to Empirica's maintainers (`docs/upstream/DISCLOSURE.md`).
+This module does not, and cannot, claim that a participant's state is tamper-proof. This is measured in `test/e2e/participant_write.test.ts` and `test/e2e/upstream_u1.test.ts`, with the mechanism described in `docs/PLATFORM-NOTES.md` §4a and tracked as `docs/upstream/ISSUES.md` U1, which is going through private disclosure to Empirica's maintainers (`docs/upstream/DISCLOSURE.md`).
 
-Every participant also learns every co-player's recruitment identifier. The root cause is the same: Classic cross-links everyone to every player scope, so the value of `?participantKey=` is delivered to everyone else in the game. If that key is a recruitment-platform participant ID, a Prolific PID for instance, subjects are handed each other's identifiers, and such identifiers are stable across studies. Make `participantKey` an opaque per-study token and keep the mapping outside Empirica. This is measured in `test/e2e/bots.test.ts`; see also `docs/PLATFORM-NOTES.md` §22 and `ISSUES.md` U10.
+Every participant also learns every co-player's recruitment identifier. The root cause is the same: Classic cross-links everyone to every player scope, so the value of `?participantKey=` is delivered to everyone else in the game. If that key is a recruitment-platform participant ID, a Prolific PID for instance, subjects are handed each other's identifiers, and such identifiers are stable across studies. Make `participantKey` an opaque per-study token and keep the mapping outside Empirica. This is measured in `test/e2e/bots.test.ts`; see also `docs/PLATFORM-NOTES.md` §22 and `docs/upstream/ISSUES.md` U10.
 
 ## Installation
 
@@ -250,7 +250,7 @@ Per-participant payload is O(d), independent of n; server egress is O(n·d).
 |---|---|
 | Any density, n ≤ 50 | Measured, including complete graphs. No degree cap by default |
 | Sparse (d ≤ 16), n ≤ 150 | Measured on this implementation |
-| Sparse, n ≥ 200 | Games do not reliably start: 1 run in 6 at n=200, and not this package's doing (`ISSUES.md` U7) |
+| Sparse, n ≥ 200 | Games do not reliably start: 1 run in 6 at n=200, and not this package's doing (`docs/upstream/ISSUES.md` U7) |
 | Dense, n > 50 | Unmeasured, and capped at d ≤ 16 by default. This is where client bandwidth binds |
 | Sessions beyond ~10 minutes | Unverified. The mechanism is not in doubt, but no multi-hour run has been observed |
 

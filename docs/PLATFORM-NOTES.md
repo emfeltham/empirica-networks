@@ -91,7 +91,7 @@ for two independent reasons:
    exclusive. At n·d attributes per tick, trace logging dominates CPU and any measurement
    becomes a benchmark of Tajriba's logger instead.
 
-`src/verify/server.ts` therefore spawns `empirica tajriba` directly on an explicitly chosen
+`src/harness/server.ts` therefore spawns `empirica tajriba` directly on an explicitly chosen
 free port and polls `/query` for readiness, around 60 lines, with no `tmp` dependency and no
 stderr parsing.
 
@@ -594,7 +594,7 @@ What is not established is whether a browser survives it. The failure is fatal h
 Node's `ws` validates frames strictly and throws; a browser's native WebSocket would see a
 closed socket and Empirica would reconnect. So the accurate statement is that the Node harness
 cannot reliably start a game at n=200, and the consequence for real participants is untested.
-Filed as ISSUES.md U7.
+Filed as `docs/upstream/ISSUES.md` U7.
 
 ### 15a. The same burst delays channel materialisation, measured 2026-08-16
 
@@ -719,7 +719,7 @@ one.
 
 The workaround is to register each helper exactly once and dispatch inside it, on
 `stage.get("name")` or equivalent. Both reconstructions do this and explain why at the call
-site. Filed as `ISSUES.md` U8.
+site. Filed as `docs/upstream/ISSUES.md` U8.
 
 ### 17a. It is detectable from outside, measured 2026-08-16
 
@@ -969,7 +969,7 @@ left open indefinitely, and it costs nothing.
 ## 21. Every participant receives every co-player's recruitment identifier (significant risk)
 
 Measured 2026-08-16, `@empirica/core@1.12.5`, at the wire. Witness: `test/e2e/bots.test.ts`,
-"a co-player's recruitment identifier is on the wire". Filed as `ISSUES.md` U10.
+"a co-player's recruitment identifier is on the wire". Filed as `docs/upstream/ISSUES.md` U10.
 
 `participantIdentifier`, the raw value of `?participantKey=`, is delivered to every other
 participant in the game. Two upstream lines put it there, and neither is doing anything unusual:

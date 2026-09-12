@@ -28,7 +28,7 @@ raw value of `?participantKey=`. Classic writes it as an immutable attribute on 
 `PARTICIPANT_CONNECT`, and links every participant to every player node, so it arrives on
 everybody's wire. Measured 2026-08-16 against `@empirica/core@1.12.5`; witness
 `test/e2e/bots.test.ts`, "a co-player's recruitment identifier is on the wire". Filed as
-[`ISSUES.md`](../ISSUES.md) U10.
+[`docs/upstream/ISSUES.md`](upstream/ISSUES.md) U10.
 
 There are two consequences, and they are separate.
 
@@ -287,7 +287,7 @@ server/
 
 - The runner provides no reconnection policy. A bot whose socket drops stays down. Tajriba's client
   reconnects, but nothing here re-establishes a session or re-enters a game, and a restarted server
-  cannot put anyone back in their game anyway ([`ISSUES.md`](../ISSUES.md) U2).
+  cannot put anyone back in their game anyway ([`docs/upstream/ISSUES.md`](upstream/ISSUES.md) U2).
 - The runner provides no lobby, consent or exit-survey behaviour. It sets `introDone` and nothing
   else on the player scope. A design whose intro steps gate on other player attributes needs the
   policy to write them.

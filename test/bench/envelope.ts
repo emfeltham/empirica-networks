@@ -60,8 +60,8 @@ import {
   connectAdmin,
   createBatch,
   startCallbacks,
-} from "../../src/verify/harness.js";
-import { withServer } from "../../src/verify/server.js";
+} from "../../src/harness/harness.js";
+import { withServer } from "../../src/harness/server.js";
 import { clockFacts, describeClocks, type ClockFacts } from "./clocks.js";
 import { frames } from "./wire.js";
 import type { Sample } from "./shard.js";

@@ -23,7 +23,7 @@
  * landing on the same bin edge. The tight distribution the README used to
  * highlight was the bin, not the transport.
  */
-import { connectParticipant, waitFor, type Participant } from "../../src/verify/harness.js";
+import { connectParticipant, waitFor, type Participant } from "../../src/harness/harness.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
 
 const modeOf = (p: Participant<unknown>) => p.mode as EmpiricaNetworkContext;

@@ -46,8 +46,8 @@ import {
   startCallbacks,
   uniqueNS,
   waitFor,
-} from "../../src/verify/harness.js";
-import { startServer, type Server } from "../../src/verify/server.js";
+} from "../../src/harness/harness.js";
+import { startServer, type Server } from "../../src/harness/server.js";
 
 const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
 

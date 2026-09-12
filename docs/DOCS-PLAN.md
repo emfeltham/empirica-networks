@@ -348,7 +348,7 @@ Recommend (2), plus (1) for the long examples. It catches the failure that actua
 an API moves, and a snippet keeps compiling in a reader's head. Full doc-tests are not worth the
 harness weight given e2e already imports every example's real `callbacks.js` unmodified.
 
-**Add a link checker to CI. Done 2026-08-16** — `scripts/check-links.mjs`, `npm run check:links`,
+**Add a link checker to CI. Done 2026-08-16** — `scripts/checks/check-links.mjs`, `npm run check:links`,
 one CI step on Node 22 only. Relative paths and section anchors; never external URLs, which would
 make a green run depend on other people's uptime. 68 links across 21 files, 0 broken at the time
 of writing.
@@ -419,7 +419,7 @@ worse documentation in order to catch errors.
 
 What actually goes stale is narrower: **the import line.** `net.games()` became
 `net.activeGames()`; the export helpers moved to their own subpath; `EdgeRow` stopped being an
-interface. So `scripts/check-docs-api.mjs` extracts every `import { … } from "empirica-networks/…"`
+interface. So `scripts/checks/check-docs-api.mjs` extracts every `import { … } from "empirica-networks/…"`
 in every fenced block and resolves it against the **built** `.d.ts` — 48 imports today, and it
 catches both an unknown subpath and a name that is no longer exported. It runs in the `e2e` job,
 which is the one that already builds.

@@ -32,7 +32,8 @@ This index is organised by what you are trying to do. If you are new, start at
 | [CONTRIBUTING](CONTRIBUTING.md) | Layout, build, the rules that are not style, how to add things, and releasing |
 | [TESTING](TESTING.md) | The three tiers and what each can prove, and how to read a red run before calling it a regression |
 | [PLATFORM-NOTES](PLATFORM-NOTES.md) | Every platform constraint, with the date and version it was measured against. The evidence the other documents cite |
-| [`../ISSUES.md`](../ISSUES.md) | Known defects. U is upstream, O is ours |
+| [`../ISSUES.md`](../ISSUES.md) | Known defects in this package (O-numbered) |
+| [upstream/ISSUES](upstream/ISSUES.md) | Known defects in Empirica itself (U-numbered), found while building this package |
 
 ## Keeping process records (not user documentation)
 

@@ -202,7 +202,7 @@ reasoning as well as the change:
   URL argument itself look exonerated.
 
   The suite never caught it because every test builds its url from
-  `src/verify/server.ts` (`http://`) and passes that to `runBots`. Nothing exercised the string
+  `src/harness/server.ts` (`http://`) and passes that to `runBots`. Nothing exercised the string
   the documentation told users to type. `runBots` now rejects a non-HTTP url up front, before
   identifier validation, with an `Error` that names the fix, and `test/e2e/bots.test.ts` asserts
   the rejection against the exact documented-and-wrong string.
@@ -234,7 +234,7 @@ reasoning as well as the change:
   started working, and the drift job running the e2e tier against `@empirica/core@latest` weekly
   means something would. Two real defects came out of the disproof: the assertion that carries
   that news asked only for a test rewrite, never mentioning that U9 working would unforce `ISSUES.md`
-  O11's declared-keys design; and `VERIFIED_CORE` in `src/verify/compat.ts` was exported and read by
+  O11's declared-keys design; and `VERIFIED_CORE` in `src/harness/compat.ts` was exported and read by
   nothing, a second copy of the pin beside a first in `cli.ts` that a test did check. Collapsed
   to one declaration.
 

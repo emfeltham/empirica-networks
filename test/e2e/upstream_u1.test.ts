@@ -24,7 +24,7 @@ import {
   gameInit,
   waitFor,
   withScenario,
-} from "../../src/verify/harness.js";
+} from "../../src/harness/harness.js";
 
 const N = 2;
 const SENTINEL = "U1-WRITTEN-BY-SOMEONE-ELSE";
