@@ -6,7 +6,7 @@
  *
  * WHY THIS EXISTS. The CSVs are written when a game ENDS, in `onGameEnded`. A
  * study that is killed, crashes, or is stopped mid-session never reaches that —
- * and after `ISSUES.md` U2 a crash mid-study is the *normal* shape of "something
+ * and since upstream cannot resume one, a crash mid-study is the *normal* shape of "something
  * went wrong", because a restarted server cannot put participants back in their
  * game anyway. So the session is over whether you like it or not, and the rounds
  * that did complete are real data.

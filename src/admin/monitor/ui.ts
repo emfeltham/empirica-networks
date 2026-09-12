@@ -567,7 +567,7 @@ export const PAGE = `<!doctype html>
     mode.textContent = "gone";
 
     // Deliberately not "keep showing the last picture". A full restart never
-    // reassigns players to their game (U2), so there is nothing to reconnect
+    // reassigns players to their game, so there is nothing to reconnect
     // to, and a stale graph presented as live is worse than an honest gap.
     //
     // The DATA goes, not just the label. Dropping the payload is what makes
@@ -592,7 +592,7 @@ export const PAGE = `<!doctype html>
 
     banner("This process is no longer networking game " + (info && info.gameID ? info.gameID : "") +
       ". The game has ended, or a restart lost it \\u2014 a full server restart does not put " +
-      "participants back into their game (ISSUES.md U2), so there is nothing to reconnect to.");
+      "participants back into their game, so there is nothing to reconnect to.");
   }
 
   // A batch normally runs several games at once, and without this the operator

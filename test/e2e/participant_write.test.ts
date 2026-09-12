@@ -230,7 +230,7 @@ test("R1: a participant can write to its own nbhd scope, and it does not broadca
         onChannel,
         undefined,
         "attributes() still errors — if this now returns data, upstream fixed it. " +
-          "Close ISSUES.md U9 and rewrite this test to assert the contents, and then " +
+          "Rewrite this test to assert the contents, and then " +
           "REOPEN the question it settled: ISSUES.md O11's design (declared watch/read " +
           "keys, stateOf() checking against a list) rests on there being no attribute " +
           "enumeration at ANY layer, and this query working is the counter-example. " +

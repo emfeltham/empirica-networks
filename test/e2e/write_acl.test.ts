@@ -1,5 +1,5 @@
 /**
- * U1, demonstrated through the DOCUMENTED client API.
+ * The missing write ACL, demonstrated through the DOCUMENTED client API.
  *
  * `test/e2e/participant_write.test.ts` already shows that Empirica has no write
  * access control, but it does so through `provider.setAttributes`, which a
@@ -27,9 +27,9 @@ import {
 } from "../../src/harness/harness.js";
 
 const N = 2;
-const SENTINEL = "U1-WRITTEN-BY-SOMEONE-ELSE";
+const SENTINEL = "WRITTEN-BY-SOMEONE-ELSE";
 
-test("U1: a participant can write to another participant's player scope via the public API", async () => {
+test("a participant can write to another participant's player scope via the public API", async () => {
   await withScenario(
     {
       n: N,
@@ -81,7 +81,7 @@ test("U1: a participant can write to another participant's player scope via the 
         "characterization: Empirica accepts a participant's write to another's player scope"
       );
 
-      console.log("\n=== U1 ===");
+      console.log("\n=== no write ACL ===");
       console.log("  attacker called otherPlayer.set() using only public client API");
       console.log(`  victim's own player scope now reports: ${SENTINEL}`);
       console.log("  -> server-side code cannot trust the provenance of any player attribute\n");

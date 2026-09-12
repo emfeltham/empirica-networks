@@ -78,7 +78,7 @@ jobs:
       # it is also the largest n a 2-4 vCPU runner can host clients for without
       # the harness's own contention swamping everything. n >= 200 is excluded
       # from the gate regardless — it does not reliably start, and that is
-      # upstream's (U7).
+      # upstream's.
       #
       # `--repeats 2` rather than 3: on a shared runner the third run buys less
       # than it costs, and the numbers here are recorded rather than published.

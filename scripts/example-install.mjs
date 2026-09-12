@@ -7,7 +7,7 @@
  * two copies break every `instanceof` inside Empirica. The symptom names nothing:
  * every participant stuck on "Waiting for other players" with a full game, and a
  * hundred zod stack traces mentioning neither this package nor the real cause.
- * Measured and written up in `docs/PLATFORM-NOTES.md` §11.
+ * Measured and written up in `docs/PLATFORM-NOTES.md` §10.
  *
  * A packed tarball produces a real directory with no nested core, so
  * `@empirica/core` resolves once — which is also exactly what a published

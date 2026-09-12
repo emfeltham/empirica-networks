@@ -1,5 +1,5 @@
 /**
- * Reproduction for ISSUES.md U7 / PLATFORM-NOTES §16: at scale, game start
+ * Reproduction for PLATFORM-NOTES §15: at scale, game start
  * corrupts the websocket stream and participants never reach the game.
  *
  *   CEILING_N=200 node scripts/ceiling.mjs                 # with this package

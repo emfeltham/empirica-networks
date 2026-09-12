@@ -38,7 +38,7 @@ The package also ships one binary, `empirica-networks`, which is not imported fr
 3. Declare every private key in `watch` or `read`. An undeclared key is readable nowhere, and
    reads back as `undefined` through the snapshot path, which is indistinguishable from "not
    written yet".
-4. Register each lifecycle helper exactly once. Upstream U8: the first callback to run sets a
+4. Register each lifecycle helper exactly once. In Empirica the first callback to run sets a
    scope-level marker, and every later one silently returns.
 
 ---
@@ -479,7 +479,7 @@ registrationWaitMs(created) = max(REGISTRATION_CHECK_MS,          // 5 s floor
 ```
 
 "Channels materialise in milliseconds" is true at small n and false at large. Slowest
-first-channel latency, three runs per cell (`docs/PLATFORM-NOTES.md` §16a): 86 ms at n=25, 2320 ms
+first-channel latency, three runs per cell (`docs/PLATFORM-NOTES.md` §15a): 86 ms at n=25, 2320 ms
 at n=100, 4287 ms at n=150, 5870 ms at n=200. At n=150, which is inside the supported envelope, a
 flat 5 s deadline would have 14% of its time left.
 
@@ -788,7 +788,7 @@ comparison between two different games.
 
 Keys shaped like the ones Empirica's own client generates, a 13-digit millisecond timestamp
 matching `createNewParticipant`. This is a development default. Every participant receives every
-co-player's `participantIdentifier` ([U10](upstream/ISSUES.md)), so in a deployed study, pass keys drawn
+co-player's `participantIdentifier`, so in a deployed study, pass keys drawn
 from the same space as the study's recruitment keys, or use three 13-digit numbers among
 24-character Prolific PIDs as the three bots, in order.
 

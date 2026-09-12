@@ -22,7 +22,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
  *
  * The pattern matches this harness's temp config only, and every server it starts
  * runs `--tajriba.store.mem`, so nothing with data in it is in range. The orphans
- * are U6's: the `empirica` CLI execs a versioned binary as its own child, so a
+ * are upstream's: the `empirica` CLI execs a versioned binary as its own child, so a
  * killed CLI can leave the real server holding its port.
  *
  * Reported rather than silent, because the COUNT is evidence. `ISSUES.md` O8 spent
@@ -36,7 +36,7 @@ function sweepOrphans(label) {
   const count = (before.stdout ?? "").trim().split("\n").filter(Boolean).length;
   if (count > 0) {
     spawnSync("pkill", ["-f", pattern]);
-    console.log(`${label}: swept ${count} orphaned harness server(s) — see ISSUES.md U6`);
+    console.log(`${label}: swept ${count} orphaned harness server(s)`);
   } else {
     console.log(`${label}: 0 orphaned harness servers`);
   }
@@ -88,7 +88,7 @@ const skipped = [];
  * (`@empirica/core/src/player/steps.ts:238`) which is polyfilled to `setTimeout`
  * under Node and never stops. Measured 2026-08-15: 68 uncleared timers after one
  * mode test file, and the run hangs forever without the flag. Upstream's, not
- * ours — see docs/PLATFORM-NOTES.md §13.
+ * ours — see docs/PLATFORM-NOTES.md §12.
  *
  * The unit tier does not touch the mode and exits cleanly on its own, so it does
  * NOT get the flag: leaving it on everywhere would hide a handle leak we

@@ -6,7 +6,7 @@
  * 18.3 ms across one session, repeats *within* any sweep agreed to 4-17%, and
  * the identifying detail was that the coordinator burned 1.1 CPU-seconds idle
  * against 0.7 loaded for identical work. That is a clock-frequency signature —
- * DVFS, plausibly with efficiency-core placement (PLATFORM-NOTES §21). A bench
+ * DVFS, plausibly with efficiency-core placement (PLATFORM-NOTES §19). A bench
  * that leaves the machine nearly idle asks for the slowest clock it has.
  *
  * What survived is a specification: an absolute figure needs FIXED CLOCKS. This

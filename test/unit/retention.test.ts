@@ -103,7 +103,7 @@ test("ending games grows the remembered list by one each, and stops at the cap",
   const lines: string[] = [];
   const originalLog = console.log;
   // `console.log`, not `console.warn`: `warn()` from `@empirica/core/console`
-  // routes every level through `console.log` (PLATFORM-NOTES §18b), so swapping
+  // routes every level through `console.log` (PLATFORM-NOTES §17b), so swapping
   // `console.warn` captures nothing.
   console.log = (...args: unknown[]) => {
     lines.push(args.map((a) => String(a)).join(" "));

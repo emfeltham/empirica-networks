@@ -14,7 +14,7 @@
  * the target regime — n <= 50 — a few hundred iterations over
  * 50 nodes is microseconds, and it happens only when the graph actually changes,
  * not per frame. This would be the wrong trade at n = 10,000; the package does
- * not go there, and U7 means the platform does not either.
+ * not go there, and at that scale the platform does not either.
  *
  * Deterministic by construction. Same seed and same graph give the same
  * coordinates on every process, which is what makes the unit tests assertions

@@ -222,7 +222,7 @@ const PAYLOAD = Math.max(0, flag("payload", 0));
  * So those are the gate, and the timings are recorded beside them ungated.
  *
  * n >= 200 is excluded: it fails to start on this platform for reasons that are
- * not ours (`ISSUES.md` U7, PLATFORM-NOTES §16), and gating on it would make the
+ * not ours (PLATFORM-NOTES §15), and gating on it would make the
  * job red for a documented upstream defect.
  */
 const ASSERT = argv.includes("--assert");
@@ -695,7 +695,7 @@ async function runCell(cell: Cell): Promise<CellResult> {
   };
 
   // The latency survives a failed run, and that is the point: at n=200 most
-  // runs do not complete (`docs/PLATFORM-NOTES.md` §16), and those are exactly
+  // runs do not complete (`docs/PLATFORM-NOTES.md` §15), and those are exactly
   // the runs in which the registration warning fires. Reporting the figure only
   // on success would measure the check everywhere except where it goes wrong.
   try {
@@ -950,7 +950,7 @@ async function main(): Promise<void> {
     const runs: CellResult[] = [];
     for (let r = 0; r < REPEATS; r++) {
       // A cell that cannot start is a RESULT, not a crash: n=200 does not reach
-      // first publish on this platform (docs/PLATFORM-NOTES.md §16), and aborting
+      // first publish on this platform (docs/PLATFORM-NOTES.md §15), and aborting
       // the run there would throw away the cells that did work. Per REPEAT for
       // the same reason: a cell that fails once and completes twice is a more
       // useful thing to report than a cell with no number at all.

@@ -17,7 +17,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
  *
  *   `.github/workflows/drift.yml` — "upstream released something; do the contracts
  *     still hold?" Weekly, against `@empirica/core@latest`, running the mode and
- *     e2e tiers. That is how a fixed U8 or U9 announces itself: both have
+ *     e2e tiers. That is how a fixed upstream defect announces itself: several have
  *     characterization tests that assert the CURRENT broken behavior, so a fix
  *     upstream turns them red with a message saying to close the finding.
  *
@@ -127,8 +127,8 @@ test("every @empirica/core citation names the pinned version", () => {
     `the pin is ${PIN}, but these still cite an older version:\n${stale.join("\n")}\n\n` +
       `A bump is not a find-and-replace. Each of these is a MEASUREMENT, and the new ` +
       `version is exactly the reason to doubt it — re-take it, then re-date it. The ` +
-      `upstream findings in ISSUES.md (U1-U9) and everything in docs/PLATFORM-NOTES.md ` +
-      `are the two places this matters most; U9 in particular, because ISSUES.md O11's ` +
+      `everything in docs/PLATFORM-NOTES.md is where this matters most; the attributes() ` +
+      `finding in particular, because ISSUES.md O11's ` +
       `design rests on there being no attribute enumeration at any layer.`
   );
 });

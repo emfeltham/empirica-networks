@@ -10,7 +10,7 @@
  *   1. NO EMPIRICA CREDENTIAL EVER REACHES THIS FILE. `serveMonitor` takes a
  *      snapshot function, not a connection and not an srtoken. There is no code
  *      path from here to `setAttribute`, so the worst a reachable endpoint can
- *      do is let somebody OBSERVE. That matters more than it sounds: under U1
+ *      do is let somebody OBSERVE. That matters more than it sounds: with no
  *      (PLATFORM-NOTES §4a) there is no write access control at all, so an
  *      srtoken in a browser is a total write capability over every
  *      participant's data. This surface cannot become that by accident, because
@@ -169,7 +169,7 @@ export async function serveMonitor(
       }
       const payload = snapshotFor(gameID);
       if (!payload) {
-        // Explicitly gone, not an empty graph. U2 means a restart loses games
+        // Explicitly gone, not an empty graph. A restart loses games
         // outright, and an empty picture would misreport that as a study where
         // nothing happened.
         json(res, { gone: true, gameID, reason: "this process is not networking that game" });

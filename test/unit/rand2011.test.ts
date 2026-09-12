@@ -428,7 +428,7 @@ test("exportFiles: every analysis file, named and populated", () => {
 
 test("fromLog: recovering a killed run produces the SAME table as a clean finish", () => {
   // The claim this file exists to make load-bearing: the CSVs are written at game
-  // end, so a study that is killed or crashes never reaches them — and after U2 a
+  // end, so a study that is killed or crashes never reaches them — and a
   // crash mid-study is the normal shape of "something went wrong". The run log
   // closes that, but only if what it recovers is the same data. Two paths, one set
   // of row builders, asserted byte-for-byte rather than by inspection.

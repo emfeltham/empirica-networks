@@ -232,7 +232,7 @@ test("the aggregate neighborhood limit is wired into publish, per participant", 
 
   // `console.log`, not `console.warn`: `warn()` from `@empirica/core/console`
   // routes every level through `console.log`, and a multi-line message arrives as
-  // one call per line (`docs/PLATFORM-NOTES.md` §18b).
+  // one call per line (`docs/PLATFORM-NOTES.md` §17b).
   const originalLog = console.log;
   console.log = (...args: unknown[]) => {
     lines.push(args.map((a) => String(a)).join(" "));

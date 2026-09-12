@@ -28,13 +28,13 @@
  *    carries the recruitment identity — the Prolific PID, whatever the
  *    recruitment URL put there. Co-players learn it. That is
  *    upstream's, affects every Empirica Classic study rather than only networked
- *    ones, and is filed as `ISSUES.md` U10.
+ *    ones.
  */
 
 /**
  * Substrings that give a bot away.
  *
- * The same words `docs/PLATFORM-NOTES.md` §17 searched the Empirica bundles for,
+ * The same words `docs/PLATFORM-NOTES.md` §16 searched the Empirica bundles for,
  * turned around: there they were how we established Empirica ships no bots, here
  * they are how a participant would establish that yours are. `test` and `debug`
  * are added because a study that ran with its rehearsal keys is the same mistake
@@ -77,7 +77,7 @@ export function botMarkerWarning(identifiers: readonly string[]): string | undef
   return (
     `empirica-networks: ${hits.length} of ${identifiers.length} bot identifier(s) ` +
     `name themselves as bots: ${shown}${more}. Every participant in the game ` +
-    `receives every other participant's identifier (ISSUES.md U10), so these are ` +
+    `receives every other participant's identifier, so these are ` +
     `readable from a browser. If your design does not tell participants which of ` +
     `their neighbors are software, this discloses it. See docs/BOTS.md.`
   );

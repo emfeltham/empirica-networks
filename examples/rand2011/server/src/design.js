@@ -299,7 +299,7 @@ export function exportFiles(gameID, condition, rounds, edgeCsv, snapshotCsv, toC
  * crashes, or is stopped mid-session never gets there — so without this, the one
  * case where partial data matters most is the case that produces none. And a
  * crash mid-study is not hypothetical: a full server restart never puts
- * participants back in their game (`ISSUES.md` U2), so ending early is the normal
+ * participants back in their game, so ending early is the normal
  * shape of "something went wrong".
  *
  * So `callbacks.js` appends one NDJSON record per event as it happens, and this

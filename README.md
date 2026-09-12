@@ -1,10 +1,10 @@
 # empirica-networks
 
-Network experiments for [Empirica](https://empirica.ly): participants are nodes in a graph, and each participant sees only the state of their neighbors.
+Network experiments for [Empirica](https://empirica.ly): participants are nodes in a graph, and each participant only sees the state of their neighbors.
 
-The package runs real games today but is not yet published. All three examples in this repository play end to end against a real Empirica server, and the read-privacy guarantee they depend on is enforced and tested, not merely documented; see [Runnable examples](#runnable-examples) and [Verifying the guarantee](#verifying-the-guarantee). What does not yet hold is the public API, which remains unfrozen, and the package is kept at `private: true`, version `0.0.0`; see [Installation](#installation).
+State of the package: The package currently runs real games, in fairly limited testing. All three examples in this repository play end to end against a real Empirica server. cf. [Runnable examples](#runnable-examples), [Verifying the guarantee](#verifying-the-guarantee), and [Installation](#installation).
 
-This project is not affiliated with, or endorsed by, the Empirica project.
+This project is neither affiliated with nor endorsed by the Empirica project.
 
 | | |
 |---|---|
@@ -16,7 +16,7 @@ This project is not affiliated with, or endorsed by, the Empirica project.
 | Planning a real study | [`docs/DEPLOYING.md`](docs/DEPLOYING.md) — the pre-flight checklist, and what is not yet documented |
 | Getting the data out | [`docs/DATA-AND-ANALYSIS.md`](docs/DATA-AND-ANALYSIS.md) — every column of every table |
 | A real study to read | [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md) — two reconstructed papers |
-| Known defects | [`ISSUES.md`](ISSUES.md) — ours; [`docs/upstream/ISSUES.md`](docs/upstream/ISSUES.md) — Empirica's |
+| Known defects | [`ISSUES.md`](ISSUES.md) |
 | Artificial participants | [`docs/BOTS.md`](docs/BOTS.md) — the policy interface, placement, and why a bot's name is participant-visible |
 | Everything else | [`docs/`](docs/README.md) — the documentation index |
 
@@ -36,9 +36,9 @@ What to do about it, in order:
 2. Keep the record of account somewhere participants cannot write — the batch scope. Both reconstructions in this repository do this for payoffs, and say so at the call site.
 3. Judge whether your design gives anyone a reason to bother. A study where altering someone else's state pays — a competitive game, a bonus tied to relative performance — is exposed in a way a survey is not.
 
-This module does not, and cannot, claim that a participant's state is tamper-proof. This is measured in `test/e2e/participant_write.test.ts` and `test/e2e/upstream_u1.test.ts`, with the mechanism described in `docs/PLATFORM-NOTES.md` §4a and tracked as `docs/upstream/ISSUES.md` U1, which is reported to Empirica's maintainers through their private security advisory form.
+This module does not, and cannot, claim that a participant's state is tamper-proof. This is measured in `test/e2e/participant_write.test.ts` and `test/e2e/write_acl.test.ts`, with the mechanism described in `docs/PLATFORM-NOTES.md` §4a.
 
-Every participant also learns every co-player's recruitment identifier. The root cause is the same: Classic cross-links everyone to every player scope, so the value of `?participantKey=` is delivered to everyone else in the game. If that key is a recruitment-platform participant ID, a Prolific PID for instance, subjects are handed each other's identifiers, and such identifiers are stable across studies. Make `participantKey` an opaque per-study token and keep the mapping outside Empirica. This is measured in `test/e2e/bots.test.ts`; see also `docs/PLATFORM-NOTES.md` §22 and `docs/upstream/ISSUES.md` U10.
+Every participant also learns every co-player's recruitment identifier. The root cause is the same: Classic cross-links everyone to every player scope, so the value of `?participantKey=` is delivered to everyone else in the game. If that key is a recruitment-platform participant ID, a Prolific PID for instance, subjects are handed each other's identifiers, and such identifiers are stable across studies. Make `participantKey` an opaque per-study token and keep the mapping outside Empirica. This is measured in `test/e2e/bots.test.ts`; see also `docs/PLATFORM-NOTES.md` §21.
 
 ## Installation
 
@@ -62,7 +62,7 @@ npm --prefix client install /path/to/empirica-networks-0.0.0.tgz
 
 Requires Node 20+ and the Empirica CLI (`curl https://install.empirica.dev | sh`). Install into both halves, since the package ships server code and client code separately.
 
-Do not use a `file:` link. npm turns it into a symbolic link, which loads two copies of `@empirica/core` and breaks every `instanceof` inside Empirica. The resulting symptom names nothing in particular: every participant is stuck on "Waiting for other players" with a full game (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) and `docs/PLATFORM-NOTES.md` §11).
+Do not use a `file:` link. npm turns it into a symbolic link, which loads two copies of `@empirica/core` and breaks every `instanceof` inside Empirica. The resulting symptom names nothing in particular: every participant is stuck on "Waiting for other players" with a full game (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) and `docs/PLATFORM-NOTES.md` §10).
 
 The name is `empirica-networks`, unscoped: discovery is the binding constraint in an ecosystem with no registry, no plugin API, and no curated list. Renaming after the first publish would be a breaking change, which is why the decision was made before publication rather than at it.
 
@@ -198,7 +198,7 @@ has been collected with them, and nothing has been compared against the authors'
 ## Bots
 
 Empirica v2 ships no artificial-player facility of any kind. Version 1 had them, so assuming they
-still exist is a natural mistake to make (`docs/PLATFORM-NOTES.md` §17). `empirica-networks/bots`
+still exist is a natural mistake to make (`docs/PLATFORM-NOTES.md` §16). `empirica-networks/bots`
 is one, built the only way the platform allows: a headless participant process, indistinguishable
 from a browser at the wire.
 
@@ -233,7 +233,7 @@ Three things are worth knowing before using it, each the subject of a section in
 - Placement is a manipulation, and it goes through `topology({ players })`, where `players[i]`
   is whoever will occupy index `i`. Relabel the graph rather than reordering people, since that is
   what keeps the degree distribution identical across arms.
-- A bot's name is participant-visible (U10 above), so `runBots` takes an identifier list
+- A bot's name is participant-visible (see above), so `runBots` takes an identifier list
   rather than inventing one, and the server should recognize its bots by holding that list.
 
 `examples/shirado2017` is the worked case: 3 agents × 3 noise levels × 3 placements, which is the
@@ -247,7 +247,7 @@ Per-participant payload is O(d), independent of n; server egress is O(n·d).
 |---|---|
 | Any density, n ≤ 50 | Measured, including complete graphs. No degree cap by default |
 | Sparse (d ≤ 16), n ≤ 150 | Measured on this implementation |
-| Sparse, n ≥ 200 | Games do not reliably start: 1 run in 6 at n=200, and not this package's doing (`docs/upstream/ISSUES.md` U7) |
+| Sparse, n ≥ 200 | Games do not reliably start: 1 run in 6 at n=200, and not this package's doing |
 | Dense, n > 50 | Unmeasured, and capped at d ≤ 16 by default. This is where client bandwidth binds |
 | Sessions beyond ~10 minutes | Unverified. The mechanism is not in doubt, but no multi-hour run has been observed |
 
@@ -264,7 +264,7 @@ beside it (`npm run bench -- --repeats 3`, 2026-08-16):
   n= 50  d=8  p50 median  8.6ms   ( 8.6–28.7 across 3 runs)
   n=100  d=8  p50 median 12.7ms   (10.9–31.7 across 3 runs)
   n=150  d=8  p50 median 25.1ms   (14.3–29.9 across 3 runs)
-  n=200  d=8  p50 median 26.8ms   (one run in three completed — see U7)
+  n=200  d=8  p50 median 26.8ms   (one run in three completed — upstream, see below)
 ```
 
 The scale matters here more than any single value, and n barely predicts the result. Two kinds of
@@ -276,7 +276,7 @@ measured anywhere from 3.3 to 18.3 ms in one afternoon — an offset shared by e
 and therefore invisible to repeats, which is why O1's "4–17%" is the within-sweep agreement of that
 one cell and not a property of the table above. The cause is the measuring
 machine rather than the package: a busier host measures faster, non-monotonically, because an
-idle laptop clocks its cores down (`docs/PLATFORM-NOTES.md` §21 finds that the coordinator burns
+idle laptop clocks its cores down (`docs/PLATFORM-NOTES.md` §19 finds that the coordinator burns
 57% more CPU time for identical work when the machine is quiet). Repeats buy precision, not
 accuracy, so any single figure here should be treated as an order of magnitude. Comparisons made
 within one sweep, such as the payload table below, remain sound, because both arms see the same

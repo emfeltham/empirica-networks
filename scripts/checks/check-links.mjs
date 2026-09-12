@@ -6,7 +6,10 @@
  * a moved or renamed file leaving a dead path, and a section anchor that no
  * longer matches its heading. The second is the likelier one here — sections in
  * PLATFORM-NOTES are numbered by discovery order, so they get renumbered, and
- * there are already a §3a and two §9s.
+ * findings inserted after the fact become subsections: §3a, §4a–§4e, §15a,
+ * §17a, §17b. Note this checks anchors in markdown links only; a bare "§17" in
+ * prose is not a link and is not validated, which is how those citations drifted
+ * out of step with the headings once before.
  *
  * Deliberately does NOT check external URLs: that would make the run depend on
  * the network and on other people's uptime, which turns a link checker into a

@@ -13,9 +13,9 @@ project maintained by one person.
 ## Reporting a vulnerability in Empirica itself
 
 Some issues surfaced while building this package are in the underlying [Empirica](https://empirica.ly)
-platform rather than in this code. Their impact is summarized in
-[`docs/upstream/ISSUES.md`](docs/upstream/ISSUES.md) (U-numbered), separately from this package's
-own defects in `ISSUES.md` (O-numbered).
+platform rather than in this code. Where one constrains this package it is described in
+[`docs/PLATFORM-NOTES.md`](docs/PLATFORM-NOTES.md), separately from this package's own defects in
+[`ISSUES.md`](ISSUES.md).
 
 Please report a defect in Empirica to Empirica, not here. That project publishes no `SECURITY.md`
 and no contact address, so the route for a security or privacy finding is GitHub's private

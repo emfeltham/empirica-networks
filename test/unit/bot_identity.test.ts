@@ -2,7 +2,7 @@
  * What a bot is called.
  *
  * Not a naming question. Every participant in a game receives every other
- * participant's `participantIdentifier` (`ISSUES.md` U10, measured in
+ * participant's `participantIdentifier` (measured in
  * `test/e2e/bots.test.ts`), so a bot's identifier is on screen in a browser. For
  * a design that does not tell subjects which neighbors are software, a
  * recognisable identifier discloses the manipulation.
@@ -48,7 +48,11 @@ test("the obvious naming mistake is caught, and it names the word it found", () 
   assert.ok(warning, "bot-N is flagged");
   assert.match(warning, /3 of 3/);
   assert.match(warning, /contains "bot"/);
-  assert.match(warning, /U10/, "points at the reason rather than just scolding");
+  assert.match(
+    warning,
+    /every other participant's identifier/,
+    "points at the reason rather than just scolding"
+  );
 });
 
 test("every marker word is detected, case-insensitively", () => {

@@ -19,7 +19,7 @@
  * 3. A BOT IS VISIBLE AT THE WIRE, AND SO IS EVERY HUMAN. Classic writes
  *    `participantIdentifier` — the raw `?participantKey=` — immutably on the
  *    player scope, and links every participant to every player node. So every
- *    co-player receives it. That is upstream's (`ISSUES.md` U10) and it is why
+ *    co-player receives it. That is upstream's and it is why
  *    `src/bots/identity.ts` exists: there is no naming scheme a bot can hide
  *    behind. Asserted here rather than described, because the whole bot API is
  *    shaped around it.
@@ -255,7 +255,7 @@ test("bots play a real game: they seat it, they are placed, and their writes pro
   );
 });
 
-test("a co-player's recruitment identifier is on the wire — U10", async () => {
+test("a co-player's recruitment identifier is on the wire", async () => {
   // The measurement `src/bots/identity.ts` is built around. In a deployed study
   // `participantKey` is the Prolific PID or another recruitment-platform
   // identifier, so this is not
@@ -303,12 +303,12 @@ test("a co-player's recruitment identifier is on the wire — U10", async () => 
 
         assert.ok(
           wire.includes(participants[1]!.ns),
-          "expected the OTHER HUMAN's recruitment identifier on this participant's wire (U10)"
+          "expected the OTHER HUMAN's recruitment identifier on this participant's wire"
         );
         for (const key of BOT_KEYS) {
           assert.ok(
             wire.includes(key),
-            `expected bot identifier ${key} on a human's wire. If this ever fails, U10 has ` +
+            `expected bot identifier ${key} on a human's wire. If this ever fails, the leak has ` +
               `been fixed upstream and docs/BOTS.md's whole premise should be re-measured.`
           );
         }

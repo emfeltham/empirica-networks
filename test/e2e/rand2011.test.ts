@@ -503,7 +503,7 @@ test("the run log is on disk WHILE the game is still running", async () => {
    * The property: an experiment that ends early still leaves usable data.
    *
    * The CSVs are written in `onGameEnded`, so a study that is killed, crashes, or
-   * is stopped never reaches them — and after U2 a crash mid-study is the normal
+   * is stopped never reaches them — and a crash mid-study is the normal
    * shape of "something went wrong", because a restart cannot resume the game
    * anyway. Measured before this existed: a green run of this file produced ONLY
    * `views.ndjson` and not one CSV.

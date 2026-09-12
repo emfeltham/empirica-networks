@@ -29,14 +29,15 @@ makes the entries below meaningful as a baseline rather than a moving target.
   (`ISSUES.md` O12).
 - `NetworkConfig.onPrivateState`: a first-class hook for "a participant wrote private state",
   replacing a pattern that reached into the package's key layout (`ISSUES.md` O13).
-- Duplicate-lifecycle-listener detection at server start, for upstream U8.
+- Duplicate-lifecycle-listener detection at server start, for the upstream defect where only
+  the first registration of a lifecycle helper ever runs.
 - `net.activeGames()`, replacing `net.games()`; `GameRef` and `gameIDOf()` so every entry point
   takes either a game scope or its id.
 - `envelope.maxNeighborhoodBytes` (64 KiB default).
 - `NetworkStats.endedGames` and `NetworkStats.chatSeqs`: the two counts that outlive a game, so
   retention is assertable exactly rather than by watching a heap graph.
 - `empirica-networks/bots`: artificial participants, which Empirica ships none of
-  (`docs/PLATFORM-NOTES.md` §17, `ISSUES.md` O10). A bot is a headless participant process:
+  (`docs/PLATFORM-NOTES.md` §16, `ISSUES.md` O10). A bot is a headless participant process:
   it opens a real Tajriba session, sets `introDone` (without which a game never reaches its
   player count), reads its neighbors through the same `project()`, and writes through the same
   private channel a browser writes to. There is deliberately no server-side path; a bot that could
@@ -110,9 +111,9 @@ makes the entries below meaningful as a baseline rather than a moving target.
   size rather than degree alone. That product is what a participant's uplink carries and what
   `maxNeighborhoodBytes` was added to guard on a guess.
 - The bench reports first-channel latency per run and the slowest across repeats, including
-  for runs that did not complete: at n=200 most do not (`docs/PLATFORM-NOTES.md` §16), and those
+  for runs that did not complete: at n=200 most do not (`docs/PLATFORM-NOTES.md` §15), and those
   are exactly the runs in which the registration check misfires. The measurement behind
-  `ISSUES.md` O15 and §16a.
+  `ISSUES.md` O15 and §15a.
 - `npm run bench -- --assert` and `npm run soak -- --assert`: exit non-zero on a delivery or
   retention regression, never on a slow or memory-hungry one. This is what lets both run in CI
   (`ISSUES.md` O6, `.github/workflows/perf.yml`, weekly).
@@ -225,10 +226,11 @@ makes the entries below meaningful as a baseline rather than a moving target.
   could re-date none of them in silence. `test/unit/upstream_pin.test.ts` now fails on a bump and
   lists every stale citation by `file:line`, saying that re-dating is not the remedy.
 
-  Found by disproving the issue itself: O7b claimed nothing would notice if `attributes()` (U9)
+  Found by disproving the issue itself: O7b claimed nothing would notice if `attributes()`
   started working, and the drift job running the e2e tier against `@empirica/core@latest` weekly
   means something would. Two real defects came out of the disproof: the assertion that carries
-  that news asked only for a test rewrite, never mentioning that U9 working would unforce `ISSUES.md`
+  that news asked only for a test rewrite, never mentioning that a working `attributes()` would
+  unforce `ISSUES.md`
   O11's declared-keys design; and `VERIFIED_CORE` in `src/harness/compat.ts` was exported and read by
   nothing, a second copy of the pin beside a first in `cli.ts` that a test did check. Collapsed
   to one declaration.
@@ -297,13 +299,13 @@ makes the entries below meaningful as a baseline rather than a moving target.
 
 ### Measured
 
-- `maxNeighborhoodBytes` is no longer a guess (`ISSUES.md` O1, PLATFORM-NOTES §21). A design
+- `maxNeighborhoodBytes` is no longer a guess (`ISSUES.md` O1, PLATFORM-NOTES §19). A design
   sitting just under the 64 KiB default (53 KiB per participant per publish, n=50 d=49) delivers
   at p50 67 ms against 10–25 ms for a small-view design, and drops nothing. A slope, not a
   cliff. Payload also costs more at higher degree, confirming that degree × view size is the
   product neither per-view nor per-degree limits can see alone.
 - A bench figure is worth less than it looks, and the reason is the measuring machine
-  (`ISSUES.md` O1, PLATFORM-NOTES §21). The same cell ranged 3.3–18.3 ms across one afternoon while
+  (`ISSUES.md` O1, PLATFORM-NOTES §19). The same cell ranged 3.3–18.3 ms across one afternoon while
   repeats within any sweep agreed to 4–17%. Imposed-load testing found the cause and it runs
   backwards: a busier host measures faster, non-monotonically, because an idle machine clocks
   its cores down; the coordinator burns 1.1 CPU-seconds idle against 0.7 loaded for identical
@@ -314,15 +316,3 @@ makes the entries below meaningful as a baseline rather than a moving target.
   README now says so; paired comparisons inside one sweep remain sound and are the supported way to
   ask a performance question; and `perf.yml` gating on delivery rather than latency gains a second,
   stronger justification, since a quiet CI runner may measure slower than a busy one.
-
-### Known
-
-- U1: no write access control anywhere in Empirica. Affects every Empirica study.
-- U10: every participant receives every co-player's `participantIdentifier`, i.e. the raw
-  `?participantKey=`. In a deployed study that is the recruitment-platform participant ID. Affects
-  every Empirica Classic study; same root cause as U1.
-- U9: `attributes(scopeID)` always returns `internal system error`, so there is no working way
-  to enumerate a scope's attributes at any layer.
-- U2: a crashed study cannot be resumed.
-- U7: games do not reliably start at n ≥ 200.
-- U8: a lifecycle listener can only be registered once, silently.
