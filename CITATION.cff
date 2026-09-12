@@ -20,3 +20,36 @@ keywords:
   - experimental design
 license: MIT
 version: 0.0.0
+references:
+  - type: article
+    scope: "The design reconstructed in examples/rand2011."
+    authors:
+      - family-names: Rand
+        given-names: David G.
+      - family-names: Arbesman
+        given-names: Samuel
+      - family-names: Christakis
+        given-names: Nicholas A.
+    title: "Dynamic social networks promote cooperation in experiments with humans"
+    journal: "Proceedings of the National Academy of Sciences"
+    year: 2011
+    volume: 108
+    issue: 48
+    start: 19193
+    end: 19198
+    doi: 10.1073/pnas.1108243108
+  - type: article
+    scope: "The design reconstructed in examples/shirado2017, including its agent conditions."
+    authors:
+      - family-names: Shirado
+        given-names: Hirokazu
+      - family-names: Christakis
+        given-names: Nicholas A.
+    title: "Locally noisy autonomous agents improve global human coordination in network experiments"
+    journal: Nature
+    year: 2017
+    volume: 545
+    issue: 7654
+    start: 370
+    end: 374
+    doi: 10.1038/nature22332

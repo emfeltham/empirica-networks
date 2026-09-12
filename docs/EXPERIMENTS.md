@@ -24,9 +24,9 @@ Three Human Nature Lab designs were considered. Each was checked against the pap
 
 | Study | n per session, as published | Initial network | Rewiring | Status |
 |---|---|---|---|---|
-| Rand, Arbesman & Christakis 2011, *PNAS* 108(48):19193–19198 | 785 subjects / 40 sessions, mean 19.6 (SD 6.4) | 20% of possible links at random | yes, k = 10% / 30% of pairs per round | built |
-| Shirado & Christakis 2017, *Nature* 545:370–374 | 4,000 subjects / 230 sessions, exactly 20 | preferential attachment, m = 2 | no | built, control arm and the 3 x 3 agent conditions |
-| Nishi, Shirado, Rand & Christakis 2015, *Nature* 526:426–429 | 1,462 subjects / 80 sessions, mean 17.21 (SD 2.79) | Erdős–Rényi, 30% of ties | yes, 30% of pairs per round | not built |
+| [Rand, Arbesman & Christakis 2011, *PNAS* 108(48):19193–19198](https://doi.org/10.1073/pnas.1108243108) | 785 subjects / 40 sessions, mean 19.6 (SD 6.4) | 20% of possible links at random | yes, k = 10% / 30% of pairs per round | built |
+| [Shirado & Christakis 2017, *Nature* 545:370–374](https://doi.org/10.1038/nature22332) | 4,000 subjects / 230 sessions, exactly 20 | preferential attachment, m = 2 | no | built, control arm and the 3 x 3 agent conditions |
+| [Nishi, Shirado, Rand & Christakis 2015, *Nature* 526:426–429](https://doi.org/10.1038/nature15392) | 1,462 subjects / 80 sessions, mean 17.21 (SD 2.79) | Erdős–Rényi, 30% of ties | yes, 30% of pairs per round | not built |
 
 All three sit inside the n ≤ 50 regime this package targets and inside its verified envelope. That was checked, not assumed; had one needed n > 50, it would have been a finding about the reconstruction rather than a number to round down.
 
