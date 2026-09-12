@@ -35,31 +35,5 @@ This index is organised by what you are trying to do. If you are new, start at
 | [`../ISSUES.md`](../ISSUES.md) | Known defects in this package (O-numbered) |
 | [upstream/ISSUES](upstream/ISSUES.md) | Known defects in Empirica itself (U-numbered), found while building this package |
 
-## Keeping process records (not user documentation)
-
-These are kept because the reasoning is worth more than the conclusion, and they are cited by
-the documents above. Nothing here is needed to use the package.
-
-| | |
-|---|---|
-| [M5-ADOPTION](M5-ADOPTION.md) | The adoption milestone: distribution shape, which experiments and why, and the trap audit |
-| [M6-HARDENING](M6-HARDENING.md) | The hardening milestone: what the shipped examples surfaced, and what each fix cost. Complete as of 2026-08-16 |
-| [`../NEXT_STEPS.md`](../NEXT_STEPS.md) | What is left to do on the package: the critical path to `0.1.0`, the open defects, and what is deliberately not scheduled. Dated 2026-09-11 |
-| [DOCS-PLAN](DOCS-PLAN.md) | The plan these documents were written from, and the one item still open |
-| [EVALUATION](EVALUATION.md) | The paper's empirical section: what a platform has to prove, and why simulated sessions are the instrument |
-| [EVALUATION-RUNBOOK](EVALUATION-RUNBOOK.md) | How to build and run `simulate`, written to be handed to someone who has not worked on this package |
-| [upstream/DISCLOSURE](upstream/DISCLOSURE.md) | The disclosure route and its checklist |
-| [upstream/U1](upstream/U1-no-write-access-control.md) · [upstream/U2](upstream/U2-restart-does-not-restore-games.md) | Drafted upstream reports |
-
-`PUBLICATION-PLAN.md` and `PAPER-OUTLINE.md` (the route to a preprint, and the preprint's own
-section plan) moved out of this repository on 2026-08-25, to the manuscript's working
-directory. They are about the paper rather than the package, and a repository that ships to
-adopters is the wrong home for a document tracking a submission. Documents here still cite
-`PUBLICATION-PLAN.md` by name where the reasoning depends on it; [EVALUATION](EVALUATION.md) is
-the part of that plan which stays, because what the platform has to prove is a fact about the
-platform.
-
-`MODULE-DESIGN.md` (why the package is shaped the way it is) is deliberately not in this
-repository; it is kept with the investigation that produced it.
-[ARCHITECTURE](ARCHITECTURE.md) is the answer to how it works kept inside this repository, which
-is the question most links to it were actually asking.
+[ARCHITECTURE](ARCHITECTURE.md) is the answer to how the package works internally, and is the
+question most links to a design document were actually asking.

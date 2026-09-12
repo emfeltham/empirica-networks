@@ -13,12 +13,15 @@ project maintained by one person.
 ## Reporting a vulnerability in Empirica itself
 
 Some issues surfaced while building this package are in the underlying [Empirica](https://empirica.ly)
-platform rather than in this code. Those are tracked separately, under `docs/upstream/`, with
-their own disclosure route and status recorded in
-[`docs/upstream/DISCLOSURE.md`](docs/upstream/DISCLOSURE.md). Please use that route, not this one,
-for anything that is a defect in Empirica rather than in this package: `ISSUES.md` tracks this
-package's own defects (O-numbered), and [`docs/upstream/ISSUES.md`](docs/upstream/ISSUES.md)
-tracks Empirica's (U-numbered).
+platform rather than in this code. Their impact is summarised in
+[`docs/upstream/ISSUES.md`](docs/upstream/ISSUES.md) (U-numbered), separately from this package's
+own defects in `ISSUES.md` (O-numbered).
+
+Please report a defect in Empirica to Empirica, not here. That project publishes no `SECURITY.md`
+and no contact address, so the route for a security or privacy finding is GitHub's private
+advisory form at
+[`empiricaly/empirica`](https://github.com/empiricaly/empirica/security/advisories/new); ordinary
+bugs go to [its issue tracker](https://github.com/empiricaly/empirica/issues).
 
 ## Scope
 

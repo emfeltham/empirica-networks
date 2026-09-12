@@ -1,6 +1,6 @@
 /**
  * The duplicate-lifecycle-listener detector, against a real Empirica
- * (`ISSUES.md` U8, `docs/M6-HARDENING.md` §1.2).
+ * (`ISSUES.md` U8).
  *
  * `test/unit/listeners.test.ts` covers the filters against a fake collector.
  * What only this tier can establish is the two things the fake has to assume:

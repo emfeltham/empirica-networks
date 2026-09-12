@@ -71,7 +71,7 @@ export interface GraphMetrics {
    * one way to misuse the adapter and get no error: graphology's default mixed
    * `Graph` sizes its denominator to directed slots this module never fills and
    * reports 0.333 for a complete graph where 1.000 is correct
-   * (src/topology/graphology.ts, MODULE-DESIGN §6). Wrong and plausible is worse
+   * (src/topology/graphology.ts). Wrong and plausible is worse
    * than absent, so the number is derived from the edge list directly.
    */
   density: number;

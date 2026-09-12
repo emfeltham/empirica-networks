@@ -19,3 +19,7 @@ data/
 
 # simulate output — kept locally, too large and too machine-specific to track
 results/
+
+# Per-contributor Claude Code settings. The shared `.claude/` config is tracked;
+# this file holds one person's local permissions and paths.
+.claude/settings.local.json

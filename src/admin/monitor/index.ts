@@ -18,9 +18,6 @@
  * any attribute on any node including every participant's player scope. So the
  * monitor is not an Empirica client at all. It is a read-only window onto memory
  * one scope away, and `serveMonitor` is never given a token to leak.
- *
- * Full reasoning, including what this rules out structurally versus by
- * convention: MODULE-DESIGN §15.
  */
 import type { NetworkHandle } from "../with_network.js";
 import { serveMonitor, type MonitorOptions, type MonitorServer } from "./http.js";

@@ -16,7 +16,7 @@
  *
  * And, for the absolute figure `ISSUES.md` O1 still wants, two machines:
  *   npm run bench -- --agent                          # on the client host
- *   npm run bench -- --clients 10.0.0.7:7411 --absolute --repeats 3
+ *   npm run bench -- --clients CLIENT-HOST:7411 --absolute --repeats 3
  *
  * What is measured is END-TO-END publish latency: the wall time from a watched
  * attribute changing to a neighbour's client holding the new value. That is the
@@ -106,8 +106,7 @@ const CELLS: Cell[] = [
  * at nothing and reports a tail to about 20 at n ≈ 19.6, so
  * `examples/rand2011` has to raise the limit to 64 with a paragraph of
  * justification. That paragraph is a bug report: **16 conflates a per-participant
- * payload limit with a latency-at-scale limit, and only the second was measured**
- * (`docs/M6-HARDENING.md` §3.3).
+ * payload limit with a latency-at-scale limit, and only the second was measured**.
  *
  * So: the same n at two densities, then the same density at two n. That is the
  * comparison that says whether degree or total fan-out is the thing that costs,

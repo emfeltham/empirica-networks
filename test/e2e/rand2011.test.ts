@@ -645,7 +645,7 @@ test("the fluid condition offers rewiring decisions about NON-neighbours, privat
       // round and exactly one of the two is made the decider, so if P was offered
       // a decision about S, then S must NOT have been offered one about P. If
       // both sides saw it, the "other party learns they were named" leak that
-      // ruled out the provisional-tie approach (docs/M5-ADOPTION.md §7) would be
+      // ruled out the provisional-tie approach would be
       // back, arriving through the API added to avoid it.
       let mirrored = 0;
       for (const p of participants) {

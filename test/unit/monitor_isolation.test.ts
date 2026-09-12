@@ -7,7 +7,7 @@
  * rule; it is the same claim the rest of the package makes about state,
  * applied to code.
  *
- * MODULE-DESIGN §15.1 says this is ruled out STRUCTURALLY rather than by
+ * This is ruled out STRUCTURALLY rather than by
  * discipline. That is a claim about what a bundler does, so the strong test here
  * bundles the participant entry the way a consumer's vite would and reads the
  * output — the source scans below are the fast, precise version that names the

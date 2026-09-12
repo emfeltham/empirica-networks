@@ -114,6 +114,14 @@ test("a finished game releases everything it was holding", async () => {
           // games in `test/unit/retention.test.ts`, which needs no server.
           endedGames: 1,
           chatSeqs: 0,
+          // Per PROCESS and never reset between games, which is the argument for
+          // them being here at zero rather than omitted: they are observations
+          // about whether this process ever took the late-provisioning path
+          // (`ISSUES.md` O4), not resources a finished game could still hold. A
+          // non-zero value in THIS scenario would mean the repair path ran in a
+          // run that never needed it.
+          pendingAtStart: 0,
+          lateProvisioned: 0,
           // Masked in the comparison rather than left out of it, so this stays
           // an EXHAUSTIVE record and a new field has to be argued for here.
           // `firstChannelMs` is a measurement, not a resource, and is kept

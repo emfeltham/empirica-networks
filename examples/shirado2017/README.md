@@ -159,8 +159,7 @@ example has subjects who have solved the problem from their own point of view wh
 has not.
 
 If you want to watch the global state live while a session runs, that is what `monitor()` is
-for: a separate loopback port with its own token, holding no Empirica credential
-(`MODULE-DESIGN.md` §15). It is off unless you set `MONITOR=1`.
+for: a separate loopback port with its own token, holding no Empirica credential. It is off unless you set `MONITOR=1`.
 
 ## The data it writes
 

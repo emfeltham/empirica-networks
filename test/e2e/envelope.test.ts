@@ -215,7 +215,7 @@ test("the aggregate neighbourhood limit is wired into publish, per participant",
    * The limit is set low rather than the views made large, so this stays at n=4.
    * Three views of ~1 KiB each are individually far inside `maxViewBytes` and
    * together over a 2 KiB neighbourhood limit — exactly the shape the limit exists
-   * for (`docs/M6-HARDENING.md` §3.3): degree x view size, invisible to both a
+   * for: degree x view size, invisible to both a
    * per-view limit and a per-node degree limit.
    */
   const PAD = "x".repeat(1000);

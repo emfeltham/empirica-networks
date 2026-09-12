@@ -11,7 +11,7 @@
  * `document.createElementNS`.
  *
  * The cost is a recompute per topology change instead of an animation loop. At
- * the target regime — n <= 50 (MODULE-DESIGN §8) — a few hundred iterations over
+ * the target regime — n <= 50 — a few hundred iterations over
  * 50 nodes is microseconds, and it happens only when the graph actually changes,
  * not per frame. This would be the wrong trade at n = 10,000; the package does
  * not go there, and U7 means the platform does not either.

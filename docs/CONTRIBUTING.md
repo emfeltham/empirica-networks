@@ -200,22 +200,19 @@ everything else links to it. At publish time that is one edit rather than a sear
 
 ## 7. Releasing
 
-The package is `private: true` at `0.0.0` pending disclosure, so this section does not yet apply.
+The package is `private: true` at `0.0.0`, so this section does not yet apply.
 Once it is published:
 
-1. The disclosure window has to close first (`NEXT_STEPS.md` §1.1). This is blocking.
-2. Freeze the surface (`NEXT_STEPS.md` §1.2) and give [API.md](API.md) a read-through against it:
-   the CLI's flags and exit codes are surface too, and freeze with the rest.
-3. Remove `private: true`, set a real semver, and move `CHANGELOG.md`'s `[Unreleased]` section
+1. Freeze the surface and give [API.md](API.md) a read-through against it: the CLI's flags and
+   exit codes are surface too, and freeze with the rest.
+2. Remove `private: true`, set a real semver, and move `CHANGELOG.md`'s `[Unreleased]` section
    under that version.
-4. Update the README's status line and the single "not published yet" block; drop the
+3. Update the README's status line and the single "not published yet" block; drop the
    `node dist/verify/cli.cjs` forms in favour of `npx empirica-networks`.
-5. `npm run build && npm test && npm run check:links && npm run check:docs`, then publish.
+4. `npm run build && npm test && npm run check:links && npm run check:docs`, then publish.
 
 ## 8. Design rationale
 
-`MODULE-DESIGN.md` (why the package is shaped the way it is) is deliberately not in this
-repository; it is kept with the investigation that produced it. Within this repository,
-[ARCHITECTURE](ARCHITECTURE.md) answers how it works, the two milestone documents
-([M5](M5-ADOPTION.md), [M6](M6-HARDENING.md)) carry the decisions and what they cost, and
-[PLATFORM-NOTES](PLATFORM-NOTES.md) is the evidence everything else cites.
+[ARCHITECTURE](ARCHITECTURE.md) answers how the package works and why it is shaped that way,
+and [PLATFORM-NOTES](PLATFORM-NOTES.md) is the evidence everything else cites — every constraint
+recorded there was measured at runtime rather than read from documentation.

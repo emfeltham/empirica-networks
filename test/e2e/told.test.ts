@@ -1,8 +1,8 @@
 /**
  * `network(game).tell()` — the server telling ONE participant one thing.
  *
- * This is the second path from server to client, added in M5 (see
- * `docs/M5-ADOPTION.md` §7). A second path is where a leak gets in, so the
+ * This is the second path from server to client. A second path is where a leak
+ * gets in, so the
  * central test asserts at the WIRE and specifically about the person the value is
  * ABOUT: a rewiring offer names a non-neighbour, and if that non-neighbour learns
  * they were named, the reconstruction has deviated from the design it cites.

@@ -5,7 +5,7 @@
  * drives the same unmodified `callbacks.js` against a real Tajriba and then
  * deletes `data/` in a `test.after` hook, because a test's job is to assert and
  * stop. This runs the design at its own n, for its own duration, across arms and
- * seeds, and keeps every file — which is what `docs/EVALUATION.md` needs and what
+ * seeds, and keeps every file — which is what an evaluation needs and what
  * no tier currently produces.
  *
  * A RUNNER IS NOT A TEST. It does not assert. A session that fails is data: catch
@@ -26,9 +26,8 @@
  * Therefore: THIS RUNNER REPORTS SYSTEM PROPERTIES PER ARM AND NEVER OUTCOMES
  * ACROSS ARMS. `t_solution_ms` is the design's dependent variable and is a
  * forbidden cross-arm number here — a comparison between arms would be a
- * comparison of the same generative process against itself. `docs/EVALUATION.md`
- * §2, `docs/EVALUATION-RUNBOOK.md` §4 and `PAPER-OUTLINE.md` §7.4 each state this
- * independently, and the manifest repeats it so the next reader cannot miss it.
+ * comparison of the same generative process against itself. The manifest repeats
+ * this so the next reader cannot miss it.
  *
  * ── WHY ONE CHILD PROCESS PER SESSION ───────────────────────────────────────
  *
@@ -43,7 +42,7 @@
  *
  * What this rig does NOT exercise, and the report must say so: the React client,
  * the browser WebSocket, `Lobby()`, and the example's own `server/src/index.js`.
- * Those are the browser hybrid's job (`docs/EVALUATION.md` §4), a separate piece
+ * Those are the browser hybrid's job, a separate piece
  * of work.
  */
 import { execFileSync, spawnSync } from "node:child_process";
@@ -82,7 +81,7 @@ import {
   // @ts-expect-error - plain JS example module, deliberately untyped
 } from "../../examples/shirado2017/server/src/design.mjs";
 
-/** The two arms of `docs/EVALUATION.md` §2. */
+/** The two arms of the evaluation. */
 export interface Arm {
   name: string;
   /** Agent seats. 0 is the human-only arm. */
@@ -457,8 +456,8 @@ async function sweep(args: SweepArgs): Promise<number> {
           };
       outcomes.push(outcome);
 
-      // Audited as it lands, not at the end of the sweep. `EVALUATION.md` §7 fixes
-      // the kill criterion in advance — one non-neighbour view ends the evaluation
+      // Audited as it lands, not at the end of the sweep. The kill criterion is
+      // fixed in advance — one non-neighbour view ends the evaluation
       // — and a runner that discovered it ninety minutes later would be ignoring
       // an instruction it was built to obey.
       const audit = auditSession(outcome);
@@ -476,7 +475,7 @@ async function sweep(args: SweepArgs): Promise<number> {
         halted =
           `C1 FAILED in ${label}: ${audit.leaks} non-neighbour view(s) of ` +
           `${audit.deliveriesChecked} deliveries. The evaluation stops here — this is ` +
-          `the finding, and EVALUATION.md §7 says it leads the paper. Do not re-run to ` +
+          `the finding. Do not re-run to ` +
           `see if it goes away.`;
         process.stderr.write(`\n  ${halted}\n`);
         break outer;
@@ -703,7 +702,7 @@ function checkResults(root: string): number {
 // ─── C5, the part a human sample cannot give you ──────────────────────────────
 
 /**
- * The three injections of `docs/EVALUATION-RUNBOOK.md` §8.
+ * The three fault injections.
  *
  * WHAT "PASSES" MEANS HERE, and it is not what it usually means: not that the
  * session survives. Some will not. It means the data for what DID happen is

@@ -2,13 +2,13 @@
 
 Network experiments for [Empirica](https://empirica.ly): participants are nodes in a graph, and each participant sees only the state of their neighbours.
 
-The package runs real games today but is not yet published. All three examples in this repository play end to end against a real Empirica server, and the read-privacy guarantee they depend on is enforced and tested, not merely documented; see [Runnable examples](#runnable-examples) and [Verifying the guarantee](#verifying-the-guarantee). What does not yet hold is the public API, which remains unfrozen, and the package is kept at `private: true`, version `0.0.0`, pending disclosure of an unpatched upstream vulnerability to Empirica's maintainers (`NEXT_STEPS.md` §1); see [Installation](#installation). Development is tracked by milestone: [M7](CHANGELOG.md#unreleased) is the latest, complete as of 2026-08-16, and `NEXT_STEPS.md` describes what remains.
+The package runs real games today but is not yet published. All three examples in this repository play end to end against a real Empirica server, and the read-privacy guarantee they depend on is enforced and tested, not merely documented; see [Runnable examples](#runnable-examples) and [Verifying the guarantee](#verifying-the-guarantee). What does not yet hold is the public API, which remains unfrozen, and the package is kept at `private: true`, version `0.0.0`; see [Installation](#installation).
 
 This project is not affiliated with, or endorsed by, the Empirica project.
 
 | | |
 |---|---|
-| New here | [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md) — install to verified guarantee, in order |
+| New here | [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md) — install to running the guarantee check, in order |
 | The API | [`docs/API.md`](docs/API.md) — every export, with the reasoning behind each decision |
 | Something is silently wrong | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) — indexed by symptom, not by cause |
 | How it works inside | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the lifecycle, the publish path, where every value lives |
@@ -17,7 +17,6 @@ This project is not affiliated with, or endorsed by, the Empirica project.
 | Getting the data out | [`docs/DATA-AND-ANALYSIS.md`](docs/DATA-AND-ANALYSIS.md) — every column of every table |
 | A real study to read | [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md) — two reconstructed papers |
 | Known defects | [`ISSUES.md`](ISSUES.md) — ours; [`docs/upstream/ISSUES.md`](docs/upstream/ISSUES.md) — Empirica's |
-| What is left to do | [`NEXT_STEPS.md`](NEXT_STEPS.md) — the route to a first release, the open defects, and what is deliberately not scheduled |
 | Artificial participants | [`docs/BOTS.md`](docs/BOTS.md) — the policy interface, placement, and why a bot's name is participant-visible |
 | Everything else | [`docs/`](docs/README.md) — the documentation index |
 
@@ -37,7 +36,7 @@ What to do about it, in order:
 2. Keep the record of account somewhere participants cannot write — the batch scope. Both reconstructions in this repository do this for payoffs, and say so at the call site.
 3. Judge whether your design gives anyone a reason to bother. A study where altering someone else's state pays — a competitive game, a bonus tied to relative performance — is exposed in a way a survey is not.
 
-This module does not, and cannot, claim that a participant's state is tamper-proof. This is measured in `test/e2e/participant_write.test.ts` and `test/e2e/upstream_u1.test.ts`, with the mechanism described in `docs/PLATFORM-NOTES.md` §4a and tracked as `docs/upstream/ISSUES.md` U1, which is going through private disclosure to Empirica's maintainers (`docs/upstream/DISCLOSURE.md`).
+This module does not, and cannot, claim that a participant's state is tamper-proof. This is measured in `test/e2e/participant_write.test.ts` and `test/e2e/upstream_u1.test.ts`, with the mechanism described in `docs/PLATFORM-NOTES.md` §4a and tracked as `docs/upstream/ISSUES.md` U1, which is reported to Empirica's maintainers through their private security advisory form.
 
 Every participant also learns every co-player's recruitment identifier. The root cause is the same: Classic cross-links everyone to every player scope, so the value of `?participantKey=` is delivered to everyone else in the game. If that key is a recruitment-platform participant ID, a Prolific PID for instance, subjects are handed each other's identifiers, and such identifiers are stable across studies. Make `participantKey` an opaque per-study token and keep the mapping outside Empirica. This is measured in `test/e2e/bots.test.ts`; see also `docs/PLATFORM-NOTES.md` §22 and `docs/upstream/ISSUES.md` U10.
 
@@ -47,11 +46,9 @@ Every participant also learns every co-player's recruitment identifier. The root
 
 > ### Not published yet
 >
-> The package is `"private": true` at `0.0.0`, deliberately: U1 above is an unpatched
-> cross-participant write vulnerability affecting every Empirica study, and it is going through
-> disclosure first (`NEXT_STEPS.md` §1.1). Publishing an install path before that window closes
-> gets the order wrong, and `private: true` is the only thing standing between a stray
-> `npm publish` and an outcome that cannot be undone.
+> The package is `"private": true` at `0.0.0`, deliberately: the public API is not yet frozen, and
+> `private: true` is the only thing standing between a stray `npm publish` and a name and a
+> version number that cannot be withdrawn.
 >
 > Until then, install from a packed tarball. Anywhere the docs show `npx empirica-networks …`,
 > that is what the command becomes once published; the from-a-clone form is given alongside where
@@ -67,7 +64,7 @@ Requires Node 20+ and the Empirica CLI (`curl https://install.empirica.dev | sh`
 
 Do not use a `file:` link. npm turns it into a symbolic link, which loads two copies of `@empirica/core` and breaks every `instanceof` inside Empirica. The resulting symptom names nothing in particular: every participant is stuck on "Waiting for other players" with a full game (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) and `docs/PLATFORM-NOTES.md` §11).
 
-The name is settled as `empirica-networks`, unscoped, chosen over `@yale-hnl/empirica-networks` because discovery is the binding constraint in an ecosystem with no registry, no plugin API, and no curated list. Renaming after the first publish would be a breaking change, which is why the decision was made before publication rather than at it (the API freeze, `NEXT_STEPS.md` §1.2).
+The name is `empirica-networks`, unscoped: discovery is the binding constraint in an ecosystem with no registry, no plugin API, and no curated list. Renaming after the first publish would be a breaking change, which is why the decision was made before publication rather than at it.
 
 ## Quick start
 
@@ -177,8 +174,8 @@ on a failure or on a run that could not start. Options and exit codes are docume
 ## Runnable examples
 
 Three, all in-package, each one's `callbacks.js` imported unmodified by a test in `test/e2e/`,
-so that none of them can rot unnoticed. There is deliberately no template repository;
-`docs/M5-ADOPTION.md` §2 explains why.
+so that none of them can rot unnoticed. There is deliberately no template repository: anything in a template is code a
+consumer cannot patch, and only the in-package path is testable by this suite.
 
 | | What it is |
 |---|---|

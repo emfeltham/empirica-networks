@@ -21,8 +21,7 @@ npm run check:links                               # documentation links
 Baseline, measured 2026-08-16 after M6 closed: 288 unit / 34 mode / 67 e2e, with `npm run check`
 clean. The tier was green on six consecutive runs, and the full `npm test` was green on two;
 `ISSUES.md` O8 stood at "1 green in 3" from M4 until its cause was found in the harness on
-2026-08-16. (`docs/M6-HARDENING.md` records 255/34/65; that figure was taken mid-milestone, before
-Tier 2 and Tier 4 landed.) The e2e tier takes approximately 90 seconds.
+2026-08-16. The e2e tier takes approximately 90 seconds.
 
 ---
 
@@ -185,7 +184,7 @@ wire frames, so a leak through a channel nobody enumerated is still caught.
 | `scripts/bench.mjs` | end-to-end publish latency, plus first-channel latency (`ISSUES.md` O15) reported even for runs that do not complete. `--dense` for the degree sweep, `--payload` for degree × view size, `--repeats` for a published figure, `--clients` to put the participants on another machine |
 | `scripts/soak.mjs` | long-run memory. Prints `net.stats()` alongside RSS |
 | `scripts/ceiling.mjs` | the U7 reproduction. `CEILING_PLAIN=1` runs it without this package |
-| `scripts/simulate.mjs` | the platform evaluation (`docs/EVALUATION-RUNBOOK.md`): the shipped Shirado reconstruction at its own n, across arms and seeds, keeping every output file, then auditing `views.ndjson` for C1. The one harness that does not throw its sessions away. `--seeds`, `--arms`, `--n`, `--out` |
+| `scripts/simulate.mjs` | the platform evaluation: the shipped Shirado reconstruction at its own n, across arms and seeds, keeping every output file, then auditing `views.ndjson` for C1. The one harness that does not throw its sessions away. `--seeds`, `--arms`, `--n`, `--out` |
 
 Everything that touches `@empirica/core/admin` is bundled to CJS first, for the same reason every
 time (`docs/PLATFORM-NOTES.md`, Section 3a).
@@ -217,7 +216,7 @@ spreading the shards thinner (`--perShard`), and it is systematic, so repeats ca
 
 ```sh
 npm run bench -- --agent --port 7411              # on the client machine
-npm run bench -- --clients 10.0.0.7:7411 --repeats 3   # on the server machine
+npm run bench -- --clients CLIENT-HOST:7411 --repeats 3   # on the server machine
 ```
 
 The coordinator keeps the server, the callbacks and the admin; the agent forks every shard. The

@@ -11,7 +11,7 @@
  * true.
  *
  * Scope, deliberately narrow: **import specifiers and subpaths only.** Full
- * doc-tests were considered and rejected (docs/DOCS-PLAN.md §4) — most snippets
+ * doc-tests were considered and rejected — most snippets
  * are fragments by design, and rewriting them into compilable programs would
  * make them worse documentation to catch errors this already catches. What is
  * checked here is the part that goes stale without anyone noticing.

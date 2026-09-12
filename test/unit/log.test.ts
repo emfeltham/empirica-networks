@@ -4,8 +4,7 @@
  * The writer itself is `test/unit/sink.test.ts`'s. What is tested here is the
  * handle method: what it adds to a record, and what it refuses to do quietly.
  * Every one of the throws is a case that would otherwise end as a study which
- * looks like it logged and did not, which is the whole reason the facility exists
- * (`docs/M6-HARDENING.md` §2.1).
+ * looks like it logged and did not, which is the whole reason the facility exists.
  *
  * Against a collector that records registrations and dispatches nothing, since
  * none of this touches game state — deliberately, and that is one of the

@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "empirica-networks: neighbour-limited visibility for Empirica experiments"
+title: "empirica-networks: online network experiments with Empirica"
 message: >-
   If you use this software in research, please cite it. A methods paper is in
   preparation; until it exists, cite the software.
@@ -10,12 +10,13 @@ authors:
     email: eric.feltham@aya.yale.edu
 repository-code: "https://github.com/emfeltham/empirica-networks"
 abstract: >-
-  Network experiments for Empirica. Participants are nodes in a graph and each
-  receives only their neighbours' projected state — enforced at the wire rather
-  than in the interface, and verifiable with a shipped command that injects
-  sentinel values and checks raw frames. Includes topology generators, rewiring
-  during play, neighbour-scoped chat, seeded and reproducible realisation, and
-  export helpers that run offline.
+  Network experiments for Empirica. Each participant has a private channel and
+  receives only the projected state of their neighbours, so adjacency governs
+  delivery rather than display. Includes fourteen topology generators with
+  recorded seeds, rewiring during a session, neighbour-scoped messaging, and
+  export helpers that record the realised graph rather than the generator's
+  parameters. An evaluation command runs complete simulated sessions of a
+  reconstructed published design and audits the delivered views afterwards.
 keywords:
   - empirica
   - network experiments

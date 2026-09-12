@@ -11,7 +11,7 @@
  *
  * Same shape as the Rand 2011 port for the same reason: no imports here, so every
  * rule is unit-testable in milliseconds and the part that gets COPIED is small,
- * pure and checkable by hand (`docs/M5-ADOPTION.md` §2).
+ * pure and checkable by hand.
  *
  * WHY THIS DESIGN IS THE SHARPEST TEST OF THE WHOLE PACKAGE. In most network
  * experiments a locality leak makes the data wrong. Here it makes the task

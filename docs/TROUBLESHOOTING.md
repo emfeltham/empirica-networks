@@ -438,7 +438,7 @@ prevent it. That is run weight, not a regression.
 Read a red run in the right place: sweep orphans, then re-run the tier alone, then run the file
 alone (`npm run test:one <file>`) before concluding anything.
 
-`ISSUES.md` O6, O8 · `docs/M6-HARDENING.md` Tier 4
+`ISSUES.md` O6, O8
 
 ---
 

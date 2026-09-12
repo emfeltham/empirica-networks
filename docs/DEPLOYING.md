@@ -1,15 +1,15 @@
 # Deploying a study — not yet documented
 
 As of 2026-08-16, this package has not been deployed. No study has been run with real
-participants, and no data has been collected with either reconstruction; the deployment itself
-is tracked with the manuscript, outside this repository (`NEXT_STEPS.md` §5). Every runnable
+participants, and no data has been collected with either reconstruction; a deployment is
+not yet scheduled. Every runnable
 instruction in this repository ends at `empirica` on localhost with a handful of
 `?participantKey=` URLs.
 
 This file is a placeholder that says so, rather than a guide assembled by reading Empirica's
 documentation and inferring the rest. Instructions that look correct and have never been run are
-the exact hazard `docs/M5-ADOPTION.md` §1 calls H-A (a reconstruction that runs but silently
-deviates), and a deployment guide is where that does the most damage, because the person who
+the characteristic hazard of this whole area — something that runs but silently
+deviates — and a deployment guide is where that does the most damage, because the person who
 discovers the error is running a study with people in it.
 
 What is written down is the part that does not depend on having deployed: the decisions to make
@@ -77,7 +77,7 @@ outcome rather than for a recovery procedure that does not exist:
 
 Any participant who knows a node id can set any attribute on it, including on another
 participant's player scope. `protected: true` is documented as preventing this and does not
-(`docs/upstream/ISSUES.md` U1, currently in private disclosure).
+(`docs/upstream/ISSUES.md` U1, reported to Empirica's maintainers).
 
 For a deployment this means: treat every participant-written value as untrusted input, keep the
 record of account on the batch scope, and judge whether your design gives anyone a reason to

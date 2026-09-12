@@ -1,5 +1,5 @@
 /**
- * The one argument convention (`docs/M6-HARDENING.md` §3.1).
+ * The one argument convention.
  *
  * `network(game)` took a game object and read only `.id` off it; `net.inspect(id)`
  * took the id. Writing `test/e2e/rand2011.test.ts` I passed an id to `network()`

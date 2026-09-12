@@ -4,7 +4,7 @@ Organised by import path, so the line at the top of your file tells you which se
 Each entry carries the reasoning behind the decision, which is the part worth reading. This is
 hand-written rather than generated from types for that reason.
 
-> This surface is not yet frozen. The API freeze (`NEXT_STEPS.md` §1.2) applies at the first
+> This surface is not yet frozen. The API freeze applies at the first
 > publish, and this page is the inventory that freeze signs off. Until then, anything here can
 > still change.
 
@@ -418,8 +418,7 @@ per (viewer, neighbour) pair over current neighbours only, so it structurally ca
 this subject one fact about someone they are not connected to." This case is not hypothetical:
 Rand, Arbesman and Christakis (2011) offer a subject the chance to form a new tie and show them
 that person's last action, and by definition the target is not yet a neighbour. Every route around
-this problem is a broadcast. The full account, with the four rejected alternatives, is in
-[M5-ADOPTION.md](M5-ADOPTION.md) §7.
+this problem is a broadcast.
 
 Several properties keep this path from weakening the guarantee:
 

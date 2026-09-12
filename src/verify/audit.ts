@@ -1,13 +1,12 @@
 /**
  * Auditing `views.ndjson`: did anyone ever receive a non-neighbour's view?
  *
- * This is C1 (`docs/EVALUATION.md` §1) checked over complete sessions of a real
+ * This is C1 — the read guarantee — checked over complete sessions of a real
  * design, rather than over a synthetic topology in a single process. `verify`
  * establishes the guarantee at the wire with sentinels; this establishes that it
- * held through every delivery of every session a study actually ran. Since the
- * verification section was cut from the manuscript, this is the paper's only
- * evidence for the claim the package exists to make, which raises rather than
- * lowers the standard for it.
+ * held through every delivery of every session a study actually ran. It is the
+ * primary evidence for the claim the package exists to make, which raises rather
+ * than lowers the standard for it.
  *
  * ITS OWN MODULE, IMPORTING NOTHING AT RUNTIME, for the reason `topologies.ts`
  * gives: `verify/leak_test.ts` reaches `@empirica/core/admin` and so cannot load
@@ -16,7 +15,7 @@
  * `export.ts`, everything here takes the file's TEXT rather than its path, and
  * `test/unit/audit.test.ts` runs against hand-built fixtures with no server.
  *
- * THREE OUTCOMES, ALL REPORTED (`docs/EVALUATION-RUNBOOK.md` §6):
+ * THREE OUTCOMES, ALL REPORTED:
  *
  *   a non-neighbour in a view    — C1 has failed. The evaluation stops; this is
  *                                  the finding and it leads the paper
@@ -358,7 +357,7 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
  * `formatLeakResult` explains why at length and the reasoning is identical here: a
  * bare `0` reads the same whether four hundred deliveries were examined and none
  * leaked, or the file was empty. The denominator is what makes the line
- * falsifiable, and `PAPER-OUTLINE.md` §7.3 requires it in the paper's own table.
+ * falsifiable.
  */
 export function formatAuditResult(r: AuditResult): string {
   const lines = [
@@ -431,7 +430,7 @@ export function mergeAuditResults(results: AuditResult[]): AuditResult {
 
 // ─── C4: reproducibility ──────────────────────────────────────────────────────
 //
-// `docs/EVALUATION.md` §7 asks two things of a run's record: that `edges.csv`
+// C4 asks two things of a run's record: that `edges.csv`
 // rebuilds byte-identically from `run.ndjson`, and that the recorded seed
 // regenerates the network participants were actually given. The second is the
 // stronger claim and the one Breadboard could not make — recording a generator

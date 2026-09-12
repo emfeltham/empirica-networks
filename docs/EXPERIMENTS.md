@@ -66,7 +66,7 @@ Participants repeatedly choose, in one move toward all their neighbours, to coop
 What it demonstrates about the package:
 
 - Rewiring during play, and that the mutation sequence is recorded: for this design the sequence is the independent variable, so a mutation the log missed would be data loss.
-- `tell()`, and why it had to exist. The paper shows a subject offered a new tie the other party's last action, and a person you are not connected to cannot be reached by `project()`, which runs over current neighbours only. Every alternative route is a broadcast. This is the gap the milestone found; `docs/M5-ADOPTION.md` §7 has the full account.
+- `tell()`, and why it had to exist. The paper shows a subject offered a new tie the other party's last action, and a person you are not connected to cannot be reached by `project()`, which runs over current neighbours only. Every alternative route is a broadcast. This is the gap the milestone found.
 - Where an authoritative record goes. Running wealth lives on the batch scope, not the player scope, because `player.set("wealth", …)` is the obvious line to write while scoring and it publishes everyone's total to everyone.
 - Raising the envelope, with the reasoning attached. The measured `maxDegree` is 16; the paper caps degree at nothing and reports a tail to about 20. The example raises the limit and says at the call site why that is safe at n = 20 and would not be at n = 100.
 
@@ -101,7 +101,7 @@ The examples exist to have their behaviour asserted rather than described, and t
 - A lifecycle listener can only be registered once. Empirica wraps `onStageEnded` and its siblings in a `unique` guard whose "already ran" marker is stored on the scope, so the first callback to run sets it and every later registration silently returns. Register each helper once and dispatch inside it. `docs/PLATFORM-NOTES.md` §18, `docs/upstream/ISSUES.md` U8.
 - The analysis CSVs are written in `onGameEnded`, which fires only when a game ends naturally. A session that crashes, or a test that tears its server down first, gives you a green run and an empty `data/`. Both reconstructions therefore write an append-only run log as they go and ship a `recover.mjs` that rebuilds the same tables from it; the plumbing is in the package as `log: { file }` and `net.log()`.
 
-`docs/M6-HARDENING.md` is the full account of what each of these cost.
+`CHANGELOG.md` records what each of these cost.
 
 ---
 

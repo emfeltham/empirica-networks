@@ -65,7 +65,7 @@ test("VERIFIED_CORE is the pinned @empirica/core", () => {
  * is not ours, and `package.json` states the pin rather than citing it.
  */
 const ROOTS = ["src", "test", "docs", "scripts", "examples", ".github"];
-const ROOT_FILES = ["README.md", "ISSUES.md", "CHANGELOG.md", "PUBLICATION-PLAN.md"];
+const ROOT_FILES = ["README.md", "ISSUES.md", "CHANGELOG.md"];
 
 /**
  * Citations that are deliberately historical — "broken in X, fixed in Y" — and so

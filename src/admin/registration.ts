@@ -91,7 +91,7 @@ export const REGISTRATION_CHECK_PER_CHANNEL_MS = 100;
  *
  * Read from the environment rather than added to `NetworkConfig`, deliberately:
  * a consumer has no reason to tune this, and a public field would be surface to
- * freeze (`PUBLICATION-PLAN.md` §2) purely so a test can run faster. The bench
+ * freeze at the first release purely so a test can run faster. The bench
  * and ceiling runners already take their parameters this way.
  *
  * The seam overrides the whole computation rather than the floor, so a test gets

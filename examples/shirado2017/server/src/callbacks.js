@@ -381,7 +381,7 @@ function detectSolution({ gameID, playerID, key }) {
    * would know whether the job was done — and not knowing is the coordination
    * problem the paper measures. If you want to watch it live, that is what
    * `monitor()` is for: a separate loopback port, no participant subscription
-   * (`MODULE-DESIGN.md` §15).
+   *.
    */
   const change = {
     type: "change",

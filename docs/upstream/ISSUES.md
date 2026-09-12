@@ -7,31 +7,16 @@ These were all measured at runtime against `@empirica/core@1.12.5`, not read fro
 has a reproduction in this repo. Three of them are the kind of thing a researcher would only
 discover after collecting invalid data.
 
-The disclosure route and status are recorded in
-[`DISCLOSURE.md`](DISCLOSURE.md). U1 goes privately first via GitHub's
-security advisory form (the project publishes no `SECURITY.md` and no contact address); U2 is an
-ordinary public issue. U3–U8 are held back deliberately, since sending eight at once to a quiet
-repository is how a report gets ignored.
-
-U10 (added 2026-08-16) belongs in the private batch with U1. It is not a vulnerability, in that no
-exploit is involved and no privilege is gained, but it discloses recruitment identities between
-co-players, which is a participant-privacy matter rather than a bug report, and it shares U1's root
-cause: Classic cross-links every participant to every player node, so every player attribute is
-public to the game. Reporting the two together makes the shared cause visible; reporting U10 in
-public first would tell readers where to look for U1.
-
-This was revised after M5: the third slot should go to U8 rather than U7. U7 caps how large a
-study can be, which matters to few people and only outside this package's target regime. U8 causes
-a listener someone registered to silently never run, which produces invalid data from a study that
-appears to work, and it costs nothing to fix or, at minimum, to document. It also has the shortest
-reproduction of anything on this list: register `onStageEnded` twice.
+U1 and U10 concern participant security and privacy, and are reported to Empirica's maintainers
+through GitHub's private security advisory form rather than described here in reproducible detail.
+This file records their impact so that anyone running a study can judge their own exposure; the
+mitigations are in `README.md` ("Before running a study") and `docs/DEPLOYING.md`. The remaining
+entries are ordinary correctness bugs and carry their reproductions in full.
 
 ### U1. `protected: true` does not prevent participant writes ⚠️ security
 
 **Evidence:** `test/e2e/upstream_u1.test.ts` (public client API),
-`test/e2e/participant_write.test.ts` (full characterisation incl. `protected`); PLATFORM-NOTES
-§4a. The report is drafted and ready to file:
-[`U1-no-write-access-control.md`](U1-no-write-access-control.md).
+`test/e2e/participant_write.test.ts` (full characterisation incl. `protected`); PLATFORM-NOTES §4a.
 
 Any participant that knows a node id can set attributes on it, including on another participant's
 `player` scope, whose id every participant already knows, because Classic cross-links every
@@ -78,8 +63,7 @@ keep the mapping to recruitment identity outside Empirica.
 
 ### U2. A full restart does not put participants back in their game ⚠️ data loss
 
-**Evidence:** `test/e2e/restart_full.test.ts`; PLATFORM-NOTES §4e. The report is drafted and ready
-to file: [`U2-restart-does-not-restore-games.md`](U2-restart-does-not-restore-games.md).
+**Evidence:** `test/e2e/restart_full.test.ts`; PLATFORM-NOTES §4e.
 
 The store reloads correctly: batch, players, scopes and links all return. Players are never
 reassigned, however, so `gameID` is never restored and no game resumes. Classic assigns a reloaded
@@ -137,7 +121,7 @@ per listener or documenting the constraint, and it silently produces invalid dat
 crash.
 
 It remains open upstream: the defect is upstream's dispatcher and cannot be fixed here. It is now
-detected from our side, as of 2026-08-16 (`docs/M6-HARDENING.md` §1.2, PLATFORM-NOTES §18a):
+detected from our side, as of 2026-08-16 (PLATFORM-NOTES §18a):
 `withNetwork` counts registrations at server start and warns, naming the helper, the count and the
 dispatch-inside-one-listener fix.
 

@@ -19,8 +19,7 @@
  * a TEMPLATE: it gets copied, and the tests do not travel with the copy. The
  * least-bad answer is to make the part that gets copied small, pure, and correct
  * — a payoff rule you can read in one screen and check by hand is a payoff rule
- * that survives being pasted into someone else's repo. See
- * `docs/M5-ADOPTION.md` §2.
+ * that survives being pasted into someone else's repo.
  *
  * Every number below is quoted from the paper, with the sentence it came from.
  */

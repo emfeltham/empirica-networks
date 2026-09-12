@@ -25,9 +25,8 @@
  * until one starts, and provisioning is the whole premise. So it is the expensive
  * kind of test, and it was measured rather than assumed — at **n=2, two games**, it
  * pushed the e2e tier from a reliable 66/66 to `told.test.ts` failing on `gameID
- * assigned` twice in a row. That is exactly `docs/M6-HARDENING.md` Tier 4's finding
- * (one added file with two games broke OTHER files) reproducing on the file added
- * next.
+ * assigned` twice in a row. That is exactly the earlier finding that one added
+ * file with two games broke OTHER files, reproducing on the file added next.
  *
  * **n=1 is therefore the size, and halving it was the whole fix** — the tier went
  * back to 67/67 twice consecutively. One channel is enough to be created and fail

@@ -5,7 +5,7 @@
  *   npm run bench -- --agent --port 7411
  *
  *   # on the server machine
- *   npm run bench -- --clients 10.0.0.7:7411 --repeats 3
+ *   npm run bench -- --clients CLIENT-HOST:7411 --repeats 3
  *
  * WHY THIS EXISTS. `ISSUES.md` O1's remaining half asks for an absolute latency
  * figure, and its specification has two clauses. Fixed clocks is one

@@ -21,8 +21,8 @@ npm --prefix server install empirica-networks
 npm --prefix client install empirica-networks
 ```
 
-> The package has not been published yet. It is `"private": true` at `0.0.0` while an unpatched upstream
-> vulnerability goes through disclosure (`docs/upstream/DISCLOSURE.md`, `NEXT_STEPS.md` §1.1).
+> The package has not been published yet. It is `"private": true` at `0.0.0` while the public API
+> is still unfrozen.
 > Until then, install from a packed tarball: run `npm pack` in this repository, then
 > `npm --prefix server install /path/to/empirica-networks-0.0.0.tgz`. Commands below that show
 > `npx empirica-networks` are what they become on publication; the form used from a clone is given
