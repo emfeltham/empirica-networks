@@ -7,7 +7,7 @@
  * duplicated, inside the copied surface a consumer cannot patch. `views`
  * already had the careful version; the
  * examples got the quick one, and in `examples/shirado2017` the quick one ran on
- * the callback path on every participant colour change.
+ * the callback path on every participant color change.
  *
  * NDJSON rather than CSV for the reason `./views.ts` gives: these logs are
  * append-only records of variable-shaped events, and CSV wants its columns

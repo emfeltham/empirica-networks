@@ -2,7 +2,7 @@
  * The kind-registration deadline and what it says — `ISSUES.md` O14, O15.
  *
  * O14 built a check that observes a consequence: channels demonstrably created
- * by `addScopes`, none of them ever arriving back as a modelled scope. O15 is
+ * by `addScopes`, none of them ever arriving back as a modeled scope. O15 is
  * what it got wrong. The deadline was a flat 5 s, justified by "channels
  * materialise in milliseconds at every size in the envelope" — a true statement
  * about SMALL n, applied at every n. Measured 2026-08-16 (`npm run bench`,

@@ -117,7 +117,7 @@ const secs = (ms: number): string => (ms % 1000 === 0 ? `${ms / 1000}` : (ms / 1
  * We know `addScopes` created `created` channel scopes — `provisionChannels`
  * throws if a returned payload carries no owner attribute, so their existence in
  * Tajriba is established rather than assumed. If not one of them has come back
- * through the subscription as a MODELLED scope, either the kind map the admin was
+ * through the subscription as a MODELED scope, either the kind map the admin was
  * built with has no entry for our kind — upstream's `Scopes` drops an unknown
  * kind with a `scopes: unknown scope kind` warning and returns, so the scope
  * exists on the server and this process can never hold an object to call `.set()`
@@ -127,7 +127,7 @@ const secs = (ms: number): string => (ms % 1000 === 0 ? `${ms / 1000}` : (ms / 1
  * establishable** (`ISSUES.md` O15). At n=200 a run that went on to deliver every
  * one of its 760 receipts was told its correct code was broken. The discriminator
  * was never wrong about the observation; it was wrong to convert an observation
- * into a diagnosis, and one of the two causes is a documented platform behaviour
+ * into a diagnosis, and one of the two causes is a documented platform behavior
  * this package cannot see from here. So both causes are named, ordered by
  * likelihood, and the reader is told which to check first.
  *
@@ -142,7 +142,7 @@ export function registrationNotDetectedMessage(created: number, waitedMs: number
     `${secs(waitedMs)}s ago and none has materialised. Two things do this, and this process ` +
     `cannot tell them apart.\n` +
     `\n1. THE "nbhd" SCOPE KIND IS NOT REGISTERED — the likely one, and silently fatal: every ` +
-    `participant sits with an empty neighbourhood forever and nothing else will report it.` +
+    `participant sits with an empty neighborhood forever and nothing else will report it.` +
     REGISTRATION_DIFF +
     `\n2. The subscription is only slow. Channel delivery queues behind Classic's game-start ` +
     `burst, which grows with the participant count (docs/PLATFORM-NOTES.md §16). This deadline ` +

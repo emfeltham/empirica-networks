@@ -9,7 +9,7 @@
  * THE CASE THIS FILE EXISTS FOR is the third one below. An audit that reports "no
  * leaks" over an empty file has the exact shape this repository keeps finding: the
  * check ran, said nothing, and meant nothing. That is why this file is not
- * optional, and why the denominator is a binding requirement — "zero non-neighbour
+ * optional, and why the denominator is a binding requirement — "zero non-neighbor
  * views" over an unstated number of views is not a result.
  */
 import assert from "node:assert/strict";
@@ -24,7 +24,7 @@ import {
 } from "../../src/verify/audit.js";
 
 /**
- * A path of three: a-b, a-c. So `a` has two neighbours and `b` and `c` have one
+ * A path of three: a-b, a-c. So `a` has two neighbors and `b` and `c` have one
  * each — and b/c are non-adjacent, which is what gives the leak arm something to
  * be about. A complete graph here would make every pass vacuous.
  */
@@ -44,7 +44,7 @@ const CLEAN = ndjson(
 
 const edges = () => parseEdgesCsv(EDGES_CSV);
 
-test("edges.csv parses into a neighbour map in the player-id space", () => {
+test("edges.csv parses into a neighbor map in the player-id space", () => {
   // The same id space as `ViewRecord.viewer` and `view[].id`, so the audit compares
   // without an index mapping. `edgeRows` emits player ids for exactly this reason.
   const g1 = parseEdgesCsv(EDGES_CSV).graphs.get("g1")!;
@@ -59,7 +59,7 @@ test("a clean file passes, and says how many records and deliveries it checked",
   assert.deepEqual(r.failures, []);
   assert.equal(r.sessions, 1);
   assert.equal(r.recordsChecked, 3);
-  // Four (viewer, neighbour) deliveries: a->b, a->c, b->a, c->a. This is the
+  // Four (viewer, neighbor) deliveries: a->b, a->c, b->a, c->a. This is the
   // denominator that makes `leaks: 0` falsifiable.
   assert.equal(r.deliveriesChecked, 4);
   assert.equal(r.leaks, 0);
@@ -92,7 +92,7 @@ test("a session with no records is vacuous even when another session is clean", 
   assert.equal(r.recordsChecked, 3, "the clean session was still audited");
 });
 
-test("a non-neighbour in a view is a leak, and names the pair", () => {
+test("a non-neighbor in a view is a leak, and names the pair", () => {
   // C1 failing. b and c are not adjacent, so c's presence in b's view is the
   // thing the whole package exists to prevent.
   const leaked = ndjson(
@@ -107,7 +107,7 @@ test("a non-neighbour in a view is a leak, and names the pair", () => {
   assert.match(r.failures.join(" "), /c/);
 });
 
-test("a missing neighbour is a delivery defect, recorded and not counted as a leak", () => {
+test("a missing neighbor is a delivery defect, recorded and not counted as a leak", () => {
   // Under-delivery looks like a sparser network than the one that ran. It is not
   // C1 failing — nothing reached anyone who should not have had it — so it is
   // reported on its own line rather than ending the evaluation.
@@ -124,7 +124,7 @@ test("a missing neighbour is a delivery defect, recorded and not counted as a le
   assert.match(r.notes.join(" ") + r.failures.join(" "), /missing/i);
 });
 
-test("the same neighbour twice in one view is an error, not silence", () => {
+test("the same neighbor twice in one view is an error, not silence", () => {
   const dup = ndjson({
     gameID: "g1",
     viewer: "a",
@@ -179,7 +179,7 @@ test("a torn final line is counted, not swallowed", () => {
 });
 
 test("a rewiring game is refused rather than audited against its final graph", () => {
-  // Shirado never rewires, so the audit assumes one static neighbour set per game.
+  // Shirado never rewires, so the audit assumes one static neighbor set per game.
   // Against a design that does rewire, comparing every view to the final graph
   // would manufacture leaks for views that were correct when delivered. Refuse,
   // rather than report a number that means something else.

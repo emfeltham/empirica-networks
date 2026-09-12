@@ -2,12 +2,12 @@
  * The walking skeleton: the whole design, end to end.
  *
  * Server builds a ring, provisions a private channel per participant, projects
- * each participant's neighbour slice, and publishes. Client runs the composed
+ * each participant's neighbor slice, and publishes. Client runs the composed
  * mode and reads its slice through `nbhd`.
  *
  * The assertion that matters is not "it works" but "participant i sees exactly
- * its neighbours" — on a ring of 4, each participant has 2 neighbours and
- * exactly 1 non-neighbour, so a projection that quietly sends everyone
+ * its neighbors" — on a ring of 4, each participant has 2 neighbors and
+ * exactly 1 non-neighbor, so a projection that quietly sends everyone
  * everything cannot pass.
  */
 import assert from "node:assert/strict";
@@ -29,7 +29,7 @@ const N = 4;
 
 test.beforeEach(() => resetChannels());
 
-test("ring of 4: each participant receives exactly its two neighbours", async () => {
+test("ring of 4: each participant receives exactly its two neighbors", async () => {
   let gameRef: any;
 
   const listeners = (_: any) => {
@@ -39,11 +39,11 @@ test("ring of 4: each participant receives exactly its two neighbours", async ()
     });
     withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      // Identify neighbours by a value only they carry, so we can tell exactly
+      // Identify neighbors by a value only they carry, so we can tell exactly
       // whose slice arrived where.
-      project: (neighbour: any) => ({
-        id: neighbour.id,
-        tag: neighbour.get("tag"),
+      project: (neighbor: any) => ({
+        id: neighbor.id,
+        tag: neighbor.get("tag"),
       }),
     });
   };
@@ -70,14 +70,14 @@ test("ring of 4: each participant receives exactly its two neighbours", async ()
         { label: "game visible" }
       );
 
-      // Every participant receives a populated neighbourhood.
+      // Every participant receives a populated neighborhood.
       await waitFor(
         () =>
           participants.every((p) => {
             const nbhd = (p.mode as EmpiricaNetworkContext).nbhd.getValue();
             return Boolean(nbhd) && nbhd!.neighbors.length > 0;
           }),
-        { label: "all participants received a neighbourhood", timeoutMs: 30_000 }
+        { label: "all participants received a neighborhood", timeoutMs: 30_000 }
       );
 
       const edges = (readNetwork(gameRef) ?? []) as [number, number][];
@@ -111,13 +111,13 @@ test("ring of 4: each participant receives exactly its two neighbours", async ()
         const want = expected.get(playerID)!;
 
         assert.equal(got.size, 2, `ring degree is 2, participant saw ${got.size}`);
-        assert.deepEqual([...got].sort(), [...want].sort(), "sees exactly its own neighbours");
+        assert.deepEqual([...got].sort(), [...want].sort(), "sees exactly its own neighbors");
 
-        // And the non-neighbour is genuinely absent.
-        const nonNeighbours = playerIDs.filter((id: string) => id !== playerID && !want.has(id));
-        assert.equal(nonNeighbours.length, 1, "ring of 4 leaves exactly one non-neighbour");
-        for (const other of nonNeighbours) {
-          assert.ok(!got.has(other), `non-neighbour ${other} must not appear`);
+        // And the non-neighbor is genuinely absent.
+        const nonNeighbors = playerIDs.filter((id: string) => id !== playerID && !want.has(id));
+        assert.equal(nonNeighbors.length, 1, "ring of 4 leaves exactly one non-neighbor");
+        for (const other of nonNeighbors) {
+          assert.ok(!got.has(other), `non-neighbor ${other} must not appear`);
         }
       }
     }

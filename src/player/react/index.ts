@@ -42,7 +42,7 @@ export function useNbhd(): Nbhd | undefined {
 }
 
 /**
- * The neighbours this participant can see, as returned by the server's
+ * The neighbors this participant can see, as returned by the server's
  * `project()`. `undefined` until the first publish; see `neighborsOf`.
  *
  *   const neighbors = useNeighbors<{ id: string; choice: string }>();
@@ -61,10 +61,10 @@ export function useNetworkSelf(): NetworkSelf | undefined {
  * Read and write this participant's own PRIVATE state.
  *
  *   const state = useNetworkState();
- *   state.set("choice", "A");     // only neighbours will see it, via project()
+ *   state.set("choice", "A");     // only neighbors will see it, via project()
  *
  * Use this instead of `player.set()` for anything that must stay inside the
- * neighbourhood: player attributes are broadcast to every participant, so
+ * neighborhood: player attributes are broadcast to every participant, so
  * projecting one restricts nothing.
  *
  * Memoised on the channel identity so the returned object is stable across
@@ -76,7 +76,7 @@ export function useNetworkState(): NetworkState | undefined {
 }
 
 /**
- * Neighbour-scoped chat.
+ * Neighbor-scoped chat.
  *
  *   const chat = useNeighborChat();
  *   chat?.messages.map((m) => <li key={`${m.from}-${m.seq}`}>{m.text}</li>);
@@ -104,9 +104,9 @@ export function useNeighborChat(): NeighborChat | undefined {
  * else receives it — including the participant it is about.
  *
  * The counterpart to `useNetworkState()`, and the split is the point: `state` is
- * what YOU wrote and your neighbours may see through `project()`; `told` is what
+ * what YOU wrote and your neighbors may see through `project()`; `told` is what
  * the SERVER wrote to you and nobody else sees at all. Needed for anything the
- * server knows and a participant should learn about a NON-neighbour, which
+ * server knows and a participant should learn about a NON-neighbor, which
  * `project()` structurally cannot express.
  *
  * NOT memoised, unlike `useNetworkState`: told values change during play, and a

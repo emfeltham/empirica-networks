@@ -3,7 +3,7 @@
  *
  * A player with no `participantID` at game start gets no channel, and `publish`
  * refuses partial views, so ONE such player leaves EVERY participant in the game
- * with an empty neighbourhood. `withNetwork` re-provisions on
+ * with an empty neighborhood. `withNetwork` re-provisions on
  * `ParticipantConnect` to repair that.
  *
  * O4 recorded this as "a net under a path we could not construct", and the code
@@ -43,7 +43,7 @@ import {
   type FakeCtx,
 } from "./fake_admin.js";
 
-/** A triangle: every participant has two neighbours, so nobody's view is empty. */
+/** A triangle: every participant has two neighbors, so nobody's view is empty. */
 const TRIANGLE = () => [
   [0, 1],
   [1, 2],
@@ -90,7 +90,7 @@ test("connecting repairs the channel and unblocks everyone", async () => {
     assert.deepEqual(
       (viewOn(scope) ?? []).length,
       2,
-      "every participant now has both neighbours, including the two who were waiting"
+      "every participant now has both neighbors, including the two who were waiting"
     );
   }
 });

@@ -5,7 +5,7 @@
  * metrics, the history replay and the change detection are pure functions on the
  * server (test/unit/monitor_*.test.ts), and the endpoint is tested against a
  * synthetic source (test/unit/monitor_http.test.ts). The served script was not.
- * The only thing standing behind the scrubber's index arithmetic, the colour
+ * The only thing standing behind the scrubber's index arithmetic, the color
  * assignment and the two banners was that they are short, and the failure mode
  * here is not a thrown error — it is a plausible picture that is wrong, which is
  * the class of failure this whole package is written against.
@@ -23,18 +23,18 @@
  *
  *   - the graph the operator sees is the graph the source described — node
  *     count, tie count, and one label per node (the relief rule: one light-mode
- *     colour slot is below 3:1, so identity may never rest on the fill);
+ *     color slot is below 3:1, so identity may never rest on the fill);
  *   - the scrubber shows the frame it names, including the ties that were
  *     REMOVED at that event, which is usually the interesting part and is drawn
  *     from a different code path than the ties that remain;
  *   - dragging to the end means live, not "the last frame", which is the one
  *     piece of index arithmetic that is silently wrong if it is wrong;
- *   - a value keeps its colour when the counts change. A colour assigned by
+ *   - a value keeps its color when the counts change. A color assigned by
  *     frequency would repaint the whole graph every time one participant
  *     changed their mind, which destroys the thing an operator is watching for;
  *   - `gone` clears the picture. A stale graph presented as live is the exact
  *     misreport `gone` exists to prevent, and the page comment
- *     claimed this behaviour before any test held it. It did not do it.
+ *     claimed this behavior before any test held it. It did not do it.
  *   - a lost stream does NOT clear the picture, but says so. The two cases are
  *     deliberately different and the difference is only visible in the browser.
  *
@@ -89,27 +89,27 @@ const LIVE_EDGES: Edge[] = [
 ];
 
 /**
- * Colours in SEAT order, with a fourth distinct value.
+ * Colors in SEAT order, with a fourth distinct value.
  *
  * Three palette slots clear the all-pairs CVD gate and the fourth value must
- * fall through to "other" — so the page has to be caught either honouring the
- * cap or quietly inventing a colour that does not clear it.
+ * fall through to "other" — so the page has to be caught either honoring the
+ * cap or quietly inventing a color that does not clear it.
  */
-const COLOURS = ["red", "red", "blue", "green", "green", "amber"];
+const COLORS = ["red", "red", "blue", "green", "green", "amber"];
 
 /** A source whose answers this test controls outright. */
 function fakeSource() {
   let present = true;
-  let colours = COLOURS.slice();
+  let colors = COLORS.slice();
   let pending: string[] = [];
 
   return {
     setPresent(v: boolean) {
       present = v;
     },
-    setColour(seat: number, v: string) {
-      colours = colours.slice();
-      colours[seat] = v;
+    setColor(seat: number, v: string) {
+      colors = colors.slice();
+      colors[seat] = v;
     },
     setPending(ids: string[]) {
       pending = ids;
@@ -136,10 +136,10 @@ function fakeSource() {
             index,
             playerID,
             degree: (deg.get(index) ?? []).length,
-            neighbours: (deg.get(index) ?? []).slice().sort((a, b) => a - b),
+            neighbors: (deg.get(index) ?? []).slice().sort((a, b) => a - b),
             channel: !pending.includes(playerID),
             attrs: {},
-            state: { color: colours[index] },
+            state: { color: colors[index] },
           })),
           metrics: graphMetrics(N, LIVE_EDGES),
           history: historyFrames("g1", EVENTS, ORDER),
@@ -162,7 +162,7 @@ interface Drawn {
   edges: number;
   /** Ties destroyed by this event, drawn dashed. */
   removed: number;
-  /** Ties created by this event, drawn in the "new" colour. */
+  /** Ties created by this event, drawn in the "new" color. */
   added: number;
   fills: string[];
   rows: number;
@@ -247,7 +247,7 @@ async function main(): Promise<void> {
       N,
       "every node must carry a direct label — identity may not rest on the fill",
     );
-    assert.deepEqual(d.labels, COLOURS, "each label is that seat's watched value");
+    assert.deepEqual(d.labels, COLORS, "each label is that seat's watched value");
     // +1 for the header row.
     assert.equal(d.rows, N + 1, "the table view has one row per seat");
     assert.equal(await panel(page, "metrics", "participants"), String(N));
@@ -257,7 +257,7 @@ async function main(): Promise<void> {
     assert.equal(await textOf(page, "#mode"), "live");
     console.log(`    live: ${d.nodes} nodes, ${d.edges} ties, ${d.labels.length} labels`);
 
-    // ---- 2. colour follows the value, and stops at three slots ---------------
+    // ---- 2. color follows the value, and stops at three slots ---------------
     assert.deepEqual(
       d.fills,
       [
@@ -274,7 +274,7 @@ async function main(): Promise<void> {
     assert.ok(legend.includes("amber (other)"), `the fourth value is marked as other: ${legend}`);
     assert.ok(
       legend.includes("read the labels"),
-      `the legend says colours have run out: ${legend}`,
+      `the legend says colors have run out: ${legend}`,
     );
 
     // ---- 3. the scrubber shows the frame it names ---------------------------
@@ -317,14 +317,14 @@ async function main(): Promise<void> {
     assert.equal(await textOf(page, "#mode"), "live");
     assert.equal((await drawn(page)).edges, LIVE_EDGES.length, "back to the live graph");
 
-    // ---- 4. a live update, and colours that do not move --------------------
+    // ---- 4. a live update, and colors that do not move --------------------
     //
     // Seat 5 changes amber -> red, so red becomes the commonest value and amber
-    // disappears. Nothing else may change colour: a scale assigned by frequency
-    // would repaint the graph, and an operator watching a colour spread through
-    // a network would be watching an artefact.
+    // disappears. Nothing else may change color: a scale assigned by frequency
+    // would repaint the graph, and an operator watching a color spread through
+    // a network would be watching an artifact.
     const before = (await drawn(page)).fills.slice(0, 5);
-    fake.setColour(5, "red");
+    fake.setColor(5, "red");
     await page.waitForFunction(
       () => (document.querySelectorAll('#graph text[dy="33"]')[5]?.textContent ?? "") === "red",
       undefined,
@@ -332,7 +332,7 @@ async function main(): Promise<void> {
     );
     d = await drawn(page);
     assert.deepEqual(d.fills.slice(0, 5), before, "an update must not repaint anybody else");
-    assert.equal(d.fills[5], "var(--s1)", "seat 5 takes the colour of the value it now holds");
+    assert.equal(d.fills[5], "var(--s1)", "seat 5 takes the color of the value it now holds");
     console.log("    live update arrived over SSE; no seat was repainted");
 
     // ---- 5. the stall banner -----------------------------------------------

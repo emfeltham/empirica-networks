@@ -1,5 +1,5 @@
 /**
- * Auditing `views.ndjson`: did anyone ever receive a non-neighbour's view?
+ * Auditing `views.ndjson`: did anyone ever receive a non-neighbor's view?
  *
  * This is C1 — the read guarantee — checked over complete sessions of a real
  * design, rather than over a synthetic topology in a single process. `verify`
@@ -17,14 +17,14 @@
  *
  * THREE OUTCOMES, ALL REPORTED:
  *
- *   a non-neighbour in a view    — C1 has failed. The evaluation stops; this is
+ *   a non-neighbor in a view    — C1 has failed. The evaluation stops; this is
  *                                  the finding and it leads the paper
- *   a neighbour missing          — not a leak. Under-delivery makes the network
+ *   a neighbor missing          — not a leak. Under-delivery makes the network
  *                                  look sparser than it was; recorded, not fatal
  *   no records for a session     — the audit is VACUOUS for that session, and
  *                                  vacuous is not a pass
  *
- * The third is the one this file is shaped around. "Zero non-neighbour views" over
+ * The third is the one this file is shaped around. "Zero non-neighbor views" over
  * an unstated number of views proves nothing, and a check that cannot run must
  * never be mistaken for a check that passed — the same doctrine as the `verify`
  * CLI's exit codes (`docs/API.md`). Every count here is therefore printed against
@@ -46,11 +46,11 @@ interface ViewRecord {
   view: unknown[];
 }
 
-/** A game's realised graph: player id to the set of player ids it may see. */
-export type NeighbourMap = Map<string, Set<string>>;
+/** A game's realized graph: player id to the set of player ids it may see. */
+export type NeighborMap = Map<string, Set<string>>;
 
 /** Every game found in an `edges.csv`, keyed by `game_id`. */
-export type GameGraphs = Map<string, NeighbourMap>;
+export type GameGraphs = Map<string, NeighborMap>;
 
 export interface ParsedEdges {
   graphs: GameGraphs;
@@ -78,11 +78,11 @@ export interface AuditResult {
   /** Games present in the graphs, which is the population the audit is over. */
   sessions: number;
   recordsChecked: number;
-  /** (viewer, neighbour) pairs examined. The denominator for `leaks`. */
+  /** (viewer, neighbor) pairs examined. The denominator for `leaks`. */
   deliveriesChecked: number;
-  /** Non-neighbours found in a view. Must be 0. */
+  /** Non-neighbors found in a view. Must be 0. */
   leaks: number;
-  /** Neighbours absent from a view that should have carried them. */
+  /** Neighbors absent from a view that should have carried them. */
   missingDeliveries: number;
   /** Games with a graph but no delivered view. Not a pass. */
   vacuousSessions: string[];
@@ -140,7 +140,7 @@ function splitCsvLine(line: string): string[] {
 }
 
 /**
- * The realised graph of every game in an `edges.csv`, in the player-id space.
+ * The realized graph of every game in an `edges.csv`, in the player-id space.
  *
  * `edgeRows` emits `player_a`/`player_b` as player ids, which is the same space
  * `ViewRecord.viewer` and `view[].id` live in — so the audit compares directly,
@@ -230,7 +230,7 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
     if (!graphs.has(gameID)) continue;
     failures.push(
       `REFUSED: game ${gameID} rewired during the session, so its views cannot be ` +
-        `checked against one static neighbour set — a view that was correct when ` +
+        `checked against one static neighbor set — a view that was correct when ` +
         `delivered would read as a leak against the graph that replaced it.`
     );
   }
@@ -245,8 +245,8 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
       continue;
     }
     const session = perSession.get(r.gameID)!;
-    const neighbours = graph.get(r.viewer);
-    if (!neighbours) {
+    const neighbors = graph.get(r.viewer);
+    if (!neighbors) {
       complain(
         `ERROR: ${r.viewer} is not in the graph of game ${r.gameID}, but was ` +
           `delivered a view (seq ${r.seq}). Unknown viewer.`
@@ -272,21 +272,21 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
       if (seen.has(id)) {
         complain(
           `ERROR: ${r.viewer} (game ${r.gameID}, seq ${r.seq}) received ${id} twice in ` +
-            `one view. A duplicate neighbour is not a shape the projection can produce.`
+            `one view. A duplicate neighbor is not a shape the projection can produce.`
         );
         continue;
       }
       seen.add(id);
       session.deliveries++;
-      if (!neighbours.has(id)) {
+      if (!neighbors.has(id)) {
         session.leaks++;
         complain(
-          `LEAK: ${r.viewer} received non-neighbour ${id}'s view in game ${r.gameID} ` +
+          `LEAK: ${r.viewer} received non-neighbor ${id}'s view in game ${r.gameID} ` +
             `(seq ${r.seq}). C1 has failed; the evaluation stops here.`
         );
       }
     }
-    for (const n of neighbours) {
+    for (const n of neighbors) {
       if (!seen.has(n)) session.missing++;
     }
   }
@@ -330,7 +330,7 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
   }
   if (missingDeliveries > 0) {
     notes.push(
-      `${missingDeliveries} neighbour(s) missing from a view that should have ` +
+      `${missingDeliveries} neighbor(s) missing from a view that should have ` +
         `carried them: under-delivery, not a leak. The network was seen as sparser ` +
         `than it was`
     );
@@ -364,7 +364,7 @@ export function formatAuditResult(r: AuditResult): string {
     "",
     `  empirica-networks simulate — views.ndjson audit (C1)`,
     "",
-    `  non-neighbour views     : ${r.leaks}/${r.deliveriesChecked} deliveries  (must be 0)`,
+    `  non-neighbor views     : ${r.leaks}/${r.deliveriesChecked} deliveries  (must be 0)`,
     `  views audited           : ${r.recordsChecked}  across ${r.sessions} session(s)`,
     `  missing deliveries      : ${r.missingDeliveries}  (under-delivery, not a leak)`,
     `  vacuous sessions        : ${r.vacuousSessions.length}/${r.sessions}  (must be 0)`,
@@ -434,7 +434,7 @@ export function mergeAuditResults(results: AuditResult[]): AuditResult {
 // rebuilds byte-identically from `run.ndjson`, and that the recorded seed
 // regenerates the network participants were actually given. The second is the
 // stronger claim and the one Breadboard could not make — recording a generator
-// and its parameters says what was asked for, not what was realised.
+// and its parameters says what was asked for, not what was realized.
 //
 // Both comparisons are pure over text and live here for the reason the rest of
 // this module does: a check on whether a result means anything should be
@@ -458,7 +458,7 @@ export function canonicalEdges(edges: IndexEdge[]): string {
 }
 
 /**
- * The realised graph of one game, recovered from `edges.csv` in index space.
+ * The realized graph of one game, recovered from `edges.csv` in index space.
  *
  * `edges.csv` is in player ids; a generator works in structural indices. `order`
  * is the bridge — `order[i]` is the player seated at index `i` — and it is

@@ -13,7 +13,7 @@ project maintained by one person.
 ## Reporting a vulnerability in Empirica itself
 
 Some issues surfaced while building this package are in the underlying [Empirica](https://empirica.ly)
-platform rather than in this code. Their impact is summarised in
+platform rather than in this code. Their impact is summarized in
 [`docs/upstream/ISSUES.md`](docs/upstream/ISSUES.md) (U-numbered), separately from this package's
 own defects in `ISSUES.md` (O-numbered).
 

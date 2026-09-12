@@ -48,7 +48,7 @@ test("a finished game releases everything it was holding", async () => {
     });
     handle = withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+      project: (neighbor: any) => ({ id: neighbor.id, choice: neighbor.get("choice") }),
       watch: ["choice"],
     });
   };

@@ -9,7 +9,7 @@
  *
  * If a future @empirica/core release changes how changes map to scopes,
  * attributes or dones, these fail in ~10ms instead of surfacing as an
- * inexplicably empty neighbourhood in an e2e run.
+ * inexplicably empty neighborhood in an e2e run.
  */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -27,7 +27,7 @@ test("resolves a channel and its attributes — the dones contract holds", () =>
 
   const nbhd = mode.nbhd.getValue();
   assert.ok(nbhd, "channel materialised");
-  assert.ok(nbhd instanceof Nbhd, "modelled as our Scope subclass, not a bare Scope");
+  assert.ok(nbhd instanceof Nbhd, "modeled as our Scope subclass, not a bare Scope");
 
   // The load-bearing assertions: values are READABLE. A broken dones wiring
   // still passes the two above and fails these.
@@ -118,5 +118,5 @@ test("does not confuse other scope kinds for a channel", () => {
   changes.next(scopeChange("game-1", "game"));
   changes.next(attrChange("game-1", "someKey", "someValue", true));
 
-  assert.equal(mode.nbhd.getValue(), undefined, "a game scope is not a neighbourhood");
+  assert.equal(mode.nbhd.getValue(), undefined, "a game scope is not a neighborhood");
 });

@@ -123,7 +123,7 @@ test("the monitor shows the real network, follows a rewire, and keeps a scrubbab
     });
     handle = withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id }),
+      project: (neighbor: any) => ({ id: neighbor.id }),
     });
   };
 
@@ -218,11 +218,11 @@ test("running the monitor leaks nothing to participants, and reads their private
     gameInit(1, 1, 3_600_000)(_);
     handle = withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      // Reads PRIVATE state, never a player attribute — so a non-neighbour's
+      // Reads PRIVATE state, never a player attribute — so a non-neighbor's
       // secret has no legitimate route to anyone's browser.
-      project: (neighbour: any, _viewer: any, ctx: any) => ({
-        id: neighbour.id,
-        secret: ctx.stateOf(neighbour).get("secret"),
+      project: (neighbor: any, _viewer: any, ctx: any) => ({
+        id: neighbor.id,
+        secret: ctx.stateOf(neighbor).get("secret"),
       }),
       watch: ["secret"],
     });
@@ -280,7 +280,7 @@ test("running the monitor leaks nothing to participants, and reads their private
           assert.equal(
             node.state.secret,
             secrets.get(node.playerID),
-            "the monitor must show each participant's OWN value, not a neighbour's",
+            "the monitor must show each participant's OWN value, not a neighbor's",
           );
         }
 
@@ -301,7 +301,7 @@ test("running the monitor leaks nothing to participants, and reads their private
 
           // (b) The claim that actually protects a study: with the monitor
           //     running and reading every secret, a participant still receives
-          //     only their neighbours'.
+          //     only their neighbors'.
           const meID = modeOf(participants[i]!).player.getValue()!.id;
           const visible = new Set(
             ((modeOf(participants[i]!).nbhd.getValue()?.neighbors ?? []) as { id: string }[]).map(
@@ -313,15 +313,15 @@ test("running the monitor leaks nothing to participants, and reads their private
             assert.equal(
               blob.includes(secret),
               false,
-              `participant ${i} received non-neighbour ${playerID}'s private state`,
+              `participant ${i} received non-neighbor ${playerID}'s private state`,
             );
             checkedAbsent++;
           }
         }
-        // On a ring of 4 each participant has exactly one non-neighbour, so a
+        // On a ring of 4 each participant has exactly one non-neighbor, so a
         // run that checked nothing would mean the topology was not what we
         // think — and a vacuous pass here is worse than a failure.
-        assert.equal(checkedAbsent, N, "each participant must have had one non-neighbour to check");
+        assert.equal(checkedAbsent, N, "each participant must have had one non-neighbor to check");
 
         // (c) The full edge list, which the monitor holds and renders, must not
         //     have reached anyone. This is the seating plan — the thing §4c

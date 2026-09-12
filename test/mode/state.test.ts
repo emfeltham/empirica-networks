@@ -4,7 +4,7 @@
  * The namespacing is the load-bearing detail: a participant can write to their
  * own channel, and that channel is also where the server writes `neighbors` and
  * `_seq`. Without the prefix a participant could overwrite their own
- * neighbourhood — or the publish counter the dones self-check depends on.
+ * neighborhood — or the publish counter the dones self-check depends on.
  */
 import assert from "node:assert/strict";
 import test from "node:test";

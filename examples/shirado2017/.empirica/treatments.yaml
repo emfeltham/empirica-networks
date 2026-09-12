@@ -27,8 +27,8 @@ factors:
       - value: 3
 
   - desc: >
-      "we manipulated the level of behavioural randomness of the bots (0%, 10%,
-      30%)". With probability botNoise an agent picks a colour at random instead of
+      "we manipulated the level of behavioral randomness of the bots (0%, 10%,
+      30%)". With probability botNoise an agent picks a color at random instead of
       resolving a conflict.
 
       0 is the deterministic-agent control, which is NOT the human-only arm: an
@@ -57,9 +57,9 @@ treatments:
   # ---------------------------------------------------------------- control
   - desc: >
       The paper's control arm: 20 participants on a Barabási–Albert network (each
-      new node attached with two links), three colours, five minutes, humans only.
+      new node attached with two links), three colors, five minutes, humans only.
       This is what the paper's Fig. 1 is about — its 30 control sessions.
-    name: Colour coordination (n=20, humans only)
+    name: Color coordination (n=20, humans only)
     factors:
       playerCount: 20
       botCount: 0
@@ -69,7 +69,7 @@ treatments:
       person can drive by hand. A 6-node preferential-attachment graph is small
       enough that the coordination problem is nearly trivial, so use this to see the
       mechanism work and do not read anything into the solution time.
-    name: Colour coordination (n=6, demo only)
+    name: Color coordination (n=6, demo only)
     factors:
       playerCount: 6
       botCount: 0

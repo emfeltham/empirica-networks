@@ -4,7 +4,7 @@
  * Not a naming question. Every participant in a game receives every other
  * participant's `participantIdentifier` (`ISSUES.md` U10, measured in
  * `test/e2e/bots.test.ts`), so a bot's identifier is on screen in a browser. For
- * a design that does not tell subjects which neighbours are software, a
+ * a design that does not tell subjects which neighbors are software, a
  * recognisable identifier discloses the manipulation.
  */
 import assert from "node:assert/strict";

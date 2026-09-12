@@ -131,7 +131,7 @@ test("batch 1 writes every record as it arrives", () => {
 
 test("the run log defaults to unbuffered, and views to 256", () => {
   // The defaults are the decision, so they are asserted rather than left to the
-  // doc comment. Checked through behaviour: one record, and whether it is on disk.
+  // doc comment. Checked through behavior: one record, and whether it is on disk.
   const dir = tmp();
   try {
     const logFile = path.join(dir, "run.ndjson");

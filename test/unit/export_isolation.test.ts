@@ -12,7 +12,7 @@
  * point: the trap was documented, the docs pointed at it, and the packaging still
  * walked into it. So this asserts the property rather than restating the intent.
  *
- * Modelled on `test/unit/graphology.test.ts`'s dependency check and on
+ * Modeled on `test/unit/graphology.test.ts`'s dependency check and on
  * `test/unit/monitor_isolation.test.ts`: scan the SOURCE, so the test is
  * meaningful before `npm run build` has run.
  */

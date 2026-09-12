@@ -1,4 +1,4 @@
-# shirado2017 — the colour coordination game
+# shirado2017 — the color coordination game
 
 **A reconstruction of the design in:**
 
@@ -17,9 +17,9 @@ agents x 3 noise levels x 3 placements. The agents run as a separate process, `s
 on `empirica-networks/bots`. Empirica provides no artificial-player facility, so this required a new
 entry point rather than a configuration flag (`ISSUES.md` O10, [`docs/BOTS.md`](../../docs/BOTS.md)).
 
-Twenty participants sit in a network and each picks one of three colours, changing it whenever
+Twenty participants sit in a network and each picks one of three colors, changing it whenever
 they like. The group succeeds when **every** participant differs from all of their own
-neighbours. Each participant sees only their own colour and their neighbours' — never the graph,
+neighbors. Each participant sees only their own color and their neighbors' — never the graph,
 never how close the group is. The dependent variable is time to solution, within five minutes.
 
 ## Why this one, next to `rand2011`
@@ -49,7 +49,7 @@ empirica
 ```
 
 Open one browser window per participant with a different `?participantKey=`. Pick a treatment:
-`Colour coordination (n=20, humans only)` is the paper's control arm; `(n=6, demo only)` is
+`Color coordination (n=20, humans only)` is the paper's control arm; `(n=6, demo only)` is
 what one person can drive by hand, and at that size the problem is close to trivial, so read
 nothing into the solution time.
 
@@ -77,7 +77,7 @@ windows and is the one to try first.
 
 A shared key list is used rather than a `bot-` prefix, because every participant in a game receives every
 other participant's `?participantKey=` (`docs/upstream/ISSUES.md` U10). A recognisable key would be readable
-from any browser, and this design does not tell subjects which of their neighbours are software,
+from any browser, and this design does not tell subjects which of their neighbors are software,
 so that is the manipulation being disclosed, not a metadata leak. `node bots.mjs --keys` generates keys
 shaped like the ones Empirica's own client produces; a deployed study should use keys drawn from
 the same space as its human recruitment keys. [`docs/BOTS.md`](../../docs/BOTS.md) §1.
@@ -87,7 +87,7 @@ The agents are told their noise level by the server, on their own private channe
 Two processes each reading their own copy is how a study ends up running 10%-noise agents while
 recording them as 30%.
 
-Prove the neighbour-limited claim on your own machine:
+Prove the neighbor-limited claim on your own machine:
 
 ```sh
 npx empirica-networks verify --n 4        # once the package is published
@@ -98,20 +98,20 @@ node dist/verify/cli.cjs verify --n 4     # from a clone today
 
 - **The network.** Barabási–Albert, each new node attached with two links, generated fresh per
   session, participants placed at random — `topology.barabasiAlbert(20, 2, { rng })`. Seeded, so
-  the realised graph is recoverable; the paper shows solvability depends on the draw, so an
+  the realized graph is recoverable; the paper shows solvability depends on the draw, so an
   analysis that cannot recover the exact graph cannot control for it.
-- **Three colours**, which is the chromatic number of these graphs. A fourth would make the task
+- **Three colors**, which is the chromatic number of these graphs. A fourth would make the task
   easy rather than hard, so it is not a parameter to tune.
-- **Local visibility only**: own colour plus directly connected neighbours' colours.
+- **Local visibility only**: own color plus directly connected neighbors' colors.
 - **The goal, stated but not observable.** Participants are told the group succeeds when everyone
-  differs from all their neighbours, and are given no way to see whether that has happened. The
+  differs from all their neighbors, and are given no way to see whether that has happened. The
   gap between those two is the coordination problem.
-- **Five minutes**, ending early the moment the network is properly coloured.
+- **Five minutes**, ending early the moment the network is properly colored.
 - **The agents.** Three per session, on the paper's 3 x 3 grid of noise levels (0%, 10%, 30%) and
   placements (central, peripheral, random). An agent switches away from a local conflict as a
   human would, and with probability `noise` picks at random instead. Placement is by degree:
   "central" is the three highest-degree nodes of the graph that session drew. It is implemented by
-  relabelling the generated graph rather than by generating a different one, so every arm draws
+  relabeling the generated graph rather than by generating a different one, so every arm draws
   from the same distribution of structures — an arm whose degree distribution also differed would
   confound position with structure.
 
@@ -121,14 +121,14 @@ node dist/verify/cli.cjs verify --n 4     # from a clone today
   and they are stated rather than buried because both affect any comparison with the paper's
   results. (1) `BOT_INTERVAL_MS` is 1500 ms — an agent's speed is obviously not neutral, and one
   moving every 50 ms would dominate a session regardless of its noise level. (2) Whether the noisy
-  draw includes the colour an agent already has is not settled by what was reconstructed; it is
+  draw includes the color an agent already has is not settled by what was reconstructed; it is
   uniform over all three here, so an eps of 0.3 produces an observable change about 0.2 of the
-  time. Excluding the current colour would make eps the rate of visible change instead.
-- **The fixed-colour agent condition.** The paper also ran agents that never change; that arm is
+  time. Excluding the current color would make eps the rate of visible change instead.
+- **The fixed-color agent condition.** The paper also ran agents that never change; that arm is
   not here.
 - **Incentives.** The paper paid subjects according to how quickly all conflicts were resolved. This does
   not pay anything, and payment is an important part of what creates a genuine time-pressure task.
-- **The solution-space measure.** The paper counts each network's proper 3-colourings via the
+- **The solution-space measure.** The paper counts each network's proper 3-colorings via the
   chromatic polynomial and uses it as a covariate; that is not computed here. `edges.csv` has the
   graph, so it can be computed offline.
 - **The interface.** The paper's screens are not reproduced. These are deliberately plain.
@@ -137,7 +137,7 @@ node dist/verify/cli.cjs verify --n 4     # from a clone today
 
 | Value | Written with | Who can read it |
 |---|---|---|
-| `color` | `state.set("color", …)` — the participant's own channel | **only their neighbours**, via `project()` |
+| `color` | `state.set("color", …)` — the participant's own channel | **only their neighbors**, via `project()` |
 | the global conflict count | nothing — held in the callbacks process | **nobody** |
 | time to solution | `game.batch.set(…)` at the end | **nobody but the server** |
 | an agent's noise level | `network(game).tell(playerID, "noise", …)` — that agent's own channel | **only that agent** |
@@ -150,10 +150,10 @@ chosen to be indistinguishable from human ones rather than hidden. A subject who
 wire sees six participant keys and cannot tell which three are software, which is the best the
 platform allows, not a guarantee.
 
-The global conflict count is computed on every colour change and published nowhere. A
+The global conflict count is computed on every color change and published nowhere. A
 participant who knew it would know when to stop trying, and not knowing is the coordination
 problem the paper measures. The client computes the participant's own conflicts from the
-neighbour colours it legitimately received, which reveals nothing new, and it deliberately
+neighbor colors it legitimately received, which reveals nothing new, and it deliberately
 cannot say "solved", because zero local conflicts is not zero global conflicts. The paper's own
 example has subjects who have solved the problem from their own point of view while the network
 has not.
@@ -168,7 +168,7 @@ At game end, into `data/<gameID>/` (override with `SHIRADO2017_OUT`):
 | File | One row per | Notes |
 |---|---|---|
 | `session.csv` | session | `solved`, `t_solution_ms`, node and edge counts, max degree, and the agent condition |
-| `changes.csv` | colour change | `t_ms` since stage start, who, their degree, `is_bot`, and the **global** conflict count after the change |
+| `changes.csv` | color change | `t_ms` since stage start, who, their degree, `is_bot`, and the **global** conflict count after the change |
 | `edges.csv` | tie | the package's format; static here, so it is the graph |
 | `views.ndjson` | delivered view | what each participant was shown, and when |
 | `bots.ndjson` | agent action | written by `server/bots.mjs`, in its own file because it is a separate process |
@@ -187,17 +187,17 @@ and writing the limit as though it were an observation is how a censored value s
 a measurement: a survival analysis over such a column reports a median that never happened.
 
 `conflicts_after` in `changes.csv` is the cost function over time. It cannot be reconstructed
-from the colours alone without also knowing the graph at that instant, which is why it is
+from the colors alone without also knowing the graph at that instant, which is why it is
 recorded rather than derived later.
 
 ### If the session ends early
 
 This matters more here than in most designs, because the dependent variable is the change
-log: when each colour was chosen and what the global conflict count was afterwards. `session.csv`
+log: when each color was chosen and what the global conflict count was afterwards. `session.csv`
 and `changes.csv` are written when the game ends, so a session that ran four of its five minutes
 and then crashed used to produce nothing at all. That is precisely the session you would want.
 
-So the experiment appends `data/run.ndjson` as it runs, one record per colour change, through
+So the experiment appends `data/run.ndjson` as it runs, one record per color change, through
 the package's `net.log()` (`log: { file }` in `callbacks.js`), which stamps each record with its
 `gameID`, so one file holds every session of a batch. This is unbuffered, which is the package default for
 `log`, and it matters most here: this is the log where a lost buffer would cost the dependent variable.
@@ -234,13 +234,13 @@ writing an empty file silently.
   `barabasiAlbert(20, 2)` stays inside the package's default envelope, and that an unsolved
   session is censored rather than recorded as 300 seconds. Plus the agents: that a 0%-noise agent really
   is deterministic (it is the baseline the other arms are read against, so a fencepost error there would
-  move every result), that an agent moves even when every colour conflicts, because a stationary agent
+  move every result), that an agent moves even when every color conflicts, because a stationary agent
   would constitute a deadlock, and that `placeBots` leaves the degree sequence unchanged in
   every arm, with a non-vacuity check that these graphs really do have hubs.
 - `test/e2e/shirado2017.test.ts` — this experiment's `callbacks.js`, imported unmodified,
-  against a real Tajriba: a non-neighbour's colour never reaches a browser (asserted at the wire
-  with per-participant sentinels, with the neighbour case as the non-vacuity arm), the global
-  conflict count reaches nobody in any shape, and a proper colouring ends the session while an
+  against a real Tajriba: a non-neighbor's color never reaches a browser (asserted at the wire
+  with per-participant sentinels, with the neighbor case as the non-vacuity arm), the global
+  conflict count reaches nobody in any shape, and a proper coloring ends the session while an
   improper one does not.
   Its agent arm runs three agents against this file, seated centrally: the placement survives the
   round trip through Classic's seating, each agent is told noise 0.3 by the server (a move is the

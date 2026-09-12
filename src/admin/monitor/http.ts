@@ -22,7 +22,7 @@
  *      test/e2e/monitor.test.ts, the same way PLATFORM-NOTES §4c was measured.
  *
  *   3. Loopback bind plus a per-run bearer token. This one is CONVENTION, and
- *      is labelled as such in the design: an operator can override both, and a
+ *      is labeled as such in the design: an operator can override both, and a
  *      package cannot stop them. What it can do is make the safe thing the
  *      default and make the override say what it costs.
  *

@@ -19,7 +19,7 @@
  *   npm run bench -- --clients CLIENT-HOST:7411 --absolute --repeats 3
  *
  * What is measured is END-TO-END publish latency: the wall time from a watched
- * attribute changing to a neighbour's client holding the new value. That is the
+ * attribute changing to a neighbor's client holding the new value. That is the
  * number a participant experiences, and it includes everything this package adds
  * on top of the transport.
  *
@@ -73,7 +73,7 @@ interface Cell {
   /** A complete graph instead: degree n-1, the densest a graph can be. */
   dense?: boolean;
   /**
-   * Padding per neighbour view, overriding `--payload` for this cell.
+   * Padding per neighbor view, overriding `--payload` for this cell.
    *
    * Per-cell rather than global for a reason measured the hard way on
    * 2026-08-16: the same cell measured 7.3ms and 18.3ms in two sweeps an hour
@@ -117,7 +117,7 @@ const CELLS: Cell[] = [
 /**
  * `npm run bench -- --bytes`. Degree x VIEW SIZE, the product nothing had measured.
  *
- * `maxNeighbourhoodBytes` (64 KiB) is documented as NOT measured — a footgun
+ * `maxNeighborhoodBytes` (64 KiB) is documented as NOT measured — a footgun
  * detector standing in for the thing the degree sweep did not cover. These cells
  * are what it would take to replace the guess with a number.
  *
@@ -134,7 +134,7 @@ const CELLS: Cell[] = [
  * target regime.
  */
 const BYTES_CELLS: Cell[] = [
-  { n: 20, m: 0, dense: true, payload: 0 },    // d=19, ~1.5 KiB neighbourhood
+  { n: 20, m: 0, dense: true, payload: 0 },    // d=19, ~1.5 KiB neighborhood
   { n: 20, m: 0, dense: true, payload: 1024 }, // d=19, ~21 KiB
   { n: 50, m: 0, dense: true, payload: 0 },    // d=49, ~3.7 KiB
   { n: 50, m: 0, dense: true, payload: 1024 }, // d=49, ~54 KiB — near the limit
@@ -192,13 +192,13 @@ const PER_SHARD = flag("perShard", 25);
  */
 const REPEATS = Math.max(1, flag("repeats", 1));
 /**
- * Extra bytes per neighbour view. The dimension the bench did not have.
+ * Extra bytes per neighbor view. The dimension the bench did not have.
  *
  * `defaultMaxDegree` lifted the degree cap at n <= 50 on a measurement taken
  * with a TWO-FIELD projection, so it established that degree is cheap *at small
  * view sizes* and nothing else. Degree x view size is the product a
  * participant's uplink carries, it is what SPIKE-REPORT §4's client-bandwidth
- * finding was about, and it is what `maxNeighbourhoodBytes` (64 KiB, a guess)
+ * finding was about, and it is what `maxNeighborhoodBytes` (64 KiB, a guess)
  * was added to guard. Padding each view lets the guess be checked instead.
  *
  * A constant string, so the byte-identical suppression in `publish` is not
@@ -291,7 +291,7 @@ const SAMPLE_TICK = "999:1755300000000.123";
 
 const payloadOf = (c: Cell): number => c.payload ?? PAYLOAD;
 
-/** What one view and one whole neighbourhood weigh, at this payload and degree. */
+/** What one view and one whole neighborhood weigh, at this payload and degree. */
 function viewSizes(d: number, payload: number): { view: number; nbhd: number } {
   const view = projectionBytes(
     payload > 0
@@ -594,7 +594,7 @@ const describeCell = (c: Cell): string =>
  * magnitudes are comparable at a glance — a 3ms range means something different
  * at p50 4ms than at p50 40ms.
  */
-function summarise(cell: Cell, runs: CellResult[]): void {
+function summarize(cell: Cell, runs: CellResult[]): void {
   if (runs.length === 0) {
     console.log(`${describeCell(cell)}  ── no run completed`);
     return;
@@ -674,10 +674,10 @@ async function runCell(cell: Cell): Promise<CellResult> {
     net = withNetwork(_, {
       topology: ({ playerCount }: any) =>
         cell.dense ? complete(playerCount) : ringLattice(playerCount, m),
-      project: (neighbour: any) =>
+      project: (neighbor: any) =>
         payload > 0
-          ? { id: neighbour.id, tick: neighbour.get("tick"), pad }
-          : { id: neighbour.id, tick: neighbour.get("tick") },
+          ? { id: neighbor.id, tick: neighbor.get("tick"), pad }
+          : { id: neighbor.id, tick: neighbor.get("tick") },
       watch: ["tick"],
       // Stated rather than relied on. Every limit is raised to exactly what this
       // cell is known to need, for a dense or padded run: the point of such a run
@@ -688,7 +688,7 @@ async function runCell(cell: Cell): Promise<CellResult> {
       envelope: {
         maxDegree: Math.max(16, d),
         maxViewBytes: Math.max(8192, sizes.view * 2),
-        maxNeighbourhoodBytes: Math.max(65536, sizes.nbhd * 2),
+        maxNeighborhoodBytes: Math.max(65536, sizes.nbhd * 2),
         onExceed: "throw",
       },
     });
@@ -910,10 +910,10 @@ async function main(): Promise<void> {
   }
   console.log("\n  empirica-networks — end-to-end publish latency\n");
   console.log(
-    `  attribute set -> a neighbour's client holds the new value\n` +
+    `  attribute set -> a neighbor's client holds the new value\n` +
       `  ${ROUNDS} rounds per cell, ${WARMUP} warmup dropped, one writer per round\n` +
       `  ${REPEATS} run(s) per cell, fresh server each` +
-      `${PAYLOAD > 0 ? `, +${PAYLOAD}B padding per neighbour view` : ""}\n`
+      `${PAYLOAD > 0 ? `, +${PAYLOAD}B padding per neighbor view` : ""}\n`
   );
   // Provenance, on every run and not only on an `--absolute` one. `ISSUES.md`
   // O1's whole finding is that the host's clock decision moves the number by 5x
@@ -979,11 +979,11 @@ async function main(): Promise<void> {
         }
       }
     }
-    if (REPEATS > 1) summarise(cell, runs);
+    if (REPEATS > 1) summarize(cell, runs);
   }
   console.log(
     "\n  Every sample is one recipient's receipt, so a round of degree d\n" +
-      "  contributes up to d of them: the tail is the slowest neighbour, not an\n" +
+      "  contributes up to d of them: the tail is the slowest neighbor, not an\n" +
       "  average one. Receipts are taken on the mode's own flush — the moment a\n" +
       "  real client could first render — not by polling.\n" +
       (CLIENTS
@@ -1010,7 +1010,7 @@ async function main(): Promise<void> {
         ? `  Views are padded to ${PAYLOAD}B, so these cells measure degree x view\n` +
           "  size rather than degree alone.\n"
         : "  Views are two fields, so these cells measure degree at SMALL view\n" +
-          "  sizes. For degree x view size — what `maxNeighbourhoodBytes` guards —\n" +
+          "  sizes. For degree x view size — what `maxNeighborhoodBytes` guards —\n" +
           "  use `--payload`.\n")
   );
   clients.close();

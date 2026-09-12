@@ -2,7 +2,7 @@
  * graphology interop.
  *
  * The adapter's job is to hand the graphology ecosystem (metrics, components,
- * gexf, sigma) the *same* graph the module publishes neighbourhoods from. So the
+ * gexf, sigma) the *same* graph the module publishes neighborhoods from. So the
  * assertions are about agreement, not about the adapter agreeing with itself:
  * degree sequences are compared against `degrees()`, and the round trip is
  * compared in canonical form against the original edge list.
@@ -59,7 +59,7 @@ test("the graphology graph has the degree sequence degrees() reports", () => {
 
 test("order labels nodes by playerID while topologyIndex keeps the position", () => {
   // This is the property the adapter exists to protect. graphology keys by
-  // string, so labelling by playerID alone would erase the structural index the
+  // string, so labeling by playerID alone would erase the structural index the
   // reproducibility record depends on.
   const n = 5;
   const order = ["pA", "pB", "pC", "pD", "pE"];
@@ -107,7 +107,7 @@ test("fromGraphology falls back to insertion order for a generator-built graph",
 test("toGraphology applies adjacency()'s cleaning, so the two cannot disagree", () => {
   // Duplicates and self-loops are dropped exactly as adjacency() drops them.
   // Taking the raw edge list instead would let the rendered graph and the
-  // published neighbourhoods diverge.
+  // published neighborhoods diverge.
   const messy: Edge[] = [
     [0, 1],
     [1, 0], // same undirected edge

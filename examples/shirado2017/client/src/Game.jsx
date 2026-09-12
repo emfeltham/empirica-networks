@@ -9,9 +9,9 @@ import React from "react";
 /**
  * Shirado & Christakis (2017), the participant screen.
  *
- * The whole task: pick a colour different from every neighbour's. Continuous — no
+ * The whole task: pick a color different from every neighbor's. Continuous — no
  * rounds, no submit — because the paper's game runs for five minutes and anyone may
- * change colour at any time.
+ * change color at any time.
  *
  * WHAT IS DELIBERATELY ABSENT FROM THIS SCREEN, and why it is the more important
  * half of the file:
@@ -20,10 +20,10 @@ import React from "react";
  *                               participant who knew whether the NETWORK was solved
  *                               would know when to stop trying, and not knowing is
  *                               the coordination problem the paper measures.
- *   the network structure       You see your neighbours' colours. Not who they are
+ *   the network structure       You see your neighbors' colors. Not who they are
  *                               connected to, not how many, not the shape of the
  *                               graph.
- *   anyone else's colour        Not hidden by this component — never sent to this
+ *   anyone else's color        Not hidden by this component — never sent to this
  *                               browser at all. That is what makes the task hard,
  *                               and it is asserted at the wire by
  *                               `test/e2e/shirado2017.test.ts`.
@@ -46,7 +46,7 @@ function Dot({ color, ring = false }) {
       className={`w-10 h-10 rounded-full border-2 ${
         color ? SWATCH[color] : "bg-gray-100"
       } ${ring ? "border-black" : "border-transparent"}`}
-      title={color || "no colour yet"}
+      title={color || "no color yet"}
     />
   );
 }
@@ -59,7 +59,7 @@ export function Game() {
 
   // `undefined` is "not known yet" and is NOT the same as `[]`. Barabási–Albert
   // leaves nobody isolated, so `[]` here would mean something has gone wrong — but
-  // rendering it as "you have no neighbours" while still loading would look
+  // rendering it as "you have no neighbors" while still loading would look
   // completely normal, which is why the hook refuses to conflate the two.
   if (!neighbors) {
     return <div className="p-8 text-gray-500">Joining the network…</div>;
@@ -67,21 +67,21 @@ export function Game() {
 
   // Private state: written to this participant's own channel, so it reaches other
   // participants only through the server's project() — and therefore only their
-  // neighbours. player.set("color", …) would broadcast it to everyone and the
+  // neighbors. player.set("color", …) would broadcast it to everyone and the
   // coordination problem would quietly become trivial.
   const myColor = state?.get("color");
 
-  const neighbourColors = neighbors.map((n) => n.color);
+  const neighborColors = neighbors.map((n) => n.color);
   // Computed here from what this participant can already see, so it reveals
   // nothing they were not sent. NOT the global count.
   const myConflicts = myColor
-    ? neighbourColors.filter((c) => c === myColor).length
+    ? neighborColors.filter((c) => c === myColor).length
     : 0;
 
   return (
     <div className="p-8 space-y-8 max-w-prose">
       <div>
-        <h2 className="text-lg font-semibold">Your colour</h2>
+        <h2 className="text-lg font-semibold">Your color</h2>
         <div className="flex gap-3 mt-2">
           {COLORS.map((c) => (
             <button key={c} onClick={() => state?.set("color", c)} title={c}>
@@ -104,14 +104,14 @@ export function Game() {
         {myColor && myConflicts > 0 ? (
           <p className="mt-3 text-sm text-red-700">
             {myConflicts} of your connections {myConflicts === 1 ? "has" : "have"} the
-            same colour as you.
+            same color as you.
           </p>
         ) : myColor ? (
           <p className="mt-3 text-sm text-green-700">
-            None of your connections share your colour.
+            None of your connections share your color.
           </p>
         ) : (
-          <p className="mt-3 text-sm text-gray-500">Pick a colour to begin.</p>
+          <p className="mt-3 text-sm text-gray-500">Pick a color to begin.</p>
         )}
 
         {/*
@@ -134,7 +134,7 @@ export function Game() {
       */}
       <p className="text-xs text-gray-400">
         You are node …{self?.playerID?.slice(-6)} with {self?.degree} connection(s).
-        No non-connection&apos;s colour is ever sent to this browser.
+        No non-connection&apos;s color is ever sent to this browser.
         {player.get("exitStatus") ? " Session over." : ""}
       </p>
     </div>

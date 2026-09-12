@@ -35,9 +35,9 @@ does exactly this for the bundled examples.
 
 `docs/PLATFORM-NOTES.md` Section 11 · `docs/GETTING-STARTED.md` Section 2
 
-### Participants sit with empty neighbourhoods forever, and nothing errors
+### Participants sit with empty neighborhoods forever, and nothing errors
 
-Cause: `networkKinds` was not registered, so the private channels are never modelled, and
+Cause: `networkKinds` was not registered, so the private channels are never modeled, and
 there is nothing to write views to.
 
 This is detected. Once the first game's channels have had time to come back and none has, you
@@ -153,7 +153,7 @@ flush.
 
 `docs/PLATFORM-NOTES.md` Section 15
 
-### Everyone can see a value that was supposed to be neighbour-limited
+### Everyone can see a value that was supposed to be neighbor-limited
 
 Cause: it was written with `player.set()`. Classic cross-links every participant to every
 player node, so a player attribute is broadcast to everyone. Projecting it restricts nothing:
@@ -167,7 +167,7 @@ state.set("choice", "A");    // ✓ private: this participant's own channel
 player.set("choice", "A");   // ✗ broadcast, whatever your topology
 ```
 
-On the server, read neighbour state through `ctx.stateOf(neighbour)`, not `neighbour.get(…)`.
+On the server, read neighbor state through `ctx.stateOf(neighbor)`, not `neighbor.get(…)`.
 
 `docs/GETTING-STARTED.md` Section 5 · `docs/ARCHITECTURE.md` Section 5
 
@@ -207,7 +207,7 @@ the batch.
 ### The log says a player "connected with NO private channel and was provisioned on the spot"
 
 This is not a fault, and there is nothing to fix. The repair path did its job: that player has
-their channel, and every participant's neighbourhood publishes. The message is loud because the
+their channel, and every participant's neighborhood publishes. The message is loud because the
 occurrence is interesting, not because the game is in trouble.
 
 ```
@@ -254,10 +254,10 @@ First cause: chat is off. It costs a listener and per-channel storage, so it is 
 withNetwork(Empirica, { …, chat: true });      // or { history: 200 }
 ```
 
-Second cause: the recipient was not a neighbour when the message was sent. A message goes to
-whoever is the sender's neighbour at that moment, plus the sender. Messages land on the
+Second cause: the recipient was not a neighbor when the message was sent. A message goes to
+whoever is the sender's neighbor at that moment, plus the sender. Messages land on the
 recipient's channel, so a rewire stops new messages arriving without erasing the conversation
-already delivered, which is the intended behaviour and can read as "chat broke" in a design that
+already delivered, which is the intended behavior and can read as "chat broke" in a design that
 rewires mid-conversation.
 
 `docs/API.md` `chat?:`
@@ -354,7 +354,7 @@ rather than producing a bot that never fires.
 
 The view has not arrived. `ctx.neighbors()` is `undefined` before the first publish, and a
 policy that returns early on `undefined` is correct; if it stays `undefined`, the bot's channel
-never materialised; see "empty neighbourhoods forever" above.
+never materialised; see "empty neighborhoods forever" above.
 
 The condition never arrived. A policy told its parameters over `ctx.told()` should wait
 rather than guess, so a `tell()` that was never sent leaves it idle by design. Warn loudly on the
@@ -452,8 +452,8 @@ table is for finding the context.
 | `the "nbhd" scope kind is not registered` | `networkKinds` not passed to `AdminContext.init` | GETTING-STARTED Section 3 |
 | `stateOf() was asked for private key …` | The key is in neither `watch` nor `read` | Section 1, "reads back as `undefined`" |
 | `topology exceeds the supported envelope` | The graph is denser than `maxDegree`. Refused at game start, before any channel exists, so the experiment is still abandonable. The message names the worst node and the two overrides | API.md, [Envelope](API.md#envelope) · TOPOLOGIES |
-| `N neighbour view(s) exceed … bytes` | One neighbour's projection is over `maxViewBytes` (8192) | API.md, [Envelope](API.md#envelope) |
-| `N participant(s) would receive more than … bytes in one publish` | Degree × view size is over `maxNeighbourhoodBytes` (64 KiB). Each view is individually legal; together they are not | API.md, [Envelope](API.md#envelope) |
+| `N neighbor view(s) exceed … bytes` | One neighbor's projection is over `maxViewBytes` (8192) | API.md, [Envelope](API.md#envelope) |
+| `N participant(s) would receive more than … bytes in one publish` | Degree × view size is over `maxNeighborhoodBytes` (64 KiB). Each view is individually legal; together they are not | API.md, [Envelope](API.md#envelope) |
 | `the projection at … is a function` / `a BigInt` / `contains a cycle` / `is a scope` | `project()` returned something JSON cannot carry, or the scope itself. Nothing was sent; validation runs before the publish | API.md, `project()` |
 | `no network for game …` | The game has not started, has ended, or `withNetwork()` was never called on this collector | ARCHITECTURE Section 3 |
 | `game … is not networked by this process` | Ended, never started, or lost to a restart (U2) | ARCHITECTURE Section 3 |
@@ -462,11 +462,11 @@ table is for finding the context.
 | `player … is not in game …'s network` | Player is outside the topology: check your `order` assumptions | — |
 | `project() threw while building X's view of Y` | Your projection threw; the cause is attached | — |
 | `project() reads player attribute(s) …` | Declare them in `watch` (warning, not an error) | Section 1, "views never update" |
-| `game … has no batch` | The realised network cannot be recorded, so the run is neither reproducible nor restart-survivable | ARCHITECTURE Section 3 step 6 |
+| `game … has no batch` | The realized network cannot be recorded, so the run is neither reproducible nor restart-survivable | ARCHITECTURE Section 3 step 6 |
 | `net.log() was called but no run log is configured` | Add `log: { file }` to the config | DATA-AND-ANALYSIS |
 | `a lifecycle listener is registered more than once` | U8 (warning) | Section 1, "the second `onStageEnded`" |
 | `N of M players have no participantID` | Unprovisioned players are blocking every publish (warning) | ARCHITECTURE Section 3 step 7 |
-| `the neighbourhood scope exists but its attributes are unreadable` | `DonesWiringError`: the client-side dones protocol broke, almost certainly an upstream version change | ARCHITECTURE Section 8 |
+| `the neighborhood scope exists but its attributes are unreadable` | `DonesWiringError`: the client-side dones protocol broke, almost certainly an upstream version change | ARCHITECTURE Section 8 |
 | `the participant context was built without the network mode` | `modeFunc={EmpiricaNetwork}` is missing from `<EmpiricaParticipant>` | GETTING-STARTED Section 5 |
 | `EmpiricaClassic no longer returns "…"` | Upstream changed the classic context shape; the composed mode is out of date | ARCHITECTURE Section 6 |
 | `monitor() needs the handle returned by withNetwork()` | Pass `net`, not the collector | API.md, [`monitor()`](API.md#monitornet-options) |
@@ -492,6 +492,6 @@ table is for finding the context.
    from inside the experiment. Do not expose it beyond localhost.
 3. Check `ISSUES.md`: U-numbered entries are upstream and generally cannot be fixed here.
 4. Check `docs/PLATFORM-NOTES.md`: every constraint is recorded with the date and version it
-   was measured against, so a behaviour that contradicts one may simply be newer than the note.
+   was measured against, so a behavior that contradicts one may simply be newer than the note.
 
 Anything not covered on this page belongs here. This is the file that should grow fastest.

@@ -40,10 +40,10 @@ though it also strengthens this entry: the reason degree turned out to be second
 harness's participants-per-process contention dominates it, which is exactly the confound above.
 The dense cells are single runs like all the others.
 
-Also unmeasured, and the reason lifting the degree cap required adding `maxNeighbourhoodBytes`
+Also unmeasured, and the reason lifting the degree cap required adding `maxNeighborhoodBytes`
 rather than just raising a number, is that the bench projects two fields. It measures degree at
 small view sizes and says nothing about degree × view size, which is the product a participant's
-uplink carries. A cell with a realistic payload per neighbour does not exist.
+uplink carries. A cell with a realistic payload per neighbor does not exist.
 
 This was worked 2026-08-16. Two of the three sub-items are closed, and the run-to-run one got
 worse on inspection rather than better.
@@ -52,10 +52,10 @@ worse on inspection rather than better.
 server and reports the median of the per-run p50s with the observed range. The README table now
 cites three runs per cell.
 
-2. `maxNeighbourhoodBytes` is measured and the guess retired. `npm run bench -- --bytes` pads each
-neighbour view, so degree × view size is measurable at last (PLATFORM-NOTES §21):
+2. `maxNeighborhoodBytes` is measured and the guess retired. `npm run bench -- --bytes` pads each
+neighbor view, so degree × view size is measurable at last (PLATFORM-NOTES §21):
 
-| cell | neighbourhood / publish | p50 |
+| cell | neighborhood / publish | p50 |
 |---|---|---|
 | n=20 d=19, 2 fields | 1.4 KiB | 11.5 ms |
 | n=20 d=19, +1 KiB/view | 20.6 KiB | 21.4 ms |
@@ -161,7 +161,7 @@ It gates the sweep; it does not certify the result.
 
 What is not done is the measurement itself, and no machine here can do it. The development host is
 darwin/arm64: `--absolute` exits 2 on it, naming all three unmet conditions, which is the correct
-behaviour and not a substitute for the number. The transport was verified over loopback with the
+behavior and not a substitute for the number. The transport was verified over loopback with the
 agent in a second process: two cells × two repeats, shards respawned between cells, 100% receipts,
 p50 within 0.0 ms of the same cells run locally. That proves the plumbing and proves nothing about
 the physics.

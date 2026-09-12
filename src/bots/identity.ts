@@ -19,7 +19,7 @@
  *    cannot read. `bot-1` is not a private detail of the runner's configuration;
  *    it is on screen, in a browser, one `JSON.stringify` away. For a design like
  *    Shirado & Christakis (2017) — where subjects are not told which of their
- *    neighbours are software — a recognisable identifier is not a leak of
+ *    neighbors are software — a recognisable identifier is not a leak of
  *    metadata, it is the manipulation itself, disclosed. So this module's job is
  *    to make the indistinguishable choice the easy one and the recognisable
  *    choice loud.
@@ -79,7 +79,7 @@ export function botMarkerWarning(identifiers: readonly string[]): string | undef
     `name themselves as bots: ${shown}${more}. Every participant in the game ` +
     `receives every other participant's identifier (ISSUES.md U10), so these are ` +
     `readable from a browser. If your design does not tell participants which of ` +
-    `their neighbours are software, this discloses it. See docs/BOTS.md.`
+    `their neighbors are software, this discloses it. See docs/BOTS.md.`
   );
 }
 

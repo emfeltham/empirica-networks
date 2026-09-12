@@ -9,7 +9,7 @@
  *
  * **This entry point cannot be loaded from bare Node ESM.** It reaches
  * `@empirica/core/admin` for `TajribaConnection`, which dies on
- * `cross-fetch/polyfill` (§3a), so it is shipped as a bundled CJS artefact and
+ * `cross-fetch/polyfill` (§3a), so it is shipped as a bundled CJS artifact and
  * the export map has one `default` condition rather than an `import` that would
  * resolve and then fail. Run your bot script with plain `node`; `require` and
  * `import` both work. See `docs/BOTS.md`.

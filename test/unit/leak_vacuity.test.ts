@@ -56,8 +56,8 @@ const EVERY_GENERATOR: Array<[string, number, () => Edge[]]> = [
 
 test("the two denominators partition every ordered pair, for every generator", () => {
   // The identity that makes the failure rule checkable rather than merely
-  // plausible: a pair of distinct participants is either a neighbour pair (arm 3
-  // expects a delivery) or a non-neighbour pair (arm 1 examines it), never both
+  // plausible: a pair of distinct participants is either a neighbor pair (arm 3
+  // expects a delivery) or a non-neighbor pair (arm 1 examines it), never both
   // and never neither. If this ever fails, the accounting has lost track of
   // somebody and both arms are reporting against the wrong base.
   for (const [label, n, build] of EVERY_GENERATOR) {
@@ -70,7 +70,7 @@ test("the two denominators partition every ordered pair, for every generator", (
   }
 });
 
-test("a complete graph is refused: there is no non-neighbour to leak to", () => {
+test("a complete graph is refused: there is no non-neighbor to leak to", () => {
   const a = accountVacuity(4, complete(4));
   assert.equal(a.candidatePairs, 0);
   assert.deepEqual(a.saturated, [0, 1, 2, 3]);
@@ -88,9 +88,9 @@ test("an empty graph is refused: nothing was ever expected to arrive", () => {
 });
 
 test("a star passes, and the hub is NOTED rather than failed", () => {
-  // The behaviour this change exists for. The hub is adjacent to everyone by
+  // The behavior this change exists for. The hub is adjacent to everyone by
   // construction, so arm 1 can say nothing about it — but the three spokes each
-  // have two non-neighbours, and the run establishes the guarantee for them.
+  // have two non-neighbors, and the run establishes the guarantee for them.
   // Reporting the hub as a failure would fail a check the star actually passes.
   const a = accountVacuity(4, star(4));
   assert.deepEqual(a.failures, [], "a star is a legitimate shape");
@@ -107,7 +107,7 @@ test("a disconnected graph passes, and the isolated node is NOTED", () => {
   assert.deepEqual(a.saturated, []);
   assert.equal(a.expectedDeliveries, 4);
   assert.equal(a.candidatePairs, 8);
-  assert.match(a.notes.join(" "), /no neighbour/);
+  assert.match(a.notes.join(" "), /no neighbor/);
 });
 
 test("a ring of 4 has neither, which is why it is the default", () => {
@@ -128,7 +128,7 @@ test("the pre-flight refuses wheel at n=4, because a wheel of 4 is K4", () => {
   assert.match(bad.refusal, /would prove nothing/);
 
   const good = preflightCliTopology("wheel", 5);
-  assert.ok("edges" in good, "a wheel of 5 has a rim with non-neighbours");
+  assert.ok("edges" in good, "a wheel of 5 has a rim with non-neighbors");
 });
 
 test("the pre-flight refuses complete at every n", () => {

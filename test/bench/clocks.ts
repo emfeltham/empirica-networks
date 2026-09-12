@@ -17,7 +17,7 @@
  * WHAT COUNTS AS PINNED. Both halves, because either one alone still moves:
  *
  *   1. Every CPU on the `performance` governor. `powersave`/`schedutil` choose
- *      frequency from utilisation, and this bench's duty cycle is 2-3% — the
+ *      frequency from utilization, and this bench's duty cycle is 2-3% — the
  *      exact regime where they choose the lowest.
  *   2. Turbo/boost off. Turbo makes the ceiling a function of thermal headroom,
  *      so a long sweep drifts downward through itself as the package warms.

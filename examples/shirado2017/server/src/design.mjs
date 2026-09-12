@@ -15,21 +15,21 @@
  *
  * WHY THIS DESIGN IS THE SHARPEST TEST OF THE WHOLE PACKAGE. In most network
  * experiments a locality leak makes the data wrong. Here it makes the task
- * TRIVIAL: "subjects could see only the colours of neighbours to whom they were
- * directly connected, in addition to their own colour", and someone who can see
+ * TRIVIAL: "subjects could see only the colors of neighbors to whom they were
+ * directly connected, in addition to their own color", and someone who can see
  * the whole graph solves it at once. The dependent variable is time to solution,
  * so a leak does not corrupt the measurement — it collapses it toward zero while
  * every screen still looks correct.
  */
 
 /**
- * "each subject was allowed to choose a colour from three choices (green, orange
- * and purple) at any time. The number of colours made available was the minimum
- * necessary to colour the entire network without conflicts, which is known as the
+ * "each subject was allowed to choose a color from three choices (green, orange
+ * and purple) at any time. The number of colors made available was the minimum
+ * necessary to color the entire network without conflicts, which is known as the
  * chromatic number."
  *
  * Three is not a parameter to tune: it is the chromatic number of the graphs this
- * design uses, and a fourth colour would make the task easy rather than hard.
+ * design uses, and a fourth color would make the task easy rather than hard.
  */
 export const COLORS = ["green", "orange", "purple"];
 
@@ -50,13 +50,13 @@ export const ATTACHMENT = 2;
 export const TIME_LIMIT_SECONDS = 300;
 
 /**
- * Every edge whose two endpoints share a colour, as index pairs.
+ * Every edge whose two endpoints share a color, as index pairs.
  *
- * "The collective goal is for every node to have a colour different from all of
- * its neighbour nodes." So the cost function is the number of conflicts, and zero
+ * "The collective goal is for every node to have a color different from all of
+ * its neighbor nodes." So the cost function is the number of conflicts, and zero
  * conflicts is the solved state.
  *
- * `colorAt(i)` returns the colour of node `i`, or `undefined` before they choose.
+ * `colorAt(i)` returns the color of node `i`, or `undefined` before they choose.
  * An unchosen node is NOT in conflict with anybody: treating it as one would make
  * a session look unsolved because somebody had not loaded yet.
  */
@@ -68,15 +68,15 @@ export function conflictEdges(edges, colorAt) {
   });
 }
 
-/** Total colour conflicts. The paper's cost function. */
+/** Total color conflicts. The paper's cost function. */
 export function conflictCount(edges, colorAt) {
   return conflictEdges(edges, colorAt).length;
 }
 
 /**
- * Whether the network is properly coloured — the end condition.
+ * Whether the network is properly colored — the end condition.
  *
- * Requires that EVERY node has chosen. Zero conflicts among a partly-coloured
+ * Requires that EVERY node has chosen. Zero conflicts among a partly-colored
  * network is not a solution, and accepting it would end sessions early and record
  * a time to solution for a problem nobody solved. That is the silent-success
  * version of this codebase's characteristic failure, so it is a separate clause
@@ -98,21 +98,21 @@ export function isSolved(n, edges, colorAt) {
  * who could see the global count would know when to keep going, and that is the
  * whole difficulty the paper is measuring.
  */
-export function localConflicts(neighbourColors, ownColor) {
+export function localConflicts(neighborColors, ownColor) {
   if (ownColor === undefined) return 0;
-  return neighbourColors.filter((c) => c === ownColor).length;
+  return neighborColors.filter((c) => c === ownColor).length;
 }
 
 /**
- * The colours a node could switch to without conflicting with any neighbour.
+ * The colors a node could switch to without conflicting with any neighbor.
  *
- * Offered to the CLIENT as a hint about the participant's own neighbourhood only —
+ * Offered to the CLIENT as a hint about the participant's own neighborhood only —
  * it is derived entirely from what they can already see, so it reveals nothing.
- * Empty means every colour conflicts, which is the locally-unresolvable state the
+ * Empty means every color conflicts, which is the locally-unresolvable state the
  * paper's Fig. 1a marks in dark red and which requires somebody else to move first.
  */
-export function conflictFreeColors(neighbourColors) {
-  const taken = new Set(neighbourColors.filter((c) => c !== undefined));
+export function conflictFreeColors(neighborColors) {
+  const taken = new Set(neighborColors.filter((c) => c !== undefined));
   return COLORS.filter((c) => !taken.has(c));
 }
 
@@ -133,7 +133,7 @@ export function conflictFreeColors(neighbourColors) {
 export const BOT_COUNT = 3;
 
 /**
- * "we manipulated the level of behavioural randomness of the bots (0%, 10%, 30%)".
+ * "we manipulated the level of behavioral randomness of the bots (0%, 10%, 30%)".
  *
  * The middle level is the paper's finding: 10% noise in central positions improved
  * global coordination, while 30% made it worse. 0% is the deterministic-agent
@@ -153,7 +153,7 @@ export const NOISE_LEVELS = [0, 0.1, 0.3];
 export const PLACEMENTS = ["central", "peripheral", "random"];
 
 /**
- * How often an agent reconsiders its colour, in milliseconds.
+ * How often an agent reconsiders its color, in milliseconds.
  *
  * **NOT the paper's number.** The paper describes agents that act with human-like
  * latency; the exact distribution is not reconstructed here, and an agent's speed
@@ -178,7 +178,7 @@ function pick(items, rng) {
 /**
  * What an agent does next, given only what it can see.
  *
- * ONLY what it can see: its own colour and its neighbours'. There is no version of
+ * ONLY what it can see: its own color and its neighbors'. There is no version of
  * this function that takes the graph or the global conflict count, and that is a
  * design constraint rather than an omission — an agent with more information than
  * a participant would make the bot conditions a comparison between two different
@@ -188,31 +188,31 @@ function pick(items, rng) {
  * switch away from a conflict — with a probability `noise` of acting at random
  * instead. So:
  *
- *   - with probability `noise`, choose uniformly from all three colours;
- *   - otherwise, if the current colour conflicts with a neighbour, move to a
- *     conflict-free colour if one exists, and to a random other colour if none
+ *   - with probability `noise`, choose uniformly from all three colors;
+ *   - otherwise, if the current color conflicts with a neighbor, move to a
+ *     conflict-free color if one exists, and to a random other color if none
  *     does (the locally-unresolvable state — standing still there is what a
  *     deadlock is made of);
  *   - otherwise, stay.
  *
  * **One ambiguity, resolved explicitly.** Whether the noisy draw includes the
- * colour the agent already has is not something the reconstruction settles. It is
+ * color the agent already has is not something the reconstruction settles. It is
  * uniform over all three here, so an ε of 0.3 produces an observable change about
- * 0.2 of the time. Excluding the current colour would make ε the rate of visible
+ * 0.2 of the time. Excluding the current color would make ε the rate of visible
  * change instead. The choice matters for any comparison with the paper's numbers,
  * so it is stated rather than buried.
  *
- * Returns a colour, which may be the one it already has — meaning "no move".
+ * Returns a color, which may be the one it already has — meaning "no move".
  * `bots.mjs` writes only on a change, so a no-move produces no record and no
  * traffic.
  */
-export function botChoice({ ownColor, neighbourColors, noise, rng }) {
+export function botChoice({ ownColor, neighborColors, noise, rng }) {
   if (rng() < noise) return pick(COLORS, rng);
   if (ownColor === undefined) return pick(COLORS, rng);
-  if (localConflicts(neighbourColors, ownColor) === 0) return ownColor;
-  const free = conflictFreeColors(neighbourColors);
+  if (localConflicts(neighborColors, ownColor) === 0) return ownColor;
+  const free = conflictFreeColors(neighborColors);
   if (free.length > 0) return pick(free, rng);
-  // Every colour conflicts. Moving anyway is the point: this is the state the
+  // Every color conflicts. Moving anyway is the point: this is the state the
   // paper's Fig. 1a marks in dark red, and it resolves only when somebody moves
   // without local improvement.
   return pick(
@@ -294,7 +294,7 @@ function shuffleLocal(items, rng) {
 }
 
 /**
- * One row per colour change, for analysis.
+ * One row per color change, for analysis.
  *
  * The dependent variable is time to solution, so the timestamps are the data and
  * `t_ms` is milliseconds since the stage started rather than a wall clock — a
@@ -302,13 +302,13 @@ function shuffleLocal(items, rng) {
  *
  * `conflicts_after` is the global count following the change, which participants
  * never saw. Recording it is the point: it is the cost function over time, and it
- * cannot be reconstructed from the colours alone without also knowing the graph at
+ * cannot be reconstructed from the colors alone without also knowing the graph at
  * that instant.
  *
  * `is_bot` marks the agents' moves. Not derivable afterwards: an agent and a human
  * write the same key on the same kind of channel through the same code path, which
  * is exactly the property the bots were built to have, so nothing in the data says
- * which is which unless it is recorded here. An analysis of human behaviour that
+ * which is which unless it is recorded here. An analysis of human behavior that
  * forgot to exclude them would be averaging over a population it chose.
  */
 export function changeRows(gameID, changes) {
@@ -383,12 +383,12 @@ export function exportFiles(gameID, session, changes, edgeCsv, toCSV) {
  * Rebuild `exportFiles`' arguments from the append-only run log.
  *
  * THE POINT, and it bites harder here than in the Rand port: this experiment's
- * dependent variable IS the change log — when each colour was chosen, and what the
+ * dependent variable IS the change log — when each color was chosen, and what the
  * global conflict count was afterwards. Held only in process memory until game
  * end, a killed or crashed session lost every bit of it. A session that ran four
  * of its five minutes and then died is exactly the data you would most want.
  *
- * So `callbacks.js` appends one NDJSON record per colour change as it happens, and
+ * So `callbacks.js` appends one NDJSON record per color change as it happens, and
  * this turns that log back into what the game-end path passes to `exportFiles`.
  * `test/unit/shirado2017.test.ts` asserts the two paths produce byte-identical
  * CSVs.
@@ -402,7 +402,7 @@ export function exportFiles(gameID, session, changes, edgeCsv, toCSV) {
  * Returns `history` as well as the session and its changes: the `graph` record
  * carries the package's own edge events, so `edges.csv` recovers through the
  * package's `edgeRows()` rather than being left empty. A log written before M6
- * Tier 4 has no `events` field and yields `[]` — the old behaviour, for the old
+ * Tier 4 has no `events` field and yields `[]` — the old behavior, for the old
  * data, without a crash.
  *
  * The `graph` record also carries the CONDITION — how many agents, where, and how

@@ -1,6 +1,6 @@
 # API reference
 
-Organised by import path, so the line at the top of your file tells you which section to open.
+Organized by import path, so the line at the top of your file tells you which section to open.
 Each entry carries the reasoning behind the decision, which is the part worth reading. This is
 hand-written rather than generated from types for that reason.
 
@@ -57,9 +57,9 @@ export const Empirica = new ClassicListenersCollector();
 
 export const net = withNetwork(Empirica, {
   topology: ({ playerCount, rng }) => topology.ring(playerCount, { rng }),
-  project: (neighbour, viewer, ctx) => ({
-    id: neighbour.id,
-    choice: ctx.stateOf(neighbour).get("choice"),
+  project: (neighbor, viewer, ctx) => ({
+    id: neighbor.id,
+    choice: ctx.stateOf(neighbor).get("choice"),
   }),
   watch: ["choice"],
   read: ["submission"],
@@ -70,7 +70,7 @@ export const net = withNetwork(Empirica, {
 
 ##### `topology?: ({ game, players, playerCount, rng }) => Edge[]`
 
-Builds the network at game start. Receives a seeded rng, so the realisation is reproducible from
+Builds the network at game start. Receives a seeded rng, so the realization is reproducible from
 the seed recorded on the batch scope. Defaults to a ring at n ≥ 3, and no edges below that.
 
 Returns a plain edge list over indices, so supplying your own is a one-liner:
@@ -85,7 +85,7 @@ place anybody deliberately: the generators return an anonymous edge list, and wh
 decided afterwards, out of reach.
 
 This case is not hypothetical: Shirado and Christakis (2017) manipulate exactly this, placing
-agents at central, peripheral or random nodes. Placement is done by relabelling the generated
+agents at central, peripheral or random nodes. Placement is done by relabeling the generated
 graph rather than by reordering people, since seats are fixed before this function is called:
 
 ```js
@@ -96,17 +96,17 @@ topology: ({ players, playerCount, rng }) => {
 }
 ```
 
-Relabelling keeps the degree distribution identical across arms, so a "central" condition differs
+Relabeling keeps the degree distribution identical across arms, so a "central" condition differs
 from a "peripheral" one only in who sits where. Pinned by `test/unit/seating.test.ts`, whose point
 is the failure that would otherwise pass silently: a broken mapping still yields a perfectly
 correct graph, over the wrong people.
 
-See [TOPOLOGIES.md](TOPOLOGIES.md) for the catalogue and [BOTS.md](BOTS.md) for placement.
+See [TOPOLOGIES.md](TOPOLOGIES.md) for the catalog and [BOTS.md](BOTS.md) for placement.
 
-##### `project?: (neighbour, viewer, ctx) => unknown`
+##### `project?: (neighbor, viewer, ctx) => unknown`
 
-This function determines what one participant may learn about one neighbour. It runs per (viewer,
-neighbour) pair, and must be pure. Return plain data; returning `undefined` omits that neighbour
+This function determines what one participant may learn about one neighbor. It runs per (viewer,
+neighbor) pair, and must be pure. Return plain data; returning `undefined` omits that neighbor
 from the view.
 
 There is deliberately no way to choose where this is written. The obvious alternative, writing to
@@ -117,12 +117,12 @@ the player scope, is broadcast to everyone and looks like it works.
 > Returning a scope is refused.
 >
 > ```js
-> project: (neighbour) => neighbour                                              // ✗ throws
-> project: (neighbour) => ({ id: neighbour.id, choice: neighbour.get("choice") }) // ✓
+> project: (neighbor) => neighbor                                              // ✗ throws
+> project: (neighbor) => ({ id: neighbor.id, choice: neighbor.get("choice") }) // ✓
 > ```
 >
 > The first line is the natural thing to write if `project()` is read as a filter rather than a
-> serialiser. An Empirica scope holds a reference to the global attribute store, so publishing one
+> serializer. An Empirica scope holds a reference to the global attribute store, so publishing one
 > would ship every attribute of every participant to that client. This is the exact leak this
 > module exists to prevent, arriving through the one path that cannot be locked down, because the
 > content of the projection is chosen by the person writing it.
@@ -146,16 +146,16 @@ between them cannot break anything.
 
 One list covers both the player scope and the private channel, deliberately: which scope a key
 lives on is your choice and can change, and two lists would turn a moved key into silently frozen
-neighbourhoods.
+neighborhoods.
 
 Empirica has no wildcard attribute listener, so the list cannot be inferred. That would normally
-make this an easy mistake to make: omit `"score"` and neighbours never see scores change, with
+make this an easy mistake to make: omit `"score"` and neighbors never see scores change, with
 nothing to indicate it. So `project()` runs against a recording proxy, and anything it reads that
 is not declared is reported once, with the corrected list ready to paste:
 
 ```
 empirica-networks: project() reads player attribute(s) "score" that are not in
-`watch`, so neighbours will NOT see them change.
+`watch`, so neighbors will NOT see them change.
     withNetwork(Empirica, { watch: ["choice", "score"], ... })
   If they are set once and never change, this is safe to ignore.
 ```
@@ -175,16 +175,16 @@ See [Envelope](#envelope).
 
 ##### `chat?: boolean | { history?: number }`
 
-Neighbour-scoped chat, off by default because it costs a listener and per-channel storage.
+Neighbor-scoped chat, off by default because it costs a listener and per-channel storage.
 `history` defaults to 200 messages per participant, capped because the log is server memory and
 wire payload both.
 
-A message goes to whoever is the sender's neighbour at that moment, plus the sender. It uses the
+A message goes to whoever is the sender's neighbor at that moment, plus the sender. It uses the
 same channel as everything else, under a different key, so there is no second privacy path.
 
 Sending and receiving take different routes on purpose. A participant can only write to their own
 channel, so `send` writes to an outbox there and the server distributes the message. Writing
-straight into a neighbour's channel would work, since nothing prevents it, but doing so would rely
+straight into a neighbor's channel would work, since nothing prevents it, but doing so would rely
 on the absence of write access control.
 
 Messages land on the recipient's channel, and this is what decides what a rewire does: dropping a
@@ -219,7 +219,7 @@ withNetwork(Empirica, {
   watch: ["color"],
   onPrivateState: ({ gameID, playerID, key, value }) => {
     if (key !== "color") return;
-    // …check whether the graph is now properly coloured, and end the stage if so
+    // …check whether the graph is now properly colored, and end the stage if so
   },
 });
 ```
@@ -255,12 +255,12 @@ Third argument to `project()`.
 | | |
 |---|---|
 | `game` | the admin game scope |
-| `viewerIndex`, `neighbourIndex` | positions in the topology |
+| `viewerIndex`, `neighborIndex` | positions in the topology |
 | `stateOf(player)` | `{ get(key) }` — a player's private state |
 
-Use `ctx.stateOf(neighbour).get("choice")`, not `neighbour.get("choice")`. A player attribute is
+Use `ctx.stateOf(neighbor).get("choice")`, not `neighbor.get("choice")`. A player attribute is
 broadcast to every participant, so projecting one restricts nothing; only values written to a
-private channel are actually neighbour-limited.
+private channel are actually neighbor-limited.
 
 #### `NetworkHandle`
 
@@ -337,7 +337,7 @@ prints the latter alongside RSS.
 | `games` | games this process is currently networking |
 | `channels` | channel ids indexed, summed across those games |
 | `channelScopes` | materialised channel scope objects held |
-| `cachedViews` | serialised views kept for the byte-identical check |
+| `cachedViews` | serialized views kept for the byte-identical check |
 | `endedGames` | finished games still remembered by id |
 | `chatSeqs` | chat dedupe marks held, one per participant who has sent a message |
 | `firstChannelMs` | ms from the first `addScopes` to the first channel arriving, or `undefined` |
@@ -397,7 +397,7 @@ Empirica.onStageStart(({ stage }) => {
 Mutate only from inside a listener (rule 2). Reads are safe anywhere.
 
 No unlinking is involved, which matters because Tajriba does not support it. The link grants a
-persistent private channel; dropping a tie simply means that neighbour is absent from the next
+persistent private channel; dropping a tie simply means that neighbor is absent from the next
 view written there.
 
 Both the current edge list and an append-only mutation log are recorded on the batch scope. Two
@@ -414,10 +414,10 @@ network(game).tell(playerID, "offer", { with: otherID, theirLastAction: "C" });
 ```
 
 A second path to a client exists because that is exactly where a leak gets in. `project()` runs
-per (viewer, neighbour) pair over current neighbours only, so it structurally cannot express "show
+per (viewer, neighbor) pair over current neighbors only, so it structurally cannot express "show
 this subject one fact about someone they are not connected to." This case is not hypothetical:
 Rand, Arbesman and Christakis (2011) offer a subject the chance to form a new tie and show them
-that person's last action, and by definition the target is not yet a neighbour. Every route around
+that person's last action, and by definition the target is not yet a neighbor. Every route around
 this problem is a broadcast.
 
 Several properties keep this path from weakening the guarantee:
@@ -496,11 +496,11 @@ unanswered claim that their server is misconfigured.
 
 `registrationNotDetectedMessage`, `registrationRetractionMessage`, `registrationWaitMs`,
 `REGISTRATION_CHECK_MS` and `REGISTRATION_CHECK_PER_CHANNEL_MS` are exported so a test can assert
-the behaviour and a consumer can recognise it. The wait is overridable for tests via
+the behavior and a consumer can recognize it. The wait is overridable for tests via
 `EMPIRICA_NETWORKS_REGISTRATION_CHECK_MS`, which replaces the whole computation rather than just
 the floor, deliberately as an environment-variable seam rather than a configuration field.
 
-### Reading the realised network
+### Reading the realized network
 
 | | |
 |---|---|
@@ -519,8 +519,8 @@ Limits on what may be published, enforced by default.
 | Limit | Default | What it catches |
 |---|---|---|
 | `maxDegree` | `n - 1` at n ≤ 50, `16` above | A topology too dense for the measured regime |
-| `maxViewBytes` | 8192 | One neighbour's view being enormous |
-| `maxNeighbourhoodBytes` | 65536 (64 KiB) | Degree × view size, many reasonable views adding up |
+| `maxViewBytes` | 8192 | One neighbor's view being enormous |
+| `maxNeighborhoodBytes` | 65536 (64 KiB) | Degree × view size, many reasonable views adding up |
 
 Degree is checked at game start, before provisioning and before anything is recorded, so an
 out-of-envelope topology fails while the experiment is still abandonable.
@@ -528,20 +528,20 @@ out-of-envelope topology fails while the experiment is still abandonable.
 There are three limits rather than one, and `maxDegree` depends on n, for the following reason. A
 flat cap of 16 at every size would be a number about n enforced as a number about degree: the
 sweep behind it varies n over sparse graphs, so it says nothing about degree at a fixed n, and a
-published design needing a full neighbourhood at n=20 would have to override it. Measured directly
+published design needing a full neighborhood at n=20 would have to override it. Measured directly
 (`npm run bench -- --dense`), a complete graph at n=20 publishes faster than a degree-8 ring at
 n=50, which is why there is no per-node cap inside the measured regime, and 16 applies only above
 it.
 
 That benchmark projects only two fields, however, so what it establishes is that degree is cheap
 at small view sizes. Degree multiplied by view size is what a participant's connection actually
-carries, and guarding that quantity is `maxNeighbourhoodBytes`'s job: 49 views of 1.5 KiB are each
+carries, and guarding that quantity is `maxNeighborhoodBytes`'s job: 49 views of 1.5 KiB are each
 well inside `maxViewBytes` and add up to 73 KiB. Lifting a limit is only honest if the person doing
 so names what it was accidentally guarding.
 
 Also exported: `resolveEnvelope`, `defaultMaxDegree`, `DEFAULT_ENVELOPE`, `MEASURED_DENSE_N`,
 `MEASURED_SPARSE_DEGREE`, `EnvelopeError`, and the `checkDegrees` / `checkViewBytes` /
-`checkNeighbourhoodBytes` predicates.
+`checkNeighborhoodBytes` predicates.
 
 ### Also exported
 
@@ -676,7 +676,7 @@ if (!neighbors) return <Loading />;    // this branch matters
 ```
 
 `useNeighbors()` returns `undefined` until the first publish, and `[]` only for a genuinely
-isolated node. The hook refuses to conflate them: a node with no neighbours is a legitimate
+isolated node. The hook refuses to conflate them: a node with no neighbors is a legitimate
 result, so returning `[]` while loading would render a participant as isolated, look entirely
 normal, and quietly corrupt the data. Branch on this the way one already branches on `usePlayer()`.
 
@@ -715,7 +715,7 @@ The pure row builders: `edgeRows`, `snapshotRows`, `viewRows`, `parseNdjson`, `t
 Artificial participants. Full account, including the parts that are not API, in
 [BOTS.md](BOTS.md).
 
-This module is shipped as a bundled CJS artefact, so a bot script runs under plain `node` with no
+This module is shipped as a bundled CJS artifact, so a bot script runs under plain `node` with no
 bundler and no tsx. `@empirica/core/admin`, needed for `TajribaConnection`, cannot be loaded from
 bare Node ESM ([PLATFORM-NOTES §3a](PLATFORM-NOTES.md#3a-the-published-empiricacore-cannot-be-loaded-from-raw-node-at-all-significant-risk)),
 so the export map has one `default` condition rather than an `import` that would resolve and then
@@ -733,10 +733,10 @@ const run = await runBots({
   policy: {
     tickMs: 1500,
     onTick(ctx) {
-      const neighbours = ctx.neighbors();
-      if (neighbours === undefined) return;
+      const neighbors = ctx.neighbors();
+      if (neighbors === undefined) return;
       const mine = ctx.state().get("choice");
-      const next = decide(mine, neighbours, ctx.rng);
+      const next = decide(mine, neighbors, ctx.rng);
       if (next !== mine) ctx.state().set("choice", next);
     },
   },
@@ -747,8 +747,8 @@ const run = await runBots({
 |---|---|
 | `url` | Tajriba endpoint, e.g. `http://localhost:3000/query`. The HTTP address, not the websocket one. Tajriba derives `ws://`/`wss://` itself and rejects a url that already carries a websocket scheme. |
 | `identifiers` | one participant key per bot. Required: the list is the count, and the server usually needs the same list |
-| `policy` | the behaviour; see below |
-| `seed` | seeds each bot's `ctx.rng` from `(seed, identifier)`. Default 1, fixed rather than time-derived so bot behaviour is reproducible by default |
+| `policy` | the behavior; see below |
+| `seed` | seeds each bot's `ctx.rng` from `(seed, identifier)`. Default 1, fixed rather than time-derived so bot behavior is reproducible by default |
 | `log` | `(record) => void`. Default: one JSON line per record on stdout |
 | `pollMs` | lifecycle poll interval, default 250. Polled because the mode's subjects carry scope objects mutated in place, so `player.get("gameID")` changing pushes nothing |
 | `stallMs` | warn after this long in one non-playing phase, default 30 000. Once per phase, not per poll |
@@ -780,7 +780,7 @@ study one player short.
 `self()`, `state()`, `told()`. Plus `elapsedMs()` (since the first publish), `rng`, `log(record)`
 and `submit()`.
 
-There is deliberately no server-side path: no way to read a non-neighbour, see the graph, or learn
+There is deliberately no server-side path: no way to read a non-neighbor, see the graph, or learn
 global state. A bot with more information than a participant would make a bot condition a
 comparison between two different games.
 
@@ -816,7 +816,7 @@ Isomorphic pieces only.
 
 `GAME_KEYS` is a named, empty record. Two things were kept on the game scope and both had to move:
 the channel index (every participant got every channel id, which with no write access control is
-the capability needed to write into someone else's channel) and the realised network. It is kept
+the capability needed to write into someone else's channel) and the realized network. It is kept
 as an empty record so the reason survives rather than being rediscovered.
 
 ---
@@ -834,7 +834,7 @@ node dist/verify/cli.cjs verify --n 4     # from a clone, after `npm run build`
 
 | Option | Default | |
 |---|---|---|
-| `-n`, `--n <count>` | 4 | Participants. Minimum 4, and refused below that: below it every named topology makes everyone everyone's neighbour, so there is no non-neighbour and a pass would prove nothing |
+| `-n`, `--n <count>` | 4 | Participants. Minimum 4, and refused below that: below it every named topology makes everyone everyone's neighbor, so there is no non-neighbor and a pass would prove nothing |
 | `--topology <name>` | `ring` | `ring`, `star`, `wheel`, `pairs`, `ladder`, `complete`. Refused when the shape could prove nothing — see below |
 | `-q`, `--quiet` | off | Print `PASS` or `FAIL` and nothing else. The CI form |
 | `-h`, `--help` | | Usage |
@@ -856,25 +856,25 @@ report the study's own `@empirica/core`.
   … connected 4 participants
   … waiting for projections to be published
 
-  empirica-networks verify — neighbour-limited visibility
+  empirica-networks verify — neighbor-limited visibility
   topology: ring of 4
 
-  non-neighbour sentinels received : 0/4 pairs  (must be 0)
-  neighbour sentinels delivered    : 8/8  (non-vacuity)
+  non-neighbor sentinels received : 0/4 pairs  (must be 0)
+  neighbor sentinels delivered    : 8/8  (non-vacuity)
   control values observed          : 12  (must be > 0, proves detection works)
 
-  note: ring of 4: degree 2-2, 4 non-neighbour pairs examined
+  note: ring of 4: degree 2-2, 4 non-neighbor pairs examined
 
   PASS
 ```
 
 Every arm prints against what it was measured over, and arm 1's denominator is the one that took
-longest to earn: `0` alone reads the same whether four non-neighbour pairs were examined and none
+longest to earn: `0` alone reads the same whether four non-neighbor pairs were examined and none
 leaked, or the graph was complete and no such pair existed. The second is a check that establishes
 nothing while announcing a PASS, which is the failure this command exists to make impossible.
 
 Which shapes it will run is decided as follows. A topology is refused, before anything boots, when its own graph
-says the run could not establish the guarantee: no non-neighbour anywhere (arm 1 has nothing to
+says the run could not establish the guarantee: no non-neighbor anywhere (arm 1 has nothing to
 examine) or no edges at all (arm 3 expects nothing to arrive). That refuses `complete` at every
 `n`, and `wheel` at `n = 4`, where a hub plus a three-node rim is the complete graph. Shapes
 that excuse only some participants are run and reported: a star's hub is adjacent to everyone,

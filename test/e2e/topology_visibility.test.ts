@@ -1,5 +1,5 @@
 /**
- * The realised network must not reach the people inside it.
+ * The realized network must not reach the people inside it.
  *
  * `withNetwork` records the seed and edge list so a finished run is
  * reproducible from stored data. That record started on the GAME scope, which
@@ -37,12 +37,12 @@ test.beforeEach(() => resetChannels());
 
 const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
 
-test("a participant cannot read the realised topology or its seed", async () => {
+test("a participant cannot read the realized topology or its seed", async () => {
   const listeners = (_: any) => {
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id }),
+      project: (neighbor: any) => ({ id: neighbor.id }),
     });
   };
 
@@ -101,7 +101,7 @@ test("a participant cannot read the realised topology or its seed", async () => 
         if (v !== undefined) visible.push(`${key}=${JSON.stringify(v)}`);
       }
 
-      // Match the serialised edge list with and without its outer brackets, so
+      // Match the serialized edge list with and without its outer brackets, so
       // a copy nested inside a larger payload is still caught.
       const wire = frames.join("");
       const topologyOnWire =
@@ -120,19 +120,19 @@ test("a participant cannot read the realised topology or its seed", async () => 
       assert.equal(
         topologyOnWire,
         false,
-        "the realised edge list must not reach a participant by any route"
+        "the realized edge list must not reach a participant by any route"
       );
 
       // The point that matters: structure being visible must NOT mean state is.
       // This is the guarantee the package actually makes, and it still holds.
       const myID = modeOf(participants[0]!).player.getValue()!.id;
-      const myNeighbours = new Set(
+      const myNeighbors = new Set(
         (modeOf(participants[0]!).nbhd.getValue()!.neighbors as { id: string }[]).map(
           (n) => n.id
         )
       );
-      assert.equal(myNeighbours.size, 2, "still exactly 2 of the other 3");
-      assert.ok(!myNeighbours.has(myID), "and not themselves");
+      assert.equal(myNeighbors.size, 2, "still exactly 2 of the other 3");
+      assert.ok(!myNeighbors.has(myID), "and not themselves");
 
       sub.unsubscribe?.();
     }

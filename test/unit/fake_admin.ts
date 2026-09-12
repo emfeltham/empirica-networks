@@ -110,7 +110,7 @@ export interface FakePlayer {
    * — a query over an ATTRIBUTE — while `player.participantID` is a FIELD
    * assigned inside `_.on("player", …)`. Two different mechanisms, so a player
    * can be in `game.players` without the field being set (`ISSUES.md` O4).
-   * Modelling them as one thing would make that state unrepresentable here and
+   * Modeling them as one thing would make that state unrepresentable here and
    * the bug untestable.
    */
   participantID?: string | undefined;
@@ -208,6 +208,6 @@ export async function say(
 export const textsOn = (scope: FakeScope): string[] =>
   ((scope.get(NBHD_KEYS.CHAT) ?? []) as ChatMessage[]).map((m) => m.text);
 
-/** The neighbour views last published to a channel, or undefined if never published. */
+/** The neighbor views last published to a channel, or undefined if never published. */
 export const viewOn = (scope: FakeScope): unknown[] | undefined =>
   scope.get(NBHD_KEYS.NEIGHBORS) as unknown[] | undefined;

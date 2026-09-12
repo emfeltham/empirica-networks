@@ -1,6 +1,6 @@
 # Documentation
 
-This index is organised by what you are trying to do. If you are new, start at
+This index is organized by what you are trying to do. If you are new, start at
 [GETTING-STARTED](GETTING-STARTED.md) and ignore the rest of this page.
 
 ## Using the package

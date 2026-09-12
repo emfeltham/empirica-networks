@@ -287,7 +287,7 @@ test("the pending message names the players and the consequence", () => {
 
   assert.match(msg, /2 of 4 players/);
   assert.match(msg, /"p2", "p7"/, "names them, so the operator can act");
-  assert.match(msg, /NO participant in this game receives a neighbourhood/);
+  assert.match(msg, /NO participant in this game receives a neighborhood/);
   assert.match(msg, /retried when a participant connects/, "says it self-heals");
 });
 

@@ -2,7 +2,7 @@
  * The bot runner: N headless participants, each running a policy.
  *
  * A bot is a real participant. It opens a real Tajriba session, runs the real
- * `EmpiricaNetwork` mode, reads its neighbours out of a real private channel and
+ * `EmpiricaNetwork` mode, reads its neighbors out of a real private channel and
  * writes with the same `state.set()` a browser uses. There is no server-side
  * shortcut anywhere in this file, and that is the point rather than a
  * restriction — see the note at the top of `./policy.ts`.
@@ -14,7 +14,7 @@
  *
  * NOTE: this module imports `@empirica/core/admin` (for `TajribaConnection`) and
  * therefore cannot be loaded from bare Node ESM — `docs/PLATFORM-NOTES.md` §3a.
- * It ships as a bundled CJS artefact for exactly that reason; see `tsup.config.ts`
+ * It ships as a bundled CJS artifact for exactly that reason; see `tsup.config.ts`
  * and `docs/BOTS.md`.
  */
 import { TajribaConnection } from "@empirica/core/admin";
@@ -50,7 +50,7 @@ export interface BotRunOptions<T = unknown> {
    * Seed for the per-bot random streams. Default 1.
    *
    * Fixed rather than time-derived on purpose: a default that changed every run
-   * would make bot behaviour irreproducible by default, which is the failure the
+   * would make bot behavior irreproducible by default, which is the failure the
    * topology seed exists to prevent, one layer up.
    */
   seed?: number;
@@ -186,7 +186,7 @@ export async function runBots<T = unknown>(opts: BotRunOptions<T>): Promise<BotR
       index,
       mode,
       // Seeded from the identifier, not the index: reusing the same identifiers
-      // replays the same behaviour even if the fleet is started in a different
+      // replays the same behavior even if the fleet is started in a different
       // order, and two studies with different bot counts do not silently share
       // bot 0's stream.
       rng: makeRng(hashSeed(identifier, seed)),

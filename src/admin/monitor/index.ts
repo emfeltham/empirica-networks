@@ -10,7 +10,7 @@
  *
  * WHY IT LIVES IN THE CALLBACKS PROCESS, which is the whole design in one
  * paragraph. That process already holds everything the monitor draws — the
- * realised edge list, the seat order, the authoritative in-memory history log,
+ * realized edge list, the seat order, the authoritative in-memory history log,
  * the materialised channel scopes, the publish counters. A standalone monitor
  * would fetch all of it back over the wire and would need an admin credential
  * to do so; and because there is NO write access control (ISSUES.md U1), an

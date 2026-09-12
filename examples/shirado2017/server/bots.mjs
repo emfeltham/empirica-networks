@@ -13,20 +13,20 @@
  * `src/callbacks.js` knows which seated participants are agents. There is no
  * pattern to match on: every participant receives every other participant's
  * `?participantKey=` (`ISSUES.md` U10), so a recognisable key would tell subjects
- * which of their neighbours are software — which in this design is the
+ * which of their neighbors are software — which in this design is the
  * manipulation, disclosed.
  *
  * ## Recruit playerCount MINUS botCount humans
  *
  * The treatment's `playerCount` is the size of the NETWORK, agents included. A
- * `Colour coordination (n=20, 3 central agents, 10% noise)` session seats 20
+ * `Color coordination (n=20, 3 central agents, 10% noise)` session seats 20
  * participants, of which three are this process. Recruit seventeen. Getting this
  * wrong produces a study that never starts, and the runner says so — see the
  * `waiting` stall message in `src/bots/lifecycle.ts`.
  *
  * ## Why plain `node` works here
  *
- * `empirica-networks/bots` is shipped as a bundled CJS artefact precisely so that
+ * `empirica-networks/bots` is shipped as a bundled CJS artifact precisely so that
  * this file needs no tsx, no build step and no bundler: `@empirica/core/admin`
  * cannot be loaded from bare Node ESM (`docs/PLATFORM-NOTES.md` §3a), so the
  * package does the bundling once rather than asking every study to.
@@ -80,11 +80,11 @@ const logStream = fs.createWriteStream(logFile, { flags: "a" });
 /**
  * A "locally noisy autonomous agent".
  *
- * All the behaviour is `botChoice` in `src/design.mjs` — pure, imports nothing,
+ * All the behavior is `botChoice` in `src/design.mjs` — pure, imports nothing,
  * unit-tested. What is left here is when to call it and what to do with the answer,
  * which is the part that needs a live channel.
  *
- * It reads its neighbours' colours through the projection and writes its own to
+ * It reads its neighbors' colors through the projection and writes its own to
  * its own private channel: the same two operations a browser performs, through the
  * same code. There is deliberately no server-side path — an agent that could see
  * the graph or the global conflict count would turn the bot conditions into a
@@ -97,8 +97,8 @@ const policy = {
 
   onStart(ctx) {
     // Nothing yet. The agent's first move happens on the first tick, so its
-    // opening colour is drawn on the same clock as every later one rather than
-    // arriving instantly and anchoring its neighbours before anyone has moved.
+    // opening color is drawn on the same clock as every later one rather than
+    // arriving instantly and anchoring its neighbors before anyone has moved.
     ctx.log({ type: "seated", playerID: ctx.playerID, degree: ctx.self()?.degree });
   },
 
@@ -107,7 +107,7 @@ const policy = {
     if (typeof noise !== "number") {
       // The server has not told this agent its condition yet. Waiting is right —
       // acting would run the agent at whatever default this file invented, in a
-      // condition the session will be labelled with. Loud after ten seconds, and
+      // condition the session will be labeled with. Loud after ten seconds, and
       // once, because a silent no-op agent is indistinguishable from a working one
       // that happens not to be moving.
       if (ctx.elapsedMs() > 10_000 && !warned.has(ctx.identifier)) {
@@ -122,13 +122,13 @@ const policy = {
       return;
     }
 
-    const neighbours = ctx.neighbors();
-    if (neighbours === undefined) return;
+    const neighbors = ctx.neighbors();
+    if (neighbors === undefined) return;
 
     const state = ctx.state();
     const ownColor = state?.get("color");
-    const neighbourColors = neighbours.map((nb) => nb.color);
-    const next = botChoice({ ownColor, neighbourColors, noise, rng: ctx.rng });
+    const neighborColors = neighbors.map((nb) => nb.color);
+    const next = botChoice({ ownColor, neighborColors, noise, rng: ctx.rng });
 
     // Only on a change. A rewrite of the same value would add a row to
     // `changes.csv` for a move nobody made, and the dependent variable IS that
@@ -142,7 +142,7 @@ const policy = {
       to: next,
       noise,
       degree: ctx.self()?.degree,
-      localConflicts: neighbourColors.filter((c) => c === next).length,
+      localConflicts: neighborColors.filter((c) => c === next).length,
     });
   },
 

@@ -1,6 +1,6 @@
 # minimal — a network experiment in ~40 lines
 
-Participants sit on a ring and pick a colour. Each participant sees only their two neighbours' choices, and not merely because the interface hides the rest: a non-neighbour's colour is never sent to the browser at all.
+Participants sit on a ring and pick a color. Each participant sees only their two neighbors' choices, and not merely because the interface hides the rest: a non-neighbor's color is never sent to the browser at all.
 
 This is a stock `empirica create` project with four files changed. The diff is the documentation.
 
@@ -25,13 +25,13 @@ http://localhost:3000/?participantKey=three
 http://localhost:3000/?participantKey=four
 ```
 
-Enter a name in each, then pick colours.
+Enter a name in each, then pick colors.
 
 ## What to look for
 
-Four is the smallest ring where the guarantee is visible: every participant has 2 neighbours and exactly 1 non-neighbour. On a ring of 3 everyone is everyone's neighbour, and the example does not demonstrate the neighbour-only effect.
+Four is the smallest ring where the guarantee is visible: every participant has 2 neighbors and exactly 1 non-neighbor. On a ring of 3 everyone is everyone's neighbor, and the example does not demonstrate the neighbor-only effect.
 
-So in each window you should see 2 of the other 3 participants — and the pair you can see differs from window to window. Change a colour and it appears in exactly two other windows, live.
+So in each window you should see 2 of the other 3 participants — and the pair you can see differs from window to window. Change a color and it appears in exactly two other windows, live.
 
 This is automated. From the repository root:
 
@@ -47,7 +47,7 @@ It starts this project, drives four real Chromium windows through consent, ident
     charlie sees: name-bravo, name-delta
     delta sees: name-alpha, name-charlie
 
-    alpha: sees {name-bravo, name-delta} · charlie's colour absent from wire ·
+    alpha: sees {name-bravo, name-delta} · charlie's color absent from wire ·
            charlie's name present (public player attribute)
 ```
 
@@ -58,11 +58,11 @@ The example carries one of each, because the difference is the whole point:
 | Field | Written with | Who can read it |
 |---|---|---|
 | `name` | `player.set("name", …)` | everyone — Empirica broadcasts every player scope |
-| `color` | `state.set("color", …)` | only neighbours, via `project()` |
+| `color` | `state.set("color", …)` | only neighbors, via `project()` |
 
-Colours are private because they are written to the participant's own channel, not to the player scope. If the example had used `player.set("color", …)`, as it did at first, the colour would have been broadcast to every participant, and the promise on screen would have been false while looking exactly the same.
+Colors are private because they are written to the participant's own channel, not to the player scope. If the example had used `player.set("color", …)`, as it did at first, the color would have been broadcast to every participant, and the promise on screen would have been false while looking exactly the same.
 
-The browser test asserts both: a non-neighbour's colour appears nowhere in the frames a tab received, and their name does. `docs/PLATFORM-NOTES.md` §4b has the underlying behaviour.
+The browser test asserts both: a non-neighbor's color appears nowhere in the frames a tab received, and their name does. `docs/PLATFORM-NOTES.md` §4b has the underlying behavior.
 
 You can also check the projection guarantee without a browser:
 
@@ -82,7 +82,7 @@ Options and exit codes: [`docs/API.md`](../../docs/API.md#the-verify-cli).
 | `client/src/App.jsx` | `modeFunc={EmpiricaClassic}` → `modeFunc={EmpiricaNetwork}` |
 | `client/src/Game.jsx` | read `useNeighbors()`, write with `useNetworkState()` |
 
-The `index.js` edit is mandatory and fails silently if skipped: without the `nbhd` kind registered, the private channels are never modelled, there is nothing to write views to, and nothing errors — participants just sit with empty neighbourhoods forever.
+The `index.js` edit is mandatory and fails silently if skipped: without the `nbhd` kind registered, the private channels are never modeled, there is nothing to write views to, and nothing errors — participants just sit with empty neighborhoods forever.
 
 `EmpiricaNetwork` is a superset of `EmpiricaClassic`, so `usePlayer`, `useGame`, `useStage` and the rest of the intro/exit flow keep working untouched.
 

@@ -5,12 +5,12 @@
  *   node recover.mjs data/run.ndjson <gameID>     # just one
  *
  * WHY THIS MATTERS MORE HERE than in the Rand port: this experiment's dependent
- * variable IS the change log — when each colour was chosen, and what the global
+ * variable IS the change log — when each color was chosen, and what the global
  * conflict count was afterwards. Written only at game end, a session that ran four
  * of its five minutes and then died produced nothing at all, and that is precisely
  * the session you would want to look at.
  *
- * `callbacks.js` appends `run.ndjson` as each colour is chosen, through the
+ * `callbacks.js` appends `run.ndjson` as each color is chosen, through the
  * package's `net.log()`; this turns it into the same tables a clean finish
  * produces, byte-identically — asserted by `test/unit/shirado2017.test.ts`.
  *

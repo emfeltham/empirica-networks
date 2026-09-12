@@ -2,7 +2,7 @@
  * Capture what each participant was actually shown.
  *
  * Off unless asked for. When it is on, the cost is genuinely small: `publish()`
- * already serialises every view to compare it against the last one, so the row
+ * already serializes every view to compare it against the last one, so the row
  * content exists whether or not anybody keeps it.
  *
  * NDJSON rather than CSV, and that is not a detail. A view is a variable-length

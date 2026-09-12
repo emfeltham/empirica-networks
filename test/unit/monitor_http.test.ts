@@ -29,7 +29,7 @@ const ORDER = ["p0", "p1", "p2", "p3"];
 function fakeSource(initial: Partial<GameSnapshot> = {}) {
   let edges: Edge[] = (initial.edges as Edge[]) ?? ring(4);
   let present = true;
-  let colour = "blue";
+  let color = "blue";
   let throws = false;
 
   return {
@@ -39,8 +39,8 @@ function fakeSource(initial: Partial<GameSnapshot> = {}) {
     setPresent(v: boolean) {
       present = v;
     },
-    setColour(v: string) {
-      colour = v;
+    setColor(v: string) {
+      color = v;
     },
     setThrows(v: boolean) {
       throws = v;
@@ -63,10 +63,10 @@ function fakeSource(initial: Partial<GameSnapshot> = {}) {
             index,
             playerID,
             degree: 2,
-            neighbours: [],
+            neighbors: [],
             channel: true,
             attrs: {},
-            state: { color: colour },
+            state: { color: color },
           })),
           metrics: graphMetrics(4, edges),
           history: historyFrames("g1", [], ORDER),
@@ -215,7 +215,7 @@ test("the default bind is loopback, and nothing else can reach it", async () => 
 });
 
 test("binding off loopback is allowed but says what it costs", async () => {
-  // Convention, not structure, and labelled as such. The
+  // Convention, not structure, and labeled as such. The
   // package's job is to make the override loud, not to forbid it.
   const fake = fakeSource();
   const logged: string[] = [];
@@ -289,7 +289,7 @@ test("the stream pushes on change and stays quiet otherwise", async () => {
       await delay(150);
       assert.equal(stream.events.length, 1, "an unchanged study must push nothing");
 
-      fake.setColour("green");
+      fake.setColor("green");
       await stream.waitForEvents(2);
       assert.equal(stream.events[1]!.data.snapshot.nodes[0].state.color, "green");
 

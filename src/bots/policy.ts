@@ -6,10 +6,10 @@
  * without a server, a socket or `@empirica/core`.
  *
  * The shape mirrors what a HUMAN can do and refuses to exceed it, which is the
- * one design rule this whole entry point rests on. A bot reads its neighbours
+ * one design rule this whole entry point rests on. A bot reads its neighbors
  * through the same projection, writes through the same private channel, and is
  * subject to the same envelope. There is no server-side back door — no way to
- * read a non-neighbour, no way to see the graph, no way to learn the global
+ * read a non-neighbor, no way to see the graph, no way to learn the global
  * state — because a bot that could do those things would be a different kind of
  * object from the participants it is mixed in with, and any comparison between
  * them would be measuring the difference in access.
@@ -37,7 +37,7 @@ export interface BotContext<T = unknown> {
   /** Position in the `identifiers` array passed to `runBots`. Stable, 0-based. */
   readonly index: number;
   /**
-   * This bot's player id — the id its neighbours see in their views.
+   * This bot's player id — the id its neighbors see in their views.
    *
    * Not the participant id and not the identifier: this is the id space
    * `project()` works in, so it is the one to record if you want to know which
@@ -48,11 +48,11 @@ export interface BotContext<T = unknown> {
   readonly gameID: string | undefined;
 
   /**
-   * The projected neighbour views, or `undefined` before the first publish.
+   * The projected neighbor views, or `undefined` before the first publish.
    *
    * Exactly what `neighborsOf` gives a browser, for the same reason it gives
    * `undefined` rather than `[]`: an empty array is a legitimate result (a node
-   * with no neighbours) and conflating it with "not loaded" would have a bot act
+   * with no neighbors) and conflating it with "not loaded" would have a bot act
    * on an imagined isolation.
    */
   neighbors(): T[] | undefined;
@@ -79,7 +79,7 @@ export interface BotContext<T = unknown> {
    * that most needs to be reproducible: Shirado & Christakis's manipulation IS
    * the bots' noise, so an unrecorded random stream is an unrecorded independent
    * variable. Reusing the same `seed` and the same `identifiers` replays the same
-   * bot behaviour — for the same reason, and by the same mechanism, that the
+   * bot behavior — for the same reason, and by the same mechanism, that the
    * topology seed replays the same graph.
    */
   readonly rng: Rng;
@@ -104,7 +104,7 @@ export interface BotContext<T = unknown> {
 }
 
 /**
- * One artificial participant's behaviour.
+ * One artificial participant's behavior.
  *
  * Every hook is optional and every hook is SYNCHRONOUS. A returned promise is
  * not awaited, and this is the same trap `onPrivateState` documents arriving by
@@ -131,7 +131,7 @@ export interface BotPolicy<T = unknown> {
    *
    * Driven by the server's publish counter, so it fires when the VIEW changed,
    * not on every wire frame — `withNetwork` suppresses a byte-identical
-   * republish, so a bot cannot be woken by a neighbour rewriting the same value.
+   * republish, so a bot cannot be woken by a neighbor rewriting the same value.
    * A purely reactive policy needs nothing else.
    */
   onView?(ctx: BotContext<T>): void;

@@ -5,16 +5,16 @@
  * reaches a client. Two mistakes in it are both easy to make and catastrophic,
  * and neither announces itself:
  *
- * 1. RETURNING A SCOPE. `project: (neighbour) => neighbour` looks like the
+ * 1. RETURNING A SCOPE. `project: (neighbor) => neighbor` looks like the
  *    obvious thing to write. An Empirica scope holds `this.attributes` — the
- *    GLOBAL attribute store — so serialising one would ship every attribute of
+ *    GLOBAL attribute store — so serializing one would ship every attribute of
  *    every participant to this client. That is precisely the leak this module
  *    exists to prevent, arriving through the one path we cannot lock down,
  *    because the author chooses what goes in it.
  *
  * 2. RETURNING SOMETHING UNSERIALISABLE. A cycle or a BigInt makes
  *    JSON.stringify throw from deep inside Empirica's runloop, with a message
- *    naming neither the participant, the neighbour, nor the field.
+ *    naming neither the participant, the neighbor, nor the field.
  *
  * Zero dependencies on purpose: no `@empirica/core` import means this is unit
  * testable in milliseconds (same reasoning as `seed.ts`). Scope detection is
@@ -34,7 +34,7 @@ export class ProjectionError extends Error {
 const MAX_DEPTH = 12;
 
 const EXAMPLE =
-  "  project: (neighbour) => ({ id: neighbour.id, choice: neighbour.get(\"choice\") })";
+  "  project: (neighbor) => ({ id: neighbor.id, choice: neighbor.get(\"choice\") })";
 
 /**
  * Structural test for an Empirica scope.
@@ -56,9 +56,9 @@ function describe(path: string): string {
 }
 
 /**
- * Throw if `value` is not safe to publish. Called once per neighbour view.
+ * Throw if `value` is not safe to publish. Called once per neighbor view.
  *
- * Permits `undefined` — `neighbour.get("choice")` returns it for any attribute
+ * Permits `undefined` — `neighbor.get("choice")` returns it for any attribute
  * that has not been set yet, which is entirely normal and would make an
  * over-strict check fire on every healthy experiment's first round.
  */
@@ -89,7 +89,7 @@ function walk(value: unknown, path: string, seen: Set<object>, depth: number): v
 
   if (t === "bigint") {
     throw new ProjectionError(
-      `${describe(path)} is a BigInt, which JSON.stringify refuses to serialise. ` +
+      `${describe(path)} is a BigInt, which JSON.stringify refuses to serialize. ` +
         `Convert it to a number or a string in project().`
     );
   }
@@ -112,7 +112,7 @@ function walk(value: unknown, path: string, seen: Set<object>, depth: number): v
   if (depth > MAX_DEPTH) {
     throw new ProjectionError(
       `${describe(path)} nests more than ${MAX_DEPTH} levels deep. A projection is ` +
-        `meant to be a small flat summary of one neighbour.`
+        `meant to be a small flat summary of one neighbor.`
     );
   }
 
@@ -131,7 +131,7 @@ function walk(value: unknown, path: string, seen: Set<object>, depth: number): v
   if (value instanceof Date) return; // JSON gives an ISO string
   if (value instanceof Map || value instanceof Set) {
     throw new ProjectionError(
-      `${describe(path)} is a ${value.constructor.name}, which JSON serialises as {}. ` +
+      `${describe(path)} is a ${value.constructor.name}, which JSON serializes as {}. ` +
         `Convert it with [...value] or Object.fromEntries(value) in project().`
     );
   }
@@ -149,7 +149,7 @@ function walk(value: unknown, path: string, seen: Set<object>, depth: number): v
   seen.delete(obj);
 }
 
-/** Serialised size of a value in bytes, as it will go over the wire. */
+/** Serialized size of a value in bytes, as it will go over the wire. */
 export function projectionBytes(value: unknown): number {
   // stringify returns the JS value `undefined` (not a string) for functions and
   // symbols. validateProjection rejects those first, but this is also called

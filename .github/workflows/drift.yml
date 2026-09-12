@@ -27,7 +27,7 @@ name: upstream drift
 #
 # It has a second job, which is the reason the e2e step below is not optional.
 # Several upstream findings are pinned by tests that assert the CURRENT BROKEN
-# behaviour, so a FIX upstream turns them red too, with a message saying what to
+# behavior, so a FIX upstream turns them red too, with a message saying what to
 # close. This is the only thing that runs them against a version where they could
 # pass:
 #

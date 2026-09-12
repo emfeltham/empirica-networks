@@ -7,8 +7,8 @@ factors:
       - value: 8
 treatments:
   # 4 is the smallest ring where the guarantee is visible: each participant has
-  # 2 neighbours and exactly 1 non-neighbour. On a ring of 3 everyone is
-  # everyone's neighbour and the demo proves nothing.
+  # 2 neighbors and exactly 1 non-neighbor. On a ring of 3 everyone is
+  # everyone's neighbor and the demo proves nothing.
   - desc: "Ring of 4 — each participant sees 2 of the other 3"
     factors:
       playerCount: 4

@@ -22,7 +22,7 @@ test("accepts the shapes a real projection actually has", () => {
 });
 
 test("accepts undefined fields — an unset attribute is normal", () => {
-  // neighbour.get("choice") returns undefined for anything not set yet, which
+  // neighbor.get("choice") returns undefined for anything not set yet, which
   // is the state of every experiment's first round. A stricter check would fire
   // on healthy runs, and a check that fires on healthy runs gets disabled.
   assert.doesNotThrow(() => validateProjection({ id: "p1", choice: undefined }));

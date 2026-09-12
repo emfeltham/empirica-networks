@@ -49,10 +49,10 @@ const OUT_DIR = process.env["SHIRADO2017_OUT"] ?? "data";
  * on the player scope and links everyone to every player node (`ISSUES.md` U10,
  * measured in `test/e2e/bots.test.ts`). So a key like `bot-1` is readable from any
  * participant's browser, and in THIS design that is not a metadata leak: subjects
- * are not told which of their neighbours are software, so a recognisable key
+ * are not told which of their neighbors are software, so a recognisable key
  * discloses the manipulation itself.
  *
- * Hence: the server recognises agents by holding the list, not by reading a
+ * Hence: the server recognizes agents by holding the list, not by reading a
  * pattern, and `botIdentifiers()` generates keys shaped like the ones Empirica's
  * own client produces. In a deployed study, use keys drawn from the same space as
  * your human recruitment keys — see `docs/BOTS.md`.
@@ -101,7 +101,7 @@ const botSeating = new Map();
 /**
  * Live session state, in this process only.
  *
- * Holds the scope objects the colour listener needs in order to WRITE — ending the
+ * Holds the scope objects the color listener needs in order to WRITE — ending the
  * stage is a write, and a write only counts inside a callback
  * (`docs/PLATFORM-NOTES.md` §15), so the listener has to have them to hand rather
  * than fetch them.
@@ -116,7 +116,7 @@ const sessions = new Map();
  * One stage, running the whole 5 minutes.
  *
  * Not rounds. The paper's game is continuous — "each subject was allowed to choose
- * a colour from three choices ... AT ANY TIME" — so there is nothing to divide into
+ * a color from three choices ... AT ANY TIME" — so there is nothing to divide into
  * rounds, and inventing them would change the task from coordination under time
  * pressure into a sequence of simultaneous-move games.
  */
@@ -142,7 +142,7 @@ Empirica.onStageStart(({ stage }) => {
     changes: [],
     solved: false,
     tSolutionMs: undefined,
-    // Kept as a Set of PLAYER IDS rather than of seats: the colour listener is
+    // Kept as a Set of PLAYER IDS rather than of seats: the color listener is
     // handed a playerID, and converting seat-to-player on every change would be a
     // lookup per move for something fixed at game start.
     botPlayerIDs: new Set(
@@ -216,7 +216,7 @@ Empirica.onStageStart(({ stage }) => {
    * It reaches only its own recipient, and it is validated by the same
    * `validateProjection` as a view — so this does not weaken the design's
    * guarantee. No human is told anything, and no participant learns which of their
-   * neighbours were told what.
+   * neighbors were told what.
    */
   for (const index of botIndices) {
     const playerID = snapshot?.order?.[index];
@@ -229,7 +229,7 @@ export const net = withNetwork(Empirica, {
    * "the network structure was created de novo for each session by attaching new
    * nodes (each with two links) to existing nodes" — Barabási–Albert, m = 2.
    *
-   * Seeded, so the realised graph is recoverable from the seed the package records
+   * Seeded, so the realized graph is recoverable from the seed the package records
    * on the batch scope. That matters more here than usual: the paper shows the
    * solvability of a session depends on the graph it drew ("some networks could be
    * intrinsically easier to solve"), so an analysis that cannot recover the exact
@@ -256,7 +256,7 @@ export const net = withNetwork(Empirica, {
       console.error(
         `shirado2017: treatment asks for ${bots} agent(s) but ${botSeats.length} of the ` +
           `${playerCount} seated participants matched SHIRADO2017_BOT_KEYS. This session ` +
-          `is NOT in the condition it will be labelled with. Check that ../bots.mjs is ` +
+          `is NOT in the condition it will be labeled with. Check that ../bots.mjs is ` +
           `running and that both processes have the same SHIRADO2017_BOT_KEYS.`
       );
     }
@@ -266,32 +266,32 @@ export const net = withNetwork(Empirica, {
   },
 
   /**
-   * "Subjects could see only the colours of neighbours to whom they were directly
-   * connected, in addition to their own colour."
+   * "Subjects could see only the colors of neighbors to whom they were directly
+   * connected, in addition to their own color."
    *
    * That single sentence is the entire experiment, and it is why this design is the
-   * package's sharpest test. If a non-neighbour's colour reached a browser, the
+   * package's sharpest test. If a non-neighbor's color reached a browser, the
    * coordination problem would become trivial — the dependent variable is TIME TO
    * SOLUTION, so a leak would not make the numbers wrong in a visible way, it would
    * drive them toward zero while every screen still looked right.
    *
-   * `colour` is PRIVATE state written by the participant to their own channel, so it
+   * `color` is PRIVATE state written by the participant to their own channel, so it
    * reaches other participants only through this projection. `player.set("color",
    * …)` would broadcast it to everyone and the task would quietly stop being hard.
    */
-  project: (neighbour, viewer, ctx) => ({
-    id: neighbour.id,
-    color: ctx.stateOf(neighbour).get("color"),
+  project: (neighbor, viewer, ctx) => ({
+    id: neighbor.id,
+    color: ctx.stateOf(neighbor).get("color"),
   }),
 
   /**
-   * Republishes on every colour change, and makes `color` readable server-side.
+   * Republishes on every color change, and makes `color` readable server-side.
    *
    * No `read` list here, unlike the Rand 2011 example: this design has exactly one
    * private key and the projection reads it, so it belongs in `watch` and there is
    * nothing left over. A `read` entry would be a declaration that is not true.
    *
-   * The solution detector below reads colours by INDEX across the whole graph, so
+   * The solution detector below reads colors by INDEX across the whole graph, so
    * it takes them from `inspect()` rather than key-by-key through `stateOf()` — one
    * snapshot per change instead of twenty accessor calls. `stateOf()` is the right
    * tool when a listener consumes one participant's value; this is the other case.
@@ -310,14 +310,14 @@ export const net = withNetwork(Empirica, {
    * Capture what each participant was shown, and when.
    *
    * On, because for this design it is the audit trail for the claim the whole
-   * experiment rests on: `test/e2e/views.test.ts` runs the neighbour-limited check
+   * experiment rests on: `test/e2e/views.test.ts` runs the neighbor-limited check
    * over a captured log, and the same check runs over a real study's own data.
    */
   views: { file: path.join(OUT_DIR, "views.ndjson") },
 
   /**
    * The run log, and here it is not a convenience: **this experiment's dependent
-   * variable IS the change log** — when each colour was chosen, and what the
+   * variable IS the change log** — when each color was chosen, and what the
    * global conflict count was afterwards. Held only in `sessions` until game end,
    * a killed or crashed session lost every bit of it, and a session that ran four
    * of its five minutes before dying is exactly the data you would most want.
@@ -332,7 +332,7 @@ export const net = withNetwork(Empirica, {
   log: { file: path.join(OUT_DIR, "run.ndjson") },
 
   /**
-   * The solution check, driven by participants' own colour writes.
+   * The solution check, driven by participants' own color writes.
    *
    * Registered here rather than as `Empirica.on(NBHD_KIND, stateKey("color"), …)`,
    * which is what this file did for a whole milestone. That worked, and it is
@@ -351,7 +351,7 @@ export const net = withNetwork(Empirica, {
 });
 
 /**
- * A participant chose a colour: record it, and end the session if it solved the graph.
+ * A participant chose a color: record it, and end the session if it solved the graph.
  *
  * Wired in as `onPrivateState` above — a function declaration so it can be named
  * in the config before it is defined here, beside the rest of the game logic.
@@ -421,11 +421,11 @@ function detectSolution({ gameID, playerID, key }) {
   net.log(gameID, { type: "solved", tSolutionMs: session.tSolutionMs });
 
   // A write, so it has to happen inside a callback — and it does: the hook is
-  // called from inside the attribute listener that delivered the colour, not from
+  // called from inside the attribute listener that delivered the color, not from
   // a timer (`docs/PLATFORM-NOTES.md` §15). That is also why this function is
   // synchronous: an `await` here would put this `end()` outside the runloop's
   // flush, where it would update the server and reach nobody.
-  session.stage.end("ended", "network properly coloured");
+  session.stage.end("ended", "network properly colored");
 }
 
 /**

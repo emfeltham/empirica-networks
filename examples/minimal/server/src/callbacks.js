@@ -11,9 +11,9 @@ Empirica.onGameStart(({ game }) => {
 /**
  * The whole network configuration.
  *
- * Participants sit on a ring and choose a colour. Each sees only their two
- * neighbours' choices — never the rest of the graph, and not because the UI
- * hides it: a non-neighbour's colour never reaches the browser.
+ * Participants sit on a ring and choose a color. Each sees only their two
+ * neighbors' choices — never the rest of the graph, and not because the UI
+ * hides it: a non-neighbor's color never reaches the browser.
  */
 /**
  * The handle `withNetwork` returns, exported so `index.js` can hand it to the
@@ -24,7 +24,7 @@ Empirica.onGameStart(({ game }) => {
  */
 export const net = withNetwork(Empirica, {
   // Seeded from the game id unless you pass `seed`, and recorded on the game
-  // scope, so the realised graph is reconstructible from stored data.
+  // scope, so the realized graph is reconstructible from stored data.
   topology: ({ playerCount, rng }) => topology.ring(playerCount, { rng }),
 
   // The ONLY path from server to client. Return plain data — returning the
@@ -38,17 +38,17 @@ export const net = withNetwork(Empirica, {
   //
   //   color — PRIVATE state, written by the participant to their own channel.
   //           It reaches other participants only through this projection, so it
-  //           really is limited to neighbours. Had we used neighbour.get("color")
+  //           really is limited to neighbors. Had we used neighbor.get("color")
   //           it would have been broadcast like the name, and the privacy claim
   //           would have been hollow.
-  project: (neighbour, viewer, ctx) => ({
-    id: neighbour.id,
-    name: neighbour.get("name"),
-    color: ctx.stateOf(neighbour).get("color"),
+  project: (neighbor, viewer, ctx) => ({
+    id: neighbor.id,
+    name: neighbor.get("name"),
+    color: ctx.stateOf(neighbor).get("color"),
   }),
 
   // Player attributes the projection depends on. A change to one republishes
-  // the neighbours who can see it. Omit a key here and its changes never
+  // the neighbors who can see it. Omit a key here and its changes never
   // propagate — so anything `project()` reads that is missing is reported in
   // the server log rather than going stale silently.
   watch: ["name", "color"],

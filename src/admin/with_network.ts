@@ -49,7 +49,7 @@ import { makeViewSink, type ViewsConfig } from "./views.js";
  *
  * Publishing goes through `scope.set()` on a participant's private channel,
  * because `EventContext` has no `setAttributes` — the only write path available
- * inside a listener is a modelled scope (docs/PLATFORM-NOTES.md §5). That is
+ * inside a listener is a modeled scope (docs/PLATFORM-NOTES.md §5). That is
  * also why the `nbhd` kind must be registered by the consumer: without it we
  * have nothing to call `.set()` on.
  *
@@ -96,22 +96,22 @@ export interface ProjectContext {
   game: any;
   /** Index of the viewer in the topology. */
   viewerIndex: number;
-  /** Index of the neighbour in the topology. */
-  neighbourIndex: number;
+  /** Index of the neighbor in the topology. */
+  neighborIndex: number;
   /**
    * A player's PRIVATE state — what they wrote to their own channel.
    *
    * Use this, not `player.get(...)`, for anything that must stay within the
-   * neighbourhood. A player attribute is broadcast to every participant, so
+   * neighborhood. A player attribute is broadcast to every participant, so
    * projecting one restricts nothing; only values written to a private channel
-   * are actually neighbour-limited.
+   * are actually neighbor-limited.
    */
   stateOf(player: any): StateReader;
 }
 
 export interface NetworkConfig {
   /**
-   * Build the network at game start. Receives a seeded rng so the realisation
+   * Build the network at game start. Receives a seeded rng so the realization
    * is reproducible from the seed recorded on the game scope.
    *
    * `players` is the SEATING PLAN: `players[i]` is the participant who will
@@ -131,7 +131,7 @@ export interface NetworkConfig {
    * including the case that matters, where a broken mapping still produces a
    * perfectly correct graph over the wrong people.
    *
-   * Placement is done by RELABELLING: generate the graph you want, then permute
+   * Placement is done by RELABELING: generate the graph you want, then permute
    * the indices so the seats you care about land on the degrees you want. The
    * alternative — reordering the participants — is not available, because seats
    * are fixed before this is called.
@@ -147,14 +147,14 @@ export interface NetworkConfig {
     rng: Rng;
   }) => Edge[];
   /**
-   * What ONE participant may learn about ONE neighbour.
+   * What ONE participant may learn about ONE neighbor.
    *
    * Pure, and the only channel through which data reaches a client. There is
    * deliberately no way for an author to choose where this is written: the
    * obvious alternative (writing to the player scope) is broadcast to everyone
    * and looks like it works.
    */
-  project?: (neighbour: any, viewer: any, ctx: ProjectContext) => unknown;
+  project?: (neighbor: any, viewer: any, ctx: ProjectContext) => unknown;
   /** Explicit seed. Defaults to one derived from the game id. */
   seed?: number;
   /**
@@ -203,13 +203,13 @@ export interface NetworkConfig {
    */
   read?: string[];
   /**
-   * Neighbour-scoped chat.
+   * Neighbor-scoped chat.
    *
    * Off by default: it costs a listener and per-channel storage, and most
    * designs do not want it. `true` uses the defaults below.
    *
    * A message written by a participant to their own channel is fanned out by the
-   * server to whoever is their neighbour AT THAT MOMENT. There is no separate
+   * server to whoever is their neighbor AT THAT MOMENT. There is no separate
    * privacy path — it is the same channel, a different key — which is the same
    * reason `project()` is the only route for state.
    */
@@ -225,7 +225,7 @@ export interface NetworkConfig {
    * Worth turning on when `project()` does anything beyond passing values
    * through — bucketing, adding noise, keying off `stateOf()` — because then the
    * delivered view is not recoverable from the edge log and the attribute export
-   * afterwards. Also the audit trail for the neighbour-limited claim on a real
+   * afterwards. Also the audit trail for the neighbor-limited claim on a real
    * study's own data, rather than on this package's tests.
    */
   views?: ViewsConfig;
@@ -256,7 +256,7 @@ export interface NetworkConfig {
    * memory. `views` makes the opposite trade for the opposite reason.
    *
    * What goes in the records is yours. The package writes none of its own: the
-   * realised network is already durable on the batch scope, and inventing a
+   * realized network is already durable on the batch scope, and inventing a
    * parallel copy here would create two versions of the same fact.
    */
   log?: LogConfig;
@@ -333,7 +333,7 @@ export interface ChatConfig {
 const defaultTopology = ({ playerCount, rng }: { playerCount: number; rng: Rng }) =>
   playerCount >= 3 ? ring(playerCount, { rng }) : [];
 
-const defaultProject = (neighbour: any) => ({ id: neighbour.id });
+const defaultProject = (neighbor: any) => ({ id: neighbor.id });
 
 /** Per-game network state, server-side only. */
 interface NetworkState {
@@ -374,7 +374,7 @@ export interface NetworkStats {
    * the check's timer runs on, so the two are comparable by construction.
    */
   firstChannelMs: number | undefined;
-  /** Cached serialised views, one per channel published to. */
+  /** Cached serialized views, one per channel published to. */
   cachedViews: number;
   /**
    * Finished games still remembered by id.
@@ -519,7 +519,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * fields cannot break anything: both get a listener, both appear in
    * `inspect()`, both are readable through `stateOf()`. The distinction is
    * declarative — it records what the author meant, and gives `stateOf()`
-   * something to check against — and a distinction that also changed behaviour
+   * something to check against — and a distinction that also changed behavior
    * would be a new way to be silently wrong, which is the thing being fixed.
    */
   const readable = [...new Set([...watch, ...readOnly])];
@@ -544,7 +544,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   const logSink = makeLogSink(config.log);
 
   const networks = new Map<string, NetworkState>();
-  /** nbhd scope id -> the modelled scope object we can call .set() on. */
+  /** nbhd scope id -> the modeled scope object we can call .set() on. */
   const channelScopes = new Map<string, any>();
   /** games waiting for their channel scopes to materialise before first publish */
   const awaitingPublish = new Set<string>();
@@ -563,7 +563,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    */
   const startedAt = new Map<string, number>();
   const seqByGame = new Map<string, number>();
-  /** nbhd scope id -> last published view, serialised. Suppresses no-op writes. */
+  /** nbhd scope id -> last published view, serialized. Suppresses no-op writes. */
   const lastPublished = new Map<string, string>();
   /** Keys already warned about, so the hot path warns once rather than per publish. */
   const reportedMissing = new Set<string>();
@@ -574,7 +574,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    *
    * The evidence behind the kind-registration check. Process-wide rather than
    * per-game because registration is a process-wide property: once one channel
-   * has come back as a modelled scope, the kind is registered, and no later
+   * has come back as a modeled scope, the kind is registered, and no later
    * game can prove otherwise.
    */
   let sawAnyChannel = false;
@@ -602,7 +602,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * This is the one thing deliberately NOT released per game, because it is what
    * stops a finished game's channels being re-adopted when the kind subscription
    * replays them. A string id per game is a few dozen bytes against one Scope
-   * object per participant, so the trade is heavily favourable — but it used to
+   * object per participant, so the trade is heavily favorable — but it used to
    * be unbounded in the number of games a process ran, which is `ISSUES.md` O5.
    *
    * Bounded rather than cleared on some batch signal, and forgetting the oldest
@@ -832,14 +832,14 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     // participants have been committed to a game that will run badly.
     checkDegrees(adj, config.envelope, warn);
 
-    // Recorded so the exact realisation is reconstructible from stored data —
+    // Recorded so the exact realization is reconstructible from stored data —
     // on the BATCH, because the game scope is delivered to every participant and
     // this is the seating plan of the network they are inside (PLATFORM-NOTES
     // §4c). Suffixed by game id since one batch holds many games.
     const batch = game.batch;
     if (!batch) {
       throw new Error(
-        `empirica-networks: game ${game.id} has no batch, so the realised network cannot ` +
+        `empirica-networks: game ${game.id} has no batch, so the realized network cannot ` +
           `be recorded. Without it the run is not reproducible and cannot survive a restart.`
       );
     }
@@ -895,7 +895,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    *
    * One listener per key, registered here at setup, because Empirica dispatches
    * attribute listeners by `kind-key` and has no wildcard. A change to player P
-   * republishes P's neighbours (they see P) and P itself (a projection may read
+   * republishes P's neighbors (they see P) and P itself (a projection may read
    * the viewer's own state). The byte-identical check in `publish` makes the
    * over-reach free on the wire.
    */
@@ -906,11 +906,11 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       if (player?.id) republishAround(player.id);
     });
 
-    // (b) the participant's own private channel — the neighbour-limited path.
+    // (b) the participant's own private channel — the neighbor-limited path.
     //
     // One list covers both scopes deliberately. Which scope a key lives on is
     // the author's choice and can change; making them remember two lists would
-    // turn a moved key into silently frozen neighbourhoods. Registering a
+    // turn a moved key into silently frozen neighborhoods. Registering a
     // listener for a key nobody uses costs nothing.
     collector.on(NBHD_KIND, stateKey(key), (_ctx: any, props: any) => {
       const scope = props?.[NBHD_KIND];
@@ -924,7 +924,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
   }
 
   /**
-   * Fan a message out to the sender's CURRENT neighbours.
+   * Fan a message out to the sender's CURRENT neighbors.
    *
    * Registered only when chat is enabled. Reads the sender's own channel and
    * writes to each recipient's, so a participant never writes to anyone else's
@@ -986,7 +986,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * to a returning participant even though views are written `ephemeral`
    * (docs/PLATFORM-NOTES.md §10).
    *
-   * Kept anyway, because that replay is undocumented behaviour we found by
+   * Kept anyway, because that replay is undocumented behavior we found by
    * experiment, not a guarantee. If it ever stops, every reconnecting
    * participant silently goes blank — the exact class of failure this package
    * keeps running into. Fifteen lines and one no-op publish per connect is a
@@ -1088,26 +1088,26 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       // materialised must block the publish whether or not it is in `only`.
       if (only && !only.has(playerID)) continue;
 
-      const neighbours: unknown[] = [];
+      const neighbors: unknown[] = [];
       for (const j of state.adj[i] ?? []) {
-        const neighbourID = state.order[j];
-        const neighbour = neighbourID ? byID.get(neighbourID) : undefined;
-        if (!neighbour) continue;
+        const neighborID = state.order[j];
+        const neighbor = neighborID ? byID.get(neighborID) : undefined;
+        if (!neighbor) continue;
 
-        const label = `${playerID}'s view of ${neighbourID}`;
+        const label = `${playerID}'s view of ${neighborID}`;
         let view: unknown;
         try {
           // Recording proxies: whatever project() reads here is what the view
           // depends on, and therefore what has to be watched for it to stay
           // live. Both arguments are wrapped — a projection can key off the
-          // viewer's own state as easily as the neighbour's.
+          // viewer's own state as easily as the neighbor's.
           view = project(
-            recordReads(neighbour, readKeys),
+            recordReads(neighbor, readKeys),
             recordReads(viewer, readKeys),
             {
               game,
               viewerIndex: i,
-              neighbourIndex: j,
+              neighborIndex: j,
               stateOf: (player: any) => makeStateReader(player, channels, readKeys),
             }
           );
@@ -1130,17 +1130,17 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         // unsafe view.
         validateProjection(view, label);
         sizes.push({ bytes: projectionBytes(view), label, viewer: playerID });
-        neighbours.push(view);
+        neighbors.push(view);
       }
 
       // Skip participants whose view is byte-identical to what they already
       // have. Without this, one player changing one attribute rewrites every
-      // neighbour's whole neighbourhood on the wire, and the client sees a
+      // neighbor's whole neighborhood on the wire, and the client sees a
       // change event for a value that did not change.
-      const json = JSON.stringify(neighbours);
+      const json = JSON.stringify(neighbors);
       if (lastPublished.get(scopeID) === json) continue;
 
-      targets.push({ scope, view: neighbours, json, viewer: playerID });
+      targets.push({ scope, view: neighbors, json, viewer: playerID });
     }
 
     reportUnwatchedKeys(readKeys);
@@ -1161,7 +1161,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       // failure where scopes materialise but every .get() returns undefined.
       scope.set(NBHD_KEYS.SEQ, seq, { ephemeral: true });
       lastPublished.set(scope.id, json);
-      // Recorded here rather than per-neighbour above, so the log holds one
+      // Recorded here rather than per-neighbor above, so the log holds one
       // entry per DELIVERY. Participants skipped by the byte-identical check
       // never reach this loop and correctly produce no record: they were not
       // sent anything.
@@ -1205,7 +1205,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       const playerID = seats.get(i);
       // A gap means a channel is missing or predates the seat attribute. Refuse
       // rather than close the gap by guessing: guessing produces a plausible
-      // network in which the wrong people are neighbours, and the run looks
+      // network in which the wrong people are neighbors, and the run looks
       // normal for the rest of its life.
       if (!playerID) return false;
       order.push(playerID);
@@ -1381,7 +1381,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       },
       rewire(next) {
         const s = state();
-        // Everyone whose neighbourhood could differ: the union of before and
+        // Everyone whose neighborhood could differ: the union of before and
         // after. Anything narrower leaves a participant holding a tie that no
         // longer exists, which is worse than an extra publish.
         const affected = new Set<string>(s.order);
@@ -1499,7 +1499,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * and this is the only place the duplicate is visible at all.
    *
    * Every failure mode degrades to SILENCE. If the field is missing, is not an
-   * array, or the calibration probe does not recognise what it produced, the
+   * array, or the calibration probe does not recognize what it produced, the
    * detector switches off rather than guessing — a heuristic firing on a shape
    * it does not understand would train people to ignore it, and this warning has
    * to be believed the one time it fires.
@@ -1514,7 +1514,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * own `server/src/index.js`, and skipping it is silently fatal. The channels
    * are created in Tajriba either way; upstream's `Scopes` simply drops each one
    * as an unknown kind, so nothing here ever holds a scope to write to, nothing
-   * throws, and every participant sits with an empty neighbourhood forever.
+   * throws, and every participant sits with an empty neighborhood forever.
    *
    * `assertKindsRegistered` exists for this and cannot be called from here — see
    * its comment. So this observes the consequence: channels demonstrably created,
@@ -1643,7 +1643,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     // Against the UNION, not `watch` alone. A key declared in `read` still has
     // its listener, so a projection that reads one is live and warning about it
     // would be a false alarm — and a false alarm on this path teaches people to
-    // ignore the one warning in the package that catches a stale neighbourhood.
+    // ignore the one warning in the package that catches a stale neighborhood.
     const missing = unwatchedKeys(readKeys, readable).filter((k) => !reportedMissing.has(k));
     if (missing.length === 0) return;
     for (const k of missing) reportedMissing.add(k);
@@ -1749,12 +1749,12 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         if (channelScope) privateState[key] = channelScope.get(stateKey(key));
       }
 
-      const neighbours = [...(state.adj[i] ?? [])];
+      const neighbors = [...(state.adj[i] ?? [])];
       return {
         index: i,
         playerID,
-        degree: neighbours.length,
-        neighbours,
+        degree: neighbors.length,
+        neighbors,
         channel: Boolean(channelScope),
         attrs,
         state: privateState,
@@ -1860,7 +1860,7 @@ export interface GameNetwork {
    *
    * **This is the second path from server to client, and the only one that is
    * not `project()`.** It exists because `project()` runs over a viewer's CURRENT
-   * neighbours, which cannot express "show this subject one fact about someone
+   * neighbors, which cannot express "show this subject one fact about someone
    * they are not connected to" — the information a rewiring offer is made of
    * (Rand, Arbesman & Christakis 2011).
    *
@@ -1869,7 +1869,7 @@ export interface GameNetwork {
    * reaches another. What goes here is authored by your own server code, and you
    * decide what it contains — so the discipline `project()` enforces
    * structurally is yours to keep here. In particular, **do not pass a whole
-   * neighbour or player object**: it is refused (a Scope carries the global
+   * neighbor or player object**: it is refused (a Scope carries the global
    * attribute store), but the reason it is refused is the reason to be careful
    * with what you assemble by hand.
    *
@@ -1913,7 +1913,7 @@ export function network(game: GameRef): GameNetwork {
 }
 
 /**
- * Read the realised edge list for a game.
+ * Read the realized edge list for a game.
  *
  * Recorded on the BATCH scope, not the game scope, so participants cannot read
  * it (PLATFORM-NOTES §4c). Use this rather than reaching for the attribute: the

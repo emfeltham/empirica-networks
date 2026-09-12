@@ -45,13 +45,13 @@ export const NBHD_KEYS = {
    * (docs/PLATFORM-NOTES.md §4b, §4c).
    */
   INDEX: "topologyIndex",
-  /** The projected neighbour views. */
+  /** The projected neighbor views. */
   NEIGHBORS: "neighbors",
   /**
    * Messages delivered to this participant, server-written.
    *
    * On the RECIPIENT's channel, not carried inside `neighbors`. Two reasons,
-   * both load-bearing. It keeps chat out of the per-neighbour view, so message
+   * both load-bearing. It keeps chat out of the per-neighbor view, so message
    * volume never counts against `maxViewBytes`. And it answers §7.4's open
    * question structurally rather than by policy: when a tie is dropped, what was
    * already delivered simply stays where it is, and nothing new arrives.
@@ -62,22 +62,22 @@ export const NBHD_KEYS = {
 } as const;
 
 /**
- * Attribute keys the module writes to record a realised network.
+ * Attribute keys the module writes to record a realized network.
  *
  * These live on the **batch** scope, not the game scope, and are therefore
  * suffixed with the game id. The batch is the only durable scope measured NOT to
  * be delivered to participants (`test/e2e/scope_visibility.test.ts`), which is
- * what lets the realised network be both reproducible from storage and hidden
+ * what lets the realized network be both reproducible from storage and hidden
  * from the people inside it.
  *
  * On the game scope — where these started — every participant received the full
  * edge list and the seed, because Classic links every participant to the game.
- * State stayed neighbour-limited, but the *structure* did not, and for a design
+ * State stayed neighbor-limited, but the *structure* did not, and for a design
  * where the topology is the manipulation that is a confound rather than a
  * nicety. See docs/PLATFORM-NOTES.md §4c.
  */
 export const NETWORK_KEYS = {
-  /** Serialised edge list, per game. The network as it stands NOW. */
+  /** Serialized edge list, per game. The network as it stands NOW. */
   network: (gameID: string) => `network:${gameID}`,
   /** Seed used to generate the topology, per game. Recorded for reproducibility. */
   seed: (gameID: string) => `networkSeed:${gameID}`,
@@ -127,7 +127,7 @@ export interface EdgeEvent {
  * Deliberately empty. Two separate things were kept here and both had to move:
  * the channel index (every participant got every channel id, and with no write
  * ACL that id is the capability needed to write into someone else's private
- * channel — §4a, §4b), and the realised network (§4c). Kept as a named, empty
+ * channel — §4a, §4b), and the realized network (§4c). Kept as a named, empty
  * record so the reason survives rather than being rediscovered.
  */
 export const GAME_KEYS = {} as const;
@@ -163,11 +163,11 @@ export function stateKey(key: string): string {
  * is impossible and each side's keys mean exactly one thing.
  *
  * Added in M5 for a gap the first four milestones never surfaced: `project()`
- * runs only over a viewer's CURRENT neighbours, so there was no way for the
- * server to tell one participant one fact about a NON-neighbour. That is exactly
+ * runs only over a viewer's CURRENT neighbors, so there was no way for the
+ * server to tell one participant one fact about a NON-neighbor. That is exactly
  * what Rand, Arbesman & Christakis (2011) do in their rewiring round — a subject
  * offered the chance to form a new tie is shown that person's last action, and by
- * definition they are not yet a neighbour.
+ * definition they are not yet a neighbor.
  *
  * This does NOT weaken the module's guarantee, and the distinction is worth being
  * precise about rather than reassuring about. Values written here are authored by
@@ -189,7 +189,7 @@ export function toldKey(key: string): string {
  * Reserved state key: a participant's outgoing message slot.
  *
  * Chat needs a participant to SEND, and a participant can only write to their
- * own channel — writing into a neighbour's would need the absence of write
+ * own channel — writing into a neighbor's would need the absence of write
  * access control (PLATFORM-NOTES §4a), which is a bug to design against, not a
  * mechanism to build on. So they write here and the server fans out.
  *

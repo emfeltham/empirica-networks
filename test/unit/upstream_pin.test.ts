@@ -18,7 +18,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
  *   `.github/workflows/drift.yml` — "upstream released something; do the contracts
  *     still hold?" Weekly, against `@empirica/core@latest`, running the mode and
  *     e2e tiers. That is how a fixed U8 or U9 announces itself: both have
- *     characterisation tests that assert the CURRENT broken behaviour, so a fix
+ *     characterization tests that assert the CURRENT broken behavior, so a fix
  *     upstream turns them red with a message saying to close the finding.
  *
  *   this file — "you bumped the pin; here is every claim still dated to the

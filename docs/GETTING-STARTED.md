@@ -8,7 +8,7 @@ Before anything else, read [the write-access warning in the README](../README.md
 
 ## 1. Package overview
 
-Participants are nodes in a graph, and each participant receives only their neighbours' projected state. This is not merely a matter of the interface hiding the rest: the bytes never arrive. Each participant gets a private channel scope linked to them alone, and the server writes projections only there. The realised network and its seed are recorded on the batch scope, which participants cannot read, so a finished run is reproducible from stored data without handing the seating plan to the people inside it.
+Participants are nodes in a graph, and each participant receives only their neighbors' projected state. This is not merely a matter of the interface hiding the rest: the bytes never arrive. Each participant gets a private channel scope linked to them alone, and the server writes projections only there. The realized network and its seed are recorded on the batch scope, which participants cannot read, so a finished run is reproducible from stored data without handing the seating plan to the people inside it.
 
 ## 2. Installing
 
@@ -60,7 +60,7 @@ inside the CLI. The private channel is a custom kind, so it has to be registered
   );
 ```
 
-`networkKinds` is `classicKinds` plus one entry. Skip this and the channels are never modelled, there is nothing to write views to, nothing raises an error, and participants simply sit with empty neighbourhoods forever.
+`networkKinds` is `classicKinds` plus one entry. Skip this and the channels are never modeled, there is nothing to write views to, nothing raises an error, and participants simply sit with empty neighborhoods forever.
 
 > ### If skipped, an error appears a few seconds into the first game
 >
@@ -102,9 +102,9 @@ export const Empirica = new ClassicListenersCollector();
 
 export const net = withNetwork(Empirica, {
   topology: ({ playerCount, rng }) => topology.ring(playerCount, { rng }),
-  project: (neighbour, viewer, ctx) => ({
-    id: neighbour.id,
-    choice: ctx.stateOf(neighbour).get("choice"),
+  project: (neighbor, viewer, ctx) => ({
+    id: neighbor.id,
+    choice: ctx.stateOf(neighbor).get("choice"),
   }),
   watch: ["choice"],
   read: ["submission"],
@@ -180,8 +180,8 @@ Empirica cross-links every participant to every player node, so anything written
 attribute is already out, the experiment runs, the screens look right, and the network has
 stopped being the manipulation.
 
-The mirror of this on the server: read neighbour state through `ctx.stateOf(neighbour)`, not
-`neighbour.get(...)`.
+The mirror of this on the server: read neighbor state through `ctx.stateOf(neighbor)`, not
+`neighbor.get(...)`.
 
 The mode must also be installed, or none of the hooks have anything to read:
 
@@ -264,8 +264,8 @@ node dist/verify/cli.cjs verify --n 4     # from a clone today
 It boots a real Tajriba, connects four headless participants on a ring by default (`--topology` takes `star`, `wheel`, `pairs` or `ladder` too), and checks the raw wire:
 
 ```
-  non-neighbour sentinels received : 0/4 pairs  (must be 0)
-  neighbour sentinels delivered    : 8/8  (non-vacuity)
+  non-neighbor sentinels received : 0/4 pairs  (must be 0)
+  neighbor sentinels delivered    : 8/8  (non-vacuity)
   control values observed          : 12  (must be > 0, proves detection works)
 
   PASS
@@ -284,7 +284,7 @@ study actually has. Options, exit codes and the version-mismatch note:
 Two complete designs ship in this repository, both rebuilt from their papers and both covered by the test suite. Start here if you want to see what a real study looks like rather than a demo:
 
 - [`examples/rand2011`](../examples/rand2011) — Rand, Arbesman & Christakis (2011), PNAS. Cooperation in dynamic networks: rewiring during play, private cooperation decisions, four conditions.
-- [`examples/shirado2017`](../examples/shirado2017) — Shirado & Christakis (2017), Nature. The colour coordination game: a static scale-free network, continuous play, and a global objective participants cannot see.
+- [`examples/shirado2017`](../examples/shirado2017) — Shirado & Christakis (2017), Nature. The color coordination game: a static scale-free network, continuous play, and a global objective participants cannot see.
 - [`examples/minimal`](../examples/minimal) — the smallest thing that demonstrates the guarantee. Four files changed from a stock project.
 
 `docs/EXPERIMENTS.md` says what each one demonstrates, what was left out, and, importantly, what "reconstruction" means and why it is not "replication".
@@ -296,7 +296,7 @@ Two complete designs ship in this repository, both rebuilt from their papers and
 > instead. `examples/shirado2017`'s bot runner is the worked case.
 >
 > For someone new to the package, the recommended order is `examples/minimal` first: four tabs,
-> five minutes, and you can watch the neighbour-limited visibility directly. Then
+> five minutes, and you can watch the neighbor-limited visibility directly. Then
 > `examples/shirado2017`, to see a real published design where bots can fill the seats you would
 > otherwise have to click through yourself.
 
@@ -345,8 +345,8 @@ One file covers the whole study (every record carries its `gameID`), and every r
 | Dense graphs above n = 50 | unmeasured, and capped at degree 16 by default. Per-participant payload is O(degree), so this is where client bandwidth binds |
 | Sessions beyond ~10 minutes | unverified |
 
-What matters is not degree alone, but degree multiplied by how much is projected per neighbour. That product
-is what a participant's connection carries, and `maxNeighbourhoodBytes` (64 KiB) caps it, because
+What matters is not degree alone, but degree multiplied by how much is projected per neighbor. That product
+is what a participant's connection carries, and `maxNeighborhoodBytes` (64 KiB) caps it, because
 many individually reasonable views can add up while every other limit stays within bounds.
 
 A crashed study cannot be resumed. A full server restart never reassigns participants to their game: the store reloads, but `gameID` is never restored and no game resumes. It can also leave two player scopes for one participant. This is an upstream limitation (`docs/upstream/ISSUES.md` U2), and no amount of documentation or configuration changes it, so plan for a crash mid-study to end the games in progress.
@@ -356,7 +356,7 @@ A crashed study cannot be resumed. A full server restart never reassigns partici
 | | |
 |---|---|
 | [`docs/API.md`](API.md) | every export, by import path, with the reasoning behind each decision, and the `verify` CLI's options |
-| [`docs/TOPOLOGIES.md`](TOPOLOGIES.md) | the generator catalogue: parameters, connectivity, envelope implications. The page to read while designing |
+| [`docs/TOPOLOGIES.md`](TOPOLOGIES.md) | the generator catalog: parameters, connectivity, envelope implications. The page to read while designing |
 | [`docs/TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | when something is silently wrong. Indexed by symptom rather than by cause |
 | [`docs/DATA-AND-ANALYSIS.md`](DATA-AND-ANALYSIS.md) | §9 above in full: every table's columns, and reproducing a finished run |
 | [`docs/BOTS.md`](BOTS.md) | artificial participants: the policy interface, placement, counting them into `playerCount` |

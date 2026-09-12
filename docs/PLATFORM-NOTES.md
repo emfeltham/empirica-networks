@@ -139,7 +139,7 @@ This has three consequences for the module:
   where a participant benefits from altering another's state is exposed. It is worth reporting
   upstream.
 
-The characterisation test asserts the current behaviour, so if upstream ever adds enforcement
+The characterization test asserts the current behavior, so if upstream ever adds enforcement
 it fails loudly rather than leaving the project defending a threat that no longer exists.
 
 ## 4b. The game scope is participant-visible; do not place indexes there (caution)
@@ -164,7 +164,7 @@ participant in the game by `classic.ts:304-324`.
 Measured 2026-08-15, `@empirica/core@1.12.5`, by `test/e2e/scope_visibility.test.ts` and
 `test/e2e/topology_visibility.test.ts`.
 
-`withNetwork` records the seed and realised edge list so a finished run is reproducible from
+`withNetwork` records the seed and realized edge list so a finished run is reproducible from
 stored data. These records started on the game scope, which broke the rule stated above, and
 measurement confirmed the cost: every participant received the full edge list and the seed.
 
@@ -196,7 +196,7 @@ recovery, and is not sent to anyone inside the experiment. It should be read wit
 decision and may move.
 
 `GAME_KEYS` is deliberately empty. Two things would naturally sit on the game scope, and
-neither may: the channel index (§4b) and the realised network (this note). The empty record is
+neither may: the channel index (§4b) and the realized network (this note). The empty record is
 kept so the reason survives.
 
 ## 4d. A restart re-fires `game.start` (critical)
@@ -205,14 +205,14 @@ Measured 2026-08-15, `@empirica/core@1.12.5`, by `test/e2e/restart.test.ts`.
 
 Attribute listeners replay attributes the admin already holds (§11), and `start` is one of
 them, so `collector.on("game", "start", …)` fires again for an already-running game every time
-the callbacks process starts. That behaviour is useful, since it is how recovery gets its
+the callbacks process starts. That behavior is useful, since it is how recovery gets its
 chance, but it is destructive in two compounding ways unless the handler is written for it.
 
 The first problem is that everyone is silently reseated. The seed is stable, so `topology()`
 returns the same edge list. But the edge list consists of index pairs, and re-deriving the
 index-to-person mapping from `game.players` order gives a different answer, because that order
 is not stable across processes. It is the same ring, but with different people at each node.
-Measured: an actor's neighbour set changed across a restart with nothing logged. For a network
+Measured: an actor's neighbor set changed across a restart with nothing logged. For a network
 experiment this corrupts the independent variable for the rest of the run.
 
 The second problem is that every participant gets a second channel. Provisioning sees an empty
@@ -235,7 +235,7 @@ scope would hand everyone the entire seating plan (§4b, §4c).
 
 Recovery refuses rather than guesses. If a seat is missing, `tryRecover` declines to publish
 instead of closing the gap, because a guessed assignment would yield a plausible network in
-which the wrong people are neighbours, and the run would look normal for the rest of its life.
+which the wrong people are neighbors, and the run would look normal for the rest of its life.
 
 A caveat on what is verified: the test restarts the callbacks against a still-running Tajriba,
 which isolates the in-memory loss. A full `empirica` restart is a different and worse story;
@@ -274,7 +274,7 @@ introduces or can fix from outside.
 and asserts the recovery only in the runs where the platform cooperated. Demanding either
 result would be flaky by construction.
 
-This behaviour was hidden for a time by a bug in the project's own test harness. `server.stop()`
+This behavior was hidden for a time by a bug in the project's own test harness. `server.stop()`
 killed the `empirica` CLI wrapper, which execs the real server as a child process, so the server
 was orphaned rather than stopped, and the "restart" reconnected to the process that had never
 died. 379 orphaned processes had accumulated across one session. This was fixed with
@@ -313,7 +313,7 @@ silently" on the strength of it.
 `withNetwork` cannot assert on `"ready"`: it holds the collector, not the kind map, and reaching
 the map needs an `@internal` field plus a `protected` member of `Scopes`. So the shipped check
 instead observes the consequence (channels created by `addScopes` that never materialise as
-modelled scopes) and warns after 5 seconds. See `ISSUES.md` O14; witness
+modeled scopes) and warns after 5 seconds. See `ISSUES.md` O14; witness
 `test/e2e/kind_registration.test.ts`.
 
 ## 7. A headless participant needs no non-public API (confirmed)
@@ -350,7 +350,7 @@ Two approaches were tried and both are dead ends:
    `BehaviorSubject`, but obtaining the element still requires constructing the live connection
    from the first approach.
 
-As a consequence, all hook behaviour that depends on a populated mode is untestable in Node
+As a consequence, all hook behavior that depends on a populated mode is untestable in Node
 with public API alone. So the derivation logic lives in `src/player/view.ts` as plain functions
 (`neighborsOf`, `networkSelfOf`, `assertNetworkMode`), tested against real `Nbhd` instances
 from the synthetic provider, and `src/player/react/` is delegation with nothing left to get
@@ -360,14 +360,14 @@ There remains a residual risk not covered by any test. `usePartModeCtxKey` calls
 `setVal({data: val2})`, a fresh wrapper object on every emission, so React never bails out even
 though the `BehaviorSubject` re-emits the same `Nbhd` instance on every publish. If upstream
 ever simplifies that call to `setVal(val2)`, `Object.is` equality would make React skip the
-re-render and neighbourhoods would silently freeze at their first value. Only a browser test
+re-render and neighborhoods would silently freeze at their first value. Only a browser test
 catches this; it is the main reason for the deferred M2 Playwright smoke test.
 
 ## 9. `ephemeral` attributes still survive a reconnect (confirmed)
 
 Measured 2026-08-14, `@empirica/core@1.12.5`.
 
-Neighbourhood views are written with `{ephemeral: true}`, since they are derived data,
+Neighborhood views are written with `{ephemeral: true}`, since they are derived data,
 republished on demand, and persisting them would grow the store on every tick for no benefit.
 
 The expectation was that a reconnecting participant would therefore arrive to an empty channel
@@ -377,10 +377,10 @@ values to a returning participant, whether ephemeral or not.
 This was established as follows: `test/e2e/publisher.test.ts`, "a reconnecting participant gets
 its view back", was run with the `ParticipantConnect` handler short-circuited. It still passed:
 the returning participant received both its own channel and a view carrying the current value
-of a neighbour's attribute set after the original session had already connected.
+of a neighbor's attribute set after the original session had already connected.
 
 As a consequence, the `ParticipantConnect` republish in `with_network.ts` is not load-bearing.
-It is kept as a hedge, because this replay is observed behaviour rather than a documented
+It is kept as a hedge, because this replay is observed behavior rather than a documented
 guarantee, and if it changed, the failure would be silent: every reconnecting participant would
 go blank with nothing in the logs.
 
@@ -452,7 +452,7 @@ _.on("start", (ctx) => ctx.scopeSub({ kinds: ["nbhd"] }));
 ```
 
 `withNetwork` does this. If it is ever removed, the symptom is that
-`test/e2e/private_state.test.ts` times out on "every neighbour's secret arrived" while the
+`test/e2e/private_state.test.ts` times out on "every neighbor's secret arrived" while the
 author's own read-back succeeds; that split is the signature of this bug.
 
 Classic does not encounter it because `ClassicLoader` subscribes broadly for the built-in kinds.
@@ -468,7 +468,7 @@ nobody has written anything yet.
 
 So the removal symptom is now a pair. `test/e2e/monitor.test.ts` times out on "every
 participant's private state reached the monitor"; `test/e2e/private_state.test.ts` times out on
-"every neighbour's secret arrived". This was confirmed by deleting the `scopeSub` call and
+"every neighbor's secret arrived". This was confirmed by deleting the `scopeSub` call and
 re-running: each test fails on exactly its own wait, and every other assertion in the monitor
 test, the graph, the rewire, the history, still passes, which is what makes the blank-state
 failure so easy to miss by eye.
@@ -548,7 +548,7 @@ error and no log entry.
 Two consequences follow, both learned the hard way:
 
 - The rewiring API documents that mutations must run inside a listener. Reads are unaffected.
-- The obvious optimisation of batching several mutations into one publish, by deferring the
+- The obvious optimization of batching several mutations into one publish, by deferring the
   flush to a microtask, moves the writes outside the callback and silently breaks them. It is
   also unnecessary: the runloop already coalesces a callback's `set()` calls into one
   `setAttributes` remote call, so publishing synchronously per mutation still costs only one
@@ -567,7 +567,7 @@ RangeError: Invalid WebSocket frame: invalid status code 1006
 ```
 
 Close status 1006 is reserved and must never appear on the wire (RFC 6455 §7.4.1); it is the
-code a client synthesises locally for an abnormal close. Receiving it means the frame stream
+code a client synthesizes locally for an abnormal close. Receiving it means the frame stream
 itself is wrong, not that the server closed for a reason. The received close frame was also
 marked compressed, which control frames may not be. Both facts point at interleaved writes to
 one connection rather than at a deliberate close, the classic symptom of two processes writing
@@ -631,7 +631,7 @@ impatient.
 
 No upstream issue is filed for this finding. Delivery costing time proportional to work is
 ordinary; the fault lay in reading a small-n measurement as a property of the platform. It is
-recorded here because it is a platform behaviour anyone building on Empirica will meet, and
+recorded here because it is a platform behavior anyone building on Empirica will meet, and
 because the number did not exist anywhere until it was needed.
 
 ## 16. There is no artificial-player facility (caution)
@@ -655,9 +655,9 @@ What a bot has to be here is not a server-side object: this package's topology i
 skips players without a `participantID`, so a node with no participant behind it has neither a
 seat nor a private channel (`ISSUES.md` O4). The approach that works is a headless participant
 process: a real `TajribaConnection`, a real session, and `EmpiricaNetwork` as the mode, reading
-its neighbourhood off the mode and writing its choice with `networkStateOf(...).set(...)`. That
+its neighborhood off the mode and writing its choice with `networkStateOf(...).set(...)`. That
 is indistinguishable from a human at the wire, which is also the right property for a study that
-does not tell participants which of their neighbours are software.
+does not tell participants which of their neighbors are software.
 
 This was built on 2026-08-16. `empirica-networks/bots` is that process (`ISSUES.md` O10,
 `docs/BOTS.md`), and `examples/shirado2017` now reconstructs both arms of Shirado & Christakis
@@ -811,7 +811,7 @@ degree at small view sizes. Degree times view size is a different quantity: it i
 participant's uplink carries, and it is what SPIKE-REPORT §4's client-bandwidth finding was
 about: an n=100 complete graph at 24.9 KB per tick per participant is roughly 204 ms of
 transmission on a 1 Mbps uplink before any server cost. Nothing here contradicts that, and
-`maxNeighbourhoodBytes` exists to guard it, since degree alone does not.
+`maxNeighborhoodBytes` exists to guard it, since degree alone does not.
 
 Also unmeasured, and worth naming rather than leaving implied, are real browsers (React
 reconciles on every published view), real WAN latency, and any dense cell above n=50.
@@ -826,11 +826,11 @@ first result's own reliability, and is the more important of the two.
 
 ### The payload cost
 
-`maxNeighbourhoodBytes` (64 KiB) was documented as not measured: a safeguard standing in for the
+`maxNeighborhoodBytes` (64 KiB) was documented as not measured: a safeguard standing in for the
 quantity the degree sweep (§18) deliberately did not cover. Each degree was run twice in one
 sweep, differing only in payload:
 
-| cell | neighbourhood / publish | p50 | p95 | receipts |
+| cell | neighborhood / publish | p50 | p95 | receipts |
 |---|---|---|---|---|
 | n=20 d=19, 2 fields | 1.4 KiB | 11.5 ms | 14.4 ms | 1805/1805 |
 | n=20 d=19, +1 KiB/view | 20.6 KiB | 21.4 ms | 24.5 ms | 1805/1805 |
@@ -839,7 +839,7 @@ sweep, differing only in payload:
 
 Payload costs, and it costs more at higher degree: roughly 14.5 times the bytes buys 1.9 times
 the latency at d=19 and 2.9 times at d=49. So degree times view size behaves like a product,
-which is what §18 said it had not established, and it is the possibility `maxNeighbourhoodBytes`
+which is what §18 said it had not established, and it is the possibility `maxNeighborhoodBytes`
 guards against.
 
 The 64 KiB default has a number behind it. A design sitting just under the limit, 53 KiB per
@@ -923,7 +923,7 @@ Two consequences follow, both adopted:
 
 Also seen once, and worth noting as new: a run died with `tajriba exited early (code 1)` at
 n=25, a server failing to start, which is neither U6 (orphaned processes) nor U7 (participant
-loss at n≥200). This was a single occurrence and has not been characterised further.
+loss at n≥200). This was a single occurrence and has not been characterized further.
 
 ## 20. `game.players` and `player.participantID` come from two different mechanisms
 
@@ -1009,9 +1009,9 @@ whether or not `withNetwork` is installed.
 The second concerns bots. There is no naming scheme an artificial participant can use that
 subjects cannot read. This is why `runBots` requires an identifier list rather than generating
 one from a count, why the default generator matches the shape Empirica's own client produces,
-and why the server-side half of `examples/shirado2017` recognises its agents by holding the list
+and why the server-side half of `examples/shirado2017` recognizes its agents by holding the list
 rather than by matching a prefix. For a design that does not tell subjects which of their
-neighbours are software, a recognisable identifier discloses the manipulation rather than merely
+neighbors are software, a recognisable identifier discloses the manipulation rather than merely
 leaking metadata. See `docs/BOTS.md` §1.
 
 This is not fixable from within this package. Nothing this package controls writes the attribute

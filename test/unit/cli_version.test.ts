@@ -41,7 +41,7 @@ test("the CLI prints the one pin declaration rather than a literal of its own", 
 
 test("the leak check's minimum n is documented in the CLI help", () => {
   // n<4 makes the check vacuous (below it every named topology makes everyone
-  // everyone's neighbour). The CLI must say so rather than silently accept and
+  // everyone's neighbor). The CLI must say so rather than silently accept and
   // report a meaningless PASS.
   const cli = fs.readFileSync(path.join(root, "src/verify/cli.ts"), "utf8");
   assert.match(cli, /minimum 4/, "help text states the minimum");
@@ -63,7 +63,7 @@ test("--topology is validated too, not cast and ignored", () => {
   assert.doesNotMatch(
     cli,
     /topology\s*=\s*[^;]*\bas\s+"ring"/,
-    "the unchecked cast is back, and with it a flag that is reported but not honoured"
+    "the unchecked cast is back, and with it a flag that is reported but not honored"
   );
   assert.match(cli, /preflightCliTopology/, "an unknown or vacuous topology is refused");
 });

@@ -3,7 +3,7 @@
  *
  * Until now `publishAll` ran only at game start, so a projection was a snapshot.
  * That is the difference between a demo and a usable tool — a network experiment
- * where neighbours never update cannot run.
+ * where neighbors never update cannot run.
  *
  * The assertions here are deliberately about the participant's own view of the
  * world, read through the client mode, rather than about server-side
@@ -43,7 +43,7 @@ async function startGame(participants: { mode: unknown }[]): Promise<void> {
   });
 }
 
-/** Neighbour views as {id: choice}, for readable assertions. */
+/** Neighbor views as {id: choice}, for readable assertions. */
 function viewOf(p: { mode: unknown }): Record<string, unknown> {
   const neighbors = (modeOf(p).nbhd.getValue()?.neighbors ?? []) as {
     id: string;
@@ -52,12 +52,12 @@ function viewOf(p: { mode: unknown }): Record<string, unknown> {
   return Object.fromEntries(neighbors.map((n) => [n.id, n.choice]));
 }
 
-test("a watched attribute change reaches neighbours", async () => {
+test("a watched attribute change reaches neighbors", async () => {
   const listeners = (_: any) => {
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+      project: (neighbor: any) => ({ id: neighbor.id, choice: neighbor.get("choice") }),
       watch: ["choice"],
     });
   };
@@ -89,26 +89,26 @@ test("a watched attribute change reaches neighbours", async () => {
       // Someone must SEE it — this is the whole point of the task.
       await waitFor(
         () => participants.some((p) => viewOf(p)[actorID] === "CHOSE-X"),
-        { label: "the change propagated to a neighbour", timeoutMs: 30_000 }
+        { label: "the change propagated to a neighbor", timeoutMs: 30_000 }
       );
 
       // And exactly the right people see it: on a ring of 4 the actor has 2
-      // neighbours and 1 non-neighbour. A publisher that broadcasts would pass
+      // neighbors and 1 non-neighbor. A publisher that broadcasts would pass
       // the assertion above and fail this one.
       let sawIt = 0;
       for (const p of participants) {
         const id = modeOf(p).player.getValue()!.id;
         if (id === actorID) continue;
         if (viewOf(p)[actorID] === "CHOSE-X") sawIt++;
-        else assert.ok(!(actorID in viewOf(p)), "a non-neighbour must not see the actor at all");
+        else assert.ok(!(actorID in viewOf(p)), "a non-neighbor must not see the actor at all");
       }
-      assert.equal(sawIt, 2, "exactly the two ring neighbours received the update");
+      assert.equal(sawIt, 2, "exactly the two ring neighbors received the update");
     }
   );
 });
 
 test("an UNWATCHED attribute is reported rather than silently going stale", async () => {
-  // The failure this guards against: forget a key, neighbours never see it
+  // The failure this guards against: forget a key, neighbors never see it
   // change, the run completes and the data is quietly wrong.
   //
   // Captured through Empirica's own logging mock rather than by stubbing
@@ -118,10 +118,10 @@ test("an UNWATCHED attribute is reported rather than silently going stale", asyn
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any) => ({
-        id: neighbour.id,
-        choice: neighbour.get("choice"),
-        score: neighbour.get("score"), // read, but not watched
+      project: (neighbor: any) => ({
+        id: neighbor.id,
+        choice: neighbor.get("choice"),
+        score: neighbor.get("score"), // read, but not watched
       }),
       watch: ["choice"],
     });
@@ -156,13 +156,13 @@ test("an UNWATCHED attribute is reported rather than silently going stale", asyn
 
 test("an unchanged view is not republished", async () => {
   // A watched key changing on one player must not rewrite everyone's whole
-  // neighbourhood: clients would see change events for values that did not
+  // neighborhood: clients would see change events for values that did not
   // change, and egress would be O(n) per keystroke.
   const listeners = (_: any) => {
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+      project: (neighbor: any) => ({ id: neighbor.id, choice: neighbor.get("choice") }),
       watch: ["choice"],
     });
   };
@@ -182,11 +182,11 @@ test("an unchanged view is not republished", async () => {
       const actorID = modeOf(actor).player.getValue()!.id;
 
       // The participant that can see nobody relevant: find one that is NOT a
-      // neighbour of the actor.
+      // neighbor of the actor.
       const bystander = participants.find(
         (p) => modeOf(p).player.getValue()!.id !== actorID && !(actorID in viewOf(p))
       );
-      assert.ok(bystander, "a ring of 4 has a non-neighbour");
+      assert.ok(bystander, "a ring of 4 has a non-neighbor");
 
       const before = modeOf(bystander!).nbhd.getValue()!.seq;
       modeOf(actor).player.getValue()!.set("choice", "CHOSE-Y");
@@ -211,7 +211,7 @@ test("setting the same value again publishes nothing", async () => {
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+      project: (neighbor: any) => ({ id: neighbor.id, choice: neighbor.get("choice") }),
       watch: ["choice"],
     });
   };
@@ -237,14 +237,14 @@ test("setting the same value again publishes nothing", async () => {
       });
       await new Promise((r) => setTimeout(r, 500));
 
-      const neighbour = participants.find((p) => viewOf(p)[actorID] === "SAME")!;
-      const before = modeOf(neighbour).nbhd.getValue()!.seq;
+      const neighbor = participants.find((p) => viewOf(p)[actorID] === "SAME")!;
+      const before = modeOf(neighbor).nbhd.getValue()!.seq;
 
       modeOf(actor).player.getValue()!.set("choice", "SAME");
       await new Promise((r) => setTimeout(r, 1500));
 
       assert.equal(
-        modeOf(neighbour).nbhd.getValue()!.seq,
+        modeOf(neighbor).nbhd.getValue()!.seq,
         before,
         "an identical view is not rewritten"
       );
@@ -266,7 +266,7 @@ test("a participant away for many publishes returns current, not stale", async (
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+      project: (neighbor: any) => ({ id: neighbor.id, choice: neighbor.get("choice") }),
       watch: ["choice"],
     });
   };
@@ -283,9 +283,9 @@ test("a participant away for many publishes returns current, not stale", async (
       });
 
       const leaver = participants[0]!;
-      const neighbourIDs = Object.keys(viewOf(leaver));
+      const neighborIDs = Object.keys(viewOf(leaver));
       const other = participants.find((p) =>
-        neighbourIDs.includes(modeOf(p).player.getValue()!.id)
+        neighborIDs.includes(modeOf(p).player.getValue()!.id)
       )!;
       const otherID = modeOf(other).player.getValue()!.id;
       const ns = leaver.ns;
@@ -320,8 +320,8 @@ test("a participant away for many publishes returns current, not stale", async (
         );
         assert.deepEqual(
           Object.keys(viewOf(returned)).sort(),
-          neighbourIDs.sort(),
-          "and to the same neighbours"
+          neighborIDs.sort(),
+          "and to the same neighbors"
         );
 
         // Still live afterwards, not a final snapshot.
@@ -344,7 +344,7 @@ test("a reconnecting participant gets its view back", async () => {
   //
   // Measured, not assumed — and the measurement went the other way from the
   // design. This test passes with the ParticipantConnect handler disabled, so
-  // that handler is a hedge against undocumented behaviour changing rather than
+  // that handler is a hedge against undocumented behavior changing rather than
   // the thing making this work. If Tajriba ever stops replaying, this test
   // keeps passing (the handler takes over) and PLATFORM-NOTES §10 goes stale —
   // which is why the handler is kept rather than deleted as dead code.
@@ -352,7 +352,7 @@ test("a reconnecting participant gets its view back", async () => {
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+      project: (neighbor: any) => ({ id: neighbor.id, choice: neighbor.get("choice") }),
       watch: ["choice"],
     });
   };
@@ -370,20 +370,20 @@ test("a reconnecting participant gets its view back", async () => {
 
       // Give the returning participant something to come back to.
       //
-      // The neighbour is derived from the leaver's actual view, NOT assumed to
+      // The neighbor is derived from the leaver's actual view, NOT assumed to
       // be participants[1]: harness connection order does not have to match
-      // position on the ring, so picking by index picks a non-neighbour roughly
+      // position on the ring, so picking by index picks a non-neighbor roughly
       // half the time. That is what it did — this test passed alone and failed
       // in the full suite, looking exactly like a timing flake.
       const leaver = participants[0]!;
       const leaverID = modeOf(leaver).player.getValue()!.id;
-      const neighbourIDs = Object.keys(viewOf(leaver));
-      assert.equal(neighbourIDs.length, 2, "a ring of 4 gives the leaver two neighbours");
+      const neighborIDs = Object.keys(viewOf(leaver));
+      assert.equal(neighborIDs.length, 2, "a ring of 4 gives the leaver two neighbors");
 
       const other = participants.find((p) =>
-        neighbourIDs.includes(modeOf(p).player.getValue()!.id)
+        neighborIDs.includes(modeOf(p).player.getValue()!.id)
       );
-      assert.ok(other, "one of the leaver's neighbours is a connected participant");
+      assert.ok(other, "one of the leaver's neighbors is a connected participant");
       const otherID = modeOf(other!).player.getValue()!.id;
       assert.notEqual(otherID, leaverID);
 
@@ -425,8 +425,8 @@ test("a reconnecting participant gets its view back", async () => {
 
 test("republishing follows the actual adjacency, on a graph where degrees differ", async () => {
   // Ring hides an entire class of bug here. Every node has the same degree and
-  // the same shape of neighbourhood, so a dirty-set computed from the wrong
-  // index still produces two neighbours and still looks right.
+  // the same shape of neighborhood, so a dirty-set computed from the wrong
+  // index still produces two neighbors and still looks right.
   //
   // A star cannot be faked that way. The hub sees everyone; a spoke sees only
   // the hub and NOTHING of the other spokes. So this asserts two things a ring
@@ -439,7 +439,7 @@ test("republishing follows the actual adjacency, on a graph where degrees differ
       // No rng: position 0 is the hub, deterministically, so the test can name
       // who should see what without reading it back off the thing under test.
       topology: ({ playerCount }) => star(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+      project: (neighbor: any) => ({ id: neighbor.id, choice: neighbor.get("choice") }),
       watch: ["choice"],
     });
   };

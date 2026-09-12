@@ -1,10 +1,10 @@
 /**
- * Neighbour-scoped chat, client side.
+ * Neighbor-scoped chat, client side.
  *
  * Sending and receiving use different routes, and the asymmetry is deliberate.
  * A participant can only write to their OWN channel, so `send` writes to an
  * outbox there and the server fans the message out to whoever is currently a
- * neighbour. Writing directly into a neighbour's channel would work — nothing
+ * neighbor. Writing directly into a neighbor's channel would work — nothing
  * in Empirica prevents it (docs/PLATFORM-NOTES.md §4a) — and would be building
  * on the absence of write access control, which is a bug to design against.
  *
@@ -19,7 +19,7 @@ import { networkStateOf } from "./state.js";
 export interface NeighborChat {
   /** Everything delivered to this participant, oldest first. */
   messages: ChatMessage[];
-  /** Send to your current neighbours. Returns the message's sequence number. */
+  /** Send to your current neighbors. Returns the message's sequence number. */
   send(text: string): number;
 }
 

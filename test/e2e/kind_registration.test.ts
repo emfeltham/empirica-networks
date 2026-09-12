@@ -19,7 +19,7 @@
  * `withNetwork` cannot call `assertKindsRegistered` — it holds the collector, not
  * the kind map (see that function's comment) — so the check observes the
  * consequence: channels demonstrably created by `addScopes`, none of them ever
- * arriving back as a modelled scope.
+ * arriving back as a modeled scope.
  *
  * **This needs a game**, unlike `duplicate_listeners.test.ts`: nothing is provisioned
  * until one starts, and provisioning is the whole premise. So it is the expensive
@@ -31,7 +31,7 @@
  * **n=1 is therefore the size, and halving it was the whole fix** — the tier went
  * back to 67/67 twice consecutively. One channel is enough to be created and fail
  * to materialise, which is all the check counts, and the topology is empty because
- * nothing here depends on anybody having a neighbour. One participant fewer, on one
+ * nothing here depends on anybody having a neighbor. One participant fewer, on one
  * file, was the difference between a tier that failed reliably and one that passes.
  * The cost of a test is a property of the test.
  */
@@ -79,7 +79,7 @@ function experiment(): {
 
   const net = withNetwork(Empirica, {
     topology: () => [],
-    project: (neighbour: any) => ({ id: neighbour.id }),
+    project: (neighbor: any) => ({ id: neighbor.id }),
   });
 
   return { listeners: Empirica, net };
@@ -164,7 +164,7 @@ test("an unregistered scope kind is reported, and registering it is silent", asy
 
   const text = logged(broken.lines);
   assert.match(text, /1 private channel was created/);
-  assert.match(text, /empty neighbourhood/);
+  assert.match(text, /empty neighborhood/);
   // The fix reaches the operator, not just the doc comment.
   assert.match(text, /\+\s+networkKinds/);
   // And the case where the warning is wrong, in the same breath as the accusation.

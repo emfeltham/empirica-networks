@@ -4,7 +4,7 @@ import { EmpiricaMenu, EmpiricaParticipant } from "@empirica/core/player/react";
 //
 // EmpiricaNetwork is a SUPERSET of EmpiricaClassic — it composes it rather than
 // replacing it — so usePlayer, useGame, useStage and the rest keep working
-// exactly as before. It just adds the private neighbourhood channel.
+// exactly as before. It just adds the private neighborhood channel.
 import { EmpiricaNetwork } from "empirica-networks/player";
 import React from "react";
 import { Game } from "./Game";

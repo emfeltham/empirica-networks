@@ -11,17 +11,17 @@ authors:
 repository-code: "https://github.com/emfeltham/empirica-networks"
 abstract: >-
   Network experiments for Empirica. Each participant has a private channel and
-  receives only the projected state of their neighbours, so adjacency governs
+  receives only the projected state of their neighbors, so adjacency governs
   delivery rather than display. Includes fourteen topology generators with
-  recorded seeds, rewiring during a session, neighbour-scoped messaging, and
-  export helpers that record the realised graph rather than the generator's
+  recorded seeds, rewiring during a session, neighbor-scoped messaging, and
+  export helpers that record the realized graph rather than the generator's
   parameters. An evaluation command runs complete simulated sessions of a
   reconstructed published design and audits the delivered views afterwards.
 keywords:
   - empirica
   - network experiments
   - social networks
-  - behavioural experiments
+  - behavioral experiments
   - experimental design
 license: MIT
 version: 0.0.0

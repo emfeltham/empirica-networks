@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Network experiments for Empirica: neighbour-limited visibility, topologies, and rewiring.",
+  "description": "Network experiments for Empirica: neighbor-limited visibility, topologies, and rewiring.",
   "license": "MIT",
   "author": "Eric Martin Feltham <eric.feltham@aya.yale.edu>",
   "repository": {

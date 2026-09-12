@@ -2,7 +2,7 @@
  * The browser confirmation, automated.
  *
  * This is the plan's acceptance criterion for the example: run it against a real
- * `empirica` dev server and confirm each window sees only its own neighbours. It
+ * `empirica` dev server and confirm each window sees only its own neighbors. It
  * was previously written down as a manual step, which meant in practice it was
  * an unverified claim.
  *
@@ -11,8 +11,8 @@
  * bundled client. Nothing is stubbed and no internals are reached into.
  *
  * It goes further than the manual check it replaces. A person can only confirm
- * that a non-neighbour is not RENDERED; here every websocket frame each browser
- * receives is captured, so the assertion is that the non-neighbour's colour
+ * that a non-neighbor is not RENDERED; here every websocket frame each browser
+ * receives is captured, so the assertion is that the non-neighbor's color
  * never arrived in the tab at all. That is the actual claim — the bytes never
  * leave the server — and it is the one an eyeball cannot check.
  *
@@ -101,8 +101,8 @@ async function openTab(browser: Browser, key: string): Promise<Tab> {
 
   page.on("websocket", (ws) => {
     // Only the Tajriba socket. Vite's HMR socket also carries CSS, which
-    // contains colour words like "green" and would make a substring search for
-    // a leaked colour fire on nothing.
+    // contains color words like "green" and would make a substring search for
+    // a leaked color fire on nothing.
     if (!ws.url().includes("/query")) return;
     ws.on("framereceived", (data) => {
       const payload = typeof data.payload === "string" ? data.payload : data.payload.toString();
@@ -144,7 +144,7 @@ async function joinExperiment(tab: Tab): Promise<void> {
 
   // 3. The example's own Introduction screen.
   await page
-    .getByText(/what should your neighbours call you/i)
+    .getByText(/what should your neighbors call you/i)
     .waitFor({ state: "visible", timeout: 120_000 });
   const nameInput = page.locator('input[type="text"]').first();
   await nameInput.fill(`name-${tab.key}`);
@@ -159,8 +159,8 @@ async function joinExperiment(tab: Tab): Promise<void> {
   await page.getByRole("button", { name: /next/i }).click();
 }
 
-/** The names this tab can actually see, read from the rendered neighbour list. */
-async function visibleNeighbourNames(tab: Tab): Promise<string[]> {
+/** The names this tab can actually see, read from the rendered neighbor list. */
+async function visibleNeighborNames(tab: Tab): Promise<string[]> {
   const items = await tab.page.locator("ul li").allTextContents();
   return items.map((t) => t.trim()).filter(Boolean);
 }
@@ -298,12 +298,12 @@ async function main(): Promise<void> {
     for (const tab of tabs) await joinExperiment(tab);
     console.log("  all four joined (consent, identifier, intro)");
 
-    // ---- 4. everyone picks a colour ---------------------------------------
+    // ---- 4. everyone picks a color ---------------------------------------
     await waitFor(
       async () =>
         (
           await Promise.all(
-            tabs.map((t) => t.page.getByText(/Your colour/i).isVisible().catch(() => false))
+            tabs.map((t) => t.page.getByText(/Your color/i).isVisible().catch(() => false))
           )
         ).every(Boolean),
       "the game screen in every window"
@@ -312,19 +312,19 @@ async function main(): Promise<void> {
     for (const [i, tab] of tabs.entries()) {
       await tab.page.locator(`button[title="${COLORS[i]}"]`).click();
     }
-    console.log("  each window picked a distinct colour");
+    console.log("  each window picked a distinct color");
 
     // Let the projections settle.
     await waitFor(
       async () =>
-        (await Promise.all(tabs.map(visibleNeighbourNames))).every((names) => names.length === 2),
-      "each window showing exactly 2 neighbours"
+        (await Promise.all(tabs.map(visibleNeighborNames))).every((names) => names.length === 2),
+      "each window showing exactly 2 neighbors"
     );
 
     // ---- 5. what each window can see --------------------------------------
     const seen = new Map<string, string[]>();
     for (const tab of tabs) {
-      const names = (await visibleNeighbourNames(tab)).map(
+      const names = (await visibleNeighborNames(tab)).map(
         (t) => t.match(/name-\w+/)?.[0] ?? t
       );
       seen.set(tab.key, names.sort());
@@ -351,20 +351,20 @@ async function main(): Promise<void> {
     // Conflating them is the mistake this section exists to prevent:
     //
     //   the PROJECTION  — `neighbors` on the participant's own nbhd scope.
-    //                     Neighbour-limited. This is what the module guarantees.
+    //                     Neighbor-limited. This is what the module guarantees.
     //
     //   the PLAYER SCOPE — Classic cross-links every participant to every player
     //                     node, so ANY `player.set(...)` is broadcast to
     //                     everyone (docs/PLATFORM-NOTES.md §4b).
     //
-    // The example writes name and colour with `player.set`, so those values are
+    // The example writes name and color with `player.set`, so those values are
     // on every tab's wire regardless of the topology. That is asserted below as
     // a fact, not waved away — it is the trap a researcher must know about.
     let checked = 0;
     for (const tab of tabs) {
       const visible = seen.get(tab.key)!;
       const strangerKey = KEYS.find((k) => k !== tab.key && !visible.includes(`name-${k}`));
-      assert.ok(strangerKey, `${tab.key} should have exactly one non-neighbour`);
+      assert.ok(strangerKey, `${tab.key} should have exactly one non-neighbor`);
       const strangerName = `name-${strangerKey}`;
 
       assert.ok(
@@ -373,7 +373,7 @@ async function main(): Promise<void> {
       );
 
       // (a) THE MODULE'S GUARANTEE: every `neighbors` payload this tab received
-      //     mentions only its neighbours.
+      //     mentions only its neighbors.
       const projected = projectedNames(tab);
       assert.ok(
         projected.size > 0,
@@ -381,63 +381,63 @@ async function main(): Promise<void> {
       );
       assert.ok(
         !projected.has(strangerName),
-        `LEAK: ${tab.key}'s projection contained non-neighbour ${strangerName}`
+        `LEAK: ${tab.key}'s projection contained non-neighbor ${strangerName}`
       );
       for (const name of visible) {
         assert.ok(
           projected.has(name),
-          `${tab.key}'s projection should contain its neighbour ${name}`
+          `${tab.key}'s projection should contain its neighbor ${name}`
         );
       }
 
       const wire = tab.frames.join("\n");
 
-      // (b) THE STRONG CLAIM, which only holds because the colour is PRIVATE
-      //     state written to each participant's own channel. A non-neighbour's
-      //     colour must appear nowhere in the bytes this tab received. When the
-      //     example wrote colour with player.set(), this assertion failed — the
+      // (b) THE STRONG CLAIM, which only holds because the color is PRIVATE
+      //     state written to each participant's own channel. A non-neighbor's
+      //     color must appear nowhere in the bytes this tab received. When the
+      //     example wrote color with player.set(), this assertion failed — the
       //     value was broadcast and the demo's own promise was false.
-      // Each tab picks a distinct colour, so a colour word identifies its owner.
+      // Each tab picks a distinct color, so a color word identifies its owner.
       // Searched in the RAW frames, so a leak through any channel counts — not
       // just through the projection we know to look at.
       const strangerColor = COLORS[KEYS.indexOf(strangerKey!)]!;
       assert.ok(
         !wire.includes(strangerColor),
-        `LEAK: ${tab.key} received non-neighbour ${strangerKey}'s colour ` +
+        `LEAK: ${tab.key} received non-neighbor ${strangerKey}'s color ` +
           `(${strangerColor}) over the websocket`
       );
 
-      // (c) NON-VACUITY for (b): a neighbour's colour DID arrive, so the
-      //     absence above means something rather than "no colours were sent".
-      const neighbourColors = new Set(
+      // (c) NON-VACUITY for (b): a neighbor's color DID arrive, so the
+      //     absence above means something rather than "no colors were sent".
+      const neighborColors = new Set(
         projectedViews(tab)
           .map((v) => v?.color)
           .filter((c): c is string => typeof c === "string")
       );
       assert.ok(
-        neighbourColors.size > 0,
-        `${tab.key} received no neighbour colours at all — the absence above ` +
+        neighborColors.size > 0,
+        `${tab.key} received no neighbor colors at all — the absence above ` +
           `would be vacuous`
       );
       assert.ok(
-        !neighbourColors.has(strangerColor),
+        !neighborColors.has(strangerColor),
         `LEAK: ${strangerColor} appeared in ${tab.key}'s projection`
       );
 
-      // (d) THE PLATFORM'S BEHAVIOUR, for contrast: the stranger's NAME is on
+      // (d) THE PLATFORM'S BEHAVIOR, for contrast: the stranger's NAME is on
       //     the wire, because names are ordinary player attributes and Empirica
       //     broadcasts every player scope. Asserted so the difference between
       //     the two paths stays visible, and so a change upstream is loud.
       assert.ok(
         wire.includes(strangerName),
         `expected ${strangerName} on ${tab.key}'s wire via the broadcast player scope ` +
-          `(PLATFORM-NOTES §4b). If this now fails, Empirica's behaviour changed.`
+          `(PLATFORM-NOTES §4b). If this now fails, Empirica's behavior changed.`
       );
 
       checked++;
       console.log(
         `    ${tab.key}: sees {${[...projected].join(", ")}} · ` +
-          `${strangerKey}'s colour absent from wire · ` +
+          `${strangerKey}'s color absent from wire · ` +
           `${strangerKey}'s name present (public player attribute)`
       );
     }
@@ -460,40 +460,40 @@ async function main(): Promise<void> {
 
     await reloaded.page.reload({ waitUntil: "domcontentloaded" });
     await waitFor(
-      () => reloaded.page.getByText(/Your colour/i).isVisible().catch(() => false),
+      () => reloaded.page.getByText(/Your color/i).isVisible().catch(() => false),
       `${reloaded.key} back on the game screen after a reload`
     );
     await waitFor(
-      async () => (await visibleNeighbourNames(reloaded)).length === 2,
-      `${reloaded.key} has its neighbourhood again after a reload`
+      async () => (await visibleNeighborNames(reloaded)).length === 2,
+      `${reloaded.key} has its neighborhood again after a reload`
     );
 
-    const after = (await visibleNeighbourNames(reloaded))
+    const after = (await visibleNeighborNames(reloaded))
       .map((t) => t.match(/name-\w+/)?.[0] ?? t)
       .sort();
     assert.deepEqual(
       after,
       before,
-      `${reloaded.key} must come back to the SAME neighbours, not be reseated`
+      `${reloaded.key} must come back to the SAME neighbors, not be reseated`
     );
 
-    // Live, not frozen: a neighbour changes colour and the reloaded tab shows it.
-    const neighbourKey = before[0]!.replace("name-", "");
-    const neighbourTab = tabs.find((t) => t.key === neighbourKey)!;
-    await neighbourTab.page.locator('button[title="violet"]').click();
+    // Live, not frozen: a neighbor changes color and the reloaded tab shows it.
+    const neighborKey = before[0]!.replace("name-", "");
+    const neighborTab = tabs.find((t) => t.key === neighborKey)!;
+    await neighborTab.page.locator('button[title="violet"]').click();
 
     await waitFor(async () => {
       const titles = await reloaded.page
         .locator("ul li div[title]")
         .evaluateAll((els) => els.map((e) => e.getAttribute("title")));
       return titles.includes("violet");
-    }, `${reloaded.key} sees a neighbour's NEW colour after reloading`);
+    }, `${reloaded.key} sees a neighbor's NEW color after reloading`);
 
     console.log(
-      `    ${reloaded.key} reloaded: same neighbours {${after.join(", ")}}, updates still live`
+      `    ${reloaded.key} reloaded: same neighbors {${after.join(", ")}}, updates still live`
     );
 
-    console.log(`\n  PASS — ${N} real browsers, neighbour-limited visibility confirmed at the wire\n`);
+    console.log(`\n  PASS — ${N} real browsers, neighbor-limited visibility confirmed at the wire\n`);
   } catch (e) {
     await dumpTabs(tabs);
     throw e;

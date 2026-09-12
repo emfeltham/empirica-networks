@@ -1,14 +1,14 @@
 # Architecture — how the package works
 
 This document is for someone reading the source: a contributor, a reviewer, or the author in six
-months. It is organised by mechanism, tracing the path a value takes from a participant's browser
-to their neighbour's screen. `MODULE-DESIGN.md`, kept with the investigation that produced it
-rather than in this repository, is organised by decision and its reasoning, and is the place to
+months. It is organized by mechanism, tracing the path a value takes from a participant's browser
+to their neighbor's screen. `MODULE-DESIGN.md`, kept with the investigation that produced it
+rather than in this repository, is organized by decision and its reasoning, and is the place to
 find out why a shape was chosen rather than what it does.
 
-Every claim below names the file it lives in, and where a behaviour is pinned by a test, names
+Every claim below names the file it lives in, and where a behavior is pinned by a test, names
 the test as well. An architecture document that drifts is worse than none, so pointing at the
-witness is the only defence available.
+witness is the only defense available.
 
 Written 2026-08-16, against the post-M6 surface (`@empirica/core` 1.12.5).
 
@@ -16,10 +16,10 @@ Written 2026-08-16, against the post-M6 surface (`@empirica/core` 1.12.5).
 
 ## 1. The model, in one paragraph
 
-Participants are nodes in a graph. Each participant owns one private channel: a modelled scope of
+Participants are nodes in a graph. Each participant owns one private channel: a modeled scope of
 custom kind `nbhd`, linked to that participant alone, and the server writes their projected view
-of their neighbours there and nowhere else. The bytes describing the rest of the graph never reach
-the client at all; the interface does not merely hide them. The realised graph, its seed, and its
+of their neighbors there and nowhere else. The bytes describing the rest of the graph never reach
+the client at all; the interface does not merely hide them. The realized graph, its seed, and its
 mutation history are recorded on the batch scope, which is the only durable scope measured not to
 be delivered to participants (`test/e2e/scope_visibility.test.ts`), so a finished run is
 reproducible from stored data without handing the seating plan to the people inside it.
@@ -28,7 +28,7 @@ Two facts about Empirica make everything else follow. Classic cross-links every 
 every player node, so anything on a player scope is broadcast to everyone, which is why private
 state needs its own scope kind. And `EventContext` has no `setAttributes`
 (`docs/PLATFORM-NOTES.md` §5), so the only write path available inside a listener is `.set()` on
-a modelled scope, which is why the `nbhd` kind must be registered by the consumer, in their own
+a modeled scope, which is why the `nbhd` kind must be registered by the consumer, in their own
 `server/src/index.js`. Without the registration there is nothing to call `.set()` on.
 
 ## 2. Module map
@@ -44,12 +44,12 @@ src/
     kinds.ts          networkKinds, assertKindsRegistered, the registration diff
     provision.ts      one channel per participant: batched, idempotent, order-independent
     projection.ts     validateProjection, projectionBytes — what a view may contain
-    envelope.ts       degree / view-bytes / neighbourhood-bytes limits
+    envelope.ts       degree / view-bytes / neighborhood-bytes limits
     reads.ts          recording proxies; the unwatched-key report
     listeners.ts      the U8 duplicate-lifecycle-listener detector
     registration.ts   the O14 kind-registration check: constants and messages, zero imports
     retention.ts      the bound on what a long-running process keeps (O5), zero imports
-    seed.ts           hashSeed, makeRng — deterministic realisation
+    seed.ts           hashSeed, makeRng — deterministic realization
     sink.ts           the shared NDJSON writer behind views: and log:
     views.ts          view capture config on top of the sink
     export.ts         pure row builders: edgeRows, snapshotRows, viewRows, toCSV
@@ -88,7 +88,7 @@ answerable with one grep.
 `bots` breaks the ESM rule deliberately, and the export map records that fact. It reaches
 `@empirica/core/admin` for `TajribaConnection`, whose connection class lives there even though a
 bot is a participant, and that cannot be loaded from bare Node ESM (§3a). So it ships as a bundled
-CJS artefact under a single `default` condition, rather than as an `import` entry that would
+CJS artifact under a single `default` condition, rather than as an `import` entry that would
 resolve cleanly and then fail on the researcher's machine. The cost is a second copy of
 `@empirica/core` inside that bundle; nothing crosses the boundary, because a policy is handed
 plain JSON and plain accessors rather than scope objects. `src/bots/runner.ts` is built on
@@ -118,8 +118,8 @@ Two things happen, and the timing of both is deliberate:
   declared below the call, which in both shipped examples is most of them.
 
 3. Kind registration. Two checks, and neither is the obvious one. If `networkKinds` was not
-passed to `AdminContext.init`, no channels are modelled, nothing errors, and participants sit with
-empty neighbourhoods forever: the one mandatory consumer edit, and the package's most consequential
+passed to `AdminContext.init`, no channels are modeled, nothing errors, and participants sit with
+empty neighborhoods forever: the one mandatory consumer edit, and the package's most consequential
 silent failure.
 
 - `assertKindsRegistered(kinds)` (`kinds.ts`) is eager, throws, and is opt-in, for the consumer's
@@ -141,13 +141,13 @@ examples. Three branches:
   recovery path (step 9).
 - Otherwise, the normal path below.
 
-5. Realise the topology. `seed = config.seed ?? hashSeed(String(game.id))`, `rng =
+5. Realize the topology. `seed = config.seed ?? hashSeed(String(game.id))`, `rng =
 makeRng(seed)`, `edges = topology({ game, playerCount, rng })`, `adj = adjacency(...)`. Then
 `checkDegrees()` runs before provisioning and before anything is recorded, so an out-of-envelope
 topology fails while the experiment is still abandonable rather than after participants have been
 committed to a game that will run badly.
 
-6. Record the realisation on the batch scope. `batch.set(NETWORK_KEYS.seed(gameID), seed)` and
+6. Record the realization on the batch scope. `batch.set(NETWORK_KEYS.seed(gameID), seed)` and
 `NETWORK_KEYS.network(gameID)`, plus a `start` event appended to `NETWORK_KEYS.history(gameID)`.
 These are suffixed by game id because one batch holds many games. A game with no batch throws,
 since without it the run is neither reproducible nor restart-survivable, and that is worth failing
@@ -183,7 +183,7 @@ Provisioning is also where the kind-registration check is armed (`armRegistratio
 one-shot per process, because registration cannot change while the process runs, and a per-game
 timer would re-accuse every game of a broken batch. `provisionChannels` throws if a returned
 payload carries no owner attribute, so `created > 0` establishes that the scopes exist in Tajriba;
-if none of them has come back as a modelled scope by `registrationWaitMs(created)` (5 s, plus
+if none of them has come back as a modeled scope by `registrationWaitMs(created)` (5 s, plus
 100 ms per channel past fifty), the check warns. It names both causes and diagnoses neither, and
 retracts itself if a channel arrives afterwards: the deadline is sized from measured first-channel
 latency (`ISSUES.md` O15, `docs/PLATFORM-NOTES.md` §16a), and a measurement can be beaten by a
@@ -207,7 +207,7 @@ Both are required. The edge list alone is index pairs: it describes the shape wi
 sits where, and reconstructing seats from anything else is exactly how a restart silently
 reassigns everyone to different nodes while looking like it worked (`test/e2e/restart.test.ts`).
 A missing seat makes recovery refuse rather than guess: guessing produces a plausible network in
-which the wrong people are neighbours, and the run looks normal for the rest of its life.
+which the wrong people are neighbors, and the run looks normal for the rest of its life.
 
 Called on every channel arrival, because channels stream in from the subscription with no
 completion signal. Idempotent, and gives up quietly until the last seat is filled.
@@ -224,7 +224,7 @@ resolves, `useNeighbors()` returns a view. `TajribaEvent.ParticipantConnect` dro
 cache for that participant and republishes. This is not load-bearing today, and that is measured
 rather than assumed: with the handler disabled, `test/e2e/publisher.test.ts`'s reconnect case
 still passes, because Tajriba replays current attribute values to a returning participant even
-though views are `ephemeral`. It is kept because that replay is undocumented behaviour found by
+though views are `ephemeral`. It is kept because that replay is undocumented behavior found by
 experiment, and if it ever stops, every reconnecting participant silently goes blank.
 
 12. Game end. `collector.on("game", "status")` calls `releaseGame()` when `hasEnded` (which
@@ -246,13 +246,13 @@ completeness is still checked for everyone.
 ```
 for each viewer in topology order
   ├─ channel not materialised?  → return false, publish NOTHING
-  ├─ for each neighbour j in adj[viewer]
-  │    ├─ project(recordReads(neighbour), recordReads(viewer), ctx)   ← the only path
-  │    ├─ throws?    → rethrow, naming the (viewer, neighbour) pair
-  │    ├─ undefined? → skip this neighbour
+  ├─ for each neighbor j in adj[viewer]
+  │    ├─ project(recordReads(neighbor), recordReads(viewer), ctx)   ← the only path
+  │    ├─ throws?    → rethrow, naming the (viewer, neighbor) pair
+  │    ├─ undefined? → skip this neighbor
   │    ├─ validateProjection(view, label)      ← BEFORE anything is written
   │    └─ projectionBytes(view) → sizes
-  ├─ JSON.stringify(neighbours) === lastPublished?  → skip this viewer
+  ├─ JSON.stringify(neighbors) === lastPublished?  → skip this viewer
   └─ → targets
 reportUnwatchedKeys(readKeys)
 checkViewBytes(sizes, envelope)
@@ -285,9 +285,9 @@ in `watch` for it to stay live. Empirica has no wildcard attribute listener, so 
 be inferred, but anything read and not listed is reported rather than silently going stale.
 
 Byte-identical views are suppressed. Without that, one player changing one attribute rewrites
-every neighbour's whole neighbourhood on the wire, and the client sees a change event for a value
+every neighbor's whole neighborhood on the wire, and the client sees a change event for a value
 that did not change. It also makes the deliberate over-reach in `republishAround` free: a change
-to P republishes P's neighbours and P itself, because a projection may key off the viewer's own
+to P republishes P's neighbors and P itself, because a projection may key off the viewer's own
 state.
 
 Views are published `ephemeral`, so nothing durable holds them. That is why view capture exists
@@ -307,12 +307,12 @@ could have known, which is all an edge log plus an attribute export can give aft
 
 One list covers both scopes deliberately: which scope a key lives on is the author's choice and
 can change, and making them remember two lists would turn a moved key into silently frozen
-neighbourhoods. A listener for a key nobody uses costs nothing.
+neighborhoods. A listener for a key nobody uses costs nothing.
 
 `watch` and `read` are unioned: mechanically identical, both get a listener, both appear in
 `inspect()`, both are readable through `stateOf()`. The distinction is declarative: it records
 what the author meant and gives `stateOf()` something to check against. A distinction that also
-changed behaviour would be a new way to be silently wrong, which is the thing being fixed.
+changed behavior would be a new way to be silently wrong, which is the thing being fixed.
 
 ## 5. Where every value lives, and why
 
@@ -322,7 +322,7 @@ The table the examples each write for themselves, generalised. This is the whole
 |---|---|---|
 | Player scope (`player.set`) | Everyone (Classic cross-links every participant) | Nothing that the network is supposed to restrict. Non-secret UI state |
 | Game scope | Everyone in the game (§4b) | Nothing of ours: `GAME_KEYS` is a named, empty record so the reason survives |
-| Batch scope | Server only, measured (`scope_visibility.test.ts`) | The realised network, the seed, the edge history, the authoritative record of account (payoffs) |
+| Batch scope | Server only, measured (`scope_visibility.test.ts`) | The realized network, the seed, the edge history, the authoritative record of account (payoffs) |
 | Private channel (`nbhd`), `state:` prefix | Its owner, and the server | What a participant writes about themselves. `networkStateOf().set()` |
 | Private channel, `told:` prefix | Its owner, and the server | What the server tells one participant. `network(game).tell()` |
 | Private channel, `neighbors` | Its owner, and the server | The projected views. Written `ephemeral`; server-written only |
@@ -336,8 +336,8 @@ server authored, with no way for the server to tell. Separated, that collision i
 Both are prefixed rather than raw so a participant cannot overwrite `neighbors` or `_seq`.
 
 The batch scope is used because it is the one durable place participants cannot read. The
-realised network started on the game scope, where every participant received the full edge list
-and the seed: state stayed neighbour-limited but the structure did not, and for a design where
+realized network started on the game scope, where every participant received the full edge list
+and the seed: state stayed neighbor-limited but the structure did not, and for a design where
 the topology is the manipulation, that is a confound rather than a nicety (`PLATFORM-NOTES` §4b,
 §4c).
 
@@ -408,7 +408,7 @@ game.id ──hashSeed──▶ seed ──makeRng──▶ rng ──topology(�
                        └─────── batch: networkSeed:<id> ◀──────┘  batch: network:<id>
 ```
 
-`config.seed` overrides the derivation. Both the seed and the realised edge list are written to
+`config.seed` overrides the derivation. Both the seed and the realized edge list are written to
 the batch scope, so the graph a run actually used is recoverable from stored data, rather than
 re-derived and hoped to match. `makeRng` and `shuffle` are exported so a design's own randomness
 can hang off the same seed. Pinned by `test/e2e/reproducibility.test.ts`.
