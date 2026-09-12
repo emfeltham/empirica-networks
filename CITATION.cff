@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: "empirica-networks: online network experiments with Empirica"
 message: >-
   If you use this software in research, please cite it. A methods paper is in
-  preparation; until it exists, cite the software.
+  preparation.
 type: software
 authors:
   - family-names: Feltham
@@ -11,13 +11,7 @@ authors:
     orcid: "https://orcid.org/0000-0001-8080-7119"
 repository-code: "https://github.com/emfeltham/empirica-networks"
 abstract: >-
-  Network experiments for Empirica. Each participant has a private channel and
-  receives only the projected state of their neighbors, so adjacency governs
-  delivery rather than display. Includes fourteen topology generators with
-  recorded seeds, rewiring during a session, neighbor-scoped messaging, and
-  export helpers that record the realized graph rather than the generator's
-  parameters. An evaluation command runs complete simulated sessions of a
-  reconstructed published design and audits the delivered views afterwards.
+  Network experiments for Empirica. Each participant has a private channel and receives the projected state of their neighbors. The package includes fourteen topology generators with recorded seeds, rewiring during a session, neighbor-scoped messaging, and export helpers that record the realized graph. An evaluation command runs complete simulated sessions of a reconstructed published design and audits the delivered views afterwards.
 keywords:
   - empirica
   - network experiments
