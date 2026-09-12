@@ -1,12 +1,11 @@
 # API reference
 
-Organized by import path, so the line at the top of your file tells you which section to open.
-Each entry carries the reasoning behind the decision, which is the part worth reading. This is
-hand-written rather than generated from types for that reason.
+This reference is organized by import path, allowing readers to locate the relevant section from
+an import statement. Each entry supplements its type information with the rationale for its
+design, so the reference is maintained by hand rather than generated from declarations.
 
-> This surface is not yet frozen. The API freeze applies at the first
-> publish, and this page is the inventory that freeze signs off. Until then, anything here can
-> still change.
+> The API remains under development until the first public release. This page serves as the
+> inventory for that release, and entries may change beforehand.
 
 | Path | Loads | Use from |
 |---|---|---|
@@ -19,9 +18,9 @@ hand-written rather than generated from types for that reason.
 | `empirica-networks/export` | nothing at all | offline analysis scripts, plain `node` |
 | `empirica-networks` | nothing | anywhere; shared keys and helpers only |
 
-The root module deliberately does not re-export the others. Combining admin, player and React into
-a single module that re-exports everything is the mistake in `@empirica/core`'s own `index.ts`,
-which drags server-only code into client bundles.
+The root module exports shared utilities alone. Separate entry points for admin, player, and React
+prevent server-only code from entering client bundles, a problem caused by the combined exports in
+`@empirica/core`'s `index.ts`.
 
 The package also ships one binary, `empirica-networks`, which is not imported from anywhere. See
 [The `verify` CLI](#the-verify-cli) at the end of this page.
@@ -488,11 +487,10 @@ flat 5 s deadline would have 14% of its time left.
 | `net.stats().firstChannelMs` | how long the first channel took, or `undefined` if none has |
 | `registrationRetractionMessage(…)` | printed if a channel arrives after the warning |
 
-The retraction is the detail worth knowing about. A deadline sized from a measurement can be
-beaten by a machine slower than the one measured, so the check's residual failure is still a false
-accusation, though a temporary one. If a channel turns up afterwards, the package says so, in the
-same log, and states that nothing needs fixing. An operator reading the log later does not find an
-unanswered claim that their server is misconfigured.
+Retraction handles machines that create channels more slowly than the host used to set the
+deadline. If a channel appears after the initial warning, the package records a retraction in the
+same log and confirms that the configuration is valid. The completed log therefore avoids leaving
+operators with an unresolved claim of misconfiguration.
 
 `registrationNotDetectedMessage`, `registrationRetractionMessage`, `registrationWaitMs`,
 `REGISTRATION_CHECK_MS` and `REGISTRATION_CHECK_PER_CHANNEL_MS` are exported so a test can assert

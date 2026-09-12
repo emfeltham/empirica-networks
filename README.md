@@ -1,44 +1,44 @@
 # empirica-networks
 
-Network experiments for [Empirica](https://empirica.ly): participants are nodes in a graph, and each participant only sees the state of their neighbors.
+Tools for running network experiments in [Empirica](https://empirica.ly). Participants occupy nodes in a graph, and each participant receives information about their neighbors alone.
 
-State of the package: The package currently runs real games, in fairly limited testing. All three examples in this repository play end to end against a real Empirica server. cf. [Runnable examples](#runnable-examples), [Verifying the guarantee](#verifying-the-guarantee), and [Installation](#installation).
+The package runs complete games, although testing remains limited. All three examples in this repository run end to end against an Empirica server. See [Runnable examples](#runnable-examples), [Verifying the guarantee](#verifying-the-guarantee), and [Installation](#installation).
 
 This project is neither affiliated with nor endorsed by the Empirica project.
 
 | | |
 |---|---|
-| New here | [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md) — install to running the guarantee check, in order |
-| The API | [`docs/API.md`](docs/API.md) — every export, with the reasoning behind each decision |
-| Something is silently wrong | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) — indexed by symptom, not by cause |
-| How it works inside | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the lifecycle, the publish path, where every value lives |
+| New here | [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md) — an ordered guide from installation through verification |
+| API reference | [`docs/API.md`](docs/API.md) — every export and the reasoning behind its design |
+| Troubleshooting | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) — organized by observable symptom |
+| Internal design | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the lifecycle, publication path, and location of each value |
 | Choosing a structure | [`docs/TOPOLOGIES.md`](docs/TOPOLOGIES.md) — 14 generators, with their limits |
-| Planning a real study | [`docs/DEPLOYING.md`](docs/DEPLOYING.md) — the pre-flight checklist, and what is not yet documented |
-| Getting the data out | [`docs/DATA-AND-ANALYSIS.md`](docs/DATA-AND-ANALYSIS.md) — every column of every table |
-| A real study to read | [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md) — two reconstructed papers |
+| Planning a study | [`docs/DEPLOYING.md`](docs/DEPLOYING.md) — a preflight checklist and the current limits of the deployment guidance |
+| Exporting data | [`docs/DATA-AND-ANALYSIS.md`](docs/DATA-AND-ANALYSIS.md) — the schema for every exported table |
+| Study examples | [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md) — two experiments reconstructed from published papers |
 | Known defects | [`ISSUES.md`](ISSUES.md) |
 | Artificial participants | [`docs/BOTS.md`](docs/BOTS.md) — the policy interface, placement, and why a bot's name is participant-visible |
 | Everything else | [`docs/`](docs/README.md) — the documentation index |
 
 ## Before running a study
 
-Empirica has no write access control, and this affects a study whether or not it uses this package. Any participant who knows a node id can set any attribute on it, including on another participant's `player` scope, whose id every participant already knows, because Classic cross-links everyone to everyone. `protected: true` is documented as "not updatable by other Participants," but this is not enforced.
+Empirica allows participants to write to any data object whose identifier they know, regardless of whether a study uses this package. Empirica Classic links every participant to every player data object (the `player` scope), so each participant already knows the identifiers of the other players. Although the documentation describes `protected: true` as preventing updates by other participants, the platform currently permits those updates.
 
-In practice, for a participant who opens the browser console:
+Consequently, a participant with access to the browser console can:
 
-- they can overwrite another participant's answers, score, or assigned condition;
-- they can do it without the server logging anything unusual;
-- and your server-side code cannot tell an altered value from an honest one.
+- overwrite another participant's answers, score, or assigned condition;
+- make the change without producing an unusual server log entry; and
+- create a value that server-side code cannot distinguish from one submitted through the study interface.
 
-What to do about it, in order:
+Use the following safeguards:
 
-1. Treat every participant-written value as untrusted input, exactly as you would a form field on a public website. Compute anything that matters server-side, from values you can attribute.
-2. Keep the record of account somewhere participants cannot write — the batch scope. Both reconstructions in this repository do this for payoffs, and say so at the call site.
-3. Judge whether your design gives anyone a reason to bother. A study where altering someone else's state pays — a competitive game, a bonus tied to relative performance — is exposed in a way a survey is not.
+1. Treat every participant-written value as untrusted input, just as you would treat a form field on a public website. Compute consequential values on the server from attributable inputs.
+2. Store the authoritative record in the batch scope, Empirica's shared data object for a batch of games, which participants cannot modify. Both reconstructions in this repository use this approach for payoffs and document it where the values are written.
+3. Consider participants' incentives. Competitive games and bonuses tied to relative performance create stronger incentives to alter another participant's state than surveys typically do.
 
-This module does not, and cannot, claim that a participant's state is tamper-proof. This is measured in `test/e2e/participant_write.test.ts` and `test/e2e/write_acl.test.ts`, with the mechanism described in `docs/PLATFORM-NOTES.md` §4a.
+Participant state is therefore vulnerable to tampering. The tests in `test/e2e/participant_write.test.ts` and `test/e2e/write_acl.test.ts` demonstrate this behavior, and `docs/PLATFORM-NOTES.md` §4a describes the mechanism.
 
-Every participant also learns every co-player's recruitment identifier. The root cause is the same: Classic cross-links everyone to every player scope, so the value of `?participantKey=` is delivered to everyone else in the game. If that key is a recruitment-platform participant ID, a Prolific PID for instance, subjects are handed each other's identifiers, and such identifiers are stable across studies. Make `participantKey` an opaque per-study token and keep the mapping outside Empirica. This is measured in `test/e2e/bots.test.ts`; see also `docs/PLATFORM-NOTES.md` §21.
+Every participant also receives each co-player's recruitment identifier. The same mechanism is responsible: Classic links everyone to every player scope, which delivers the value of `?participantKey=` to the other players. Recruitment-platform identifiers, such as Prolific PIDs, can remain stable across studies. Use an opaque, study-specific token for `participantKey`, and store the mapping outside Empirica. This behavior is measured in `test/e2e/bots.test.ts` and described further in `docs/PLATFORM-NOTES.md` §21.
 
 ## Installation
 
@@ -46,13 +46,13 @@ Every participant also learns every co-player's recruitment identifier. The root
 
 > ### Not published yet
 >
-> The package is `"private": true` at `0.0.0`, deliberately: the public API is not yet frozen, and
-> `private: true` is the only thing standing between a stray `npm publish` and a name and a
-> version number that cannot be withdrawn.
+> The package is deliberately marked `"private": true` at version `0.0.0` while the public API
+> remains under development. This setting prevents an accidental `npm publish` from permanently
+> registering the current name and version.
 >
-> Until then, install from a packed tarball. Anywhere the docs show `npx empirica-networks …`,
-> that is what the command becomes once published; the from-a-clone form is given alongside where
-> it matters. This is the one place that caveat is written down; everything else links here.
+> Until publication, install the package from a tarball. Commands shown as
+> `npx empirica-networks …` describe the eventual published form; relevant sections also provide
+> the equivalent command for a cloned repository. Other documentation links to this notice.
 
 ```sh
 npm pack                                    # in this repo -> empirica-networks-0.0.0.tgz
@@ -60,15 +60,15 @@ npm --prefix server install /path/to/empirica-networks-0.0.0.tgz
 npm --prefix client install /path/to/empirica-networks-0.0.0.tgz
 ```
 
-Requires Node 20+ and the Empirica CLI (`curl https://install.empirica.dev | sh`). Install into both halves, since the package ships server code and client code separately.
+The package requires Node 20 or later and the Empirica CLI (`curl https://install.empirica.dev | sh`). Install it in both the `server` and `client` projects because they use separate package installations.
 
-Do not use a `file:` link. npm turns it into a symbolic link, which loads two copies of `@empirica/core` and breaks every `instanceof` inside Empirica. The resulting symptom names nothing in particular: every participant is stuck on "Waiting for other players" with a full game (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) and `docs/PLATFORM-NOTES.md` §10).
+Install from the packed tarball instead of using an npm `file:` dependency. npm implements a `file:` dependency as a symbolic link, which loads two copies of `@empirica/core` and causes Empirica's `instanceof` checks to fail. The failure appears as a full game in which every participant remains on “Waiting for other players” (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) and `docs/PLATFORM-NOTES.md` §10).
 
-The name is `empirica-networks`, unscoped: discovery is the binding constraint in an ecosystem with no registry, no plugin API, and no curated list. Renaming after the first publish would be a breaking change, which is why the decision was made before publication rather than at it.
+The unscoped name `empirica-networks` supports discovery in an ecosystem that currently lacks a registry, plugin API, or curated package list. Choosing the name before publication also avoids a later breaking change.
 
 ## Quick start
 
-Three edits to a stock `empirica create` project. The first is mandatory, and skipping it is silently fatal in itself: nothing errors, and participants are left with empty neighborhoods indefinitely. The package checks for this omission, since `assertKindsRegistered(networkKinds)` fails before the server starts; failing that, an automatic check warns a few seconds into the first game.
+A project created with `empirica create` requires three edits. The first registers the network scope and is essential: without it, participants receive empty neighborhoods while the server continues running. Call `assertKindsRegistered(networkKinds)` to detect the omission before startup. An automatic check provides a second safeguard by issuing a warning shortly after the first game begins.
 
 ```diff
   // server/src/index.js
@@ -111,43 +111,42 @@ const state = useNetworkState();
 state.set("choice", "A");                  // private. player.set() would broadcast
 ```
 
-[`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md) walks the same path with the trap at each
-step named where it bites. [`docs/API.md`](docs/API.md) is the full surface.
+[`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md) presents the same procedure and explains the
+common failure mode at each step. [`docs/API.md`](docs/API.md) documents the complete public API.
 
 ## The guarantee and its limit
 
-What holds is that a participant never receives a non-neighbor's projected state: the bytes
-themselves never arrive, rather than merely being hidden by the interface. Each participant has a
-private channel scope linked to them alone, and projections are written only there.
+The package guarantees that projected state—the subset of a neighbor's data selected by
+`project()`—never reaches non-neighbors. Each participant has a private channel scope, and the
+server writes that participant's projections exclusively to this channel.
 
-Where participants write also matters. Empirica cross-links every participant to every player
-node, so anything written with `player.set(key, value)` is broadcast to everyone, regardless of
-topology. Projecting such a value restricts nothing, since the raw attribute is already out. Write
-with `useNetworkState().set()`, and read on the server through `ctx.stateOf(neighbor)`.
+The write location determines whether a value remains private. Empirica links every participant to
+every player node, so `player.set(key, value)` broadcasts the value to the entire game regardless
+of topology. Store private values with `useNetworkState().set()`, and read them on the server with
+`ctx.stateOf(neighbor)`.
 
 `npm run test:browser` asserts both halves in real browsers: a non-neighbor's private value
 appears nowhere in the bytes a tab received, while a player attribute does.
 
-The network itself is private too. The seed and realized edge list are recorded on the batch
-scope, the one durable scope measured not to be delivered to participants, so that a finished run
-stays reproducible from stored data without handing the seating plan to the people inside it. The
-game scope would be the obvious place to keep them, but doing so would deliver both to every
-participant; this is prevented by `test/e2e/topology_visibility.test.ts`, which checks both the
-participant's own scope and the raw wire.
+The realized network, meaning the graph actually generated for a run, also remains private. Its random seed and edge list are recorded on the batch
+scope, a durable scope that measurements show is withheld from participants. This design preserves
+reproducibility without revealing the network structure during the study. The game scope reaches
+every participant and is therefore unsuitable for these values. The test in
+`test/e2e/topology_visibility.test.ts` checks both participant scopes and raw network traffic.
 
-Write integrity, however, does not hold. Read privacy is structural, but write integrity does not
-exist at all in Empirica; see [above](#before-running-a-study).
+This structural guarantee covers read privacy alone. Empirica's permissive write access leaves
+participant-authored state vulnerable to alteration, as described [above](#before-running-a-study).
 
 ## Verifying the guarantee
 
-The read guarantee is the whole point, so it ships as a command rather than a claim:
+The package includes a command that tests its central read-privacy guarantee:
 
 ```sh
 node dist/verify/cli.cjs verify --n 4     # from a clone today, after `npm run build`
 npx empirica-networks verify --n 4        # once published
 ```
 
-It boots a real Tajriba, connects four headless participants on a ring by default (`--topology` takes `star`, `wheel`, `pairs` or `ladder` too), and checks the wire:
+The command starts Tajriba, Empirica's data service, connects four automated participants in a ring by default, and inspects their network traffic. The `--topology` option also accepts `star`, `wheel`, `pairs`, and `ladder`.
 
 ```
   non-neighbor sentinels received : 0/4 pairs  (must be 0)
@@ -157,29 +156,30 @@ It boots a real Tajriba, connects four headless participants on a ring by defaul
   PASS
 ```
 
-Three arms, all required. A clean result with a silent control means the check is blind, and a
-clean result with nothing delivered means the projection never ran; both are reported as
-failures, because most privacy tests are wrong in exactly one of those two ways.
+The verification has three required checks. The first detects information from non-neighbors, the
+second confirms delivery from neighbors, and the third confirms that the inspection mechanism can
+detect control values. Together, they distinguish genuine privacy from a failed projection or an
+insensitive test.
 
-Sentinels are high-entropy tokens held server-side and injected into projections; nothing writes
-them to a scope, and matching is by substring over raw wire frames, so a leak through a channel
-nobody enumerated is still caught. The CLI compiles a copy of `@empirica/core` in, because
-Empirica cannot be loaded unbundled — it prints the bundled version alongside yours and warns if
-they differ, rather than implying it tested yours.
+Sentinels are random, server-side tokens injected into projected views for leak detection. They
+are kept outside Empirica scopes, and the verifier searches for them throughout the raw network
+frames. This approach detects a leak even through an unexpected channel. Because Empirica requires
+bundling in this context, the CLI includes its own copy of `@empirica/core`; it prints both the
+bundled and installed versions and warns when they differ.
 
-It needs the Empirica CLI on PATH, boots its server in a temporary directory, and exits non-zero
-on a failure or on a run that could not start. Options and exit codes are documented in
+The command requires the Empirica CLI on `PATH`, starts the server in a temporary directory, and
+returns a nonzero exit code when verification fails or the run cannot start. Options and exit codes are documented in
 [`docs/API.md`](docs/API.md#the-verify-cli).
 
 ## Runnable examples
 
-Three, all in-package, each one's `callbacks.js` imported unmodified by a test in `test/e2e/`,
-so that none of them can rot unnoticed. There is deliberately no template repository: anything in a template is code a
-consumer cannot patch, and only the in-package path is testable by this suite.
+The repository contains three examples. End-to-end tests import each example's `callbacks.js`
+without modification, ensuring that package changes remain compatible with the examples. Keeping
+the examples in this repository also allows the test suite to exercise the exact code users run.
 
 | | What it is |
 |---|---|
-| [`examples/minimal`](examples/minimal) | A stock `empirica create` project with four files changed. Participants on a ring pick a color and see only their two neighbors'. Start here |
+| [`examples/minimal`](examples/minimal) | A stock `empirica create` project with four modified files. Participants in a ring choose a color and see the choices of their two neighbors. Start here |
 | [`examples/rand2011`](examples/rand2011) | A reconstruction of the design in Rand, Arbesman & Christakis (2011), *PNAS*. Cooperation in dynamic networks: rewiring during play, private decisions, four conditions |
 | [`examples/shirado2017`](examples/shirado2017) | A reconstruction of Shirado & Christakis (2017), *Nature*. Color coordination on a scale-free network, with a global objective participants cannot see — both the control arm and the paper's autonomous-agent conditions |
 
@@ -188,19 +188,19 @@ npm install && node scripts/example-install.mjs minimal   # or: npm run example:
 cd examples/minimal && empirica
 ```
 
-Open four windows with different `?participantKey=` values. Each sees 2 of the other 3, and a
-different 2.
+Open four windows with distinct `?participantKey=` values. Each participant sees a different pair
+among the other three participants.
 
-These are reconstructions, not replications: both designs were rebuilt from their papers, no data
-has been collected with them, and nothing has been compared against the authors' results; see
+These examples are reconstructions rather than replications: both designs were rebuilt from their
+published descriptions. They have produced no study data, and their outputs have not been compared
+with the original results. See
 [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md).
 
 ## Bots
 
-Empirica v2 ships no artificial-player facility of any kind. Version 1 had them, so assuming they
-still exist is a natural mistake to make (`docs/PLATFORM-NOTES.md` §16). `empirica-networks/bots`
-is one, built the only way the platform allows: a headless participant process, indistinguishable
-from a browser at the wire.
+Empirica v2 omits the artificial-player facility available in version 1 (`docs/PLATFORM-NOTES.md`
+§16). The `empirica-networks/bots` module supplies this capability by running each bot as a
+headless participant process that uses the same network protocol as a browser.
 
 ```js
 // bots.mjs — plain `node bots.mjs`, no bundler
@@ -220,38 +220,40 @@ await runBots({
 });
 ```
 
-A bot reads through the same `project()` and writes to the same private channel a human does.
-There is deliberately no server-side path: a bot that could see the graph or a non-neighbor would
-turn any comparison against humans into a comparison of access rather than of behavior.
+A bot reads through the same `project()` function and writes to the same private channel as a
+human participant. Giving bots identical information access ensures that comparisons between bots
+and humans reflect behavior instead of differences in available information.
 
-Three things are worth knowing before using it, each the subject of a section in
+Three considerations are especially important, and each has a dedicated section in
 [`docs/BOTS.md`](docs/BOTS.md):
 
-- Recruit `playerCount − botCount` humans. The treatment's count is the size of the network,
-  bots included, and getting it wrong produces a study that never starts, so the runner names the
-  discrepancy.
-- Placement is a manipulation, and it goes through `topology({ players })`, where `players[i]`
-  is whoever will occupy index `i`. Relabel the graph rather than reordering people, since that is
-  what keeps the degree distribution identical across arms.
-- A bot's name is participant-visible (see above), so `runBots` takes an identifier list
-  rather than inventing one, and the server should recognize its bots by holding that list.
+- Recruit `playerCount − botCount` humans. The treatment's player count includes bots and defines
+  the size of the network. The runner reports a mismatch that would otherwise prevent the study
+  from starting.
+- Treat bot placement as an experimental manipulation. Configure it through
+  `topology({ players })`, where `players[i]` identifies the participant assigned to index `i`.
+  Relabeling the graph preserves the degree distribution across experimental arms.
+- Bot identifiers are visible to participants (see above). Supply an explicit identifier list to
+  `runBots`, and use the same server-held list to identify bots on the server.
 
-`examples/shirado2017` is the worked case: 3 agents × 3 noise levels × 3 placements, which is the
-contribution of the paper it reconstructs.
+`examples/shirado2017` provides a complete example with three agent types, three noise levels, and
+three placements, reproducing the experimental design central to the paper.
 
 ## Supported environment
 
-Per-participant payload is O(d), independent of n; server egress is O(n·d).
+Let n denote the number of participants and d the mean number of neighbors per participant. The
+payload delivered to each participant grows in proportion to d, while total outbound server
+traffic grows in proportion to n·d.
 
 | Regime | Status |
 |---|---|
-| Any density, n ≤ 50 | Measured, including complete graphs. No degree cap by default |
+| Any density, n ≤ 50 | Measured, including complete graphs; degree is uncapped by default |
 | Sparse (d ≤ 16), n ≤ 150 | Measured on this implementation |
-| Sparse, n ≥ 200 | Games do not reliably start: 1 run in 6 at n=200, and not this package's doing |
+| Sparse, n ≥ 200 | Games start unreliably because of an upstream limitation; 1 of 6 measured runs completed at n=200 |
 | Dense, n > 50 | Unmeasured, and capped at d ≤ 16 by default. This is where client bandwidth binds |
-| Sessions beyond ~10 minutes | Unverified. The mechanism is not in doubt, but no multi-hour run has been observed |
+| Sessions beyond ~10 minutes | Unverified; the current test suite contains no multi-hour run |
 
-The regime this package was written for is n ≤ 50, where every figure has margin to spare.
+The package targets studies with n ≤ 50, a regime in which the measurements remain comfortably within the default limits.
 
 End-to-end publish latency, from a watched attribute changing to a neighbor's client holding the
 new value (`npm run bench`):
@@ -267,24 +269,25 @@ beside it (`npm run bench -- --repeats 3`, 2026-08-16):
   n=200  d=8  p50 median 26.8ms   (one run in three completed — upstream, see below)
 ```
 
-The scale matters here more than any single value, and n barely predicts the result. Two kinds of
-variation are at work above and neither is noise around a true figure. **Within** this sweep, the
+The order of magnitude matters more than any single value, and n has little predictive value in
+these measurements. Two sources of variation shape the results. **Within** this sweep, the
 three runs of a cell agree closely at n=25 and diverge by a factor of two or more from n=50 up,
 because `withServer` is per run: every repeat re-measures process startup, batch creation and first
 publish, which is where the run-to-run variance lives. **Across** sweeps, the same n=25 cell
 measured anywhere from 3.3 to 18.3 ms in one afternoon — an offset shared by every cell in a sweep
-and therefore invisible to repeats, which is why O1's "4–17%" is the within-sweep agreement of that
-one cell and not a property of the table above. The cause is the measuring
-machine rather than the package: a busier host measures faster, non-monotonically, because an
+and therefore invisible to repeats. Consequently, O1's “4–17%” describes the within-sweep
+agreement of that cell rather than the table as a whole. The measurement host produces this
+variation: a busier host measures faster, non-monotonically, because an
 idle laptop clocks its cores down (`docs/PLATFORM-NOTES.md` §19 finds that the coordinator burns
-57% more CPU time for identical work when the machine is quiet). Repeats buy precision, not
-accuracy, so any single figure here should be treated as an order of magnitude. Comparisons made
+57% more CPU time for identical work when the machine is quiet). Repeats improve precision within
+a sweep while leaving this systematic variation intact, so each individual value should be
+interpreted as an order-of-magnitude estimate. Comparisons made
 within one sweep, such as the payload table below, remain sound, because both arms see the same
 clock.
 
-The dominant term is how many participants share an event loop, which is an artifact of measuring
-hundreds of clients on one machine; real participants in separate browsers do not. The package's
-own contribution is somewhere below these numbers, and this bench cannot resolve it (`ISSUES.md`
+The dominant factor is the number of participants sharing an event loop, an artifact of measuring
+hundreds of clients on one machine. In a typical study, participants use separate browsers. The
+package's own contribution falls below these measurements, and this benchmark cannot isolate it (`ISSUES.md`
 O1). The n ≥ 200 start failure is discussed in §16; the degree-cap correction, in §19.
 
 The following measurements show what a large per-neighbor payload costs, paired inside one sweep
@@ -297,12 +300,13 @@ so that the offset cancels (§21):
   n=50  d=49  +1KiB/view →  53.1KiB              p50 67.0ms   ← just under maxNeighborhoodBytes
 ```
 
-Nothing was dropped at any size, so the 64 KiB default behaves as a slope rather than a cliff: a
-design sitting against it delivers around 67 ms rather than 10–25 ms.
+Every tested message was delivered. Approaching the 64 KiB default therefore increases latency
+gradually: a design near the limit delivered updates in about 67 ms, compared with 10–25 ms for
+smaller payloads.
 
-The limits are enforced, not just documented: an out-of-envelope topology is refused at game
-start, before channels are provisioned, since Tajriba cannot unlink and a late failure would leave
-links behind. The three limits, what each rests on, and how to override them are documented in
+The implementation enforces these limits at game start, before provisioning channels. Early
+validation prevents a failed topology from leaving links that Tajriba cannot remove. The three
+limits, their empirical basis, and their override mechanisms are documented in
 [`docs/API.md`](docs/API.md#envelope).
 
 ## Development
@@ -316,8 +320,8 @@ npm run build
 ```
 
 [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) has the repository layout, the build, and how to add
-things. [`docs/TESTING.md`](docs/TESTING.md) has the three tiers, what each one can and cannot
-prove, and, importantly, how to read a red run before concluding that it is a regression.
+things. [`docs/TESTING.md`](docs/TESTING.md) describes the three test tiers, the evidence each
+provides, and how to diagnose a failing run before classifying it as a regression.
 
 ## License
 

@@ -1,11 +1,12 @@
 # Testing
 
-Three tiers run under `npm test`, a browser tier that is run deliberately, a verification command,
-and four measurement harnesses. The tiers are separated by what each one can prove, not by speed;
-the speed difference follows from that distinction.
+The testing system consists of three tiers under `npm test`, an explicitly invoked browser tier,
+a verification command, and four measurement harnesses. The tiers differ primarily in the
+evidence they provide; their performance differences follow from their scope.
 
-Read [Section 4](#4-reading-a-red-run) before concluding that a red run is a regression. That section
-exists because getting it wrong has cost this project real investigations more than once.
+Before classifying a failing run as a regression, use the diagnostic procedure in
+[Section 4](#4-reading-a-red-run). It reflects several prior investigations of failures caused by
+the test environment rather than the package.
 
 ```sh
 npm test                                          # unit + mode + e2e
@@ -31,12 +32,12 @@ clean. The tier was green on six consecutive runs, and the full `npm test` was g
 
 `test/unit/*.test.ts`, run directly under `tsx`, executes in milliseconds.
 
-Can prove: anything about the pure functions, such as topology generators, `edgeRows`/
+Provides evidence about pure functions, including topology generators, `edgeRows`/
 `snapshotRows`/`viewRows`, `toCSV`, `validateProjection`, the envelope arithmetic, `graphMetrics`,
 the duplicate-listener detector's shape analysis, and the NDJSON sink's batching.
 
-Cannot prove: that any of it is wired up to Empirica. Every silent failure this package documents
-was a wiring failure, and no fake can tell you the real dispatcher behaves like the fake.
+It provides no evidence about integration with Empirica. The documented silent failures arose in
+integration code, whose behavior requires tests against the actual dispatcher.
 
 One qualification applies. `test/unit/fake_admin.ts` supplies a collector and an
 `EventContext`, which is everything `withNetwork` needs and does not construct, so the whole
@@ -78,13 +79,14 @@ produces a perfectly correct graph, over the wrong people.
 
 `test/mode/*.test.ts`, driving a synthetic `TajribaProvider` (`test/mode/synthetic.ts`).
 
-Can prove: that `EmpiricaNetwork` composes correctly, that the hooks resolve, that `undefined` and
+Evidence provided: `EmpiricaNetwork` composes correctly, the hooks resolve, `undefined` and
 `[]` stay distinct, and, which is the reason this tier exists, that the `dones` protocol is still
 wired correctly. That contract is version-fragile and fails silently: every scope materialises and
 every `.get()` returns `undefined`.
 
-Cannot prove: anything about the real wire, and it cannot render hooks against the synthetic mode
-(`docs/PLATFORM-NOTES.md`, Section 8); that is a limit of our tests, not a consumer-facing one.
+Scope limit: this tier provides no evidence about actual network traffic and cannot render hooks
+against the synthetic mode (`docs/PLATFORM-NOTES.md`, Section 8). The latter is a limitation of
+the test harness rather than the public API.
 
 Why it is separate from e2e: an e2e run can mask a `dones` break by simply timing out somewhere
 else. This tier fails on the actual contract.
@@ -94,12 +96,12 @@ else. This tier fails on the actual contract.
 `test/e2e/*.test.ts` is bundled to CJS before running, mirroring how a consumer's server is built.
 It takes minutes to run and needs the Empirica CLI on PATH.
 
-Can prove: the guarantee. This is the only tier that observes the real wire, the real subscription
-machinery, and the real runloop.
+Evidence provided: the privacy guarantee under the actual network protocol, subscription
+machinery, and run loop.
 
 Some of the most important ones:
 
-| | Proves |
+| | Evidence provided |
 |---|---|
 | `leak.test.ts`, `scope_visibility.test.ts` | non-neighbors receive nothing, across a ring, a star and a disconnected graph; a shape that could prove nothing is refused; the batch scope is not delivered |
 | `topology_visibility.test.ts` | the seed and edge list do not reach participants |
@@ -127,19 +129,18 @@ behavior is described would have shipped all three.
 Chromium download, and one of them needs the Empirica CLI. `npm run test:browser` runs every
 file, one process at a time; a substring argument runs a subset.
 
-| | Proves | Needs |
+| | Evidence provided | Requirements |
 |---|---|---|
 | `two_windows.ts` | the guarantee at the tab level: four real windows, and a non-neighbor's private value never arrives in the bytes, which cannot be checked by looking at the screen | CLI, ports 3000/8844, approximately 1 minute |
 | `monitor_page.ts` | the monitor's served script: the scrubber, the color scale, and the two banners | Chromium only, approximately 4 seconds |
 
-Can prove: what only a browser can, including a real reload restoring a real session, the actual
-bytes a tab received, and the behavior of the one script in this package that no other tier can
-load.
+Evidence provided: browser-specific behavior, including restoration of a session after reload,
+the bytes received by a tab, and execution of the monitor's browser script.
 
-Cannot prove anything cheaper than the tier below it can, which is why it is not in `npm test`.
-Both files exist because the claim was otherwise resting on a human looking at the screen. That is
-worth stating plainly: `monitor_page.ts` failed on its first run and the bug was real: `gone()`
-left the complete seating plan on screen while the badge said the game was over (`ISSUES.md` O9).
+This tier is reserved for browser-specific claims and therefore runs separately from `npm test`.
+Both files replace manual visual inspection with repeatable assertions. On its first run,
+`monitor_page.ts` identified a genuine defect: `gone()` left the complete seating plan visible
+while the badge reported that the game had ended (`ISSUES.md` O9).
 
 Note the asymmetry in cost. `two_windows.ts` is heavy because the guarantee needs a real study;
 `monitor_page.ts` is cheap because `serveMonitor` takes a snapshot function and never an Empirica
@@ -152,8 +153,8 @@ the design made this testing efficiency possible.
 npm run build && node dist/verify/cli.cjs verify --n 4
 ```
 
-This is not a test tier. It is the command a reviewer would run, which is why CI runs the command
-itself rather than only the library it wraps. It has three required components:
+The `verify` command is a reviewer-facing check rather than a test tier. CI runs the command itself
+in addition to its underlying library. It has three required components:
 
 ```
   non-neighbor sentinels received : 0/4 pairs  (must be 0)
@@ -410,7 +411,7 @@ contract failures the job exists to find.
 
 ## 6. Known gaps
 
-Recorded rather than implied.
+The following areas remain outside the automated test suite.
 
 - Neither `bench` nor `soak` runs in CI (`ISSUES.md` O6). Bench figures are single runs and
   upper bounds (O1).
@@ -418,7 +419,6 @@ Recorded rather than implied.
 - Parts of the monitor page are still uncovered: tooltip positioning, the game picker, and the
   palette's own contrast claims (`ISSUES.md` O9, which closed the rest on 2026-08-16).
 
-Two entries left this list on 2026-08-16, and the removals are worth as much as the list: the
-monitor's browser script (O9) and `admin.taj.attributes()` (O7) are both exercised now. The
-attributes result was that the API does not work at all. A gap list is only
-useful if closing something removes it, and only honest if what closing revealed is written down.
+Two entries were removed from this list on 2026-08-16 after adding coverage for the monitor's
+browser script (O9) and `admin.taj.attributes()` (O7). The latter test established that the API is
+nonfunctional. Updating the list as evidence changes keeps its scope explicit.

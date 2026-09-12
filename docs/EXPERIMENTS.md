@@ -1,22 +1,22 @@
 # The reconstructed experiments
 
-Two published network experiments ship in this repository as complete, runnable Empirica projects. Both are covered by the test suite: their `callbacks.js` files are imported unmodified by `test/e2e/`, so a change to the package that breaks them causes a test failure here rather than in someone else's study.
+This repository includes complete, runnable Empirica reconstructions of two published network experiments. The test suite imports their `callbacks.js` files without modification, so incompatible package changes fail during repository testing rather than in a user's study.
 
 ## Reconstruction versus replication
 
-Nothing here has replicated anything. These are designs, rebuilt from the papers. No data has been collected with this code, no result has been compared to the authors', and no claim in either paper is supported or challenged by anything in this repository.
+These projects reconstruct experimental designs from their published descriptions. They have produced no participant data, and their results have not been compared with those in the original papers. The repository therefore offers no evidence for or against the papers' empirical claims.
 
-The distinction matters, and it is fixed in writing here because the language used in a repository gets reused in a paper:
+This distinction matters because terminology introduced in a repository often carries into subsequent publications:
 
 > Correct: "a reconstruction of the design in Rand et al. (2011)"
 > Incorrect: "a replication of Rand et al. (2011)", unless data was collected and compared.
 
-Two neighboring claims are equally unsupported:
+Two related descriptions would also overstate the available evidence:
 
-- The claim that the design was "ported from Breadboard" does not hold, because there is no code lineage. Measured 2026-08-15: the Breadboard tree is the platform, not a collection of studies; `dev/`, where a Breadboard install keeps its experiments, is empty; the only surviving trace of a real study is an asset path inside the bundled H2 database, a name and an id, no code, no graph, no content. "Port" here means reconstructing a published design from its paper, and claiming a lineage that does not exist would be the same category of error as claiming a replication.
-- The claim that a reconstruction has been "validated against the paper" does not hold either. Nothing has been compared to anyone's data. What is asserted is that each reconstruction behaves as its own description says: payoffs match the rule, the network is neighbor-limited at the wire, and the manipulation reaches the people it is supposed to and nobody else. That is a claim about this code, not about the world.
+- Describing a design as “ported from Breadboard” would imply a code lineage that the available artifacts do not establish. As measured on 2026-08-15, the Breadboard tree contains the platform rather than a collection of studies; its `dev/` experiment directory is empty. The bundled H2 database preserves only an asset path, a name, and an identifier from a prior study. The present designs were therefore reconstructed from the papers.
+- Describing a reconstruction as “validated against the paper” would imply a comparison with empirical data. The tests establish a narrower claim about implementation behavior: payoffs follow the stated rule, network traffic remains limited to neighbors, and each manipulation reaches its intended participants.
 
-A reconstruction, then, is a worked, tested example of a real design's shape, and a starting point for someone who intends to collect data. It is not evidence.
+A reconstruction is thus a tested implementation of a published design and a starting point for future data collection. Its presence alone provides no empirical evidence.
 
 ## Selecting the pair
 
@@ -57,7 +57,7 @@ A Rand reconstruction that leaks wealth has therefore not made an abstract mista
 | what locality does | one condition among four | it is the task difficulty |
 | package surface exercised | `network().addEdge`/`removeEdge`, edge history, `edgeRows`, `tell()`, raised envelope | `barabasiAlbert`, a server-side global objective, a solved-state detector |
 
-The last row of the middle block is the one worth dwelling on. In Rand 2011 a locality leak makes the data wrong. In Shirado 2017 it makes the task trivial (a participant who can see the whole graph solves it at once), so the dependent variable collapses toward zero while every screen still looks correct. This is the design in which the guarantee is load-bearing rather than merely correct, which is why it earns a place next to the rewiring one.
+The role of locality provides an important contrast. In Rand 2011, a locality leak biases the data. In Shirado 2017, it also simplifies the task: a participant with access to the entire graph can solve it immediately, driving the dependent variable toward zero even while the interface appears correct. This reliance on neighbor-limited information complements the rewiring requirements of the Rand design.
 
 ## [`examples/rand2011`](../examples/rand2011) — cooperation in dynamic networks
 
@@ -67,7 +67,7 @@ What it demonstrates about the package:
 
 - Rewiring during play, and that the mutation sequence is recorded: for this design the sequence is the independent variable, so a mutation the log missed would be data loss.
 - `tell()`, and why it had to exist. The paper shows a subject offered a new tie the other party's last action, and a person you are not connected to cannot be reached by `project()`, which runs over current neighbors only. Every alternative route is a broadcast. This is the gap the milestone found.
-- Where an authoritative record goes. Running wealth lives on the batch scope, not the player scope, because `player.set("wealth", …)` is the obvious line to write while scoring and it publishes everyone's total to everyone.
+- The location of authoritative records. Running wealth belongs on the batch scope because `player.set("wealth", …)` publishes every participant's total to the entire game.
 - Raising the envelope, with the reasoning attached. The measured `maxDegree` is 16; the paper caps degree at nothing and reports a tail to about 20. The example raises the limit and says at the call site why that is safe at n = 20 and would not be at n = 100.
 
 Left out: incentives, a hard 15-round cap, an assumption about non-responders (recorded as a column so it can be dropped), the paper's interface. Each is listed in the example's README.
@@ -83,9 +83,9 @@ What it demonstrates about the package:
 - `barabasiAlbert` at the paper's parameters, staying inside the default envelope, asserted across 50 seeds, since a hub-forming generator is exactly the kind of thing that would quietly exceed it and take the study down at game start.
 - Plain `.on(kind, key, …)` listeners coexisting with the package's own, which is what makes a color-change hook possible at all.
 
-The agents, the paper's actual contribution, needed a new entry point, because `@empirica/core@1.12.5` ships no artificial-player facility of any kind (searched the shipped bundles for `bot`, `virtual`, `simulat`, `agent`, `artificial`, `robot`; `docs/PLATFORM-NOTES.md` §17). Empirica v1 had bots; v2 does not.
+The agents, which form the paper's principal contribution, require a dedicated entry point because `@empirica/core@1.12.5` omits the artificial-player facility available in Empirica v1. This absence was verified by searching the distributed bundles for `bot`, `virtual`, `simulat`, `agent`, `artificial`, and `robot` (`docs/PLATFORM-NOTES.md` §17).
 
-So both arms are here on top of `empirica-networks/bots`, which runs each agent as a headless participant process, the only kind of thing Empirica can seat at a node. The example ships the human-only arm, the paper's 30 control sessions and what its Fig. 1 is entirely about, plus all nine agent conditions (3 agents x 3 noise levels x 3 placements) and the deterministic-agent control. Three things that are not obvious from the outside, each written up in [`docs/BOTS.md`](BOTS.md) and `ISSUES.md` O10:
+The reconstruction implements both arms with `empirica-networks/bots`, which runs each agent as a headless participant process that Empirica can assign to a node. It includes the human-only arm used in the paper's 30 control sessions, all nine agent conditions (three agents × three noise levels × three placements), and the deterministic-agent control. Three implementation details are documented in [`docs/BOTS.md`](BOTS.md) and `ISSUES.md` O10:
 
 - the lifecycle is where bots fail, and every way of failing is silent: a bot that never plays leaves the study waiting for a game that will never reach its player count, with no error anywhere;
 - placement needed a package change. The paper's independent variable is where the agents sit, and the topology function had no way to say which participant would occupy which node;
@@ -93,9 +93,9 @@ So both arms are here on top of `empirica-networks/bots`, which runs each agent 
 
 Also left out: incentives, and the chromatic-polynomial solution-space covariate (computable offline from the exported `edges.csv`).
 
-## Three traps these reconstructions surfaced
+## Three implementation failures identified by the reconstructions
 
-The examples exist to have their behavior asserted rather than described, and these are what that bought: three silent defects, each caught by an e2e assertion rather than by reading the code.
+End-to-end assertions for the examples identified three silent defects that code review alone had missed.
 
 - `watch` is not the server's read list. `read` declares the keys the server needs, and `net.stateOf()` throws for an undeclared one rather than returning `undefined`, which is indistinguishable from "not written yet". Fill a node's `state` from `watch` alone and a key the server needs but `project()` never reads comes back empty; in the Rand design that silently drops every rewiring answer, and the network never changes in the condition whose defining feature is that it changes. `ISSUES.md` O11.
 - A lifecycle listener can only be registered once. Empirica wraps `onStageEnded` and its siblings in a `unique` guard whose "already ran" marker is stored on the scope, so the first callback to run sets it and every later registration silently returns. Register each helper once and dispatch inside it. `docs/PLATFORM-NOTES.md` §17.

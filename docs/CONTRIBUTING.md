@@ -1,6 +1,6 @@
 # Contributing
 
-For someone changing the package. If you are trying to use it, start at
+This guide is for contributors changing the package. Users should begin with
 [GETTING-STARTED](GETTING-STARTED.md); if you are trying to understand it, start at
 [ARCHITECTURE](ARCHITECTURE.md).
 
@@ -24,7 +24,7 @@ version:
 src/admin/     server side — imports @empirica/core/admin
 src/player/    client side — imports @empirica/core/player* ONLY
 src/topology/  pure, zero-dependency
-src/shared/    isomorphic; every scope kind and attribute key lives in keys.ts
+src/shared/    environment-independent; every scope kind and attribute key lives in keys.ts
 src/verify/    the verify CLI
 test/          unit · mode · e2e · bench · browser
 examples/      three runnable projects, each imported by an e2e test
@@ -32,9 +32,9 @@ scripts/       runners; see TESTING.md §3
 docs/          see docs/README.md
 ```
 
-## 2. Rules beyond style
+## 2. Substantive contribution rules
 
-Each of these has a failure behind it, and each fails silently if broken.
+Each rule addresses a previously observed failure that can occur without an explicit error.
 
 ### The entry-point rule
 

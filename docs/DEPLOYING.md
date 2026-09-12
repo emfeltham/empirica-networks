@@ -1,22 +1,19 @@
-# Deploying a study — not yet documented
+# Deploying a study — current guidance
 
-As of 2026-08-16, this package has not been deployed. No study has been run with real
-participants, and no data has been collected with either reconstruction; a deployment is
-not yet scheduled. Every runnable
-instruction in this repository ends at `empirica` on localhost with a handful of
+As of 2026-08-16, the package has been tested locally but has yet to be deployed for a study with
+real participants. The two reconstructions have therefore produced no participant data. The
+runnable instructions in this repository cover local Empirica sessions using several
 `?participantKey=` URLs.
 
-This file is a placeholder that says so, rather than a guide assembled by reading Empirica's
-documentation and inferring the rest. Instructions that look correct and have never been run are
-the characteristic hazard of this whole area — something that runs but silently
-deviates — and a deployment guide is where that does the most damage, because the person who
-discovers the error is running a study with people in it.
+This document distinguishes tested local procedures from deployment steps that still require
+empirical validation. Inferred deployment instructions can appear plausible while producing a
+study that silently departs from its design, with real participants bearing the consequences.
 
-What is written down is the part that does not depend on having deployed: the decisions to make
-before you do, and the things known to be hard. Those are below.
+The sections below therefore focus on decisions that precede deployment and operational problems
+already established through local testing.
 
-It will be written properly as a by-product of that deployment: recorded while doing
-it, dated and versioned like `PLATFORM-NOTES.md`, rather than reconstructed afterwards.
+A future deployment will provide the basis for a complete, dated, and versioned procedure modeled
+on `PLATFORM-NOTES.md`.
 
 ---
 
@@ -52,19 +49,19 @@ repository.
 - [ ] The target regime is n ≤ 50. At n ≥ 200 games do not reliably start; 1 run in 6,
       upstream, reproduces without this package.
 
-## 2. The things known to be hard
+## 2. Known operational challenges
 
-This is not a procedure. These are the parts where a naive deployment goes wrong, and they are what the
-real document will have to answer.
+The following observations identify important deployment risks; they have yet to be developed into
+a tested deployment procedure.
 
 ### A crashed study cannot be resumed
 
-A full server restart reloads the store, but `gameID` is never restored and no game resumes. It
-can also leave two player scopes for one participant. This is upstream and no
-amount of configuration changes it.
+A full server restart reloads the store but fails to restore `gameID` or resume games. It can also
+leave two player scopes for one participant. This behavior originates upstream and cannot be
+changed through package configuration.
 
-So a crash, a deploy, or a `^C` mid-session ends the games in progress. Plan for that
-outcome rather than for a recovery procedure that does not exist:
+A crash, deployment, or `^C` during a session therefore ends all games in progress. Plan study
+operations around this terminal outcome:
 
 - turn on the run log, so a killed study still leaves analysable data;
 - decide in advance what you will pay participants whose session dies;

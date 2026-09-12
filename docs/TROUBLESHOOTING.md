@@ -1,27 +1,26 @@
-# Troubleshooting — symptom first
+# Troubleshooting by symptom
 
-Indexed by what you observed, because that is the only key a stuck person has. Everything
-here is documented somewhere else in more depth; this page exists so you do not have to already
-know the answer in order to find it.
+This guide is organized by observable symptoms so that readers can identify a problem before they
+know its cause. Each entry links to more detailed documentation where available.
 
-Most of this package's failure modes are silent: a listener that does not run, a read that
-returns `undefined`, a view that never updates. The first section is therefore for when nothing
-has gone wrong loudly. If you have an error message, jump to [Section 2](#2-errors-this-package-raises).
+Many failures produce no explicit error: a listener may remain inactive, a read may return
+`undefined`, or a view may stop updating. Section 1 covers these cases. If an error message is
+available, proceed to [Section 2](#2-errors-this-package-raises).
 
 ---
 
-## 1. Nothing errored, and something is wrong anyway
+## 1. Failures without an explicit error
 
 ### Every participant is stuck on "Waiting for other players", with a full game
 
-The server log is also full of zod stack traces mentioning neither this package nor anything
-recognisable.
+The server log may also contain numerous Zod stack traces that provide little indication of the
+underlying cause.
 
-Cause: two copies of `@empirica/core` in one bundle. You installed with a `file:` link, npm
+Cause: the bundle contains two copies of `@empirica/core`. Installation through a `file:` link makes npm
 created a symbolic link, and the linked directory has its own `node_modules/@empirica/core`. Every
 `instanceof` inside Empirica then fails against the other copy's classes.
 
-Counting strings in the bundle does not reveal it. Comparing class identity does:
+Compare class identity to detect this condition:
 
 ```js
 import { classicKinds } from "@empirica/core/admin/classic";

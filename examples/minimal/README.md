@@ -1,8 +1,8 @@
 # minimal — a network experiment in ~40 lines
 
-Participants sit on a ring and pick a color. Each participant sees only their two neighbors' choices, and not merely because the interface hides the rest: a non-neighbor's color is never sent to the browser at all.
+Participants occupy a ring and choose a color. Each participant receives the choices of their two neighbors, while a non-neighbor's color remains absent from the browser's network traffic.
 
-This is a stock `empirica create` project with four files changed. The diff is the documentation.
+This example modifies four files in a stock `empirica create` project. The changes themselves provide a concise implementation guide.
 
 ## Run it
 
@@ -14,7 +14,7 @@ cd examples/minimal
 empirica
 ```
 
-`example:install` installs a packed tarball rather than linking the repository. This is necessary because a `file:` link makes npm create a symbolic link to the repository root, whose own `node_modules` directory has a second copy of `@empirica/core`, and two copies break every `instanceof` check inside Empirica. The symptom is every participant stuck on "Waiting for other players" with a full game. Details in `docs/PLATFORM-NOTES.md` §10. Re-run `npm run example:install` after changing the package.
+`example:install` installs a packed tarball. An npm `file:` dependency instead creates a symbolic link to the repository root, whose `node_modules` directory contains a second copy of `@empirica/core`. The duplicate package causes Empirica's `instanceof` checks to fail and leaves every participant on “Waiting for other players” despite a full game. See `docs/PLATFORM-NOTES.md` §10 for details. Run `npm run example:install` again after changing the package.
 
 Then open four browser windows at the printed URL, each with a different `?participantKey=`:
 
@@ -29,9 +29,9 @@ Enter a name in each, then pick colors.
 
 ## What to look for
 
-Four is the smallest ring where the guarantee is visible: every participant has 2 neighbors and exactly 1 non-neighbor. On a ring of 3 everyone is everyone's neighbor, and the example does not demonstrate the neighbor-only effect.
+Four is the smallest ring that demonstrates the guarantee: every participant has two neighbors and one non-neighbor. A three-person ring is a complete graph, so it provides no non-neighbor against which to test restricted delivery.
 
-So in each window you should see 2 of the other 3 participants — and the pair you can see differs from window to window. Change a color and it appears in exactly two other windows, live.
+Each window should therefore display a different pair among the other three participants. A color change should appear immediately in exactly two other windows.
 
 This is automated. From the repository root:
 

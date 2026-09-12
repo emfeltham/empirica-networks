@@ -1,22 +1,19 @@
 # Bots
 
-Artificial participants are provided by `empirica-networks/bots`.
+The `empirica-networks/bots` module provides artificial participants.
 
-Empirica v2 ships none of this; that absence was searched for, measured, and recorded as
-[PLATFORM-NOTES §16](PLATFORM-NOTES.md#16-there-is-no-artificial-player-facility-caution). Empirica v1 had
-them, so assuming they exist is the natural mistake. This entry point is the facility, built the
-only way the platform allows.
+Empirica v2 omits the artificial-player facility available in version 1, as documented in
+[PLATFORM-NOTES §16](PLATFORM-NOTES.md#16-there-is-no-artificial-player-facility-caution). This
+module restores that capability within the constraints of the current platform.
 
-A bot here is a headless participant process. It opens a real Tajriba session, runs the real
-participant mode, reads its neighbors through the same `project()` and writes through the same
-private channel a browser writes to. There is no server-side path, and that is a design constraint
-rather than an unfinished edge: a bot that could read a non-neighbor, see the graph, or learn the
-global state would be a different kind of object from the people it is mixed in with, and any
-comparison between them would be measuring the difference in access.
+A bot is a headless participant process. It opens a Tajriba session, runs the participant mode,
+reads its neighbors through `project()`, and writes through the same private channel as a browser.
+This common access path gives bots and human participants the same information, allowing
+comparisons to focus on behavior.
 
-This is also a structural requirement rather than a choice. This package's topology is defined over
-`game.players`; Empirica creates a player only for a connected participant, and provisioning skips
-players with no `participantID`. A node with no participant behind it has no seat and no private
+The platform also requires this structure. The package defines its topology over `game.players`,
+and Empirica creates a player for each connected participant. Provisioning requires a
+`participantID`, so every network node must correspond to a participant with a seat and private
 channel.
 
 ---
@@ -30,18 +27,16 @@ everybody's wire. Measured 2026-08-16 against `@empirica/core@1.12.5`; witness
 `test/e2e/bots.test.ts`, "a co-player's recruitment identifier is on the wire". Filed as
 `docs/PLATFORM-NOTES.md` §21.
 
-There are two consequences, and they are separate.
+This behavior has two distinct consequences.
 
-For bots, there is no naming scheme a bot can use that participants cannot read. `bot-1` is not
-a private detail of your runner's configuration: it is on screen, in a browser, one
-`JSON.stringify` away. If your design does not tell subjects which of their neighbors are
-software, as is the case in Shirado & Christakis (2017), then a recognisable identifier is not a
-metadata leak but the manipulation disclosed.
+Participants can read any identifier assigned to a bot. A value such as `bot-1` is therefore part
+of the information available in the browser rather than a private runner setting. Studies that
+conceal which neighbors are software, as in Shirado and Christakis (2017), should use identifiers
+that reveal no bot status.
 
-For every study, whether it uses bots or not, `participantKey` carries the recruitment identity in
-a deployed study: the Prolific PID, whatever the recruitment URL put there.
-Co-players learn it. That is a property of the upstream platform, and it affects every Empirica
-Classic study.
+In any deployed study, `participantKey` may contain a recruitment identifier such as a Prolific
+PID. Empirica Classic shares this value with co-players. Use an opaque, study-specific token and
+store its mapping to recruitment identities outside Empirica.
 
 So the API is shaped around it:
 
@@ -55,8 +50,8 @@ So the API is shaped around it:
   `artificial`, `virtual`, `npc`, `fake`, `dummy`, `test` or `debug`. It is a heuristic with false
   positives and false negatives; it catches the mistake that is actually made.
 - A duplicate identifier throws. Tajriba identifies a participant by that string, so two bots
-  sharing one are one participant with two sockets: the game sits one player short of its count
-  forever and nothing anywhere says why.
+  sharing one appear as a single participant with two sockets. The game would otherwise remain
+  one player short without an explanatory error.
 
 In a real run, pass identifiers drawn from the same space as your recruitment keys.
 
@@ -137,8 +132,8 @@ study that is killed mid-session should still have what its bots did.
 The treatment's `playerCount` is the size of the network, bots included. A twenty-node session
 with three bots needs seventeen people.
 
-Getting this wrong produces a study that never starts and says nothing about why, which is why the
-runner says it instead: a bot stuck in the `waiting` phase prints
+An incorrect count prevents the study from starting. To make the cause explicit, a bot that
+remains in the `waiting` phase prints
 
 > connected but not assigned to a game. Classic assigns on batch start, so either no batch is
 > running, or the batch's games are already full. Remember the treatment's playerCount counts bots:
@@ -192,11 +187,11 @@ Then, server-side, `player.get("participantIdentifier")` against that list.
 
 ## 5. Informing a bot of its condition
 
-Do not give the runner its own copy of the experimental condition. Two processes each reading their
-own config is how a study runs 10%-noise agents and records them as 30%, with nothing anywhere
-disagreeing.
+Use the server as the sole source of the experimental condition. Separate configuration in the
+runner can allow a study to execute 10%-noise agents while recording them as 30%-noise agents,
+without producing an internal inconsistency.
 
-Send it down the bot's own private channel instead, so the treatment is the only source:
+Send the condition through the bot's private channel so that the treatment remains authoritative:
 
 ```js
 // server, at stage start — tell() needs the channel to exist
@@ -207,13 +202,14 @@ const noise = ctx.told()?.get("noise");
 if (typeof noise !== "number") return;   // not configured yet: wait, do not guess
 ```
 
-The bot then cannot act on a value the server did not send. Waiting is the right failure: acting
-on a default would run the agent in a condition the session will be labeled with. Warn loudly if
-it never arrives; `examples/shirado2017/server/bots.mjs` does, after ten seconds, once.
+The bot acts only after receiving a value from the server. Waiting preserves consistency between
+the agent's behavior and the session label, whereas a default could place them in different
+conditions. `examples/shirado2017/server/bots.mjs` emits one warning if the value remains absent
+for ten seconds.
 
-This does not weaken the read guarantee. `tell()` writes to one participant's own channel, is
-validated by the same `validateProjection` as a view, and no participant learns what any other was
-told. `project()` remains the only path by which one participant's data reaches another.
+The read guarantee remains intact. `tell()` writes to one participant's channel and uses the same
+`validateProjection` validation as a view. Each message remains private to its recipient, while
+`project()` continues to provide the exclusive path for data shared between participants.
 
 ---
 

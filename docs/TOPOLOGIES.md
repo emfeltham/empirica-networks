@@ -1,8 +1,7 @@
 # Topologies
 
-This is the generator catalog, the page to read while designing a study, choosing a structure
-and checking that it will fit, rather than while writing code; for the surrounding API see
-[API.md](API.md).
+This catalog supports the selection and validation of a network structure during study design.
+See [API.md](API.md) for the surrounding programming interface.
 
 ```js
 import { topology } from "empirica-networks/admin";      // server
@@ -13,10 +12,11 @@ withNetwork(Empirica, {
 });
 ```
 
-Fourteen generators and six measures. Every generator is pure, zero-dependency and index-based: it
+The package provides fourteen generators and six graph measures. Every generator is a pure,
+dependency-free, index-based function: it
 returns `Array<[number, number]>` over node indices `0…n-1`, and `withNetwork` maps indices onto
-participants. You can return any edge list you like, from anywhere: these are a convenience, not a
-gate.
+participants. A study may also supply a custom edge list from any source; the included generators
+serve as conveniences rather than restrictions.
 
 The function is called once per game with `{ game, players, playerCount, rng }`. `players[i]` is
 the participant who will occupy index `i`, which is what makes who sits where addressable: to
