@@ -23,7 +23,7 @@ import {
   gameInit,
   waitFor,
   withScenario,
-} from "../../src/verify/harness.js";
+} from "../../src/harness/harness.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
 
 const N = 3;

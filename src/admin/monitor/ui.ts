@@ -14,7 +14,7 @@
  *     a pure function on the server and this file is left with
  *     `createElementNS`.
  *   - History replay. `snapshotRows()` already replays the log into a full edge
- *     list per event (MODULE-DESIGN §9), so the scrubber indexes an array that
+ *     list per event, so the scrubber indexes an array that
  *     arrived in the payload. There is no second replay here to disagree with
  *     the exported `network_snapshots.csv`.
  *   - Any dependency. No CDN, no bundler, no import. The Content-Security-Policy
@@ -574,7 +574,7 @@ export const PAGE = `<!doctype html>
     // that true — an operator who scrolled past the banner, or who is on the
     // table view, would otherwise read a picture of a study that has stopped as
     // the current state of one that is running, which is the misreport
-    // MODULE-DESIGN §15.5 exists to prevent. Note that the table holds the same
+    // the "gone" state exists to prevent. Note that the table holds the same
     // complete seating plan the graph does and has to be cleared with it.
     payload = null;
     frameIndex = null;

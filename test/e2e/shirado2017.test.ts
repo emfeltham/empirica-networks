@@ -34,7 +34,7 @@ import {
   withScenario,
   type AdminHandle,
   type Participant,
-} from "../../src/verify/harness.js";
+} from "../../src/harness/harness.js";
 import { runBots } from "../../src/bots/index.js";
 import { Empirica, net } from "../../examples/shirado2017/server/src/callbacks.js";
 import {

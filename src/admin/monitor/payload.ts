@@ -18,7 +18,7 @@ export interface MonitorPayload {
    * Digest of everything the UI draws.
    *
    * Used to suppress no-op pushes, the same way `publish()` suppresses
-   * byte-identical views (MODULE-DESIGN §7.1). A quiet study should cost an idle
+   * byte-identical views. A quiet study should cost an idle
    * SSE connection and nothing else.
    */
   digest: string;

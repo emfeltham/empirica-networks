@@ -11,7 +11,7 @@
  * true.
  *
  * Scope, deliberately narrow: **import specifiers and subpaths only.** Full
- * doc-tests were considered and rejected (docs/DOCS-PLAN.md §4) — most snippets
+ * doc-tests were considered and rejected — most snippets
  * are fragments by design, and rewriting them into compilable programs would
  * make them worse documentation to catch errors this already catches. What is
  * checked here is the part that goes stale without anyone noticing.
@@ -24,7 +24,7 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname, resolve, relative } from "node:path";
 
-const ROOT = resolve(import.meta.dirname, "..");
+const ROOT = resolve(import.meta.dirname, "../..");
 const PKG = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
 const SKIP = new Set(["node_modules", "dist", ".git"]);
 

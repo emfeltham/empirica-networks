@@ -31,7 +31,7 @@ import {
   waitFor,
   withScenario,
   type Participant,
-} from "../../src/verify/harness.js";
+} from "../../src/harness/harness.js";
 import { NBHD_KIND } from "../../src/shared/keys.js";
 
 const N = 3;

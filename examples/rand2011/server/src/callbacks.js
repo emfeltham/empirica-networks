@@ -58,7 +58,7 @@ const OUT_DIR = process.env["RAND2011_OUT"] ?? "data";
  * `net.log()`. This example used to hand-roll it: `mkdirSync` plus
  * `appendFileSync` plus a try/catch, ninety lines of it across two examples,
  * inside the copied surface a consumer cannot patch. That is what
- * `docs/M6-HARDENING.md` §2.1 moved into the package. What stays here is the
+ * moved into the package. What stays here is the
  * *incremental* part, which is this design's business: the edge history is a
  * growing array, so appending all of it every round would make the log quadratic
  * and `fromLog`'s concatenation wrong.
@@ -212,7 +212,7 @@ export const net = withNetwork(Empirica, {
    * about degree. The missing cells were then measured — `npm run bench --
    * dense` — and a COMPLETE graph at n=20 turned out to be FASTER than a degree-8
    * ring at n=50. The default is now `n - 1` at n <= 50, so at this size it admits
-   * any graph and this override is unnecessary (`docs/M6-HARDENING.md` §3.3).
+   * any graph and this override is unnecessary.
    *
    * A study at n = 100 would still be capped at 16 and would still have to
    * override — which is a fact about what has been measured, not about this
@@ -438,7 +438,7 @@ Empirica.onStageStart(({ stage }) => {
      * over current neighbours only, so it structurally cannot carry this, and
      * every alternative route is a broadcast: the player and game scopes both
      * reach every participant, and provisionally adding the tie would tell the
-     * other party they had been named. `docs/M5-ADOPTION.md` §7 has the account.
+     * other party they had been named.
      *
      * Note what is NOT sent: the other's degree, and anything about the graph.
      * "We do not inform subjects about the structure of the network or how many

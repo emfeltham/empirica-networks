@@ -33,7 +33,7 @@
  *     frequency would repaint the whole graph every time one participant
  *     changed their mind, which destroys the thing an operator is watching for;
  *   - `gone` clears the picture. A stale graph presented as live is the exact
- *     misreport MODULE-DESIGN §15.5 exists to prevent, and the page comment
+ *     misreport `gone` exists to prevent, and the page comment
  *     claimed this behaviour before any test held it. It did not do it.
  *   - a lost stream does NOT clear the picture, but says so. The two cases are
  *     deliberately different and the difference is only visible in the browser.

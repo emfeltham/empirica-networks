@@ -105,8 +105,8 @@ test("CSV headers are the union of all rows, not just the first", () => {
 
 test("every part of views: {} reaches the shared sink", () => {
   /**
-   * The writer moved to `src/admin/sink.ts` in M6 and is shared with `net.log`
-   * (`docs/M6-HARDENING.md` §2.1), so its own behaviour — buffering, appending,
+   * The writer moved to `src/admin/sink.ts` and is shared with `net.log`,
+   * so its own behaviour — buffering, appending,
    * nested directories, a throwing callback, what a SIGKILL costs — is
    * `test/unit/sink.test.ts`'s. What is left here is the three-field MAPPING,
    * which is the part that can silently break: `views: { onView }` keeps its name

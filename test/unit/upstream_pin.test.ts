@@ -44,11 +44,11 @@ const PIN = (() => {
 })();
 
 test("VERIFIED_CORE is the pinned @empirica/core", () => {
-  // src/verify/compat.ts is read as TEXT rather than imported: it pulls
+  // src/harness/compat.ts is read as TEXT rather than imported: it pulls
   // @empirica/core/admin, which cannot be loaded unbundled and is what separates
   // the unit tier from e2e (docs/PLATFORM-NOTES.md §3a). Same idiom as
   // cli_version.test.ts.
-  const compat = fs.readFileSync(path.join(root, "src/verify/compat.ts"), "utf8");
+  const compat = fs.readFileSync(path.join(root, "src/harness/compat.ts"), "utf8");
   const match = compat.match(/export const VERIFIED_CORE = "([^"]+)"/);
   assert.ok(match, "compat.ts declares VERIFIED_CORE");
   assert.equal(
@@ -65,7 +65,7 @@ test("VERIFIED_CORE is the pinned @empirica/core", () => {
  * is not ours, and `package.json` states the pin rather than citing it.
  */
 const ROOTS = ["src", "test", "docs", "scripts", "examples", ".github"];
-const ROOT_FILES = ["README.md", "ISSUES.md", "CHANGELOG.md", "PUBLICATION-PLAN.md"];
+const ROOT_FILES = ["README.md", "ISSUES.md", "CHANGELOG.md"];
 
 /**
  * Citations that are deliberately historical — "broken in X, fixed in Y" — and so

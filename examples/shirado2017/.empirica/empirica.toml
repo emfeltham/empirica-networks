@@ -13,9 +13,9 @@
 name = "scaffold-probe"
 
 [tajriba.auth]
-srtoken = "REDACTED"
+srtoken = "hdyfNX507mQT9sVZ"
 
 [[tajriba.auth.users]]
 name = "Admin"
 username = "admin"
-password = "REDACTED"
+password = "yMfZe4qQ"

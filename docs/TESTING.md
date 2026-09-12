@@ -21,8 +21,7 @@ npm run check:links                               # documentation links
 Baseline, measured 2026-08-16 after M6 closed: 288 unit / 34 mode / 67 e2e, with `npm run check`
 clean. The tier was green on six consecutive runs, and the full `npm test` was green on two;
 `ISSUES.md` O8 stood at "1 green in 3" from M4 until its cause was found in the harness on
-2026-08-16. (`docs/M6-HARDENING.md` records 255/34/65; that figure was taken mid-milestone, before
-Tier 2 and Tier 4 landed.) The e2e tier takes approximately 90 seconds.
+2026-08-16. The e2e tier takes approximately 90 seconds.
 
 ---
 
@@ -185,7 +184,7 @@ wire frames, so a leak through a channel nobody enumerated is still caught.
 | `scripts/bench.mjs` | end-to-end publish latency, plus first-channel latency (`ISSUES.md` O15) reported even for runs that do not complete. `--dense` for the degree sweep, `--payload` for degree × view size, `--repeats` for a published figure, `--clients` to put the participants on another machine |
 | `scripts/soak.mjs` | long-run memory. Prints `net.stats()` alongside RSS |
 | `scripts/ceiling.mjs` | the U7 reproduction. `CEILING_PLAIN=1` runs it without this package |
-| `scripts/simulate.mjs` | the platform evaluation (`docs/EVALUATION-RUNBOOK.md`): the shipped Shirado reconstruction at its own n, across arms and seeds, keeping every output file, then auditing `views.ndjson` for C1. The one harness that does not throw its sessions away. `--seeds`, `--arms`, `--n`, `--out` |
+| `scripts/simulate.mjs` | the platform evaluation: the shipped Shirado reconstruction at its own n, across arms and seeds, keeping every output file, then auditing `views.ndjson` for C1. The one harness that does not throw its sessions away. `--seeds`, `--arms`, `--n`, `--out` |
 
 Everything that touches `@empirica/core/admin` is bundled to CJS first, for the same reason every
 time (`docs/PLATFORM-NOTES.md`, Section 3a).
@@ -217,7 +216,7 @@ spreading the shards thinner (`--perShard`), and it is systematic, so repeats ca
 
 ```sh
 npm run bench -- --agent --port 7411              # on the client machine
-npm run bench -- --clients 10.0.0.7:7411 --repeats 3   # on the server machine
+npm run bench -- --clients CLIENT-HOST:7411 --repeats 3   # on the server machine
 ```
 
 The coordinator keeps the server, the callbacks and the admin; the agent forks every shard. The
@@ -267,7 +266,7 @@ sufficient.
 
 There are two causes, and neither indicates a regression. Check both before concluding anything.
 
-### Orphaned harness servers — `ISSUES.md` U6
+### Orphaned harness servers — `docs/upstream/ISSUES.md` U6
 
 The Empirica CLI execs a versioned binary as its own child, so killing the CLI leaves the real
 server running and holding its port. Accumulated orphans starve player assignment, and the suite
@@ -402,7 +401,7 @@ each to name its version.
 
 That is the point. A pin bump is more than a find-and-replace operation: each of those lines is a
 measurement, and the new version is precisely the reason to doubt it. The test also holds the
-single pin declaration (`VERIFIED_CORE`, `src/verify/compat.ts`) against `package.json`, and
+single pin declaration (`VERIFIED_CORE`, `src/harness/compat.ts`) against `package.json`, and
 `cli_version.test.ts` checks that the verify CLI still prints that one rather than a copy. It
 deliberately does not assert that the installed core matches the pin: `drift.yml` installs
 `@empirica/core@latest` with `--no-save`, so such an assertion would fail first and mask the
@@ -420,5 +419,5 @@ Recorded rather than implied.
 
 Two entries left this list on 2026-08-16, and the removals are worth as much as the list: the
 monitor's browser script (O9) and `admin.taj.attributes()` (O7) are both exercised now. The
-attributes result was that the API does not work at all; see `ISSUES.md` U9. A gap list is only
+attributes result was that the API does not work at all; see `docs/upstream/ISSUES.md` U9. A gap list is only
 useful if closing something removes it, and only honest if what closing revealed is written down.

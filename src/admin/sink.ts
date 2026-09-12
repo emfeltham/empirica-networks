@@ -4,8 +4,8 @@
  *
  * It exists because M5 built the same thing twice more, by hand, in the two
  * shipped examples — `mkdirSync` plus `appendFileSync` plus a try/catch,
- * duplicated, inside the copied surface a consumer cannot patch
- * (`docs/M5-ADOPTION.md` §2). `views` already had the careful version; the
+ * duplicated, inside the copied surface a consumer cannot patch. `views`
+ * already had the careful version; the
  * examples got the quick one, and in `examples/shirado2017` the quick one ran on
  * the callback path on every participant colour change.
  *

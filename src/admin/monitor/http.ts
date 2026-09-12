@@ -4,7 +4,7 @@
  * READ THIS BEFORE CHANGING ANYTHING HERE. This file serves the complete
  * network — every tie, every seat assignment, and every participant's private
  * state — which is precisely what the rest of the package exists to keep away
- * from the people inside the study (MODULE-DESIGN §15.1). Three properties hold
+ * from the people inside the study. Three properties hold
  * it together, and two of them are structural:
  *
  *   1. NO EMPIRICA CREDENTIAL EVER REACHES THIS FILE. `serveMonitor` takes a
@@ -110,7 +110,7 @@ export async function serveMonitor(
       // An observer must not be able to take the study down. Reported once and
       // then swallowed — but reported, because a monitor that silently showed
       // nothing would be indistinguishable from a study where nothing happened,
-      // which is this package's characteristic failure (MODULE-DESIGN §14).
+      // which is this package's characteristic failure.
       if (!reportedErrors.has(gameID)) {
         reportedErrors.add(gameID);
         console.error(
@@ -171,7 +171,7 @@ export async function serveMonitor(
       if (!payload) {
         // Explicitly gone, not an empty graph. U2 means a restart loses games
         // outright, and an empty picture would misreport that as a study where
-        // nothing happened (MODULE-DESIGN §15.5).
+        // nothing happened.
         json(res, { gone: true, gameID, reason: "this process is not networking that game" });
         return;
       }
@@ -227,7 +227,7 @@ export async function serveMonitor(
    * `withNetwork`'s hot path calls into the monitor, so monitor latency cannot
    * become publish latency and a bug here cannot throw inside Empirica's
    * runloop. The cost is up to one interval of lag for a human watching a
-   * graph, which is not a cost (MODULE-DESIGN §15.4).
+   * graph, which is not a cost.
    */
   const timer = setInterval(() => {
     for (const [gameID, set] of streams) {

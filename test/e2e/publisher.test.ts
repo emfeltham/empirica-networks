@@ -25,7 +25,7 @@ import {
   gameInit,
   waitFor,
   withScenario,
-} from "../../src/verify/harness.js";
+} from "../../src/harness/harness.js";
 
 const N = 4;
 

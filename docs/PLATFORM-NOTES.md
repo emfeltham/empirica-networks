@@ -5,7 +5,10 @@ Everything here was checked at runtime against `@empirica/core@1.12.5` and
 be re-run when either dependency is updated, since several of these are the kind of thing that
 changes silently.
 
-Background evidence: `~/breadboard-v2-working/SPIKE-REPORT.md`.
+`SPIKE-REPORT.md`, cited below and in a few error messages, is the measurement record from the
+investigation that preceded this package. It is not published with it, so those citations name
+where a number came from rather than a file you can open; the numbers themselves, and what each
+one does and does not license, are reproduced here and in `docs/TESTING.md`.
 
 ## 1. `@empirica/core/player` imports cleanly under bare Node (confirmed)
 
@@ -91,7 +94,7 @@ for two independent reasons:
    exclusive. At n·d attributes per tick, trace logging dominates CPU and any measurement
    becomes a benchmark of Tajriba's logger instead.
 
-`src/verify/server.ts` therefore spawns `empirica tajriba` directly on an explicitly chosen
+`src/harness/server.ts` therefore spawns `empirica tajriba` directly on an explicitly chosen
 free port and polls `/query` for readiness, around 60 lines, with no `tmp` dependency and no
 stderr parsing.
 
@@ -304,7 +307,7 @@ This is a two-line change, and skipping it fails silently, so `withNetwork` must
 This was addressed on 2026-08-16, but not in the way the paragraph above describes, and it had
 been treated as addressed for four milestones before it actually was. The paragraph above states
 a requirement in the future tense; `assertKindsRegistered` was built to satisfy it and was never
-actually called, while `docs/M5-ADOPTION.md` §6 filed the trap under "impossible to skip
+actually called, while the trap was filed under "impossible to skip
 silently" on the strength of it.
 
 `withNetwork` cannot assert on `"ready"`: it holds the collector, not the kind map, and reaching
@@ -594,7 +597,7 @@ What is not established is whether a browser survives it. The failure is fatal h
 Node's `ws` validates frames strictly and throws; a browser's native WebSocket would see a
 closed socket and Empirica would reconnect. So the accurate statement is that the Node harness
 cannot reliably start a game at n=200, and the consequence for real participants is untested.
-Filed as ISSUES.md U7.
+Filed as `docs/upstream/ISSUES.md` U7.
 
 ### 15a. The same burst delays channel materialisation, measured 2026-08-16
 
@@ -719,7 +722,7 @@ one.
 
 The workaround is to register each helper exactly once and dispatch inside it, on
 `stage.get("name")` or equivalent. Both reconstructions do this and explain why at the call
-site. Filed as `ISSUES.md` U8.
+site. Filed as `docs/upstream/ISSUES.md` U8.
 
 ### 17a. It is detectable from outside, measured 2026-08-16
 
@@ -780,7 +783,7 @@ divert all output and hide the harness's own diagnostics on a failure.
 Measured with `npm run bench -- --dense`, `@empirica/core@1.12.5`, 60 rounds per cell, participants sharded
 across child processes, macOS, loopback. One run per cell.
 
-The default `maxDegree` was 16 and was documented as measured. It was, but the measurement
+The default `maxDegree` was 16 and was documented as measured. It was, but the measurement behind it
 (SPIKE-REPORT §4) swept sparse graphs while varying n, so it constrains n, not degree. The
 cells that would have constrained degree did not exist. They do now:
 
@@ -969,7 +972,7 @@ left open indefinitely, and it costs nothing.
 ## 21. Every participant receives every co-player's recruitment identifier (significant risk)
 
 Measured 2026-08-16, `@empirica/core@1.12.5`, at the wire. Witness: `test/e2e/bots.test.ts`,
-"a co-player's recruitment identifier is on the wire". Filed as `ISSUES.md` U10.
+"a co-player's recruitment identifier is on the wire". Filed as `docs/upstream/ISSUES.md` U10.
 
 `participantIdentifier`, the raw value of `?participantKey=`, is delivered to every other
 participant in the game. Two upstream lines put it there, and neither is doing anything unusual:

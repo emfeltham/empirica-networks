@@ -12,7 +12,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
  * worse than none, because it is stated with confidence.
  *
  * It used to print a literal of its own, checked against package.json by this
- * test — while `src/verify/compat.ts` held a SECOND literal of the same number
+ * test — while `src/harness/compat.ts` held a SECOND literal of the same number
  * that nothing read and nothing checked (`ISSUES.md` O7b). There is now one
  * declaration, `VERIFIED_CORE`, and `test/unit/upstream_pin.test.ts` holds it
  * against the pin and against every `@empirica/core@…` citation in the docs.
@@ -23,8 +23,8 @@ test("the CLI prints the one pin declaration rather than a literal of its own", 
 
   assert.match(
     cli,
-    /import \{ VERIFIED_CORE \} from "\.\/compat\.js"/,
-    "cli.ts takes the version from src/verify/compat.ts"
+    /import \{ VERIFIED_CORE \} from "\.\.\/harness\/compat\.js"/,
+    "cli.ts takes the version from src/harness/compat.ts"
   );
   assert.match(cli, /\$\{VERIFIED_CORE\}/, "…and prints it");
 
@@ -35,7 +35,7 @@ test("the CLI prints the one pin declaration rather than a literal of its own", 
     literal,
     null,
     `cli.ts declares a version literal of its own (${literal?.[0]}). ` +
-      `The pin is declared once, in src/verify/compat.ts.`
+      `The pin is declared once, in src/harness/compat.ts.`
   );
 });
 

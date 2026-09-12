@@ -12,7 +12,7 @@ import type { EdgeEvent } from "../../src/shared/keys.js";
 import { complete, ring } from "../../src/topology/index.js";
 
 test("density of a complete graph is 1, not 0.333", () => {
-  // The pin for MODULE-DESIGN §6's one silent trap. graphology's default mixed
+  // The pin for graphology's one silent trap. graphology's default mixed
   // `Graph` reports 0.333 for exactly this graph, because its denominator counts
   // directed slots this module never fills — measured in
   // test/unit/graphology.test.ts. The monitor derives density from the edge list

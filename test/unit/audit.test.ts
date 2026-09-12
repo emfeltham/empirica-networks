@@ -8,9 +8,8 @@
  *
  * THE CASE THIS FILE EXISTS FOR is the third one below. An audit that reports "no
  * leaks" over an empty file has the exact shape this repository keeps finding: the
- * check ran, said nothing, and meant nothing. `docs/EVALUATION-RUNBOOK.md` §6 calls
- * this file not optional for that reason, and `PAPER-OUTLINE.md` §7.3 makes the
- * denominator a binding requirement on the paper's table — "zero non-neighbour
+ * check ran, said nothing, and meant nothing. That is why this file is not
+ * optional, and why the denominator is a binding requirement — "zero non-neighbour
  * views" over an unstated number of views is not a result.
  */
 import assert from "node:assert/strict";

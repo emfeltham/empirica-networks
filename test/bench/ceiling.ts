@@ -25,7 +25,7 @@ import {
   gameInit,
   waitFor,
   withScenario,
-} from "../../src/verify/harness.js";
+} from "../../src/harness/harness.js";
 
 const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
 const N = Number(process.env.CEILING_N ?? 200);

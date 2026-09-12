@@ -1862,7 +1862,7 @@ export interface GameNetwork {
    * not `project()`.** It exists because `project()` runs over a viewer's CURRENT
    * neighbours, which cannot express "show this subject one fact about someone
    * they are not connected to" — the information a rewiring offer is made of
-   * (Rand, Arbesman & Christakis 2011; `docs/M5-ADOPTION.md` §7).
+   * (Rand, Arbesman & Christakis 2011).
    *
    * It does not weaken the guarantee, and the difference is worth stating
    * exactly: `project()` remains the only path by which one participant's data

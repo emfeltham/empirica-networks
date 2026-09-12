@@ -33,11 +33,10 @@ Examples of unacceptable behaviour:
 
 ## Security and disclosure
 
-This project handles vulnerability reports privately and on a stated timeline; see
-[`SECURITY.md`](SECURITY.md) for how to report an issue in this package, and
-[`docs/upstream/DISCLOSURE.md`](docs/upstream/DISCLOSURE.md) for the route used for findings in
-Empirica itself. Reporting a security issue in good faith is always welcome and will never be
-treated as a hostile act. Please report privately rather than in a public issue.
+This project handles vulnerability reports privately; see [`SECURITY.md`](SECURITY.md) for how to
+report an issue in this package, and for where findings in Empirica itself are routed instead.
+Reporting a security issue in good faith is always welcome and will never be treated as a hostile
+act. Please report privately rather than in a public issue.
 
 ## Enforcement
 

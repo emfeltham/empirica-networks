@@ -167,8 +167,7 @@ export function stateKey(key: string): string {
  * server to tell one participant one fact about a NON-neighbour. That is exactly
  * what Rand, Arbesman & Christakis (2011) do in their rewiring round — a subject
  * offered the chance to form a new tie is shown that person's last action, and by
- * definition they are not yet a neighbour. `docs/M5-ADOPTION.md` §7 has the full
- * account, including the four routes that do not work.
+ * definition they are not yet a neighbour.
  *
  * This does NOT weaken the module's guarantee, and the distinction is worth being
  * precise about rather than reassuring about. Values written here are authored by

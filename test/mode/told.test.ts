@@ -4,7 +4,7 @@
  * `tell()` is the SECOND path from server to client, added in M5 because
  * `project()` runs only over a viewer's current neighbours and therefore cannot
  * express "show this subject one fact about someone they are not connected to" —
- * which is what a rewiring offer is made of (docs/M5-ADOPTION.md §7).
+ * which is what a rewiring offer is made of.
  *
  * A second path is exactly the kind of thing that quietly becomes a leak, so the
  * namespacing is asserted here the same way `state.test.ts` asserts the first

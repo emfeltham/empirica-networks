@@ -38,7 +38,7 @@ rest. Treat the store as identifiable data.
 
 `onGameEnded` is not a reliable place to write files. It fires only when a game ends
 naturally. A study that is killed, crashes, or is stopped mid-session never reaches it. After
-`ISSUES.md` U2 a crash mid-study is the normal shape of "something went wrong", since a
+`docs/upstream/ISSUES.md` U2 a crash mid-study is the normal shape of "something went wrong", since a
 restarted server cannot put participants back in their game anyway. That is what the run log is
 for: unbuffered by default, so a hard kill loses nothing.
 

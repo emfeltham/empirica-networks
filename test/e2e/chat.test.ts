@@ -28,7 +28,7 @@ import {
   withScenario,
   type AdminHandle,
   type Participant,
-} from "../../src/verify/harness.js";
+} from "../../src/harness/harness.js";
 
 const N = 4;
 const CMD = "chatCmd";
@@ -79,7 +79,7 @@ test("a message reaches neighbours and the sender, and nobody else — at the wi
       // anything is said.
       //
       // Free, and safe this early: `wireStream()` shares the mode's own
-      // subscription (`src/verify/compat.ts`). It used to open a second one, which
+      // subscription (`src/harness/compat.ts`). It used to open a second one, which
       // is what made this shape expensive before the batch (`ISSUES.md` O8) — and
       // this file is where moving the capture, rather than fixing the cause, was
       // shown to be the wrong answer: it went 0/12 to 1/12 and failed in a new way.

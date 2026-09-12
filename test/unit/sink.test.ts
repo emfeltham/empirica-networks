@@ -1,8 +1,8 @@
 /**
  * The shared append-only NDJSON writer.
  *
- * These tests were `test/unit/views.test.ts`'s, and they moved here with the code
- * (`docs/M6-HARDENING.md` §2.1) — deliberately moved rather than rewritten, since
+ * These tests were `test/unit/views.test.ts`'s, and they moved here with the
+ * code — deliberately moved rather than rewritten, since
  * every one of them was written for a defect that had actually happened. What is
  * new is the durability pair at the bottom: the whole reason `net.log` exists is
  * that a killed study should still have data, and until now nothing measured what

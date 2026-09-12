@@ -1,8 +1,8 @@
 /**
  * `network(game).tell()` — the server telling ONE participant one thing.
  *
- * This is the second path from server to client, added in M5 (see
- * `docs/M5-ADOPTION.md` §7). A second path is where a leak gets in, so the
+ * This is the second path from server to client. A second path is where a leak
+ * gets in, so the
  * central test asserts at the WIRE and specifically about the person the value is
  * ABOUT: a rewiring offer names a non-neighbour, and if that non-neighbour learns
  * they were named, the reconstruction has deviated from the design it cites.
@@ -28,7 +28,7 @@ import {
   withScenario,
   type AdminHandle,
   type Participant,
-} from "../../src/verify/harness.js";
+} from "../../src/harness/harness.js";
 
 const N = 4;
 /** Game attribute used to drive a server-side action from inside a listener. */
@@ -150,7 +150,7 @@ test("a told value reaches its target and NOBODY else — including the person i
       // anything is told.
       //
       // Free, and safe to do this early — `wireStream()` shares the mode's own
-      // subscription rather than opening a second one (`src/verify/compat.ts`).
+      // subscription rather than opening a second one (`src/harness/compat.ts`).
       // Until 2026-08-16 it opened another, and doing that for four participants
       // before `running()` doubled the wire traffic the server carried through
       // Classic's O(n²) game-start burst: this file failed **4/12** on `gameID

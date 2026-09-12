@@ -215,7 +215,7 @@ test("the default bind is loopback, and nothing else can reach it", async () => 
 });
 
 test("binding off loopback is allowed but says what it costs", async () => {
-  // Convention, not structure, and labelled as such in MODULE-DESIGN §15.1. The
+  // Convention, not structure, and labelled as such. The
   // package's job is to make the override loud, not to forbid it.
   const fake = fakeSource();
   const logged: string[] = [];
@@ -248,7 +248,7 @@ test("/api/state serves the graph and its coordinates", async () => {
 });
 
 test("a game this process does not hold is reported gone, not empty", async () => {
-  // The distinction MODULE-DESIGN §15.5 turns on. An empty graph and a lost game
+  // The distinction the monitor's `gone` state turns on. An empty graph and a lost game
   // look identical on screen, and U2 makes the second one common.
   const fake = fakeSource();
   await withMonitor(fake, async (m) => {

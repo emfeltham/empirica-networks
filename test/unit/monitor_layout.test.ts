@@ -29,7 +29,7 @@ test("a different seed gives a different arrangement", () => {
 });
 
 test("every coordinate stays inside the box", () => {
-  // 50 is the top of the target regime (MODULE-DESIGN §8); 3 is the smallest
+  // 50 is the top of the target regime; 3 is the smallest
   // ring that exists.
   for (const n of [3, 5, 20, 50]) {
     for (const p of layout(n, ring(n), { seed: 3 })) {

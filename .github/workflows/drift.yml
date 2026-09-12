@@ -1,6 +1,6 @@
 name: upstream drift
 
-# The alarm for R3 in MODULE-DESIGN.md §10.
+# The alarm for upstream drift.
 #
 # This package is built on public API, but four contracts are version-fragile
 # and three of them fail SILENTLY rather than throwing:

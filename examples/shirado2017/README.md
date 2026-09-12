@@ -76,7 +76,7 @@ rather than remaining silent about it. `n=6, 3 agents: central, 10% noise (demo 
 windows and is the one to try first.
 
 A shared key list is used rather than a `bot-` prefix, because every participant in a game receives every
-other participant's `?participantKey=` (`ISSUES.md` U10). A recognisable key would be readable
+other participant's `?participantKey=` (`docs/upstream/ISSUES.md` U10). A recognisable key would be readable
 from any browser, and this design does not tell subjects which of their neighbours are software,
 so that is the manipulation being disclosed, not a metadata leak. `node bots.mjs --keys` generates keys
 shaped like the ones Empirica's own client produces; a deployed study should use keys drawn from
@@ -159,8 +159,7 @@ example has subjects who have solved the problem from their own point of view wh
 has not.
 
 If you want to watch the global state live while a session runs, that is what `monitor()` is
-for: a separate loopback port with its own token, holding no Empirica credential
-(`MODULE-DESIGN.md` §15). It is off unless you set `MONITOR=1`.
+for: a separate loopback port with its own token, holding no Empirica credential. It is off unless you set `MONITOR=1`.
 
 ## The data it writes
 
