@@ -5,17 +5,17 @@ vocabulary is included where this package uses it in a specific way.
 
 **batch scope** — Empirica's outermost durable scope, one per batch of games. The only durable
 scope measured not to be delivered to participants (`test/e2e/scope_visibility.test.ts`), which
-is why the realised network, the seed, the edge history and any authoritative record of account
+is why the realized network, the seed, the edge history and any authoritative record of account
 live there. → [ARCHITECTURE §5](ARCHITECTURE.md#5-where-every-value-lives-and-why)
 
 **bot / agent** — an artificial participant: a headless Node process that opens a real Tajriba
 session, runs the real participant mode, and reads and writes through the same private channel a
 browser does. There is deliberately no server-side path, so a bot cannot see the graph or a
-non-neighbour. Empirica v2 ships no such facility; this one is `empirica-networks/bots`.
+non-neighbor. Empirica v2 ships no such facility; this one is `empirica-networks/bots`.
 → [BOTS.md](BOTS.md)
 
 **channel** — the private `nbhd` scope belonging to one participant. Created at game start, one
-per participant, linked to them alone. Everything neighbour-limited goes through it: the server
+per participant, linked to them alone. Everything neighbor-limited goes through it: the server
 writes their view here, they write their own private state here, and the server writes anything
 it tells them privately here. Its id is a capability (there is no write access control; see U1), so the
 map from participants to channels is never participant-visible. → [ARCHITECTURE §3
@@ -27,8 +27,8 @@ when broken: every scope materialises and every `.get()` returns `undefined`.
 Self-checked by `DonesWiringError`. → [ARCHITECTURE §6](ARCHITECTURE.md#6-the-client-half)
 
 **envelope** — the enforced limits on what may be published: max degree, max bytes per view, and
-max bytes per participant per publish (`maxNeighbourhoodBytes`, 64 KiB). What a participant's
-connection actually carries is degree multiplied by how much is projected per neighbour, not
+max bytes per participant per publish (`maxNeighborhoodBytes`, 64 KiB). What a participant's
+connection actually carries is degree multiplied by how much is projected per neighbor, not
 degree alone. Degree is checked at game start, before any channel exists, so a topology
 that will not fit fails while the experiment is still abandonable.
 → [API §Envelope](API.md#envelope), and the README's "Supported envelope" section for the measurements
@@ -48,12 +48,12 @@ composed with it rather than reimplementing it, so the whole Classic flow keeps 
 network hooks have something to read. Omit it and every hook throws
 `NetworkModeNotInstalledError`. → [ARCHITECTURE §6](ARCHITECTURE.md#6-the-client-half)
 
-**neighbourhood** — the set of a participant's current neighbours, and by extension the array of
+**neighborhood** — the set of a participant's current neighbors, and by extension the array of
 projected views delivered to them. `useNeighbors()` returns it; `undefined` means nothing has
 been published yet, `[]` means genuinely isolated, and those are different answers.
 
 **placement** — deciding which seats particular participants occupy, usually bots. Expressed by
-relabelling the generated graph inside `topology({ players })` rather than by reordering people,
+relabeling the generated graph inside `topology({ players })` rather than by reordering people,
 which is what keeps the degree distribution identical across arms, so a "central" condition
 differs from a "peripheral" one only in who sits where. → [BOTS §4](BOTS.md)
 
@@ -62,7 +62,7 @@ differs from a "peripheral" one only in who sits where. → [BOTS §4](BOTS.md)
 to everyone. Read server-side with `net.stateOf()`. → [GETTING-STARTED §5](GETTING-STARTED.md)
 
 **projection / `project()`** — the pure function that decides what one participant may learn
-about one neighbour. It runs per (viewer, neighbour) pair, and it is the only path by which one
+about one neighbor. It runs per (viewer, neighbor) pair, and it is the only path by which one
 participant's data reaches another. Returning a scope is refused.
 → [API, `NetworkConfig`](API.md#networkconfig)
 
@@ -72,7 +72,7 @@ what wakes a bot's `onView`. A view that would come back byte-identical is suppr
 publish is evidence that something actually changed for that participant.
 → [ARCHITECTURE §4](ARCHITECTURE.md#4-the-publish-path)
 
-**realised network / seed** — the graph a run actually used, and the seeded value it was generated
+**realized network / seed** — the graph a run actually used, and the seeded value it was generated
 from, both recorded on the batch scope (`network:<gameID>`, `networkSeed:<gameID>`). The edge list
 is stored as well as the seed, so an analysis reads back the graph that was used rather than
 re-deriving one and hoping it matches. → [DATA-AND-ANALYSIS §4](DATA-AND-ANALYSIS.md)
@@ -107,10 +107,10 @@ yourself"
 **told** — a value the server writes to one participant's channel, under the `told:` prefix
 (`network(game).tell(playerID, key, value)`, read with `useNetworkTold()`). A separate namespace
 from `state:` so a participant cannot overwrite a server-authored value. Added because
-`project()` covers only current neighbours, and Rand 2011's rewiring round requires telling
-someone one fact about a non-neighbour. → [ARCHITECTURE §5](ARCHITECTURE.md#5-where-every-value-lives-and-why)
+`project()` covers only current neighbors, and Rand 2011's rewiring round requires telling
+someone one fact about a non-neighbor. → [ARCHITECTURE §5](ARCHITECTURE.md#5-where-every-value-lives-and-why)
 
-**view** — one projected neighbour, as delivered. Published `ephemeral`, so nothing durable holds
+**view** — one projected neighbor, as delivered. Published `ephemeral`, so nothing durable holds
 it; view capture (`views: { file }`) is the only record of what a participant was actually told,
 as distinct from what they could have known, which is all an edge log plus an
 attribute export can reconstruct. → [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md)

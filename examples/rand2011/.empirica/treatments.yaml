@@ -66,7 +66,7 @@ treatments:
       Six participants, fluid. NOT the paper's design — six windows is what one
       person can drive by hand, and at n=6 there are 15 pairs, so a round offers
       about 5 rewiring decisions rather than 57. Use it to watch the mechanism
-      work; do not read anything into the behaviour.
+      work; do not read anything into the behavior.
     name: Fluid (n=6, demo only)
     factors:
       playerCount: 6

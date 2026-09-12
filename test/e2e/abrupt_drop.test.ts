@@ -7,8 +7,8 @@
  *
  * The paths differ, and the difference matters here. Views are `ephemeral` and
  * republished on ParticipantConnect, so the dangerous case is a return the
- * server does not recognise as a return — the participant would come back to a
- * blank neighbourhood, which on screen is indistinguishable from still loading.
+ * server does not recognize as a return — the participant would come back to a
+ * blank neighborhood, which on screen is indistinguishable from still loading.
  *
  * The drop is produced with a TCP relay (`src/harness/tcp_cut.ts`) rather than by
  * reaching into `@empirica/tajriba` for the socket, so this depends on no
@@ -39,18 +39,18 @@ test.beforeEach(() => resetChannels());
 const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
 
 function viewOf(p: { mode: unknown }): Record<string, unknown> {
-  const neighbours = (modeOf(p).nbhd.getValue()?.neighbors ?? []) as {
+  const neighbors = (modeOf(p).nbhd.getValue()?.neighbors ?? []) as {
     id: string;
     choice?: unknown;
   }[];
-  return Object.fromEntries(neighbours.map((n) => [n.id, n.choice]));
+  return Object.fromEntries(neighbors.map((n) => [n.id, n.choice]));
 }
 
 const listeners = (_: any) => {
   gameInit(1, 1, 3_600_000)(_);
   withNetwork(_, {
     topology: ({ playerCount }) => ring(playerCount),
-    project: (neighbour: any) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+    project: (neighbor: any) => ({ id: neighbor.id, choice: neighbor.get("choice") }),
     watch: ["choice"],
   });
 };
@@ -84,8 +84,8 @@ test("a participant whose connection is cut without a close frame comes back who
         });
 
         const droppedID = modeOf(dropped).player.getValue()!.id;
-        const neighboursBefore = Object.keys(viewOf(dropped)).sort();
-        assert.equal(neighboursBefore.length, 2, "the relayed participant is on the ring");
+        const neighborsBefore = Object.keys(viewOf(dropped)).sort();
+        assert.equal(neighborsBefore.length, 2, "the relayed participant is on the ring");
 
         assert.ok(cut.live() > 0, "the relay is actually carrying the connection");
 
@@ -103,22 +103,22 @@ test("a participant whose connection is cut without a close frame comes back who
         });
 
         await waitFor(() => Boolean(modeOf(dropped!).nbhd.getValue()?.published), {
-          label: "the returning participant has a neighbourhood again",
+          label: "the returning participant has a neighborhood again",
           timeoutMs: 30_000,
         });
 
         assert.deepEqual(
           Object.keys(viewOf(dropped)).sort(),
-          neighboursBefore,
-          "and the SAME neighbours — an abrupt drop must not reseat anyone"
+          neighborsBefore,
+          "and the SAME neighbors — an abrupt drop must not reseat anyone"
         );
 
         // A restored view that never changes again is the failure a snapshot
         // check cannot see, so drive a real update through it.
         const watcher = participants.find((p) =>
-          neighboursBefore.includes(modeOf(p).player.getValue()!.id)
+          neighborsBefore.includes(modeOf(p).player.getValue()!.id)
         )!;
-        assert.ok(watcher, "one of its neighbours is a normally-connected participant");
+        assert.ok(watcher, "one of its neighbors is a normally-connected participant");
 
         modeOf(watcher).player.getValue()!.set("choice", "AFTER-DROP");
         await waitFor(
@@ -129,7 +129,7 @@ test("a participant whose connection is cut without a close frame comes back who
         // And the reverse direction: what it writes must still reach others.
         modeOf(dropped).player.getValue()!.set("choice", "FROM-DROPPED");
         await waitFor(() => viewOf(watcher)[droppedID] === "FROM-DROPPED", {
-          label: "and its own changes still reach its neighbours",
+          label: "and its own changes still reach its neighbors",
           timeoutMs: 30_000,
         });
       } finally {

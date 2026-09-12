@@ -13,7 +13,7 @@
  * first paint. Plus that the hooks obey the rules of hooks at all, which is not
  * checked anywhere else.
  *
- * Behaviour after a publish is covered by view.test.ts against real Nbhd
+ * Behavior after a publish is covered by view.test.ts against real Nbhd
  * instances. Confirming that a publish repaints the DOM needs a browser and is
  * deferred to the M2 Playwright smoke test.
  */

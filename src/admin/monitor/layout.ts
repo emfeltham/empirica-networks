@@ -156,7 +156,7 @@ export function layout(n: number, edges: Edge[], opts: LayoutOptions = {}): Poin
  * in twenty — a flake in the one part of the system a human is looking at.
  */
 function seedPositions(n: number, size: number, rng: Rng, initial?: Point[]): Point[] {
-  const centre = size / 2;
+  const center = size / 2;
   const radius = size * 0.35;
   return Array.from({ length: n }, (_, i) => {
     const prev = initial?.[i];
@@ -165,8 +165,8 @@ function seedPositions(n: number, size: number, rng: Rng, initial?: Point[]): Po
     }
     const angle = (2 * Math.PI * i) / n;
     return {
-      x: clamp(centre + radius * Math.cos(angle) + (rng() - 0.5) * size * 0.02, 0, size),
-      y: clamp(centre + radius * Math.sin(angle) + (rng() - 0.5) * size * 0.02, 0, size),
+      x: clamp(center + radius * Math.cos(angle) + (rng() - 0.5) * size * 0.02, 0, size),
+      y: clamp(center + radius * Math.sin(angle) + (rng() - 0.5) * size * 0.02, 0, size),
     };
   });
 }

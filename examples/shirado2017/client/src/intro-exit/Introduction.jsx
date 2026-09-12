@@ -7,7 +7,7 @@ import { Button } from "../components/Button";
  *
  * Deliberately describes the COLLECTIVE goal without giving any way to observe it.
  * The paper's subjects knew what the group had to achieve and could see only their
- * own neighbourhood; that gap is the coordination problem, so the instructions have
+ * own neighborhood; that gap is the coordination problem, so the instructions have
  * to state the goal and the screen has to withhold the progress.
  *
  * Also deliberately silent about the shape of the network, the number of
@@ -28,18 +28,18 @@ export function Introduction({ next }) {
       <div className="mt-2 mb-6 space-y-3 text-sm text-gray-500">
         <p>
           You are connected to some of the other participants. Everyone chooses a
-          colour — <strong>green</strong>, <strong>orange</strong> or{" "}
+          color — <strong>green</strong>, <strong>orange</strong> or{" "}
           <strong>purple</strong> — and may change it at any time.
         </p>
         <p>
           <strong>
-            The group succeeds when every single participant has a different colour
+            The group succeeds when every single participant has a different color
             from all of the people they are connected to.
           </strong>{" "}
           It is a group task: your own connections being fine is not enough.
         </p>
         <p>
-          You will see the colours of the people you are connected to, and nothing
+          You will see the colors of the people you are connected to, and nothing
           else — not the rest of the group, and not how close the group is to
           finishing. The session runs for up to five minutes, and ends as soon as
           the group succeeds.

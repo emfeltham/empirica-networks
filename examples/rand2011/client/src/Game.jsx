@@ -15,7 +15,7 @@ import { Button } from "./components/Button";
  * value comes from is the whole reason this file is worth reading:
  *
  *   useNeighbors()      the server's project() — your connections' choices. Only
- *                       your connections are in here; a non-neighbour's choice is
+ *                       your connections are in here; a non-neighbor's choice is
  *                       never sent to this browser at all.
  *   useNetworkState()   your OWN private channel. This is where your choice goes.
  *                       `player.set()` would broadcast it to everyone.

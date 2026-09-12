@@ -4,7 +4,7 @@
  * This is the second path from server to client. A second path is where a leak
  * gets in, so the
  * central test asserts at the WIRE and specifically about the person the value is
- * ABOUT: a rewiring offer names a non-neighbour, and if that non-neighbour learns
+ * ABOUT: a rewiring offer names a non-neighbor, and if that non-neighbor learns
  * they were named, the reconstruction has deviated from the design it cites.
  *
  * The non-vacuity arm matters as much as the leak arm here. `tell()` writes to a
@@ -44,7 +44,7 @@ const CMD = "tellCmd";
  * participant's wire before `tell` is even called.
  *
  * Worth keeping the story: it is the same mistake the package's own design went
- * through (§4c moved the realised topology off the game scope for this reason),
+ * through (§4c moved the realized topology off the game scope for this reason),
  * and it is the reason the command below carries only ids, which are public
  * anyway, and never the value under test. The callbacks are defined in this file,
  * so a module constant reaches the server without crossing a scope at all.
@@ -102,7 +102,7 @@ function makeListeners(capture: (game: any) => void) {
     });
     withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id }),
+      project: (neighbor: any) => ({ id: neighbor.id }),
     });
   };
 }
@@ -168,22 +168,22 @@ test("a told value reaches its target and NOBODY else — including the person i
       await running(admin, participants);
 
       // Build the exact shape Rand 2011's rewiring round needs: the decider is
-      // told about a NON-neighbour, which is precisely what project() cannot
+      // told about a NON-neighbor, which is precisely what project() cannot
       // express and therefore what tell() exists for.
       const decider = participants[0]!;
       const deciderID = modeOf(decider).player.getValue()!.id;
-      const neighbourIDs = (
+      const neighborIDs = (
         (modeOf(decider).nbhd.getValue()!.neighbors ?? []) as { id: string }[]
       ).map((n) => n.id);
-      assert.equal(neighbourIDs.length, 2, "a ring of 4 gives the decider two neighbours");
+      assert.equal(neighborIDs.length, 2, "a ring of 4 gives the decider two neighbors");
 
       const subject = participants.find(
         (p) =>
           modeOf(p).player.getValue()!.id !== deciderID &&
-          !neighbourIDs.includes(modeOf(p).player.getValue()!.id)
+          !neighborIDs.includes(modeOf(p).player.getValue()!.id)
       )!;
       const subjectID = modeOf(subject).player.getValue()!.id;
-      assert.ok(subject, "a ring of 4 has exactly one non-neighbour");
+      assert.ok(subject, "a ring of 4 has exactly one non-neighbor");
 
       await tell(admin, gameRef, {
         to: deciderID,
@@ -225,7 +225,7 @@ test("a told value reaches its target and NOBODY else — including the person i
         "the target's wire must contain it, or this test cannot detect a leak at all"
       );
       // ...and the subject of the offer is a participant whose wire we really
-      // are watching, so their silence above is evidence rather than an artefact
+      // are watching, so their silence above is evidence rather than an artifact
       // of subscribing to the wrong stream.
       const subjectIndex = participants.indexOf(subject);
       assert.ok(

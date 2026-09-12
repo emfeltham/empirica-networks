@@ -9,6 +9,15 @@ Nothing has been released. The package is `private: true` at `0.0.0` while the p
 still unfrozen. This section will become `0.1.0` at the first publish, and that freeze is what
 makes the entries below meaningful as a baseline rather than a moving target.
 
+### Changed
+
+- Normalized spelling to American English throughout the package, including the public API:
+  `envelope.maxNeighbourhoodBytes` → `maxNeighborhoodBytes`, `checkNeighbourhoodBytes` →
+  `checkNeighborhoodBytes`, `ProjectContext.neighbourIndex` → `neighborIndex`, and the
+  `views.csv` column headers `neighbour_index` / `neighbour_id` → `neighbor_index` /
+  `neighbor_id`. Safe to do now, before the freeze; there are no released consumers of any of
+  these names yet.
+
 ### Added since M5 (all 2026-08-16)
 
 - `NetworkConfig.read`: declare private keys the server consumes but `project()` never touches,
@@ -23,20 +32,20 @@ makes the entries below meaningful as a baseline rather than a moving target.
 - Duplicate-lifecycle-listener detection at server start, for upstream U8.
 - `net.activeGames()`, replacing `net.games()`; `GameRef` and `gameIDOf()` so every entry point
   takes either a game scope or its id.
-- `envelope.maxNeighbourhoodBytes` (64 KiB default).
+- `envelope.maxNeighborhoodBytes` (64 KiB default).
 - `NetworkStats.endedGames` and `NetworkStats.chatSeqs`: the two counts that outlive a game, so
   retention is assertable exactly rather than by watching a heap graph.
 - `empirica-networks/bots`: artificial participants, which Empirica ships none of
   (`docs/PLATFORM-NOTES.md` §17, `ISSUES.md` O10). A bot is a headless participant process:
   it opens a real Tajriba session, sets `introDone` (without which a game never reaches its
-  player count), reads its neighbours through the same `project()`, and writes through the same
+  player count), reads its neighbors through the same `project()`, and writes through the same
   private channel a browser writes to. There is deliberately no server-side path; a bot that could
-  read a non-neighbour or see the graph would make a bot condition a comparison between two
+  read a non-neighbor or see the graph would make a bot condition a comparison between two
   different games rather than between two kinds of player.
 
   `runBots({ url, identifiers, policy, seed })`, with `onStart` / `onView` / `onTick` / `onEnd`,
   a per-bot deterministic `ctx.rng`, and the same four accessors a browser has. Shipped as a
-  bundled CJS artefact so a bot script runs under plain `node`: `@empirica/core/admin` cannot be
+  bundled CJS artifact so a bot script runs under plain `node`: `@empirica/core/admin` cannot be
   loaded from bare Node ESM (§3a), so the package does that once instead of asking every study to.
 
   The lifecycle is the part that fails silently and so the part with the most machinery behind it.
@@ -77,7 +86,7 @@ makes the entries below meaningful as a baseline rather than a moving target.
 
 - `examples/shirado2017` now has both arms, including the paper's actual contribution: 3
   agents x 3 noise levels x 3 placements, plus the deterministic-agent control. The agents run as
-  `server/bots.mjs`; all their behaviour is `botChoice` and `placeBots` in `design.mjs`, which
+  `server/bots.mjs`; all their behavior is `botChoice` and `placeBots` in `design.mjs`, which
   imports nothing and is unit-tested.
 
   Two arrangements in it are the general lesson rather than the example's detail. The condition
@@ -97,9 +106,9 @@ makes the entries below meaningful as a baseline rather than a moving target.
 - `npm run bench -- --repeats N`: N runs per cell against a fresh server, reporting the median of
   the per-run p50s with the observed range. What `SPIKE-REPORT.md` §5–6 asks for before a figure is
   published, and what every figure so far had lacked (`ISSUES.md` O1).
-- `npm run bench -- --payload B`: pads each neighbour view, so the bench measures degree × view
+- `npm run bench -- --payload B`: pads each neighbor view, so the bench measures degree × view
   size rather than degree alone. That product is what a participant's uplink carries and what
-  `maxNeighbourhoodBytes` was added to guard on a guess.
+  `maxNeighborhoodBytes` was added to guard on a guess.
 - The bench reports first-channel latency per run and the slowest across repeats, including
   for runs that did not complete: at n=200 most do not (`docs/PLATFORM-NOTES.md` §16), and those
   are exactly the runs in which the registration check misfires. The measurement behind
@@ -133,9 +142,9 @@ makes the entries below meaningful as a baseline rather than a moving target.
   takes a name (`ring`, `star`, `wheel`, `pairs`, `ladder`, `complete`) or the same generator
   function a study hands `withNetwork`, so a study can verify the graph it actually runs,
   including a `fromEdgeList` one, rather than a ring standing in for it. What a run can establish
-  is now computed from the realised graph: a participant adjacent to everyone (a star's hub) or to
+  is now computed from the realized graph: a participant adjacent to everyone (a star's hub) or to
   nobody (a disconnected graph) is counted and excused instead of failing the run, and a graph
-  where no participant has a non-neighbour is refused. `src/verify/topologies.ts` holds that
+  where no participant has a non-neighbor is refused. `src/verify/topologies.ts` holds that
   accounting, pure over `(n, edges)` and unit-tested across all fourteen generators.
 
 ### Documentation
@@ -147,7 +156,7 @@ makes the entries below meaningful as a baseline rather than a moving target.
   deployment is genuinely undocumented), [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md),
   [`docs/TESTING.md`](docs/TESTING.md), [`docs/GLOSSARY.md`](docs/GLOSSARY.md), and an index.
 - The README is a front door again: the API reference moved to `docs/API.md`.
-- `LICENSE` added. The package claimed MIT in metadata and shipped no licence text.
+- `LICENSE` added. The package claimed MIT in metadata and shipped no license text.
 - Two CI checks: `check:links` (relative paths and section anchors) and `check:docs` (every
   documented `empirica-networks` import, resolved against the built package).
 
@@ -159,17 +168,17 @@ makes the entries below meaningful as a baseline rather than a moving target.
   subscription saw nothing published before it opened. If the first publish had won that race, arm
   3 would read `delivered: 0` and the run would fail for a reason unrelated to the guarantee.
   `docs/TESTING.md` §3 had asked for this from "every leak test" and `withScenario`'s own docstring
-  says the same; this file was the one not honouring it. Argued from the code, never observed:
+  says the same; this file was the one not honoring it. Argued from the code, never observed:
   measured 0/8 before and 0/8 after at 7.1s per repetition, so the measurement shows the fix is
   free rather than that the race was firing. It also makes every arm strictly stronger: arm 1 now
   scans frames from before the subscription, where previously a leak that early was invisible.
 
-- `verify --topology` was reported as honoured and silently ignored (`ISSUES.md` O16).
+- `verify --topology` was reported as honored and silently ignored (`ISSUES.md` O16).
   It was parsed with a cast, so every string typechecked and none took effect:
   `verify --topology=star` ran a ring and printed `topology: star of N … PASS`. A false
   attestation from the one command a reviewer runs to decide whether the central claim holds. The
   name is now resolved and an unknown one refused. In the same class and fixed with it, arm 1
-  printed a numerator with no denominator (`0` reads identically whether four non-neighbour pairs
+  printed a numerator with no denominator (`0` reads identically whether four non-neighbor pairs
   were examined and none leaked or the graph was complete and none existed), so it now prints
   `0/4 pairs`, and a run whose denominator is zero fails rather than passing.
 
@@ -232,9 +241,9 @@ makes the entries below meaningful as a baseline rather than a moving target.
   the misreport the monitor's `gone` state exists to prevent.
 
   Found by writing the test the issue asked for: the served script was the one surface with no
-  behavioural coverage. Witness: `test/browser/monitor_page.ts`, real Chromium against the real
+  behavioral coverage. Witness: `test/browser/monitor_page.ts`, real Chromium against the real
   `serveMonitor` with only the snapshot source synthetic (no CLI, no server, ~4 s). It also pins
-  the scrubber's index arithmetic, the colour scale's stability under changing counts, and the
+  the scrubber's index arithmetic, the color scale's stability under changing counts, and the
   fact that a lost stream deliberately does not clear the graph while `gone` does.
   `npm run test:browser` now discovers `test/browser/` and takes a substring filter.
 
@@ -245,7 +254,7 @@ makes the entries below meaningful as a baseline rather than a moving target.
   lifecycle and finding this one ran at no point at all.
 
   `withNetwork` now detects the consequence (channels created by `addScopes`, none ever
-  materialising as modelled scopes) and warns with the diff after 5 s. It cannot check the cause:
+  materialising as modeled scopes) and warns with the diff after 5 s. It cannot check the cause:
   it holds the collector, not the kind map. `assertKindsRegistered` remains as the eager, opt-in
   check for `server/src/index.js`, which is the one place that does hold the map. Witness:
   `test/e2e/kind_registration.test.ts`.
@@ -288,7 +297,7 @@ makes the entries below meaningful as a baseline rather than a moving target.
 
 ### Measured
 
-- `maxNeighbourhoodBytes` is no longer a guess (`ISSUES.md` O1, PLATFORM-NOTES §21). A design
+- `maxNeighborhoodBytes` is no longer a guess (`ISSUES.md` O1, PLATFORM-NOTES §21). A design
   sitting just under the 64 KiB default (53 KiB per participant per publish, n=50 d=49) delivers
   at p50 67 ms against 10–25 ms for a small-view design, and drops nothing. A slope, not a
   cliff. Payload also costs more at higher degree, confirming that degree × view size is the

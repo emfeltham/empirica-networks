@@ -23,7 +23,7 @@ One thing to decide before the run rather than after, so it is stated first:
 | What | Where it comes from | Durable? | Contains |
 |---|---|---|---|
 | The Tajriba store | `.empirica/local/tajriba.json`, always | Yes | Every scope and attribute, with change timestamps. Includes each participant's private state |
-| The realised network | batch scope, always | Yes | `network:<gameID>`, the edge list as it now stands |
+| The realized network | batch scope, always | Yes | `network:<gameID>`, the edge list as it now stands |
 | The seed | batch scope, always | Yes | `networkSeed:<gameID>`, enough to re-derive the topology |
 | The edge history | batch scope, always | Yes | `networkHistory:<gameID>`, every tie change, including the initial graph as a `start` event |
 | The run log | `log: { file }`, opt-in | Yes | Whatever your listeners wrote, as the study happened |
@@ -33,7 +33,7 @@ One thing to decide before the run rather than after, so it is stated first:
 Two of these points need stating plainly.
 
 The store holds private state. Everything a participant wrote to their own channel is in
-`tajriba.json`, prefixed `state:`. It was neighbour-limited in transit; it is not anonymised at
+`tajriba.json`, prefixed `state:`. It was neighbor-limited in transit; it is not anonymised at
 rest. Treat the store as identifiable data.
 
 `onGameEnded` is not a reliable place to write files. It fires only when a game ends
@@ -113,7 +113,7 @@ Derived by replaying the log rather than stored, so it cannot drift from the eve
 during analysis, because the log is written by a live server across a run that may include a
 restart.
 
-### `viewRows()` → one row per viewer per neighbour per delivery
+### `viewRows()` → one row per viewer per neighbor per delivery
 
 | Column | Type | Notes |
 |---|---|---|
@@ -121,12 +121,12 @@ restart.
 | `viewer` | string | Player id of the participant this was delivered to |
 | `seq` | number | Publish counter for the game, the same value the client saw as `_seq` |
 | `t` | number | ms |
-| `neighbour_index` | number | Position within the view. Stable, and defined even for a projection with no `id` |
-| `neighbour_id` | string | The projected `id` when there is one, empty otherwise |
+| `neighbor_index` | number | Position within the view. Stable, and defined even for a projection with no `id` |
+| `neighbor_id` | string | The projected `id` when there is one, empty otherwise |
 | …your fields | string \| number | One column per field `project()` returned |
 
-The table is long, not wide (one row per neighbour rather than one row per view with the neighbours
-packed into a cell), so the table joins directly against `edges.csv` on `(viewer, neighbour_id, t)`.
+The table is long, not wide (one row per neighbor rather than one row per view with the neighbors
+packed into a cell), so the table joins directly against `edges.csv` on `(viewer, neighbor_id, t)`.
 
 A record is written per delivery, not per tick: views are republished only when they change
 (the byte-identical check in `publish`), so the log says what arrived and when, rather than
@@ -183,7 +183,7 @@ const seed  = readSeed(game);      // batch: networkSeed:<gameID>
 Offline, the same two values are attributes on the batch scope in `tajriba.json`, keyed
 `network:<gameID>` and `networkSeed:<gameID>`.
 
-The realised edge list is recorded, not just the seed, so the graph a run actually used is read
+The realized edge list is recorded, not just the seed, so the graph a run actually used is read
 back rather than re-derived and hoped to match. To re-derive anyway (to check, or to generate a
 matched graph for a new condition), `makeRng(seed)` and the generator reproduce it exactly.
 Pinned by `test/e2e/reproducibility.test.ts`.
@@ -213,11 +213,11 @@ graphology ecosystem on a live study.
 
 R and Python: go through the CSVs. `edges.csv` is an edge list with timestamps, which
 `igraph`, `networkx` and `tidygraph` all read directly; `snapshots.csv` gives you a sequence of
-graphs for a dynamic network; `views.csv` joins to `edges.csv` on `(viewer, neighbour_id, t)`.
+graphs for a dynamic network; `views.csv` joins to `edges.csv` on `(viewer, neighbor_id, t)`.
 
 > This section has not yet been walked end to end. No analysis of a real dataset has been done in either language
 > from this package's output: the schemas above are read off the code, and the join keys are
-> stated by design rather than exercised. Most network researchers analyse in R or Python, so
+> stated by design rather than exercised. Most network researchers analyze in R or Python, so
 > this is the section most likely to be wrong in a way only doing it will reveal.
 
 ## 6. Recovery scripts
@@ -248,6 +248,6 @@ A minimum that makes a run re-analysable by someone else, in order:
    store.
 4. The derived CSVs. Convenience: regenerable from 1–3.
 5. The package version and the `@empirica/core` version. The row builders are pure and stable,
-   but the study's behaviour is not a property of the CSVs.
+   but the study's behavior is not a property of the CSVs.
 
 Treat 1–3 as identifiable participant data, because they are.

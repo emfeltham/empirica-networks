@@ -8,7 +8,7 @@
  * The mechanism rests on a property of the architecture rather than anything
  * new: Tajriba cannot unlink (`LinkInput`: "UNLINKING NOT CURRENTLY SUPPORTED"),
  * but it does not need to. The link grants a persistent private CHANNEL; the
- * server decides what goes in it. Dropping a tie just means that neighbour is
+ * server decides what goes in it. Dropping a tie just means that neighbor is
  * absent from the next view written there. So every assertion here is about what
  * participants can SEE, never about links.
  *
@@ -82,7 +82,7 @@ function makeListeners(capture: (game: any) => void) {
     }
     withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id }),
+      project: (neighbor: any) => ({ id: neighbor.id }),
     });
   };
 }
@@ -101,7 +101,7 @@ async function command(
   });
 }
 
-/** Boot a game and wait until everyone holds a neighbourhood. */
+/** Boot a game and wait until everyone holds a neighborhood. */
 async function running(
   admin: AdminHandle,
   participants: { mode: unknown }[]
@@ -164,13 +164,13 @@ test("adding a tie makes two strangers visible to each other", async () => {
       const net = network(gameRef);
       const byID = new Map(participants.map((p) => [modeOf(p).player.getValue()!.id, p]));
 
-      // On a ring of 4 everyone has exactly one non-neighbour.
+      // On a ring of 4 everyone has exactly one non-neighbor.
       const someone = participants[0]!;
       const meID = modeOf(someone).player.getValue()!.id;
       const strangerID = [...byID.keys()].find(
         (id) => id !== meID && !seen(someone).includes(id)
       )!;
-      assert.ok(strangerID, "a ring of 4 has a non-neighbour");
+      assert.ok(strangerID, "a ring of 4 has a non-neighbor");
       const stranger = byID.get(strangerID)!;
 
       await command(admin, gameRef.id, { op: "add", a: meID, b: strangerID });
@@ -209,14 +209,14 @@ test("the history log records every mutation, and the snapshot stays current", a
 
       // Must be someone `a` is NOT already tied to. On a ring a-b-c-d-a,
       // dropping (a,b) leaves a still adjacent to d — so "any id that is not a
-      // or b" picks an existing neighbour half the time, addEdge correctly
+      // or b" picks an existing neighbor half the time, addEdge correctly
       // returns false, and nothing is logged. That was a bug in this test, and
       // it presented as a 3-in-8 flake because it depended on participant order.
-      const aNeighbours = new Set(net.neighbors(a));
+      const aNeighbors = new Set(net.neighbors(a));
       const stranger = participants
         .map((p) => modeOf(p).player.getValue()!.id)
-        .find((id) => id !== a && id !== b && !aNeighbours.has(id))!;
-      assert.ok(stranger, "a ring of 4 minus one tie leaves a non-neighbour to add");
+        .find((id) => id !== a && id !== b && !aNeighbors.has(id))!;
+      assert.ok(stranger, "a ring of 4 minus one tie leaves a non-neighbor to add");
       await command(admin, gameRef.id, { op: "add", a, b: stranger }, 1);
       await waitFor(() => net.history().length === 3, { label: "the add was logged" });
 
@@ -290,10 +290,10 @@ test("the exported history describes what actually happened in a real run", asyn
       await command(admin, gameRef.id, { op: "remove", a, b });
       await waitFor(() => net.history().length === 2, { label: "the drop was logged" });
 
-      const aNeighbours = new Set(net.neighbors(a));
+      const aNeighbors = new Set(net.neighbors(a));
       const stranger = participants
         .map((p) => modeOf(p).player.getValue()!.id)
-        .find((id) => id !== a && id !== b && !aNeighbours.has(id))!;
+        .find((id) => id !== a && id !== b && !aNeighbors.has(id))!;
       await command(admin, gameRef.id, { op: "add", a, b: stranger }, 1);
       await waitFor(() => net.history().length === 3, { label: "the add was logged" });
 

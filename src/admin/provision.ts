@@ -141,7 +141,7 @@ export interface ProvisionResult {
  * Worth a message rather than a silent skip because the consequence is not
  * proportional to the cause: `publish` refuses to send a partial view, so ONE
  * unprovisioned player leaves EVERY participant in the game with no
- * neighbourhood. On the client that is indistinguishable from still loading,
+ * neighborhood. On the client that is indistinguishable from still loading,
  * which is this package's characteristic failure mode and the reason for the
  * `_seq` self-check in the mode.
  */
@@ -150,7 +150,7 @@ export function pendingChannelsMessage(pending: string[], playerCount: number): 
   return (
     `empirica-networks: ${pending.length} of ${playerCount} players have no participantID ` +
     `and were given no private channel: ${ids}.\n` +
-    `  Until they connect, NO participant in this game receives a neighbourhood — a partial\n` +
+    `  Until they connect, NO participant in this game receives a neighborhood — a partial\n` +
     `  publish would leave the rest stale with no signal, so publishing waits for everyone.\n` +
     `  Provisioning is retried when a participant connects. If these players never connect,\n` +
     `  the game will stay blank; end the game or restart the batch.`
@@ -175,7 +175,7 @@ export function lateProvisionMessage(playerID: string, gameID: string): string {
   return (
     `empirica-networks: player "${playerID}" in game ${gameID} connected with NO private\n` +
     `  channel and was provisioned on the spot. The game is fine — this is the repair path\n` +
-    `  working, and every participant's neighbourhood now publishes.\n` +
+    `  working, and every participant's neighborhood now publishes.\n` +
     `  It is reported because it is EVIDENCE, not a fault: ISSUES.md O4 is open on whether\n` +
     `  the platform can produce this state at all, and it has never been observed. Please\n` +
     `  record the @empirica/core version, whether the server had just restarted, and\n` +

@@ -2,7 +2,7 @@
  * The server->one-participant private write path, client side.
  *
  * `tell()` is the SECOND path from server to client, added in M5 because
- * `project()` runs only over a viewer's current neighbours and therefore cannot
+ * `project()` runs only over a viewer's current neighbors and therefore cannot
  * express "show this subject one fact about someone they are not connected to" —
  * which is what a rewiring offer is made of.
  *
@@ -86,7 +86,7 @@ test("told, state and the projection coexist on one channel without collision", 
 test("told values are visible before the first publish", () => {
   // Load-bearing for Rand 2011's rewiring stage, where the offer IS the
   // stimulus: if a told value only resolved after a projection had arrived, a
-  // participant with no neighbours left would never see their offer.
+  // participant with no neighbors left would never see their offer.
   const h = provisionedChannel();
   h.changes.next(attrChange("chan-1", toldKey("offer"), { with: "player-9" }, true));
 

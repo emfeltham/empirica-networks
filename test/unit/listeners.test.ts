@@ -33,7 +33,7 @@ const unique = (cb: unknown) => async (ctx: unknown, props: unknown) => {
   await (cb as (a: unknown, b: unknown) => unknown)(ctx, props);
 };
 
-/** Mirrors `ListenersCollector`'s registration behaviour, and nothing else. */
+/** Mirrors `ListenersCollector`'s registration behavior, and nothing else. */
 class FakeCollector {
   attributeListeners: ListenerEntry[] = [];
 
@@ -86,7 +86,7 @@ test("calibrate reads the wrapper's shape off a probe rather than assuming it", 
   assert.deepEqual(calibrate(new FakeCollector()), CALIBRATION);
 });
 
-test("calibrate goes silent on anything it does not recognise", () => {
+test("calibrate goes silent on anything it does not recognize", () => {
   // Each of these switches the detector OFF. Reading an @internal field and
   // then guessing at an unfamiliar shape is how a detector starts accusing
   // healthy code.

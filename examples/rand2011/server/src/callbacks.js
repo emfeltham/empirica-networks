@@ -88,7 +88,7 @@ const conditionOf = (game) => {
 /**
  * A per-game rng for the rewiring and continuation draws.
  *
- * Deliberately NOT `Math.random`. Both draws are part of the realised design, so
+ * Deliberately NOT `Math.random`. Both draws are part of the realized design, so
  * they belong to the same reproducible record as the topology — a session whose
  * rewiring sequence came from an unseeded generator is reconstructible in
  * structure and not in sequence, and for this design the sequence is the
@@ -145,7 +145,7 @@ Empirica.onGameStart(({ game }) => {
  *
  *   action  — PRIVATE. Written by the participant to their own channel with
  *             `useNetworkState()`, and it reaches anyone else only through
- *             `project()` below — so only their neighbours. Had this been
+ *             `project()` below — so only their neighbors. Had this been
  *             `player.set("action", …)` it would be broadcast to every
  *             participant, the experiment would run identically, the screens
  *             would look right, and the network would have stopped being the
@@ -155,38 +155,38 @@ Empirica.onGameStart(({ game }) => {
  */
 export const net = withNetwork(Empirica, {
   // "the social network is initialized with 20% of possible links being formed
-  // at random". Seeded, so the realised graph is recoverable from the seed the
+  // at random". Seeded, so the realized graph is recoverable from the seed the
   // package records on the batch scope.
   topology: ({ playerCount, rng }) => randomGraph(playerCount, INITIAL_DENSITY, rng),
 
   /**
-   * What one participant learns about one neighbour.
+   * What one participant learns about one neighbor.
    *
    * "At the end of each turn, subjects are informed about their neighbors'
    * choices and about their own payoff." And, for the next round's decision,
    * "subjects are reminded of their number of neighbors and the neighbors'
    * previous decisions" — which is what a persisted `action` shows: a
-   * neighbour's most recent choice, standing until they change it.
+   * neighbor's most recent choice, standing until they change it.
    *
    * THE FIELD THAT IS NOT HERE MATTERS AS MUCH AS THE ONE THAT IS. Adding
-   * `wealth: ctx.stateOf(neighbour).get("wealth")` would not be a bug in the
+   * `wealth: ctx.stateOf(neighbor).get("wealth")` would not be a bug in the
    * abstract — it would silently convert this into the *visible* condition of a
    * DIFFERENT published experiment (Nishi, Shirado, Rand & Christakis 2015,
    * Nature 526:426-429), whose whole finding is that this one field changes
-   * behaviour and raises inequality. `test/e2e/rand2011.test.ts` asserts its
+   * behavior and raises inequality. `test/e2e/rand2011.test.ts` asserts its
    * absence at the wire for exactly that reason.
    */
-  project: (neighbour, viewer, ctx) => ({
-    id: neighbour.id,
-    action: ctx.stateOf(neighbour).get("action"),
+  project: (neighbor, viewer, ctx) => ({
+    id: neighbor.id,
+    action: ctx.stateOf(neighbor).get("action"),
   }),
 
-  /** Republishes: a neighbour's choice is what the projection above carries. */
+  /** Republishes: a neighbor's choice is what the projection above carries. */
   watch: ["action"],
 
   /**
    * Read by the server, never projected. `onStageEnded("rewire")` reads each
-   * decider's answers with `net.stateOf()`; no neighbour ever sees them.
+   * decider's answers with `net.stateOf()`; no neighbor ever sees them.
    *
    * A key omitted here is not a quiet loss of a feature — `stateOf()` throws.
    * That is the fix for a real bug in this file: `rewireAnswers` was undeclared,
@@ -315,10 +315,10 @@ function scoreRound(stage) {
   const actionOf = new Map([...chose].map(([id, action]) => [id, action ?? DEFECT]));
 
   const rows = snapshot.nodes.map((node) => {
-    const neighbours = net_.neighbors(node.playerID);
+    const neighbors = net_.neighbors(node.playerID);
     const payoff = roundPayoff(
       actionOf.get(node.playerID),
-      neighbours.map((id) => actionOf.get(id) ?? DEFECT)
+      neighbors.map((id) => actionOf.get(id) ?? DEFECT)
     );
 
     /**
@@ -329,7 +329,7 @@ function scoreRound(stage) {
      * making this the *visible* condition of Nishi 2015 while still looking
      * exactly like Rand 2011 on screen. So the record of account lives on the
      * BATCH scope, the one durable scope measured NOT to be delivered to
-     * participants (§4c), which is where the package keeps the realised topology
+     * participants (§4c), which is where the package keeps the realized topology
      * for the same reason.
      *
      * Participants still learn their own score — "subjects are informed ...
@@ -350,7 +350,7 @@ function scoreRound(stage) {
     batch.set(wealthKey, wealth);
 
     // "At the end of each turn, subjects are informed ... about their own
-    // payoff." Privately, because a payoff reveals how many of your neighbours
+    // payoff." Privately, because a payoff reveals how many of your neighbors
     // cooperated and how many you have — and on the player scope that would be
     // every participant's wealth, broadcast, which is Nishi 2015's manipulation
     // rather than this one.
@@ -361,7 +361,7 @@ function scoreRound(stage) {
       topologyIndex: node.index,
       action: actionOf.get(node.playerID),
       submitted: chose.get(node.playerID) !== undefined,
-      degree: neighbours.length,
+      degree: neighbors.length,
       payoff,
       wealth,
     };
@@ -434,8 +434,8 @@ Empirica.onStageStart(({ stage }) => {
      *
      * "before choosing to break or form a connection, the deciding subject is
      * informed of the other's action in the preceding round" — and for a FORM
-     * offer the other party is, by definition, not a neighbour. `project()` runs
-     * over current neighbours only, so it structurally cannot carry this, and
+     * offer the other party is, by definition, not a neighbor. `project()` runs
+     * over current neighbors only, so it structurally cannot carry this, and
      * every alternative route is a broadcast: the player and game scopes both
      * reach every participant, and provisionally adding the tie would tell the
      * other party they had been named.
@@ -509,7 +509,7 @@ function applyRewireRound(stage) {
   }
 
   // "the probability that another round will occur is 0.8". Drawn from the
-  // seeded rng, so the realised session length is part of the reproducible
+  // seeded rng, so the realized session length is part of the reproducible
   // record rather than an unrecoverable accident.
   if (roundNumber < MAX_ROUNDS && anotherRound(rngFor(game))) {
     addRound(game, roundNumber + 1);

@@ -137,7 +137,7 @@ test("adjacency: symmetric, deduplicated, sorted, no self-loops", () => {
 });
 
 test("adjacency: an out-of-range edge throws instead of being ignored", () => {
-  // Silently dropping it would mean a participant is missing a neighbour with
+  // Silently dropping it would mean a participant is missing a neighbor with
   // nothing to indicate it.
   assert.throws(() => adjacency(3, [[0, 3]]), /outside \[0, 3\)/);
   assert.throws(() => adjacency(3, [[-1, 0]]), /outside \[0, 3\)/);
@@ -163,7 +163,7 @@ test("degree summaries", () => {
 });
 
 test("the same seed reproduces the exact graph", () => {
-  // The point of seeding: a run's realised network is recoverable from the seed
+  // The point of seeding: a run's realized network is recoverable from the seed
   // recorded on its game scope. Without this, the independent variable of a
   // network experiment is unrecoverable from stored data.
   const seed = hashSeed("game-abc");
@@ -249,7 +249,7 @@ test("wheel: hub degree n-1, every rim node degree 3", () => {
   const d = degrees(n, edges).sort((a, b) => a - b);
 
   assert.equal(d[n - 1], n - 1, "hub");
-  assert.deepEqual(d.slice(0, n - 1), Array(n - 1).fill(3), "two rim neighbours plus the hub");
+  assert.deepEqual(d.slice(0, n - 1), Array(n - 1).fill(3), "two rim neighbors plus the hub");
   assert.ok(isConnected(n, edges));
 });
 
@@ -261,13 +261,13 @@ test("grid: interior degree 4, corners 2 — position confounds degree", () => {
     return acc;
   }, {});
 
-  assert.deepEqual(counted, { 2: 4, 3: 4, 4: 1 }, "4 corners, 4 edges, 1 centre");
+  assert.deepEqual(counted, { 2: 4, 3: 4, 4: 1 }, "4 corners, 4 edges, 1 center");
   assert.ok(isConnected(9, edges));
 });
 
 test("grid periodic: a torus, so degree is uniform and position does not", () => {
   // The whole reason the flag exists: on a plain grid, where you sit determines
-  // how many neighbours you have, which confounds any treatment that uses
+  // how many neighbors you have, which confounds any treatment that uses
   // position. On a torus it cannot.
   const edges = grid(4, 4, { periodic: true });
   assert.deepEqual(degrees(16, edges), Array(16).fill(4), "every node has exactly 4");
@@ -372,7 +372,7 @@ test("geometricRandom rejects a radius that just means complete(n)", () => {
   assert.throws(() => geometricRandom(10, 2, { rng: makeRng(1) }), /complete\(n\)/);
 });
 
-test("fromEdgeList normalises: self-loops dropped, duplicates collapsed, order canonical", () => {
+test("fromEdgeList normalizes: self-loops dropped, duplicates collapsed, order canonical", () => {
   const raw: [number, number][] = [
     [2, 1],
     [1, 2],

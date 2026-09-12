@@ -8,8 +8,8 @@
  *
  * Those are different code paths, and the difference matters for this package:
  * views are ephemeral and republished on ParticipantConnect, so a reconnection
- * the server never realised was a reconnection is exactly the case where a
- * participant could come back to a blank neighbourhood.
+ * the server never realized was a reconnection is exactly the case where a
+ * participant could come back to a blank neighborhood.
  *
  * Reaching the underlying socket through `@empirica/tajriba` means depending on
  * its internals. Interposing a relay does not: point the participant at the

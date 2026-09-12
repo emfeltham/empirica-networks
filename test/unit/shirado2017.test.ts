@@ -35,18 +35,18 @@ import {
 import { edgeRows, parseNdjson, toCSV } from "../../src/admin/export.js";
 import type { EdgeEvent } from "../../src/shared/keys.js";
 
-/** A colour lookup from an array, with `undefined` for "has not chosen". */
+/** A color lookup from an array, with `undefined` for "has not chosen". */
 const from = (colors: Array<string | undefined>) => (i: number) => colors[i];
 
 test("the paper's parameters are what the paper says", () => {
-  assert.deepEqual(COLORS, ["green", "orange", "purple"], "three colours, named in the paper");
+  assert.deepEqual(COLORS, ["green", "orange", "purple"], "three colors, named in the paper");
   assert.equal(COLORS.length, 3, "the chromatic number of the graphs used");
   assert.equal(NODES, 20, "networks of 20 nodes");
   assert.equal(ATTACHMENT, 2, "new nodes each with two links");
   assert.equal(TIME_LIMIT_SECONDS, 300, "5 minutes");
 });
 
-test("conflictEdges: only same-coloured pairs, and only when both have chosen", () => {
+test("conflictEdges: only same-colored pairs, and only when both have chosen", () => {
   const edges = [
     [0, 1],
     [1, 2],
@@ -69,7 +69,7 @@ test("conflictEdges: only same-coloured pairs, and only when both have chosen", 
 });
 
 test("conflictCount counts EDGES, not nodes", () => {
-  // A star whose centre and all three leaves are green: 3 conflicting edges, 4
+  // A star whose center and all three leaves are green: 3 conflicting edges, 4
   // conflicted people. Counting nodes would report 4 and make the cost function
   // disagree with the paper's, which is the number of conflicts.
   const star = [
@@ -89,7 +89,7 @@ test("isSolved requires zero conflicts AND everybody having chosen", () => {
   assert.equal(
     isSolved(3, path3, from(["green", "orange", "green"])),
     true,
-    "a proper colouring is solved"
+    "a proper coloring is solved"
   );
   assert.equal(
     isSolved(3, path3, from(["green", "green", "orange"])),
@@ -97,7 +97,7 @@ test("isSolved requires zero conflicts AND everybody having chosen", () => {
     "a conflict is not solved"
   );
 
-  // THE one that matters. Zero conflicts among a partly-coloured network is not a
+  // THE one that matters. Zero conflicts among a partly-colored network is not a
   // solution: accepting it would end the session early and record a time to
   // solution for a problem nobody solved.
   assert.equal(
@@ -128,16 +128,16 @@ test("localConflicts: what a participant can work out for themselves", () => {
 test("conflictFreeColors: derived only from what the participant can already see", () => {
   assert.deepEqual(conflictFreeColors(["green"]), ["orange", "purple"]);
   assert.deepEqual(conflictFreeColors(["green", "orange"]), ["purple"]);
-  // The locally-unresolvable state: every colour is taken by a neighbour, so this
+  // The locally-unresolvable state: every color is taken by a neighbor, so this
   // participant cannot fix their own conflict and somebody else must move first.
   // The paper marks exactly this case in Fig. 1a, and an empty list is the honest
   // answer rather than a fallback suggestion.
   assert.deepEqual(conflictFreeColors(["green", "orange", "purple"]), []);
-  assert.deepEqual(conflictFreeColors([]), COLORS, "no neighbours: anything goes");
+  assert.deepEqual(conflictFreeColors([]), COLORS, "no neighbors: anything goes");
   assert.deepEqual(
     conflictFreeColors([undefined, "green"]),
     ["orange", "purple"],
-    "a neighbour who has not chosen blocks nothing"
+    "a neighbor who has not chosen blocks nothing"
   );
 });
 
@@ -182,7 +182,7 @@ test("changeRows: durations, not wall clocks, and the hidden cost function", () 
   assert.equal(rows[0].t_ms, 1200, "milliseconds since the stage started");
   assert.equal(rows[0].game_id, "game-1", "joins onto edges.csv");
   // The global conflict count, which participants never saw and which cannot be
-  // reconstructed from the colours alone without the graph at that instant.
+  // reconstructed from the colors alone without the graph at that instant.
   assert.equal(rows[0].conflicts_after, 3);
   assert.equal(rows[1].conflicts_after, 2);
 
@@ -411,12 +411,12 @@ test("fromLog: a session that DID solve recovers its solution time", () => {
 // ---------------------------------------------------------------- the agents
 //
 // The paper's contribution, and the part `ISSUES.md` O10 was about. These rules
-// are the whole behaviour of an agent: `server/bots.mjs` decides only WHEN to ask
+// are the whole behavior of an agent: `server/bots.mjs` decides only WHEN to ask
 // and what to do with the answer.
 
 test("the agent conditions are the paper's", () => {
   assert.equal(BOT_COUNT, 3, "three agents per session");
-  assert.deepEqual(NOISE_LEVELS, [0, 0.1, 0.3], "0%, 10%, 30% behavioural randomness");
+  assert.deepEqual(NOISE_LEVELS, [0, 0.1, 0.3], "0%, 10%, 30% behavioral randomness");
   assert.deepEqual([...PLACEMENTS].sort(), ["central", "peripheral", "random"]);
 });
 
@@ -427,43 +427,43 @@ test("botChoice with no noise: stay when content, move when conflicted", () => {
   // — the 0% condition has to actually be deterministic, since it is the control
   // the other two are read against.
   assert.equal(
-    botChoice({ ownColor: "green", neighbourColors: ["orange", "purple"], noise: 0, rng }),
+    botChoice({ ownColor: "green", neighborColors: ["orange", "purple"], noise: 0, rng }),
     "green"
   );
-  assert.equal(botChoice({ ownColor: "green", neighbourColors: [], noise: 0, rng }), "green");
+  assert.equal(botChoice({ ownColor: "green", neighborColors: [], noise: 0, rng }), "green");
 
   // Conflicted, with a way out: take it, and take one that is actually free.
   for (let i = 0; i < 20; i++) {
     const next = botChoice({
       ownColor: "green",
-      neighbourColors: ["green", "orange"],
+      neighborColors: ["green", "orange"],
       noise: 0,
       rng,
     });
-    assert.equal(next, "purple", "the only colour that conflicts with nobody");
+    assert.equal(next, "purple", "the only color that conflicts with nobody");
   }
 });
 
-test("botChoice with no noise: an agent with no colour yet picks one", () => {
-  // Otherwise an agent would sit uncoloured for the whole session and `isSolved`
+test("botChoice with no noise: an agent with no color yet picks one", () => {
+  // Otherwise an agent would sit uncolored for the whole session and `isSolved`
   // would never fire, because it requires that EVERY node has chosen.
   const rng = makeRng(3);
   for (let i = 0; i < 20; i++) {
-    const next = botChoice({ ownColor: undefined, neighbourColors: ["green"], noise: 0, rng });
-    assert.ok(COLORS.includes(next), `${next} is a colour`);
+    const next = botChoice({ ownColor: undefined, neighborColors: ["green"], noise: 0, rng });
+    assert.ok(COLORS.includes(next), `${next} is a color`);
   }
 });
 
 test("botChoice breaks a local deadlock rather than standing still", () => {
-  // Every colour is taken by a neighbour — the state the paper's Fig. 1a marks in
+  // Every color is taken by a neighbor — the state the paper's Fig. 1a marks in
   // dark red. Staying put is what a deadlock is made of, so the agent moves anyway,
-  // and it moves to a DIFFERENT colour: returning its own would be standing still
+  // and it moves to a DIFFERENT color: returning its own would be standing still
   // with extra steps.
   const rng = makeRng(5);
   for (let i = 0; i < 30; i++) {
     const next = botChoice({
       ownColor: "green",
-      neighbourColors: ["green", "orange", "purple"],
+      neighborColors: ["green", "orange", "purple"],
       noise: 0,
       rng,
     });
@@ -472,23 +472,23 @@ test("botChoice breaks a local deadlock rather than standing still", () => {
   }
 });
 
-test("botChoice never returns anything that is not a colour", () => {
+test("botChoice never returns anything that is not a color", () => {
   const rng = makeRng(11);
   for (const noise of [0, 0.1, 0.3, 1]) {
     for (const own of [undefined, ...COLORS]) {
       for (const nbrs of [[], ["green"], ["green", "orange"], COLORS, [undefined, "green"]]) {
         for (let i = 0; i < 10; i++) {
-          const next = botChoice({ ownColor: own, neighbourColors: nbrs, noise, rng });
-          assert.ok(COLORS.includes(next), `${JSON.stringify(next)} is not a colour`);
+          const next = botChoice({ ownColor: own, neighborColors: nbrs, noise, rng });
+          assert.ok(COLORS.includes(next), `${JSON.stringify(next)} is not a color`);
         }
       }
     }
   }
 });
 
-test("noise is the rate of the random branch, and the draw includes the current colour", () => {
+test("noise is the rate of the random branch, and the draw includes the current color", () => {
   // The documented resolution of the paper's one ambiguity, asserted so it cannot
-  // drift silently: the noisy draw is uniform over all three colours, so an eps of
+  // drift silently: the noisy draw is uniform over all three colors, so an eps of
   // 0.3 produces an OBSERVABLE change about 0.2 of the time. Any comparison with
   // the paper's numbers depends on which of the two conventions is in force.
   const rng = makeRng(17);
@@ -499,7 +499,7 @@ test("noise is the rate of the random branch, and the draw includes the current 
     // the noise branch and nothing else.
     const next = botChoice({
       ownColor: "green",
-      neighbourColors: ["orange", "purple"],
+      neighborColors: ["orange", "purple"],
       noise: 0.3,
       rng,
     });
@@ -516,7 +516,7 @@ test("noise 0 really is 0 and noise 1 really is 1", () => {
   const rng = makeRng(23);
   for (let i = 0; i < 2000; i++) {
     assert.equal(
-      botChoice({ ownColor: "green", neighbourColors: ["orange"], noise: 0, rng }),
+      botChoice({ ownColor: "green", neighborColors: ["orange"], noise: 0, rng }),
       "green",
       "an agent at 0% noise with no conflict never moves"
     );
@@ -525,7 +525,7 @@ test("noise 0 really is 0 and noise 1 really is 1", () => {
   // stays — which is the direct consequence of the uniform-over-three convention.
   let stayed = 0;
   for (let i = 0; i < 3000; i++) {
-    if (botChoice({ ownColor: "green", neighbourColors: ["green"], noise: 1, rng }) === "green") {
+    if (botChoice({ ownColor: "green", neighborColors: ["green"], noise: 1, rng }) === "green") {
       stayed++;
     }
   }
@@ -538,7 +538,7 @@ test("botChoice is reproducible from its rng, which is what makes the arm record
   const seq = (seed: number) => {
     const rng = makeRng(seed);
     return Array.from({ length: 50 }, () =>
-      botChoice({ ownColor: "green", neighbourColors: ["green", "orange"], noise: 0.3, rng })
+      botChoice({ ownColor: "green", neighborColors: ["green", "orange"], noise: 0.3, rng })
     );
   };
   assert.deepEqual(seq(99), seq(99));
@@ -576,12 +576,12 @@ test("placeBots puts the agents on hubs, on leaves, or anywhere — in the SAME 
       assert.deepEqual(
         [...deg].sort((a, b) => a - b),
         before,
-        `${placement}, seed ${seed}: the degree sequence changed, so this is not a relabelling`
+        `${placement}, seed ${seed}: the degree sequence changed, so this is not a relabeling`
       );
       assert.equal(placed.length, graph.length, "same number of ties");
       assert.ok(
         (placed as number[][]).every((edge) => edge[0] !== edge[1]),
-        "no self-loop was created by the relabelling"
+        "no self-loop was created by the relabeling"
       );
 
       const sorted = [...deg].sort((a, b) => b - a);
@@ -634,7 +634,7 @@ test("placeBots is a bijection over seats: everybody is somewhere, and once", ()
   // positions — a permutation bug would leave one participant isolated and one
   // doubled, and the graph would still look like a graph.
   for (let s = 0; s < n; s++) {
-    assert.ok(seatsUsed.has(s), `seat ${s} is on no tie after relabelling`);
+    assert.ok(seatsUsed.has(s), `seat ${s} is on no tie after relabeling`);
   }
 });
 

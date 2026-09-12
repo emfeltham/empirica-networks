@@ -5,11 +5,11 @@
  *
  * 1. A BOT IS A PARTICIPANT. It connects, is assigned, sets `introDone` — which
  *    is what lets a game reach its player count at all — is provisioned a private
- *    channel, reads its neighbours through `project()` and writes through its own
+ *    channel, reads its neighbors through `project()` and writes through its own
  *    channel. Everything a human does, through the same code, with no server-side
  *    shortcut. If that stopped being true, the bot conditions of an experiment
  *    would be measuring the difference in access rather than the difference in
- *    behaviour.
+ *    behavior.
  *
  * 2. PLACEMENT WORKS. `topology({ players })` names the seat each participant
  *    will occupy, so an experiment can put a bot on a hub or on a leaf. This is
@@ -57,7 +57,7 @@ const N = HUMANS + BOTS;
  * In a real study the runner is a separate process and this list is how the
  * server knows which players are bots — see `docs/BOTS.md`. Timestamp-shaped
  * because that is what Empirica's own client generates, so nothing about them
- * says "bot"; the server recognises them by holding the list, not by reading a
+ * says "bot"; the server recognizes them by holding the list, not by reading a
  * pattern, which is the only arrangement that survives claim 3 above.
  */
 const BOT_KEYS = ["1755000000001", "1755000000002"];
@@ -66,13 +66,13 @@ const isBot = (player: any) => BOT_KEYS.includes(player?.get("participantIdentif
 const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
 const stateOf = (p: { mode: unknown }) => networkStateOf(modeOf(p).nbhd.getValue());
 const idOf = (p: { mode: unknown }) => modeOf(p).player.getValue()!.id;
-const neighboursOf = (p: { mode: unknown }) =>
+const neighborsOf = (p: { mode: unknown }) =>
   (modeOf(p).nbhd.getValue()?.neighbors ?? []) as { id: string; mark?: string }[];
 
 test.beforeEach(() => resetChannels());
 
 /**
- * A star centred on the first bot, when there is one; otherwise on seat 0.
+ * A star centered on the first bot, when there is one; otherwise on seat 0.
  *
  * A star rather than something realistic because it makes placement decidable
  * from one number: the hub has degree n-1 and every leaf has degree 1, so
@@ -92,7 +92,7 @@ function starOnFirstBot() {
  * A policy that writes one distinctive value and then reports what it can see.
  *
  * `seen` records `id=mark` rather than bare ids, because the interesting claim is
- * that the bot receives its neighbours' VALUES through the projection. Recording
+ * that the bot receives its neighbors' VALUES through the projection. Recording
  * only ids gave a test whose second wait re-asserted its first one and passed
  * without waiting for anything — and, because it returned before the humans'
  * writes had landed, left a mutation in flight through teardown.
@@ -169,9 +169,9 @@ test("bots play a real game: they seat it, they are placed, and their writes pro
   });
   withNetwork(Empirica, {
     topology: starOnFirstBot(),
-    project: (neighbour: any, _viewer: any, ctx: any) => ({
-      id: neighbour.id,
-      mark: ctx.stateOf(neighbour).get("mark"),
+    project: (neighbor: any, _viewer: any, ctx: any) => ({
+      id: neighbor.id,
+      mark: ctx.stateOf(neighbor).get("mark"),
     }),
     watch: ["mark"],
   });
@@ -203,11 +203,11 @@ test("bots play a real game: they seat it, they are placed, and their writes pro
         // exactly one node — the bot.
         const hubBot = botPlayerIDs[0]!;
         for (const p of participants) {
-          const view = neighboursOf(p).map((nb) => nb.id);
+          const view = neighborsOf(p).map((nb) => nb.id);
           assert.deepEqual(
             view,
             [hubBot],
-            "each human is a leaf whose single neighbour is the bot we placed centrally"
+            "each human is a leaf whose single neighbor is the bot we placed centrally"
           );
         }
         await waitFor(() => (seen.get(BOT_KEYS[0]!) ?? []).length === N - 1, {
@@ -216,11 +216,11 @@ test("bots play a real game: they seat it, they are placed, and their writes pro
         });
 
         // --- claim 1: a bot reads and writes like a participant -----------
-        // The bot's write reached its neighbours through project(), which is the
+        // The bot's write reached its neighbors through project(), which is the
         // only path there is.
         await waitFor(
-          () => participants.every((p) => neighboursOf(p)[0]?.mark === `MARK-${BOT_KEYS[0]}`),
-          { label: "the bot's private write reached its neighbours", timeoutMs: 30_000 }
+          () => participants.every((p) => neighborsOf(p)[0]?.mark === `MARK-${BOT_KEYS[0]}`),
+          { label: "the bot's private write reached its neighbors", timeoutMs: 30_000 }
         );
 
         // And the reverse: a human's write reaches the bot, read through the

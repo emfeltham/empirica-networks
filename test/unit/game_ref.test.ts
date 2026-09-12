@@ -5,7 +5,7 @@
  * took the id. Writing `test/e2e/rand2011.test.ts` I passed an id to `network()`
  * and got `no network for game (no id)` — a correct message for a confusing
  * signature — and worked around it with an `{ id }` wrapper that happened to be
- * enough. Both forms are now accepted everywhere, normalised in one place.
+ * enough. Both forms are now accepted everywhere, normalized in one place.
  *
  * The interesting cases are the rejections, because `gameIDOf` sits in front of
  * every lookup: anything it lets through as a plausible id becomes a `Map.get`
@@ -31,7 +31,7 @@ test("both forms of a game reference resolve to the same id", () => {
 
 test("anything that is not an id resolves to undefined, not to a lookup key", () => {
   // Each of these would otherwise become `games.get(<nonsense>)` — `undefined`,
-  // indistinguishable from "that game has ended". The whole point of a normaliser
+  // indistinguishable from "that game has ended". The whole point of a normalizer
   // is that the one place it happens is the place that can refuse.
   assert.equal(gameIDOf(undefined), undefined);
   assert.equal(gameIDOf(""), undefined, "an empty string is not an id");
@@ -69,7 +69,7 @@ test("stateOf accepts either form, and the key check still runs first", () => {
 
   // And an unresolvable reference does not get to skip the key check — the guard
   // order asserted in `test/unit/state_of.test.ts` has to survive the new
-  // normalisation, or a typo starts being reported as a missing game again.
+  // normalization, or a typo starts being reported as a missing game again.
   assert.throws(() => net.stateOf({} as any, "p1", "typo"), /neither `watch` nor `read`/);
 });
 

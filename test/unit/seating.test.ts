@@ -89,7 +89,7 @@ test("an edge on indices ties the participants at those indices, and nobody else
   assert.deepEqual(viewOf.get("pc"), [], "seat 2 is on no tie");
 });
 
-test("relabelling the graph moves who is central, which is how placement works", async () => {
+test("relabeling the graph moves who is central, which is how placement works", async () => {
   // The documented technique, exercised end to end: generate a star, then permute
   // the labels so a chosen seat becomes the hub. This is what an experiment does
   // to place a bot centrally, and it is worth pinning because the alternative

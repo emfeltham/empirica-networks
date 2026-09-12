@@ -8,7 +8,7 @@ import { CLI_TOPOLOGIES, accountVacuity } from "./topologies.js";
 import { batchConfig, createBatch, gameInit, waitFor, withScenario } from "../harness/harness.js";
 
 /**
- * The leak check: does a participant ever receive a non-neighbour's state?
+ * The leak check: does a participant ever receive a non-neighbor's state?
  *
  * This is the module's central claim, so the check is built to be hard to fool:
  *
@@ -18,15 +18,15 @@ import { batchConfig, createBatch, gameInit, waitFor, withScenario } from "../ha
  *
  * 2. SENTINEL VALUES. Each participant is assigned a high-entropy token held
  *    SERVER-SIDE ONLY and injected into projections. Nothing writes it to a
- *    scope, so if it appears on a non-neighbour's wire it got there through the
+ *    scope, so if it appears on a non-neighbor's wire it got there through the
  *    projection path. Substring matching over raw frames also catches leaks via
  *    channels nobody thought to enumerate.
  *
  * 3. THREE ARMS, ALL REQUIRED:
- *      candidate    - non-neighbour sentinels must NOT appear
+ *      candidate    - non-neighbor sentinels must NOT appear
  *      control      - a player-scope value MUST appear on everyone's wire,
  *                     proving the detector can see a leak at all
- *      non-vacuity  - neighbour sentinels MUST appear, proving the projection
+ *      non-vacuity  - neighbor sentinels MUST appear, proving the projection
  *                     actually ran rather than sending nothing
  *    A "pass" with a silent control, or with nothing delivered, is a FAILED run.
  *    Most privacy tests are wrong in exactly one of those two ways.
@@ -35,17 +35,17 @@ import { batchConfig, createBatch, gameInit, waitFor, withScenario } from "../ha
  * name or by handing over the same generator function a study gives `withNetwork`
  * — the point being to verify the graph the study actually runs rather than a
  * stand-in for it. But the shape decides what the run can establish, and that is
- * a property of the REALISED GRAPH rather than of `n`:
+ * a property of the REALIZED GRAPH rather than of `n`:
  *
  *   - A participant adjacent to everybody (a star's hub, every node of a complete
- *     graph) has no non-neighbour, so arm 1 examines nothing for them.
+ *     graph) has no non-neighbor, so arm 1 examines nothing for them.
  *   - A participant adjacent to nobody (`empty()`, or a random generator below its
- *     percolation threshold) receives no neighbour sentinel, so arm 3 expects
+ *     percolation threshold) receives no neighbor sentinel, so arm 3 expects
  *     nothing from them.
  *
  * Neither is a fault — both are legitimate shapes — so they are counted and
  * reported rather than failed. What IS a failure is a run where NO participant had
- * a non-neighbour, or where nothing was expected to arrive at all: that is a
+ * a non-neighbor, or where nothing was expected to arrive at all: that is a
  * vacuous pass, which is the failure mode this file exists to make impossible.
  * `assessVacuity` is where that accounting lives, and it is pure over (n, edges)
  * so it can be tested without a server.
@@ -75,22 +75,22 @@ export interface LeakCheckResult {
   pass: boolean;
   n: number;
   topology: string;
-  /** Non-neighbour sentinels seen. Must be 0. */
+  /** Non-neighbor sentinels seen. Must be 0. */
   crossParticipantLeaks: number;
-  /** Neighbour sentinels seen vs expected. Guards against a vacuous pass. */
+  /** Neighbor sentinels seen vs expected. Guards against a vacuous pass. */
   delivered: number;
   expectedDeliveries: number;
   /** Player-scope control values observed across participants. Must be > 0. */
   controlLeaks: number;
   /**
-   * Non-neighbour pairs arm 1 actually examined — the DENOMINATOR under
+   * Non-neighbor pairs arm 1 actually examined — the DENOMINATOR under
    * `crossParticipantLeaks`.
    *
-   * Without it, "0 non-neighbour sentinels received" is unfalsifiable: it reads
+   * Without it, "0 non-neighbor sentinels received" is unfalsifiable: it reads
    * identically whether six pairs were checked and none leaked, or the graph was
    * complete and nothing was checked at all. A numerator printed without its
    * denominator is the same class of mistake as the `--topology` flag that was
-   * reported as honoured while being ignored.
+   * reported as honored while being ignored.
    */
   candidatePairs: number;
   /** Participants adjacent to everyone, who arm 1 cannot speak to. */
@@ -127,12 +127,12 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
   // Kept as a pre-boot refusal because it is the only one that costs nothing, and
   // `n >= 4` is conservative rather than derived: `star(3)` is in fact checkable.
   // The graph-derived rule is `accountVacuity`, which runs below once the shape is
-  // realised and catches everything this cannot — a complete graph at any n, a
+  // realized and catches everything this cannot — a complete graph at any n, a
   // wheel of 4, an empty graph.
   if (n < 4) {
     throw new Error(
       `leak check needs n >= 4: below that every shipped topology makes every ` +
-        `participant everyone's neighbour, so there is no non-neighbour to leak ` +
+        `participant everyone's neighbor, so there is no non-neighbor to leak ` +
         `and the check is vacuous`
     );
   }
@@ -161,7 +161,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
    * looking like a dead server.
    */
   let topologyError: unknown;
-  /** Times the topology was built. More than once means a realisation was replaced. */
+  /** Times the topology was built. More than once means a realization was replaced. */
   let builds = 0;
 
   const listeners = (_: any) => {
@@ -180,10 +180,10 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
         }
         return edges;
       },
-      project: (neighbour: any) => ({
-        id: neighbour.id,
+      project: (neighbor: any) => ({
+        id: neighbor.id,
         // The sentinel reaches a client ONLY through this projection.
-        secret: sentinelFor(neighbour.id),
+        secret: sentinelFor(neighbor.id),
       }),
     });
   };
@@ -194,7 +194,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
   let delivered = 0;
   let expectedDeliveries = 0;
   let controlLeaks = 0;
-  /** Filled from `accountVacuity` once the graph is realised. */
+  /** Filled from `accountVacuity` once the graph is realized. */
   let candidatePairs = 0;
   let saturated = 0;
   let isolated = 0;
@@ -225,7 +225,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
        *
        * It also makes every arm strictly stronger, which is the part worth being
        * explicit about, because "retain more frames" could be read as a
-       * loosening. Arm 1 scans MORE wire for non-neighbour sentinels, so a leak
+       * loosening. Arm 1 scans MORE wire for non-neighbor sentinels, so a leak
        * that happened before the subscription is now caught rather than missed;
        * arms 2 and 3 gain the same history. No arm is weakened by it.
        *
@@ -293,7 +293,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
       say("waiting for projections to be published");
       // `published`, NOT `neighbors.length > 0`. The mode draws that distinction
       // for exactly this reason (`src/player/mode.ts`): `neighbors` returns `[]`
-      // both for "not published yet" and for "genuinely has no neighbours", and an
+      // both for "not published yet" and for "genuinely has no neighbors", and an
       // isolated participant is a legitimate result — `erdosRenyi` below its
       // percolation threshold produces one, and `empty()` is a control condition.
       // Waiting on a non-empty list would hang until the timeout on any
@@ -310,7 +310,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
 
       // What this graph lets the run establish, decided once and from the graph
       // itself rather than from `n`. Saturated and isolated participants are
-      // counted and excused; a run where NO participant had a non-neighbour, or
+      // counted and excused; a run where NO participant had a non-neighbor, or
       // where nothing was expected to arrive, is a failure.
       const account = accountVacuity(playerIDs.length, edges);
       failures.push(...account.failures);
@@ -320,7 +320,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
       saturated = account.saturated.length;
       isolated = account.isolated.length;
       if (builds !== 1) {
-        notes.push(`the topology was built ${builds} times, so a realisation was replaced mid-run`);
+        notes.push(`the topology was built ${builds} times, so a realization was replaced mid-run`);
       }
 
       for (const [i, p] of participants.entries()) {
@@ -329,27 +329,27 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
         const idx = playerIDs.indexOf(playerID);
         const wire = wires[i]!.join("\n");
 
-        const neighbourIDs = (adj[idx] ?? []).map((j) => playerIDs[j]!);
-        const nonNeighbourIDs = playerIDs.filter(
-          (id) => id !== playerID && !neighbourIDs.includes(id)
+        const neighborIDs = (adj[idx] ?? []).map((j) => playerIDs[j]!);
+        const nonNeighborIDs = playerIDs.filter(
+          (id) => id !== playerID && !neighborIDs.includes(id)
         );
 
-        // ARM 1 — candidate: no non-neighbour sentinel may appear.
-        for (const otherID of nonNeighbourIDs) {
+        // ARM 1 — candidate: no non-neighbor sentinel may appear.
+        for (const otherID of nonNeighborIDs) {
           const secret = sentinels.get(otherID);
           if (secret && wire.includes(secret)) {
             crossParticipantLeaks++;
             failures.push(
-              `LEAK: participant ${i} received the sentinel of non-neighbour ${otherID}`
+              `LEAK: participant ${i} received the sentinel of non-neighbor ${otherID}`
             );
           }
         }
 
-        // ARM 3 — non-vacuity: neighbour sentinels must actually arrive. The
+        // ARM 3 — non-vacuity: neighbor sentinels must actually arrive. The
         // denominator comes from `account`, not from counting here, so the figure
         // the run is judged against is the one computed from the graph.
-        for (const neighbourID of neighbourIDs) {
-          const secret = sentinels.get(neighbourID);
+        for (const neighborID of neighborIDs) {
+          const secret = sentinels.get(neighborID);
           if (secret && wire.includes(secret)) delivered++;
         }
 
@@ -361,7 +361,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
 
       if (delivered < expectedDeliveries) {
         failures.push(
-          `NON-VACUITY FAILED: only ${delivered}/${expectedDeliveries} neighbour sentinels ` +
+          `NON-VACUITY FAILED: only ${delivered}/${expectedDeliveries} neighbor sentinels ` +
             `arrived. A clean result means nothing if the projection did not run.`
         );
       }
@@ -376,7 +376,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
       const degs = adj.map((a) => a.length);
       notes.push(
         `${topologyName} of ${n}: degree ${Math.min(...degs)}-${Math.max(...degs)}, ` +
-          `${account.candidatePairs} non-neighbour pairs examined`
+          `${account.candidatePairs} non-neighbor pairs examined`
       );
     }
   );
@@ -400,16 +400,16 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
 export function formatLeakResult(r: LeakCheckResult): string {
   const lines = [
     "",
-    `  empirica-networks verify — neighbour-limited visibility`,
+    `  empirica-networks verify — neighbor-limited visibility`,
     `  topology: ${r.topology} of ${r.n}`,
     "",
     // Every arm is printed as a figure against what it was measured over. Arm 1
-    // used to print a bare `0`, which reads identically whether six non-neighbour
+    // used to print a bare `0`, which reads identically whether six non-neighbor
     // pairs were examined and none leaked or the graph was complete and none
     // existed — the second being a check that proves nothing while announcing a
     // PASS. The denominator is what makes the line falsifiable.
-    `  non-neighbour sentinels received : ${r.crossParticipantLeaks}/${r.candidatePairs} pairs  (must be 0)`,
-    `  neighbour sentinels delivered    : ${r.delivered}/${r.expectedDeliveries}  (non-vacuity)`,
+    `  non-neighbor sentinels received : ${r.crossParticipantLeaks}/${r.candidatePairs} pairs  (must be 0)`,
+    `  neighbor sentinels delivered    : ${r.delivered}/${r.expectedDeliveries}  (non-vacuity)`,
     `  control values observed          : ${r.controlLeaks}  (must be > 0, proves detection works)`,
     "",
   ];

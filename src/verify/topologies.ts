@@ -13,8 +13,8 @@
  * THE ACCOUNTING. The leak check has three arms, and two of them have a
  * denominator that the graph fixes before the run starts:
  *
- *   arm 1 (candidate)   — how many non-neighbour pairs are there to examine?
- *   arm 3 (non-vacuity) — how many neighbour sentinels should arrive?
+ *   arm 1 (candidate)   — how many non-neighbor pairs are there to examine?
+ *   arm 3 (non-vacuity) — how many neighbor sentinels should arrive?
  *
  * Summed over participants those are `candidatePairs` and `expectedDeliveries`,
  * and they partition every ordered pair: `candidatePairs + expectedDeliveries`
@@ -25,8 +25,8 @@
  *
  * A participant can be excused from either arm without the run being spoiled:
  *
- *   - SATURATED (no non-neighbours) — a star's hub, every node of `complete`.
- *   - ISOLATED (no neighbours) — `empty()`, or `erdosRenyi`/`geometricRandom`/
+ *   - SATURATED (no non-neighbors) — a star's hub, every node of `complete`.
+ *   - ISOLATED (no neighbors) — `empty()`, or `erdosRenyi`/`geometricRandom`/
  *     `wattsStrogatz` below their percolation thresholds.
  *
  * Neither is a fault; both are legitimate shapes a study may run, so they are
@@ -48,13 +48,13 @@ import {
 
 export interface VacuityAccounting {
   n: number;
-  /** Indices with no non-neighbour. They contribute nothing to arm 1. */
+  /** Indices with no non-neighbor. They contribute nothing to arm 1. */
   saturated: number[];
-  /** Indices with no neighbour. They contribute nothing to arm 3. */
+  /** Indices with no neighbor. They contribute nothing to arm 3. */
   isolated: number[];
-  /** Ordered non-neighbour pairs arm 1 will examine. Zero means arm 1 is vacuous. */
+  /** Ordered non-neighbor pairs arm 1 will examine. Zero means arm 1 is vacuous. */
   candidatePairs: number;
-  /** Neighbour sentinel deliveries arm 3 expects. Zero means arm 3 is vacuous. */
+  /** Neighbor sentinel deliveries arm 3 expects. Zero means arm 3 is vacuous. */
   expectedDeliveries: number;
   /** Reasons this graph cannot establish the guarantee. Empty is the usual case. */
   failures: string[];
@@ -71,10 +71,10 @@ export function accountVacuity(n: number, edges: Edge[]): VacuityAccounting {
 
   for (let i = 0; i < n; i++) {
     const degree = adj[i]?.length ?? 0;
-    const nonNeighbours = n - 1 - degree;
-    candidatePairs += nonNeighbours;
+    const nonNeighbors = n - 1 - degree;
+    candidatePairs += nonNeighbors;
     expectedDeliveries += degree;
-    if (nonNeighbours === 0) saturated.push(i);
+    if (nonNeighbors === 0) saturated.push(i);
     if (degree === 0) isolated.push(i);
   }
 
@@ -87,12 +87,12 @@ export function accountVacuity(n: number, edges: Edge[]): VacuityAccounting {
   if (candidatePairs === 0) {
     failures.push(
       `VACUOUS: every participant is adjacent to every other, so there is no ` +
-        `non-neighbour whose state could leak. A pass here would mean nothing.`
+        `non-neighbor whose state could leak. A pass here would mean nothing.`
     );
   }
   if (expectedDeliveries === 0) {
     failures.push(
-      `VACUOUS: the graph has no edges, so no neighbour sentinel was ever expected ` +
+      `VACUOUS: the graph has no edges, so no neighbor sentinel was ever expected ` +
         `to arrive. A pass here would not show the projection ran at all.`
     );
   }
@@ -106,7 +106,7 @@ export function accountVacuity(n: number, edges: Edge[]): VacuityAccounting {
   }
   if (isolated.length > 0 && expectedDeliveries > 0) {
     notes.push(
-      `${isolated.length} of ${n} participants have no neighbour (index ` +
+      `${isolated.length} of ${n} participants have no neighbor (index ` +
         `${isolated.join(", ")}), so arm 3 expects nothing from them — the graph ` +
         `is disconnected, which some generators do by design`
     );
@@ -129,7 +129,7 @@ export function accountVacuity(n: number, edges: Edge[]): VacuityAccounting {
  * NO `rng` IS FORWARDED, deliberately. Every generator here is deterministic in
  * structure; an rng would only permute which index sits where (`positions`, in
  * `../topology/index.ts`). `withNetwork` seeds from `hashSeed(String(game.id))`
- * and the game id is fresh every run, so forwarding it would make the realised
+ * and the game id is fresh every run, so forwarding it would make the realized
  * graph differ run to run — and a verification tool whose subject changes
  * between runs cannot be used to attribute a failure.
  */

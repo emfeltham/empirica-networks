@@ -78,7 +78,7 @@ test("U1: a participant can write to another participant's player scope via the 
       assert.equal(
         victim.mode.player.getValue().get("hackedByAnotherParticipant"),
         SENTINEL,
-        "characterisation: Empirica accepts a participant's write to another's player scope"
+        "characterization: Empirica accepts a participant's write to another's player scope"
       );
 
       console.log("\n=== U1 ===");

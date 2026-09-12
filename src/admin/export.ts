@@ -1,5 +1,5 @@
 /**
- * Export the realised network for analysis.
+ * Export the realized network for analysis.
  *
  * Empirica timestamps every attribute change, so the raw material is already
  * there — but the native export is scope/attribute shaped, which is awkward for
@@ -122,7 +122,7 @@ export function historyIsConsistent(history: EdgeEvent[]): boolean {
   return true;
 }
 
-/** One row of `views.csv`: one viewer's sight of one neighbour at one delivery. */
+/** One row of `views.csv`: one viewer's sight of one neighbor at one delivery. */
 export interface ViewRow {
   game_id: string;
   /** Player id of the participant this was delivered to. */
@@ -130,23 +130,23 @@ export interface ViewRow {
   seq: number;
   t: number;
   /** Position within the view — stable, and defined even for a projection with no id. */
-  neighbour_index: number;
+  neighbor_index: number;
   /** The projected `id`, when there is one. Empty otherwise. */
-  neighbour_id: string;
+  neighbor_id: string;
   /** Everything else `project()` returned, one column per field. */
   [field: string]: string | number;
 }
 
 /**
- * Flatten captured views into one row per viewer per neighbour per delivery.
+ * Flatten captured views into one row per viewer per neighbor per delivery.
  *
  * This is where the shape changes, and why capture is NDJSON: a view is a
  * variable-length array of author-defined objects, so the columns cannot be
  * known until the whole log is in hand. Here it is, so they can be.
  *
- * Long rather than wide — one row per neighbour, not one row per view with the
- * neighbours packed into a cell — because the resulting table joins directly
- * against `edges.csv` on `(viewer, neighbour_id, t)`. A wide table would have to
+ * Long rather than wide — one row per neighbor, not one row per view with the
+ * neighbors packed into a cell — because the resulting table joins directly
+ * against `edges.csv` on `(viewer, neighbor_id, t)`. A wide table would have to
  * be unpacked before any of the questions this exists to answer could be asked.
  *
  * Nested values are JSON-encoded into their cell. Flattening them into
@@ -162,13 +162,13 @@ export function viewRows(records: ViewRecord[]): ViewRow[] {
         viewer: r.viewer,
         seq: r.seq,
         t: r.at,
-        neighbour_index: index,
-        neighbour_id: "",
+        neighbor_index: index,
+        neighbor_id: "",
       };
       if (entry !== null && typeof entry === "object" && !Array.isArray(entry)) {
         for (const [k, v] of Object.entries(entry as Record<string, unknown>)) {
           if (k === "id" && typeof v === "string") {
-            row.neighbour_id = v;
+            row.neighbor_id = v;
             continue;
           }
           row[k] = scalar(v);

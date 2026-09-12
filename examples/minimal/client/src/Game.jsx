@@ -30,7 +30,7 @@ export function Game() {
   const stage = useStage();
 
   // Private state: written to this participant's own channel, so it reaches
-  // only their neighbours — via the server's project(). Using
+  // only their neighbors — via the server's project(). Using
   // player.set("color", …) here would broadcast it to everyone.
   const state = useNetworkState();
 
@@ -38,7 +38,7 @@ export function Game() {
   const self = useNetworkSelf();
 
   // `undefined` means "not known yet", and is deliberately distinct from `[]`,
-  // which means "genuinely has no neighbours". Rendering [] while loading would
+  // which means "genuinely has no neighbors". Rendering [] while loading would
   // show this participant as isolated and look entirely normal.
   if (!neighbors) {
     return <div className="p-8 text-gray-500">Joining the network…</div>;
@@ -49,7 +49,7 @@ export function Game() {
   return (
     <div className="p-8 space-y-8">
       <div>
-        <h2 className="text-lg font-semibold">Your colour</h2>
+        <h2 className="text-lg font-semibold">Your color</h2>
         <div className="flex gap-2 mt-2">
           {COLORS.map((c) => (
             <button
@@ -66,12 +66,12 @@ export function Game() {
 
       <div>
         <h2 className="text-lg font-semibold">
-          Your neighbours ({neighbors.length})
+          Your neighbors ({neighbors.length})
         </h2>
 
         {neighbors.length === 0 ? (
           <p className="mt-2 text-gray-500">
-            You have no neighbours in this network.
+            You have no neighbors in this network.
           </p>
         ) : (
           <ul className="mt-2 space-y-2">
@@ -91,12 +91,12 @@ export function Game() {
         */}
         <p className="mt-4 text-sm text-gray-500">
           You are node …{self?.playerID?.slice(-6)} with degree {self?.degree}.
-          The list above contains only your neighbours — no non-neighbour&apos;s
+          The list above contains only your neighbors — no non-neighbor&apos;s
           projected view is ever sent to this browser.
         </p>
 
         {/*
-          The colour really is neighbour-limited, because it is written with
+          The color really is neighbor-limited, because it is written with
           useNetworkState() to this participant's own channel rather than with
           player.set(). Player attributes are broadcast to everyone, so the
           earlier version of this demo showed a privacy claim it did not keep.
@@ -105,8 +105,8 @@ export function Game() {
           display name, and having both in one example shows the difference.
         */}
         <p className="mt-2 text-xs text-gray-500">
-          Names are public player attributes. Colours are private — written to
-          your own channel and shown only to your neighbours.
+          Names are public player attributes. Colors are private — written to
+          your own channel and shown only to your neighbors.
         </p>
       </div>
 

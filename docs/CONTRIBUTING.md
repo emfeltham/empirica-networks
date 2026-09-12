@@ -64,7 +64,7 @@ Centralised, a rename is a compile error rather than a silent leak.
 
 `GAME_KEYS` is a named, empty record, and it should stay that way. The game scope is delivered
 to every participant. Two things were kept there and both had to move: the channel index (whose
-ids are, with no write ACL, the capability to write into someone else's channel) and the realised
+ids are, with no write ACL, the capability to write into someone else's channel) and the realized
 network.
 
 ### Per-game state is keyed by game, or `releaseGame` will not find it
@@ -154,7 +154,7 @@ See [TESTING.md](TESTING.md) for the tiers and what each can prove. The rules fo
   home for anything needing several sequential games, or a specific arrival order. Two defects were
   found that way (`ISSUES.md` O4, O5). See [TESTING §1](TESTING.md#1-the-three-tiers) for where
   that stops being true.
-- Ask what the smallest scenario is that can observe the behaviour. The cost of a test is a
+- Ask what the smallest scenario is that can observe the behavior. The cost of a test is a
   property of the test: one file was spending two full games on a warning that fires before any
   participant connects, and the participant-free version costs 0.27 s.
 - A guard needs a test that fails when the guard is removed. Removing `onPrivateState`'s one
@@ -179,7 +179,7 @@ Documentation is part of the change, not a follow-up.
 
 Conventions, which the existing documents follow:
 
-- Cite the witness. A claim about behaviour names the test that pins it. "Impossible by
+- Cite the witness. A claim about behavior names the test that pins it. "Impossible by
   construction" must name a test; a claim resting on package code must name the call site, not
   the definition. Both rules exist because `ISSUES.md` O14 broke the second one and shipped for
   four milestones.
@@ -208,7 +208,7 @@ Once it is published:
 2. Remove `private: true`, set a real semver, and move `CHANGELOG.md`'s `[Unreleased]` section
    under that version.
 3. Update the README's status line and the single "not published yet" block; drop the
-   `node dist/verify/cli.cjs` forms in favour of `npx empirica-networks`.
+   `node dist/verify/cli.cjs` forms in favor of `npx empirica-networks`.
 4. `npm run build && npm test && npm run check:links && npm run check:docs`, then publish.
 
 ## 8. Design rationale

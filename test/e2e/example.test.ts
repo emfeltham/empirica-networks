@@ -36,14 +36,14 @@ test.beforeEach(() => resetChannels());
 
 const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
 
-interface NeighbourView {
+interface NeighborView {
   id: string;
   name?: string;
   color?: string;
 }
 
-function neighboursOf(p: { mode: unknown }): NeighbourView[] {
-  return (modeOf(p).nbhd.getValue()?.neighbors ?? []) as NeighbourView[];
+function neighborsOf(p: { mode: unknown }): NeighborView[] {
+  return (modeOf(p).nbhd.getValue()?.neighbors ?? []) as NeighborView[];
 }
 
 test("the example's callbacks run, and each participant sees exactly 2 of 3", async () => {
@@ -69,38 +69,38 @@ test("the example's callbacks run, and each participant sees exactly 2 of 3", as
         label: "game visible",
       });
       await waitFor(() => participants.every((p) => modeOf(p).nbhd.getValue()?.published), {
-        label: "every participant received a neighbourhood",
+        label: "every participant received a neighborhood",
         timeoutMs: 30_000,
       });
 
       for (const p of participants) {
         assert.equal(
-          neighboursOf(p).length,
+          neighborsOf(p).length,
           2,
-          "a ring of 4 gives everyone 2 neighbours and 1 non-neighbour"
+          "a ring of 4 gives everyone 2 neighbors and 1 non-neighbor"
         );
       }
 
       // The projection's shape is part of the example's contract with Game.jsx,
       // which renders n.name and n.color.
       await waitFor(
-        () => participants.every((p) => neighboursOf(p).every((n) => Boolean(n.name))),
+        () => participants.every((p) => neighborsOf(p).every((n) => Boolean(n.name))),
         { label: "names propagated", timeoutMs: 30_000 }
       );
       for (const p of participants) {
-        for (const n of neighboursOf(p)) {
+        for (const n of neighborsOf(p)) {
           assert.ok(n.id, "projection carries id");
           assert.match(n.name!, /^player-\d$/, "projection carries name");
-          assert.equal(n.color, undefined, "nobody has chosen a colour yet");
+          assert.equal(n.color, undefined, "nobody has chosen a color yet");
         }
       }
     }
   );
 });
 
-test("the example's `watch` list actually keeps colours live", async () => {
+test("the example's `watch` list actually keeps colors live", async () => {
   // The example declares watch: ["name", "color"]. If a future edit drops
-  // "color" from that list, Game.jsx would render neighbours whose swatches
+  // "color" from that list, Game.jsx would render neighbors whose swatches
   // never update — with nothing failing anywhere.
   await withScenario(
     { n: N, kinds: networkKinds, listeners: Empirica, modeFunc: EmpiricaNetwork },
@@ -134,23 +134,23 @@ test("the example's `watch` list actually keeps colours live", async () => {
       await waitFor(
         () =>
           participants.some((p) =>
-            neighboursOf(p).some((n) => n.id === actorID && n.color === "violet")
+            neighborsOf(p).some((n) => n.id === actorID && n.color === "violet")
           ),
-        { label: "the colour reached a neighbour", timeoutMs: 30_000 }
+        { label: "the color reached a neighbor", timeoutMs: 30_000 }
       );
 
-      // And only the neighbours: the non-neighbour must not have the actor at
-      // all, let alone their colour.
+      // And only the neighbors: the non-neighbor must not have the actor at
+      // all, let alone their color.
       let saw = 0;
       for (const p of participants) {
         if (modeOf(p).player.getValue()!.id === actorID) continue;
-        const entry = neighboursOf(p).find((n) => n.id === actorID);
+        const entry = neighborsOf(p).find((n) => n.id === actorID);
         if (entry) {
           assert.equal(entry.color, "violet");
           saw++;
         }
       }
-      assert.equal(saw, 2, "exactly the two ring neighbours, not everyone");
+      assert.equal(saw, 2, "exactly the two ring neighbors, not everyone");
     }
   );
 });

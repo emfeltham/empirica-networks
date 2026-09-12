@@ -10,7 +10,7 @@
  *      is not an observer, and "returning the live object from a getter" is how
  *      that happens without anyone deciding it should. It is the same hazard
  *      `validateProjection` refuses for projections, at a different boundary.
- *   2. Plain data serialises. The monitor's whole transport is JSON over HTTP,
+ *   2. Plain data serializes. The monitor's whole transport is JSON over HTTP,
  *      and a snapshot that had to be marshalled at the edge would be marshalled
  *      by whatever was convenient at the time.
  *
@@ -29,7 +29,7 @@ export interface NodeSnapshot {
   playerID: string;
   degree: number;
   /** Structural indices this seat is currently tied to. */
-  neighbours: number[];
+  neighbors: number[];
   /**
    * Has this participant's private channel scope materialised on the server?
    *
@@ -49,7 +49,7 @@ export interface NodeSnapshot {
    * Watched keys read from this participant's PRIVATE channel.
    *
    * This is the sensitive half of the payload and the reason §15.1 exists: it is
-   * neighbour-limited data, and the monitor holds all of it at once.
+   * neighbor-limited data, and the monitor holds all of it at once.
    *
    * Restricted to the declared keys (`watch` plus `read`) rather than dumping
    * the channel. Those are the keys the author said their study depends on, so

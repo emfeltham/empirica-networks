@@ -34,25 +34,25 @@ const RECORDS: ViewRecord[] = [
   },
 ];
 
-test("one row per viewer per neighbour per delivery", () => {
+test("one row per viewer per neighbor per delivery", () => {
   const rows = viewRows(RECORDS);
   assert.equal(rows.length, 3);
   assert.deepEqual(
-    rows.map((r) => `${r.viewer}->${r.neighbour_id}:${r["choice"]}`),
+    rows.map((r) => `${r.viewer}->${r.neighbor_id}:${r["choice"]}`),
     ["a->b:cooperate", "a->c:defect", "b->a:cooperate"]
   );
   assert.ok(rows.every((r) => r.game_id === "g1" && r.seq === 1 && r.t === 1000));
 });
 
-test("neighbour_index is positional, so a projection without an id still locates itself", () => {
+test("neighbor_index is positional, so a projection without an id still locates itself", () => {
   // `project: (n) => ({ choice: n.get("choice") })` is legal — id is a
   // convention, not a requirement — and the row must still say which of the
-  // viewer's neighbours it was.
+  // viewer's neighbors it was.
   const rows = viewRows([
     { gameID: "g", viewer: "a", seq: 2, at: 5, view: [{ choice: "x" }, { choice: "y" }] },
   ]);
   assert.deepEqual(
-    rows.map((r) => [r.neighbour_index, r.neighbour_id, r["choice"]]),
+    rows.map((r) => [r.neighbor_index, r.neighbor_id, r["choice"]]),
     [
       [0, "", "x"],
       [1, "", "y"],
@@ -78,7 +78,7 @@ test("nested values are JSON in their cell, not silently flattened or lost", () 
 });
 
 test("undefined and booleans survive the trip to a cell", () => {
-  // `neighbour.get("choice")` is undefined for any attribute not yet set, which
+  // `neighbor.get("choice")` is undefined for any attribute not yet set, which
   // is normal in round one and must not become the string "undefined".
   const rows = viewRows([
     { gameID: "g", viewer: "a", seq: 1, at: 1, view: [{ id: "b", choice: undefined, on: true }] },
@@ -106,7 +106,7 @@ test("CSV headers are the union of all rows, not just the first", () => {
 test("every part of views: {} reaches the shared sink", () => {
   /**
    * The writer moved to `src/admin/sink.ts` and is shared with `net.log`,
-   * so its own behaviour — buffering, appending,
+   * so its own behavior — buffering, appending,
    * nested directories, a throwing callback, what a SIGKILL costs — is
    * `test/unit/sink.test.ts`'s. What is left here is the three-field MAPPING,
    * which is the part that can silently break: `views: { onView }` keeps its name

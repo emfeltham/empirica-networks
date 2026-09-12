@@ -22,14 +22,14 @@
  *     import fails visibly rather than quietly phoning out from a page that
  *     contains the complete seating plan.
  *
- * Colours follow the validated categorical palette, capped at THREE slots plus
+ * Colors follow the validated categorical palette, capped at THREE slots plus
  * "other". A node-link diagram compares every mark against every other, so the
  * all-pairs gate applies rather than the adjacent one, and only the first three
  * slots clear it in both modes (validated: worst all-pairs CVD ΔE 9.2 light /
  * 9.4 dark, normal-vision 24.0 / 20.9). Aqua sits at 2.74:1 on the light
  * surface, below the 3:1 bar, so the relief rule applies — every node carries a
  * visible label and a table view exists, and identity is therefore never
- * carried by colour alone.
+ * carried by color alone.
  */
 export const PAGE = `<!doctype html>
 <html lang="en">
@@ -147,7 +147,7 @@ export const PAGE = `<!doctype html>
   <span id="gameLabel" class="k"></span>
   <select id="gamePicker" style="display:none" aria-label="game"></select>
   <span style="flex:1"></span>
-  <label class="k">colour by
+  <label class="k">color by
     <select id="colorKey"></select>
   </label>
   <button id="tableToggle">table view</button>
@@ -211,8 +211,8 @@ export const PAGE = `<!doctype html>
     b.textContent = message;
   }
 
-  // ---- colour assignment -------------------------------------------------
-  // Value for the colour key, preferring the participant's PRIVATE channel over
+  // ---- color assignment -------------------------------------------------
+  // Value for the color key, preferring the participant's PRIVATE channel over
   // the broadcast player attribute: when an author keeps a key in both places
   // the private one is the value the projection actually used.
   function valueOf(node) {
@@ -222,7 +222,7 @@ export const PAGE = `<!doctype html>
     return undefined;
   }
 
-  // Fixed order by first appearance in seat order, never by frequency: a colour
+  // Fixed order by first appearance in seat order, never by frequency: a color
   // must follow the value, not its rank, or a participant changing their mind
   // repaints everyone else.
   function colorScale(nodes) {
@@ -435,7 +435,7 @@ export const PAGE = `<!doctype html>
     legend.innerHTML = "";
     var scale = colorScale(snap.nodes);
     if (!colorKey || scale.values.length === 0) {
-      legend.innerHTML = "<div class='k'>no watched value to colour by</div>";
+      legend.innerHTML = "<div class='k'>no watched value to color by</div>";
     } else {
       for (var i = 0; i < scale.values.length; i++) {
         var d = document.createElement("div");
@@ -450,7 +450,7 @@ export const PAGE = `<!doctype html>
       if (scale.values.length > SLOTS.length) {
         var note = document.createElement("div");
         note.className = "k";
-        note.textContent = "beyond 3 values colours repeat as \\u2018other\\u2019 \\u2014 read the labels";
+        note.textContent = "beyond 3 values colors repeat as \\u2018other\\u2019 \\u2014 read the labels";
         legend.appendChild(note);
       }
     }
@@ -466,7 +466,7 @@ export const PAGE = `<!doctype html>
       row(dl, "seat", String(node.index));
       row(dl, "player", node.playerID);
       row(dl, "degree", String(node.degree));
-      row(dl, "neighbours", node.neighbours.join(", ") || "\\u2014");
+      row(dl, "neighbors", node.neighbors.join(", ") || "\\u2014");
       row(dl, "channel", node.channel ? "yes" : "NO", node.channel ? "" : "alert");
       for (var w = 0; w < snap.watch.length; w++) {
         row(dl, snap.watch[w], text(valueOfKey(node, snap.watch[w])));
@@ -483,14 +483,14 @@ export const PAGE = `<!doctype html>
   function renderTable(snap) {
     var host = el("tableView");
     var head = "<tr><th>seat</th><th>player</th><th class='num'>degree</th>" +
-      "<th>neighbours</th><th>channel</th>";
+      "<th>neighbors</th><th>channel</th>";
     for (var i = 0; i < snap.watch.length; i++) head += "<th>" + snap.watch[i] + "</th>";
     head += "</tr>";
     var body = "";
     for (var n = 0; n < snap.nodes.length; n++) {
       var node = snap.nodes[n];
       body += "<tr><td class='num'>" + node.index + "</td><td>" + node.playerID +
-        "</td><td class='num'>" + node.degree + "</td><td>" + node.neighbours.join(" ") +
+        "</td><td class='num'>" + node.degree + "</td><td>" + node.neighbors.join(" ") +
         "</td><td>" + (node.channel ? "yes" : "NO") + "</td>";
       for (var k = 0; k < snap.watch.length; k++) {
         body += "<td>" + text(valueOfKey(node, snap.watch[k])) + "</td>";

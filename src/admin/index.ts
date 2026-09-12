@@ -11,7 +11,7 @@ export {
   REGISTRATION_DIFF,
 } from "./kinds.js";
 // The automatic counterpart to `assertKindsRegistered`, exported so a test can
-// assert the message and a consumer can recognise it. Defined apart from
+// assert the message and a consumer can recognize it. Defined apart from
 // `kinds.ts` so `with_network.ts` can import it without inheriting
 // @empirica/core/admin/classic — see `registration.ts`.
 export {
@@ -38,7 +38,7 @@ export { validateProjection, projectionBytes, ProjectionError } from "./projecti
 export {
   checkDegrees,
   checkViewBytes,
-  checkNeighbourhoodBytes,
+  checkNeighborhoodBytes,
   resolveEnvelope,
   defaultMaxDegree,
   DEFAULT_ENVELOPE,

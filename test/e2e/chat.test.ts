@@ -1,8 +1,8 @@
 /**
- * Neighbour-scoped chat.
+ * Neighbor-scoped chat.
  *
  * The claim is the same one the whole package makes, applied to messages: a
- * non-neighbour does not receive them. So the assertion is at the WIRE, not on
+ * non-neighbor does not receive them. So the assertion is at the WIRE, not on
  * a rendered list — "the UI does not show it" is a different and much weaker
  * statement, and the one this package exists to avoid making.
  *
@@ -51,7 +51,7 @@ function makeListeners(capture: (game: any) => void) {
     });
     withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id }),
+      project: (neighbor: any) => ({ id: neighbor.id }),
       chat: true,
     });
   };
@@ -70,7 +70,7 @@ async function running(admin: AdminHandle, participants: { mode: unknown }[]): P
   });
 }
 
-test("a message reaches neighbours and the sender, and nobody else — at the wire", async () => {
+test("a message reaches neighbors and the sender, and nobody else — at the wire", async () => {
   let gameRef: any;
   await withScenario(
     { n: N, kinds: networkKinds, recordWire: true, listeners: makeListeners((g) => (gameRef = g)), modeFunc: EmpiricaNetwork },
@@ -95,10 +95,10 @@ test("a message reaches neighbours and the sender, and nobody else — at the wi
 
       const speaker = participants[0]!;
       const speakerID = modeOf(speaker).player.getValue()!.id;
-      const neighbourIDs = ((modeOf(speaker).nbhd.getValue()!.neighbors ?? []) as {
+      const neighborIDs = ((modeOf(speaker).nbhd.getValue()!.neighbors ?? []) as {
         id: string;
       }[]).map((n) => n.id);
-      assert.equal(neighbourIDs.length, 2, "a ring of 4 gives the speaker two neighbours");
+      assert.equal(neighborIDs.length, 2, "a ring of 4 gives the speaker two neighbors");
 
       const SECRET = "SEKRIT-chat-9c4e1f";
       chatOf(speaker)!.send(SECRET);
@@ -106,9 +106,9 @@ test("a message reaches neighbours and the sender, and nobody else — at the wi
       await waitFor(
         () =>
           participants
-            .filter((p) => neighbourIDs.includes(modeOf(p).player.getValue()!.id))
+            .filter((p) => neighborIDs.includes(modeOf(p).player.getValue()!.id))
             .every((p) => textsOf(p).includes(SECRET)),
-        { label: "both neighbours received the message", timeoutMs: 30_000 }
+        { label: "both neighbors received the message", timeoutMs: 30_000 }
       );
 
       assert.ok(textsOf(speaker).includes(SECRET), "the sender sees their own message");
@@ -116,27 +116,27 @@ test("a message reaches neighbours and the sender, and nobody else — at the wi
       const stranger = participants.find(
         (p) =>
           modeOf(p).player.getValue()!.id !== speakerID &&
-          !neighbourIDs.includes(modeOf(p).player.getValue()!.id)
+          !neighborIDs.includes(modeOf(p).player.getValue()!.id)
       )!;
-      assert.ok(stranger, "a ring of 4 has exactly one non-neighbour");
+      assert.ok(stranger, "a ring of 4 has exactly one non-neighbor");
 
       // Let a late delivery have its chance before concluding it never came.
       await new Promise((r) => setTimeout(r, 1500));
-      assert.equal(textsOf(stranger).length, 0, "the non-neighbour has no messages");
+      assert.equal(textsOf(stranger).length, 0, "the non-neighbor has no messages");
 
       const strangerIndex = participants.indexOf(stranger);
       assert.ok(
         !wires[strangerIndex]!.join("").includes(SECRET),
-        "LEAK: the message text appeared in a non-neighbour's raw wire traffic"
+        "LEAK: the message text appeared in a non-neighbor's raw wire traffic"
       );
 
       // Non-vacuity: the detector works, so the absence above means something.
-      const neighbourIndex = participants.findIndex((p) =>
-        neighbourIDs.includes(modeOf(p).player.getValue()!.id)
+      const neighborIndex = participants.findIndex((p) =>
+        neighborIDs.includes(modeOf(p).player.getValue()!.id)
       );
       assert.ok(
-        wires[neighbourIndex]!.join("").includes(SECRET),
-        "a neighbour's wire must contain it, or this test cannot detect a leak at all"
+        wires[neighborIndex]!.join("").includes(SECRET),
+        "a neighbor's wire must contain it, or this test cannot detect a leak at all"
       );
     }
   );
@@ -153,11 +153,11 @@ test("sending twice delivers twice, in order, without duplicates", async () => {
       await running(admin, participants);
 
       const speaker = participants[0]!;
-      const neighbourIDs = ((modeOf(speaker).nbhd.getValue()!.neighbors ?? []) as {
+      const neighborIDs = ((modeOf(speaker).nbhd.getValue()!.neighbors ?? []) as {
         id: string;
       }[]).map((n) => n.id);
       const listener = participants.find((p) =>
-        neighbourIDs.includes(modeOf(p).player.getValue()!.id)
+        neighborIDs.includes(modeOf(p).player.getValue()!.id)
       )!;
 
       chatOf(speaker)!.send("first");
@@ -191,11 +191,11 @@ test("dropping a tie stops new messages but keeps what was already delivered", a
 
       const speaker = participants[0]!;
       const speakerID = modeOf(speaker).player.getValue()!.id;
-      const neighbourIDs = ((modeOf(speaker).nbhd.getValue()!.neighbors ?? []) as {
+      const neighborIDs = ((modeOf(speaker).nbhd.getValue()!.neighbors ?? []) as {
         id: string;
       }[]).map((n) => n.id);
       const leaving = participants.find(
-        (p) => modeOf(p).player.getValue()!.id === neighbourIDs[0]
+        (p) => modeOf(p).player.getValue()!.id === neighborIDs[0]
       )!;
       const leavingID = modeOf(leaving).player.getValue()!.id;
 
@@ -218,13 +218,13 @@ test("dropping a tie stops new messages but keeps what was already delivered", a
 
       chatOf(speaker)!.send("after the tie was cut");
 
-      // The remaining neighbour still gets it — so a silent relay failure would
+      // The remaining neighbor still gets it — so a silent relay failure would
       // not be mistaken for correct exclusion.
       const stillTied = participants.find(
-        (p) => modeOf(p).player.getValue()!.id === neighbourIDs[1]
+        (p) => modeOf(p).player.getValue()!.id === neighborIDs[1]
       )!;
       await waitFor(() => textsOf(stillTied).includes("after the tie was cut"), {
-        label: "the remaining neighbour still receives messages",
+        label: "the remaining neighbor still receives messages",
         timeoutMs: 30_000,
       });
 

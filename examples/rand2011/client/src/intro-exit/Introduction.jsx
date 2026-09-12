@@ -13,10 +13,10 @@ import { Button } from "../components/Button";
  *
  * The exposure is bounded and worth naming: instructions that disagree with the
  * payoff rule are a validity problem rather than a typo, because subjects would
- * be optimising against a game they were never in. Nothing here computes a
+ * be optimizing against a game they were never in. Nothing here computes a
  * payoff — the server does that once and tells each participant their own — so
  * the risk is confined to these two numbers. If you change
- * COST_PER_NEIGHBOUR or BENEFIT_PER_NEIGHBOUR, change them here too.
+ * COST_PER_NEIGHBOR or BENEFIT_PER_NEIGHBOR, change them here too.
  *
  * Deliberately does NOT tell participants the network condition, the rewiring
  * rate, or that any structure exists beyond their own connections: "we do not

@@ -35,7 +35,7 @@ export interface BuildOptions {
  *
  * The layout is recomputed only when the graph's SHAPE changed. A player
  * changing a watched attribute must not move anybody: an operator watching a
- * colour spread across a network would otherwise see the whole picture
+ * color spread across a network would otherwise see the whole picture
  * rearrange on every choice, which makes the thing they are watching for
  * impossible to see.
  */

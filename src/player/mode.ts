@@ -30,7 +30,7 @@ class NetworkCtx {
 
 /** Client-side model of a participant's private channel. */
 export class Nbhd extends Scope<NetworkCtx, any> {
-  /** The projected neighbour views, as returned by the server's project(). */
+  /** The projected neighbor views, as returned by the server's project(). */
   get neighbors(): unknown[] {
     const v = this.get(NBHD_KEYS.NEIGHBORS);
     return Array.isArray(v) ? v : [];
@@ -40,7 +40,7 @@ export class Nbhd extends Scope<NetworkCtx, any> {
    * Whether the server has published a view to this channel yet.
    *
    * `neighbors` cannot answer this: it returns `[]` both for "not published yet"
-   * and for "genuinely has no neighbours", and those must not be conflated —
+   * and for "genuinely has no neighbors", and those must not be conflated —
    * rendering an isolated node during startup is a silent data-validity bug, not
    * a cosmetic one. The hooks use this to return `undefined` until a real view
    * has arrived.
@@ -53,7 +53,7 @@ export class Nbhd extends Scope<NetworkCtx, any> {
     return this.get(NBHD_KEYS.OWNER) as string | undefined;
   }
 
-  /** The viewer's own player id — the same id space neighbour views are in. */
+  /** The viewer's own player id — the same id space neighbor views are in. */
   get playerID(): string | undefined {
     return this.get(NBHD_KEYS.PLAYER_ID) as string | undefined;
   }
@@ -85,7 +85,7 @@ const networkClientKinds = {
 export class DonesWiringError extends Error {
   constructor() {
     super(
-      "empirica-networks: the neighbourhood scope exists but its attributes are " +
+      "empirica-networks: the neighborhood scope exists but its attributes are " +
         "unreadable. This is the `dones` wiring failure: Attributes and Scopes " +
         "only resolve values when their dones subjects are fed the set of updated " +
         "node ids. It fails silently — every .get() simply returns undefined."

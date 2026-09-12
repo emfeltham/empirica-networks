@@ -1,5 +1,5 @@
 /**
- * Reproducibility: can the realised network be rebuilt from stored data?
+ * Reproducibility: can the realized network be rebuilt from stored data?
  *
  * For a network experiment the graph participants were actually placed in is
  * often the independent variable. Breadboard generated it with an unseeded RNG,
@@ -10,7 +10,7 @@
  * `test/unit/topology.test.ts`). It is that the seed written to the game scope,
  * read back from storage, regenerates the network that participants were
  * ACTUALLY given. Three things have to agree: the recorded seed, the recorded
- * edge list, and the neighbourhoods that reached the clients. Any one of them
+ * edge list, and the neighborhoods that reached the clients. Any one of them
  * drifting makes the stored data misdescribe the run.
  */
 import assert from "node:assert/strict";
@@ -54,7 +54,7 @@ test("the recorded seed regenerates the network participants were given", async 
       // Seeded: no explicit `seed` in config, so withNetwork derives one from
       // the game id and records it. That derivation is part of what is claimed.
       topology: ({ playerCount, rng }) => ring(playerCount, { rng }),
-      project: (neighbour: any) => ({ id: neighbour.id }),
+      project: (neighbor: any) => ({ id: neighbor.id }),
     });
   };
 
@@ -111,7 +111,7 @@ test("the recorded seed regenerates the network participants were given", async 
         assert.deepEqual(
           [...actual].sort(),
           [...expected].sort(),
-          `participant ${idx}'s delivered neighbours match the graph rebuilt from the seed`
+          `participant ${idx}'s delivered neighbors match the graph rebuilt from the seed`
         );
       }
     }
@@ -119,7 +119,7 @@ test("the recorded seed regenerates the network participants were given", async 
 });
 
 test("an explicit seed pins the network across separate runs", async () => {
-  // Same seed, two independent servers and games: the structural realisation
+  // Same seed, two independent servers and games: the structural realization
   // must be identical. This is what makes a condition replicable across
   // sessions rather than only within one.
   const SEED = 123456;
@@ -134,7 +134,7 @@ test("an explicit seed pins the network across separate runs", async () => {
       withNetwork(_, {
         seed: SEED,
         topology: ({ playerCount, rng }) => ring(playerCount, { rng }),
-        project: (neighbour: any) => ({ id: neighbour.id }),
+        project: (neighbor: any) => ({ id: neighbor.id }),
       });
     };
 
@@ -175,9 +175,9 @@ test("an explicit seed pins the network across separate runs", async () => {
   );
 });
 
-test("an M2 generator survives the round trip: recorded seed -> same neighbourhoods", async () => {
+test("an M2 generator survives the round trip: recorded seed -> same neighborhoods", async () => {
   // The unit tests prove the math. This proves the wiring: a rewiring generator
-  // produces an irregular graph, and every participant's delivered neighbourhood
+  // produces an irregular graph, and every participant's delivered neighborhood
   // still matches the graph rebuilt from the recorded seed. Ring hides this
   // class of bug — every node looks alike, so an off-by-one in the index-to-
   // participant mapping is invisible.
@@ -193,7 +193,7 @@ test("an M2 generator survives the round trip: recorded seed -> same neighbourho
     });
     withNetwork(_, {
       topology: ({ playerCount, rng }) => wattsStrogatz(playerCount, K, BETA, { rng }),
-      project: (neighbour: any) => ({ id: neighbour.id }),
+      project: (neighbor: any) => ({ id: neighbor.id }),
     });
   };
 

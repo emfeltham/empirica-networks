@@ -107,7 +107,7 @@ and access control is never structural.
 ### Data at rest is identifiable
 
 `.empirica/local/tajriba.json` holds every attribute including every participant's private state.
-It was neighbour-limited in transit; it is not anonymised at rest. Captured views, if enabled, are
+It was neighbor-limited in transit; it is not anonymised at rest. Captured views, if enabled, are
 the only copy of what each participant was shown and cannot be regenerated.
 
 Back up the store and the NDJSON files; decide retention before the run; and remember that U1 and
@@ -130,9 +130,9 @@ and so whoever writes the real document is not starting from a blank page:
 2. Hosting shape: process supervision, TLS termination, websockets through a reverse proxy,
    where the store lives and how it is backed up.
 3. Recruitment: participant identification, link structure, batch and treatment configuration,
-   lobby behaviour, what a participant who reloads or drops sees.
+   lobby behavior, what a participant who reloads or drops sees.
 4. Incentives: both reconstructions pay nothing, and both originals were incentivised. No
-   behavioural comparison carries across without this.
+   behavioral comparison carries across without this.
 5. Monitoring during a run, and what to watch for.
 6. The crash procedure, in the honest form: detect, salvage, decide.
 7. Scale in production, with the deployment-side variables rather than the library-side ones.

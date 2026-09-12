@@ -23,7 +23,7 @@
  * Every generator that makes a random choice takes an Rng, so a recorded seed
  * reproduces the exact graph. That is not a nicety: Breadboard used an unseeded
  * generator, so a finished run stored the generator and its parameters but not
- * the realised graph — which for a network experiment is often the independent
+ * the realized graph — which for a network experiment is often the independent
  * variable. See admin/seed.ts, and test/e2e/reproducibility.test.ts for the
  * end-to-end check that the recorded seed regenerates what participants were
  * actually given.
@@ -43,7 +43,7 @@ import { shuffle } from "../admin/seed.js";
 export type Edge = [number, number];
 
 export interface TopologyOptions {
-  /** Randomise which participant occupies which structural position. */
+  /** Randomize which participant occupies which structural position. */
   rng?: Rng;
 }
 
@@ -54,7 +54,7 @@ function positions(n: number, opts: TopologyOptions = {}): number[] {
 }
 
 /**
- * Ring lattice: each node connected to `m` neighbours on each side.
+ * Ring lattice: each node connected to `m` neighbors on each side.
  * Mean degree 2m. Breadboard called this `mRing`.
  */
 export function ringLattice(n: number, m: number, opts: TopologyOptions = {}): Edge[] {
@@ -134,7 +134,7 @@ export interface GridOptions extends TopologyOptions {
   periodic?: boolean;
 }
 
-/** `w` by `h` grid, four-neighbour. n = w*h. */
+/** `w` by `h` grid, four-neighbor. n = w*h. */
 export function grid(w: number, h: number, opts: GridOptions = {}): Edge[] {
   if (!Number.isInteger(w) || w < 1) throw new Error(`grid: w must be a positive integer, got ${w}`);
   if (!Number.isInteger(h) || h < 1) throw new Error(`grid: h must be a positive integer, got ${h}`);
@@ -346,7 +346,7 @@ export function geometricRandom(n: number, radius: number, opts: TopologyOptions
 // ------------------------------------------------------------------ arbitrary
 
 /**
- * Normalise an author-supplied edge list: drop self-loops, deduplicate, order
+ * Normalize an author-supplied edge list: drop self-loops, deduplicate, order
  * each pair, and sort.
  *
  * Worth routing hand-built graphs through this rather than passing them
@@ -392,7 +392,7 @@ function randIndex(rng: Rng, n: number): number {
 }
 
 /**
- * Adjacency list. Deduplicates, drops self-loops, and returns sorted neighbour
+ * Adjacency list. Deduplicates, drops self-loops, and returns sorted neighbor
  * lists so a projection is stable across runs with the same graph.
  */
 export function adjacency(n: number, edges: Edge[]): number[][] {

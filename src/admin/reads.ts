@@ -7,7 +7,7 @@
  * `on(kind, cb)` fires on scope CREATION only — so the list has to be static.
  *
  * That makes an incomplete list the obvious failure: forget `"score"` and
- * neighbours simply never see scores change. Nothing errors. The experiment runs
+ * neighbors simply never see scores change. Nothing errors. The experiment runs
  * to completion and the data is quietly wrong, which is the same shape as the
  * `private`-flag trap this whole module exists because of.
  *
@@ -104,7 +104,7 @@ export function unwatchedKeysMessage(missing: string[], watched: Iterable<string
   return (
     `empirica-networks: project() reads player attribute(s) ` +
     `${missing.map((k) => `"${k}"`).join(", ")} that are not in \`watch\`, so ` +
-    `neighbours will NOT see them change.\n\n` +
+    `neighbors will NOT see them change.\n\n` +
     `  Views are republished when a watched key changes, and there is no way to\n` +
     `  observe every attribute — so an unwatched key is stale for the whole run,\n` +
     `  silently. If these are meant to be live, watch them:\n\n` +

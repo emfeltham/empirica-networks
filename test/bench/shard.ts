@@ -47,7 +47,7 @@ const index = Number(process.env.BENCH_INDEX);
 const participants: Participant<unknown>[] = [];
 const samples: Sample[] = [];
 
-/** Last value seen per watcher per neighbour, so one delivery counts once. */
+/** Last value seen per watcher per neighbor, so one delivery counts once. */
 const seen = new Map<string, string>();
 
 function send(msg: unknown): void {

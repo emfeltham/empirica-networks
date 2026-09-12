@@ -57,7 +57,7 @@ const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
  * `withNetwork` call.
  *
  * `topology: () => []` because nothing here depends on anybody having a
- * neighbour, and an empty graph is a legitimate configuration rather than a stub.
+ * neighbor, and an empty graph is a legitimate configuration rather than a stub.
  */
 function experiment(duplicate: boolean, ran: string[]): ClassicListenersCollector {
   const Empirica = new ClassicListenersCollector();
@@ -80,7 +80,7 @@ function experiment(duplicate: boolean, ran: string[]): ClassicListenersCollecto
 
   withNetwork(Empirica, {
     topology: () => [],
-    project: (neighbour: any) => ({ id: neighbour.id }),
+    project: (neighbor: any) => ({ id: neighbor.id }),
   });
 
   return Empirica;

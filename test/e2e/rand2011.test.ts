@@ -10,7 +10,7 @@
  * IN THE PROJECTION. Adding one field to `project()` would silently convert this
  * into the *visible* condition of Nishi, Shirado, Rand & Christakis (2015),
  * Nature 526:426-429 — a different published experiment whose entire finding is
- * that this field changes behaviour and raises inequality. The experiment would
+ * that this field changes behavior and raises inequality. The experiment would
  * still run, the screens would still look right, and the data would be answering
  * someone else's question. So the absence is asserted at the wire, where a
  * comment cannot help.
@@ -79,13 +79,13 @@ const stateOf = (p: { mode: unknown }) => networkStateOf(modeOf(p).nbhd.getValue
 const toldOf = (p: { mode: unknown }) => networkToldOf(modeOf(p).nbhd.getValue());
 const idOf = (p: { mode: unknown }) => modeOf(p).player.getValue()!.id;
 
-interface NeighbourView {
+interface NeighborView {
   id: string;
   action?: string;
 }
 
-const neighboursOf = (p: { mode: unknown }): NeighbourView[] =>
-  (modeOf(p).nbhd.getValue()?.neighbors ?? []) as NeighbourView[];
+const neighborsOf = (p: { mode: unknown }): NeighborView[] =>
+  (modeOf(p).nbhd.getValue()?.neighbors ?? []) as NeighborView[];
 
 /**
  * The id of the game THIS test is running.
@@ -254,7 +254,7 @@ test("wealth is NOT in the projection — the one field that would make this Nis
       /**
        * Force a republish now that wealth exists.
        *
-       * Views are only rebuilt when a watched key changes, so the neighbourhoods
+       * Views are only rebuilt when a watched key changes, so the neighborhoods
        * currently on the clients were built BEFORE any wealth had been computed.
        * Checking their shape at that point would find no `wealth` field whether or
        * not the projection would have added one — the assertion would hold for the
@@ -264,9 +264,9 @@ test("wealth is NOT in the projection — the one field that would make this Nis
       const seqOf = (p: { mode: unknown }) => modeOf(p).nbhd.getValue()?.seq ?? 0;
       const maxSeq = () => Math.max(...participants.map(seqOf));
       const seqBefore = maxSeq();
-      // Somebody with at least one neighbour, so the flip has somewhere to land.
-      const flipper = participants.find((p) => neighboursOf(p).length > 0);
-      assert.ok(flipper, "no participant has a neighbour, so no view can be rebuilt");
+      // Somebody with at least one neighbor, so the flip has somewhere to land.
+      const flipper = participants.find((p) => neighborsOf(p).length > 0);
+      assert.ok(flipper, "no participant has a neighbor, so no view can be rebuilt");
       stateOf(flipper)!.set("action", DEFECT);
       // The MAXIMUM across participants, not the flipper's own. A flipped action
       // changes the views of the people who can SEE the flipper; the flipper's own
@@ -278,10 +278,10 @@ test("wealth is NOT in the projection — the one field that would make this Nis
         timeoutMs: 30_000,
       });
 
-      // (1) The projection's SHAPE. Whatever a neighbour view contains, `wealth`
-      // is not one of its keys — for every participant, for every neighbour.
+      // (1) The projection's SHAPE. Whatever a neighbor view contains, `wealth`
+      // is not one of its keys — for every participant, for every neighbor.
       for (const p of participants) {
-        for (const n of neighboursOf(p)) {
+        for (const n of neighborsOf(p)) {
           assert.deepEqual(
             Object.keys(n).sort(),
             ["action", "id"],
@@ -368,7 +368,7 @@ test("wealth is NOT in the projection — the one field that would make this Nis
   );
 });
 
-test("a non-neighbour's ACTION never reaches a participant, and a neighbour's does", async () => {
+test("a non-neighbor's ACTION never reaches a participant, and a neighbor's does", async () => {
   await withScenario(
     { n: N, kinds: networkKinds, recordWire: true, listeners: Empirica, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
@@ -400,15 +400,15 @@ test("a non-neighbour's ACTION never reaches a participant, and a neighbour's do
       // earliness. Every connected participant should see a choice.
       await waitFor(
         () =>
-          participants.some((p) => neighboursOf(p).some((n) => n.action !== undefined)),
+          participants.some((p) => neighborsOf(p).some((n) => n.action !== undefined)),
         { label: "actions started propagating", timeoutMs: 30_000 }
       );
       await new Promise((r) => setTimeout(r, 1500));
 
       assert.equal(
-        neighboursOf(pA).find((n) => n.id === idOf(pB)),
+        neighborsOf(pA).find((n) => n.id === idOf(pB)),
         undefined,
-        "an unconnected participant is absent from the neighbour list entirely"
+        "an unconnected participant is absent from the neighbor list entirely"
       );
 
       // Non-vacuity: whoever IS connected to b can see b's defection, so the
@@ -418,7 +418,7 @@ test("a non-neighbour's ACTION never reaches a participant, and a neighbour's do
         await waitFor(
           () =>
             watchers.some((p) =>
-              neighboursOf(p).some((n) => n.id === idOf(pB) && n.action === DEFECT)
+              neighborsOf(p).some((n) => n.id === idOf(pB) && n.action === DEFECT)
             ),
           { label: "a connected participant sees the defection", timeoutMs: 30_000 }
         );
@@ -427,11 +427,11 @@ test("a non-neighbour's ACTION never reaches a participant, and a neighbour's do
   );
 });
 
-test("payoffs recorded on the batch match the paper's rule applied to the realised graph", async () => {
-  // The experiment's behaviour is a claim, so it is asserted rather than
-  // described. This recomputes every payoff independently from (a) the realised
+test("payoffs recorded on the batch match the paper's rule applied to the realized graph", async () => {
+  // The experiment's behavior is a claim, so it is asserted rather than
+  // described. This recomputes every payoff independently from (a) the realized
   // edge list and (b) the actions each participant wrote, and checks the server
-  // agrees — which would fail if degree, neighbour actions, or the cost/benefit
+  // agrees — which would fail if degree, neighbor actions, or the cost/benefit
   // arithmetic were wired up wrongly.
   await withScenario(
     { n: N, kinds: networkKinds, recordWire: true, listeners: Empirica, modeFunc: EmpiricaNetwork },
@@ -454,7 +454,7 @@ test("payoffs recorded on the batch match the paper's rule applied to the realis
 
       // Recompute from the graph as it stood during the decision. `fixed` means
       // it did not change, which is also asserted below.
-      const neighboursIn = (id: string) =>
+      const neighborsIn = (id: string) =>
         edgesBefore.filter(([x, y]) => x === id || y === id).map(([x, y]) => (x === id ? y : x));
 
       let checked = 0;
@@ -462,13 +462,13 @@ test("payoffs recorded on the batch match the paper's rule applied to the realis
         const id = idOf(p);
         const expected = roundPayoff(
           chosen.get(id),
-          neighboursIn(id).map((other) => chosen.get(other) ?? DEFECT)
+          neighborsIn(id).map((other) => chosen.get(other) ?? DEFECT)
         );
         const told = toldOf(p)!.get("score") as { payoff: number };
         assert.equal(
           told.payoff,
           expected,
-          `payoff for …${id.slice(-6)} with degree ${neighboursIn(id).length}`
+          `payoff for …${id.slice(-6)} with degree ${neighborsIn(id).length}`
         );
         checked++;
       }
@@ -572,10 +572,10 @@ test("the run log is on disk WHILE the game is still running", async () => {
   );
 });
 
-test("the fluid condition offers rewiring decisions about NON-neighbours, privately", async () => {
+test("the fluid condition offers rewiring decisions about NON-neighbors, privately", async () => {
   // The reason `tell()` exists, asserted. "before choosing to break or form a
   // connection, the deciding subject is informed of the other's action in the
-  // preceding round" — and for a FORM offer the other is not a neighbour, so
+  // preceding round" — and for a FORM offer the other is not a neighbor, so
   // project() cannot deliver it.
   await withScenario(
     { n: N, kinds: networkKinds, recordWire: true, listeners: Empirica, modeFunc: EmpiricaNetwork },
@@ -637,7 +637,7 @@ test("the fluid condition offers rewiring decisions about NON-neighbours, privat
       // doing work here.
       assert.ok(
         formOffers > 0,
-        `no form offers were made, so the non-neighbour path was never exercised ` +
+        `no form offers were made, so the non-neighbor path was never exercised ` +
           `(break offers: ${breakOffers})`
       );
 

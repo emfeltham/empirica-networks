@@ -51,18 +51,18 @@ const N = 4;
 const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
 
 function viewOf(p: { mode: unknown }): Record<string, unknown> {
-  const neighbours = (modeOf(p).nbhd.getValue()?.neighbors ?? []) as {
+  const neighbors = (modeOf(p).nbhd.getValue()?.neighbors ?? []) as {
     id: string;
     choice?: unknown;
   }[];
-  return Object.fromEntries(neighbours.map((n) => [n.id, n.choice]));
+  return Object.fromEntries(neighbors.map((n) => [n.id, n.choice]));
 }
 
 const makeListeners = () => (_: any) => {
   gameInit(1, 1, 3_600_000)(_);
   withNetwork(_, {
     topology: ({ playerCount }) => ring(playerCount),
-    project: (neighbour: any) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+    project: (neighbor: any) => ({ id: neighbor.id, choice: neighbor.get("choice") }),
     watch: ["choice"],
   });
 };
@@ -199,7 +199,7 @@ test("a full server restart recovers the same network, and republishes lost view
       assert.equal(
         Object.keys(viewOf(p)).sort().join(","),
         seatingBefore.get(playerID),
-        `participant ${playerID} kept the same neighbours across a full restart`
+        `participant ${playerID} kept the same neighbors across a full restart`
       );
       assert.equal(
         modeOf(p).nbhd.getValue()!.id,

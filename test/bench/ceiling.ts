@@ -39,7 +39,7 @@ async function main(): Promise<void> {
     if (PLAIN) return;
     withNetwork(_, {
       topology: ({ playerCount }: any) => ringLattice(playerCount, 4),
-      project: (neighbour: any) => ({ id: neighbour.id, tick: neighbour.get("tick") }),
+      project: (neighbor: any) => ({ id: neighbor.id, tick: neighbor.get("tick") }),
       watch: ["tick"],
       envelope: { maxDegree: 16, onExceed: "throw" },
     });

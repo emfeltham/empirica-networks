@@ -3,11 +3,11 @@
  *
  * This closes the gap the browser test exposed: `player.set()` is broadcast to
  * every participant, so projecting a player attribute restricts nothing about
- * who can read it. A value only stays inside the neighbourhood if it is never
+ * who can read it. A value only stays inside the neighborhood if it is never
  * written to the player scope at all.
  *
  * The assertion here is the strong one, and it is checked at the WIRE rather
- * than through the mode: a non-neighbour's private value must appear nowhere in
+ * than through the mode: a non-neighbor's private value must appear nowhere in
  * the bytes a participant received. Unlike the projection test, this is a claim
  * the example could not previously make about its own data.
  */
@@ -36,7 +36,7 @@ const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
 const stateOf = (p: { mode: unknown }) => networkStateOf(modeOf(p).nbhd.getValue())!;
 const toldOf = (p: { mode: unknown }) => networkToldOf(modeOf(p).nbhd.getValue());
 
-function neighbourEntries(p: { mode: unknown }): { id: string; secret?: string }[] {
+function neighborEntries(p: { mode: unknown }): { id: string; secret?: string }[] {
   return (modeOf(p).nbhd.getValue()?.neighbors ?? []) as { id: string; secret?: string }[];
 }
 
@@ -44,10 +44,10 @@ const listeners = (_: any) => {
   gameInit(1, 1, 3_600_000)(_);
   withNetwork(_, {
     topology: ({ playerCount }) => ring(playerCount),
-    // Reads the neighbour's PRIVATE state, never a player attribute.
-    project: (neighbour: any, _viewer: any, ctx: any) => ({
-      id: neighbour.id,
-      secret: ctx.stateOf(neighbour).get("secret"),
+    // Reads the neighbor's PRIVATE state, never a player attribute.
+    project: (neighbor: any, _viewer: any, ctx: any) => ({
+      id: neighbor.id,
+      secret: ctx.stateOf(neighbor).get("secret"),
     }),
     watch: ["secret"],
   });
@@ -88,9 +88,9 @@ test("onPrivateState sees participants' writes, and never the server's own", asy
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any, _viewer: any, ctx: any) => ({
-        id: neighbour.id,
-        secret: ctx.stateOf(neighbour).get("secret"),
+      project: (neighbor: any, _viewer: any, ctx: any) => ({
+        id: neighbor.id,
+        secret: ctx.stateOf(neighbor).get("secret"),
       }),
       watch: ["secret"],
       onPrivateState: (event) => {
@@ -163,7 +163,7 @@ test("onPrivateState sees participants' writes, and never the server's own", asy
   );
 });
 
-test("a privately written value reaches neighbours and NO ONE else", async () => {
+test("a privately written value reaches neighbors and NO ONE else", async () => {
   await withScenario(
     { n: N, kinds: networkKinds, recordWire: true, listeners, modeFunc: EmpiricaNetwork },
     async ({ admin, participants }) => {
@@ -198,20 +198,20 @@ test("a privately written value reaches neighbours and NO ONE else", async () =>
 
       // First: the write must reach the server and come back to its own author.
       // If this fails the problem is the write path, not the projection, and
-      // the neighbour wait below would just time out uninformatively.
+      // the neighbor wait below would just time out uninformatively.
       await waitFor(
         () => participants.every((p) => typeof stateOf(p).get("secret") === "string"),
         { label: "each participant can read back their own private write", timeoutMs: 30_000 }
       );
 
-      // Everyone's neighbours must actually receive it — otherwise the absence
+      // Everyone's neighbors must actually receive it — otherwise the absence
       // assertions below are vacuous.
       await waitFor(
         () =>
           participants.every((p) =>
-            neighbourEntries(p).every((n) => typeof n.secret === "string")
+            neighborEntries(p).every((n) => typeof n.secret === "string")
           ),
-        { label: "every neighbour's secret arrived", timeoutMs: 30_000 }
+        { label: "every neighbor's secret arrived", timeoutMs: 30_000 }
       );
       await new Promise((r) => setTimeout(r, 1500));
 
@@ -221,35 +221,35 @@ test("a privately written value reaches neighbours and NO ONE else", async () =>
       for (const [i, p] of participants.entries()) {
         const playerID = modeOf(p).player.getValue()!.id;
         const wire = wires[i]!.join("\n");
-        const visibleIDs = new Set(neighbourEntries(p).map((n) => n.id));
+        const visibleIDs = new Set(neighborEntries(p).map((n) => n.id));
 
-        assert.equal(visibleIDs.size, 2, "a ring of 4 gives 2 neighbours");
+        assert.equal(visibleIDs.size, 2, "a ring of 4 gives 2 neighbors");
         assert.ok(wire.length > 0, "frames were captured");
 
         for (const [otherID, secret] of secrets) {
           if (otherID === playerID) continue;
 
           if (visibleIDs.has(otherID)) {
-            // A neighbour: the secret must be there, or the check is vacuous.
+            // A neighbor: the secret must be there, or the check is vacuous.
             assert.ok(
               wire.includes(secret),
-              `participant ${i} should have received neighbour ${otherID}'s secret`
+              `participant ${i} should have received neighbor ${otherID}'s secret`
             );
             checkedPresent++;
           } else {
-            // A non-neighbour: the bytes must never have arrived. This is the
+            // A non-neighbor: the bytes must never have arrived. This is the
             // claim `player.set()` cannot support.
             assert.ok(
               !wire.includes(secret),
-              `LEAK: participant ${i} received non-neighbour ${otherID}'s private value`
+              `LEAK: participant ${i} received non-neighbor ${otherID}'s private value`
             );
             checkedAbsent++;
           }
         }
       }
 
-      assert.equal(checkedAbsent, N, "each of the 4 has exactly 1 non-neighbour");
-      assert.equal(checkedPresent, N * 2, "each of the 4 has exactly 2 neighbours");
+      assert.equal(checkedAbsent, N, "each of the 4 has exactly 1 non-neighbor");
+      assert.equal(checkedPresent, N * 2, "each of the 4 has exactly 2 neighbors");
     }
   );
 });
@@ -290,19 +290,19 @@ test("the same value on the PLAYER scope does leak — which is why this exists"
         { label: "the player-scope value reached everyone", timeoutMs: 30_000 }
       );
 
-      // Including the participant who is NOT a neighbour of the actor.
-      const nonNeighbour = participants.find((p, i) => {
+      // Including the participant who is NOT a neighbor of the actor.
+      const nonNeighbor = participants.find((p, i) => {
         if (i === 0) return false;
-        return !neighbourEntries(actor).some(
+        return !neighborEntries(actor).some(
           (n) => n.id === modeOf(p).player.getValue()!.id
         );
       });
-      assert.ok(nonNeighbour, "a ring of 4 has a non-neighbour");
+      assert.ok(nonNeighbor, "a ring of 4 has a non-neighbor");
 
-      const idx = participants.indexOf(nonNeighbour!);
+      const idx = participants.indexOf(nonNeighbor!);
       assert.ok(
         wires[idx]!.join("\n").includes(broadcast),
-        "a player-scope attribute reaches even a non-neighbour — this is the trap"
+        "a player-scope attribute reaches even a non-neighbor — this is the trap"
       );
     }
   );

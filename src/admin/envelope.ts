@@ -15,29 +15,29 @@
  *                 `defaultMaxDegree` for what each branch rests on.
  *
  *   maxViewBytes  NOT measured, and not a performance limit. It is a footgun
- *                 detector: one neighbour's view exceeding 8 KiB almost always
+ *                 detector: one neighbor's view exceeding 8 KiB almost always
  *                 means project() returned more than the author intended. Set it
  *                 higher if your projection is genuinely large.
  *
  *   maxNbhdBytes  NOT measured either, and it exists because the degree
  *                 measurement deliberately did not measure it. See
- *                 `EnvelopeLimits.maxNeighbourhoodBytes`.
+ *                 `EnvelopeLimits.maxNeighborhoodBytes`.
  *
  * Zero dependencies, so it unit tests without a server (same as `seed.ts`).
  */
 
 export interface EnvelopeLimits {
   /**
-   * Max neighbours any one participant may have.
+   * Max neighbors any one participant may have.
    *
    * Defaults to `defaultMaxDegree(n)`, which is `n - 1` at n <= 50 and 16 above
    * it — so no cap at all within the target regime. Set a number to override.
    */
   maxDegree?: number;
-  /** Max serialised bytes for ONE neighbour's view. Default 8192. */
+  /** Max serialized bytes for ONE neighbor's view. Default 8192. */
   maxViewBytes?: number;
   /**
-   * Max serialised bytes for ONE participant's WHOLE neighbourhood. Default
+   * Max serialized bytes for ONE participant's WHOLE neighborhood. Default
    * 65536 (64 KiB).
    *
    * **This exists because of what the degree measurement did not measure.** The
@@ -70,7 +70,7 @@ export interface EnvelopeLimits {
    * and 2.9x at d=49), so degree x view size really is the product, and neither
    * per-view nor per-degree limits can see it alone.
    */
-  maxNeighbourhoodBytes?: number;
+  maxNeighborhoodBytes?: number;
   /**
    * What to do when a limit is exceeded. Default "throw".
    *
@@ -83,7 +83,7 @@ export interface EnvelopeLimits {
 export interface ResolvedEnvelope {
   maxDegree: number;
   maxViewBytes: number;
-  maxNeighbourhoodBytes: number;
+  maxNeighborhoodBytes: number;
   onExceed: "throw" | "warn";
 }
 
@@ -133,7 +133,7 @@ export const MEASURED_DENSE_N = 50;
  * **What this deliberately does NOT claim.** The bench projects two fields, so it
  * measured degree at small view sizes. Degree x view size is a different quantity
  * and is what SPIKE-REPORT §4's client-bandwidth finding was about — so
- * `maxNeighbourhoodBytes` was added in the same change to guard it. Raising a
+ * `maxNeighborhoodBytes` was added in the same change to guard it. Raising a
  * limit is only honest if you name what the old limit was accidentally covering.
  */
 export function defaultMaxDegree(n: number): number {
@@ -151,7 +151,7 @@ export function defaultMaxDegree(n: number): number {
 export const DEFAULT_ENVELOPE: ResolvedEnvelope = {
   maxDegree: MEASURED_SPARSE_DEGREE,
   maxViewBytes: 8192,
-  maxNeighbourhoodBytes: 65536,
+  maxNeighborhoodBytes: 65536,
   onExceed: "throw",
 };
 
@@ -194,15 +194,15 @@ export function checkDegrees(
   warn: WarnFn = console.warn
 ): void {
   // n comes from the topology itself, which is what makes an n-dependent default
-  // possible at all: the limit that matters is not "how many neighbours" but
-  // "how many neighbours relative to how many participants there are".
+  // possible at all: the limit that matters is not "how many neighbors" but
+  // "how many neighbors relative to how many participants there are".
   const env = resolveEnvelope(limits, adj.length);
   let worstIndex = -1;
   let worstDegree = 0;
   let over = 0;
 
-  for (const [i, neighbours] of adj.entries()) {
-    const d = neighbours.length;
+  for (const [i, neighbors] of adj.entries()) {
+    const d = neighbors.length;
     if (d > env.maxDegree) over++;
     if (d > worstDegree) {
       worstDegree = d;
@@ -230,7 +230,7 @@ export function checkDegrees(
 
   breach(
     `topology exceeds the supported envelope: ${over} of ${adj.length} participants ` +
-      `have more than ${env.maxDegree} neighbours (worst: participant ${worstIndex} ` +
+      `have more than ${env.maxDegree} neighbors (worst: participant ${worstIndex} ` +
       `with ${worstDegree}).\n\n` +
       `${explanation}\n` +
       `  Use a sparser topology, or opt out deliberately:\n\n` +
@@ -242,7 +242,7 @@ export function checkDegrees(
 }
 
 /**
- * Check one neighbour view's serialised size.
+ * Check one neighbor view's serialized size.
  *
  * Reports the WORST offender per publish rather than one message per view: at
  * n=100 with degree 16 a systematic mistake would otherwise emit 1600 identical
@@ -266,7 +266,7 @@ export function checkViewBytes(
 
   if (worst) {
     breach(
-      `${over} neighbour view(s) exceed ${env.maxViewBytes} bytes ` +
+      `${over} neighbor view(s) exceed ${env.maxViewBytes} bytes ` +
         `(worst: ${worst.label} at ${worst.bytes} bytes).\n\n` +
         `  This limit is a mistake detector, not a measured performance ceiling: a\n` +
         `  view this large usually means project() returned more than intended.\n` +
@@ -279,11 +279,11 @@ export function checkViewBytes(
 
   // The aggregate check, second so that "one view is enormous" is reported as
   // that rather than as its consequence.
-  checkNeighbourhoodBytes(views, limits, warn);
+  checkNeighborhoodBytes(views, limits, warn);
 }
 
 /**
- * Check what ONE participant receives in total, summed over their neighbours.
+ * Check what ONE participant receives in total, summed over their neighbors.
  *
  * The limit `maxDegree` used to be doing by accident. Lifting the degree cap at
  * n <= 50 rests on a latency measurement taken with a two-field projection
@@ -301,7 +301,7 @@ export function checkViewBytes(
  * partition would be either every participant's traffic at once or one
  * participant's, and reporting the wrong one would be worse than reporting none.
  */
-export function checkNeighbourhoodBytes(
+export function checkNeighborhoodBytes(
   views: { bytes: number; label: string; viewer?: string }[],
   limits: EnvelopeLimits = {},
   warn: WarnFn = console.warn
@@ -320,7 +320,7 @@ export function checkNeighbourhoodBytes(
   let worst: { viewer: string; bytes: number; count: number } | undefined;
   let over = 0;
   for (const [viewer, t] of totals) {
-    if (t.bytes <= env.maxNeighbourhoodBytes) continue;
+    if (t.bytes <= env.maxNeighborhoodBytes) continue;
     over++;
     if (!worst || t.bytes > worst.bytes) worst = { viewer, ...t };
   }
@@ -328,16 +328,16 @@ export function checkNeighbourhoodBytes(
   if (!worst) return;
 
   breach(
-    `${over} participant(s) would receive more than ${env.maxNeighbourhoodBytes} bytes ` +
+    `${over} participant(s) would receive more than ${env.maxNeighborhoodBytes} bytes ` +
       `in one publish (worst: ${worst.viewer} at ${worst.bytes} bytes across ` +
-      `${worst.count} neighbours).\n\n` +
-      `  Each neighbour view is individually inside \`maxViewBytes\`; together they\n` +
+      `${worst.count} neighbors).\n\n` +
+      `  Each neighbor view is individually inside \`maxViewBytes\`; together they\n` +
       `  are not. This is the product a dense graph creates — degree x view size —\n` +
       `  and it is the quantity that fails on CLIENT bandwidth however fast the\n` +
       `  server is (SPIKE-REPORT §4).\n\n` +
-      `  Project less per neighbour, use a sparser topology, or raise the limit if\n` +
+      `  Project less per neighbor, use a sparser topology, or raise the limit if\n` +
       `  your participants are on connections that can carry it:\n\n` +
-      `    withNetwork(Empirica, { envelope: { maxNeighbourhoodBytes: ${
+      `    withNetwork(Empirica, { envelope: { maxNeighborhoodBytes: ${
         worst.bytes * 2
       } } })\n`,
     env,

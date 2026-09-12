@@ -16,7 +16,7 @@ entries are ordinary correctness bugs and carry their reproductions in full.
 ### U1. `protected: true` does not prevent participant writes ⚠️ security
 
 **Evidence:** `test/e2e/upstream_u1.test.ts` (public client API),
-`test/e2e/participant_write.test.ts` (full characterisation incl. `protected`); PLATFORM-NOTES §4a.
+`test/e2e/participant_write.test.ts` (full characterization incl. `protected`); PLATFORM-NOTES §4a.
 
 Any participant that knows a node id can set attributes on it, including on another participant's
 `player` scope, whose id every participant already knows, because Classic cross-links every
@@ -53,9 +53,9 @@ the name their recruitment gave them.
 
 A second consequence, for this package specifically, is that there is no naming scheme an
 artificial participant can use that subjects cannot read. That is why `runBots` takes an
-identifier list rather than a count, and why `examples/shirado2017` recognises its agents by
+identifier list rather than a count, and why `examples/shirado2017` recognizes its agents by
 holding the list rather than by matching a prefix. For a design that does not tell subjects which
-of their neighbours are software, a recognisable identifier is the manipulation disclosed. See
+of their neighbors are software, a recognisable identifier is the manipulation disclosed. See
 `docs/BOTS.md` §1.
 
 The workaround, worth doing regardless, is to make `participantKey` an opaque per-study token and
@@ -154,7 +154,7 @@ that: a warning emitted by this package does not help anyone who is not using it
 
 ### U9. `attributes(scopeID)` always returns `internal system error`
 
-**Evidence:** `test/e2e/participant_write.test.ts` (the O7 characterisation block); measured
+**Evidence:** `test/e2e/participant_write.test.ts` (the O7 characterization block); measured
 2026-08-16 against `@empirica/core@1.12.5`.
 
 The GraphQL schema publishes `attributes(scopeID, first/after/last/before)`, described as

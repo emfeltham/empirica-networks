@@ -8,9 +8,9 @@ them, so assuming they exist is the natural mistake. This entry point is the fac
 only way the platform allows.
 
 A bot here is a headless participant process. It opens a real Tajriba session, runs the real
-participant mode, reads its neighbours through the same `project()` and writes through the same
+participant mode, reads its neighbors through the same `project()` and writes through the same
 private channel a browser writes to. There is no server-side path, and that is a design constraint
-rather than an unfinished edge: a bot that could read a non-neighbour, see the graph, or learn the
+rather than an unfinished edge: a bot that could read a non-neighbor, see the graph, or learn the
 global state would be a different kind of object from the people it is mixed in with, and any
 comparison between them would be measuring the difference in access.
 
@@ -34,7 +34,7 @@ There are two consequences, and they are separate.
 
 For bots, there is no naming scheme a bot can use that participants cannot read. `bot-1` is not
 a private detail of your runner's configuration: it is on screen, in a browser, one
-`JSON.stringify` away. If your design does not tell subjects which of their neighbours are
+`JSON.stringify` away. If your design does not tell subjects which of their neighbors are
 software, as is the case in Shirado & Christakis (2017), then a recognisable identifier is not a
 metadata leak but the manipulation disclosed.
 
@@ -75,10 +75,10 @@ const run = await runBots({
   policy: {
     tickMs: 1500,
     onTick(ctx) {
-      const neighbours = ctx.neighbors();
-      if (neighbours === undefined) return;            // no view yet
+      const neighbors = ctx.neighbors();
+      if (neighbors === undefined) return;            // no view yet
       const mine = ctx.state().get("choice");
-      const next = decide(mine, neighbours, ctx.rng);  // your rule, pure
+      const next = decide(mine, neighbors, ctx.rng);  // your rule, pure
       if (next !== mine) ctx.state().set("choice", next);
     },
   },
@@ -105,7 +105,7 @@ batch: Classic reassigns a participant when their game finishes, and the runner 
 | | |
 |---|---|
 | `onStart(ctx)` | The bot's channel published its first view. Once per game, the earliest point at which `neighbors()`, `self()` and `state()` all return something |
-| `onView(ctx)` | What this bot can see changed. Driven by the server's publish counter, so a neighbour rewriting the same value does not wake it |
+| `onView(ctx)` | What this bot can see changed. Driven by the server's publish counter, so a neighbor rewriting the same value does not wake it |
 | `onTick(ctx)` | Every `tickMs`, from the first publish until the game ends. Needed by any policy that must act when nothing changed, which includes every deliberately-noisy agent |
 | `onEnd(ctx)` | This bot's game is over. For flushing what the policy accumulated, not for a last move |
 
@@ -125,7 +125,7 @@ conflating it with "not loaded" would have a bot act on an imagined isolation.
 `ctx.rng` is a deterministic stream seeded from `(seed, identifier)`. Use it instead of
 `Math.random()`. If the bots' randomness is part of your manipulation (it is the whole
 manipulation in Shirado & Christakis), then an unrecorded random stream is an unrecorded
-independent variable. The same `seed` and the same `identifiers` produce the same behaviour.
+independent variable. The same `seed` and the same `identifiers` produce the same behavior.
 
 `ctx.log(record)` appends to the runner's log. The bot half of `net.log()`, for the same reason: a
 study that is killed mid-session should still have what its bots did.
@@ -166,11 +166,11 @@ topology: ({ game, players, playerCount, rng }) => {
 
 `players[i]` is the participant who will occupy topology index `i`, the package's
 [seating guarantee](API.md), pinned by `test/unit/seating.test.ts`. Seats are fixed before
-`topology` is called, so placement is done by relabelling the graph, not by reordering people:
+`topology` is called, so placement is done by relabeling the graph, not by reordering people:
 generate the structure you want, then permute the vertex labels so the seats you care about land on
 the degrees you want.
 
-Relabelling matters beyond convenience. It keeps the degree distribution identical across arms, so
+Relabeling matters beyond convenience. It keeps the degree distribution identical across arms, so
 a "central" condition differs from a "peripheral" one only in who sits where. A placement
 implemented by generating a different graph would manipulate structure and position at once, and no
 analysis could separate them afterwards. `examples/shirado2017/server/src/design.mjs` has a worked
@@ -208,7 +208,7 @@ if (typeof noise !== "number") return;   // not configured yet: wait, do not gue
 ```
 
 The bot then cannot act on a value the server did not send. Waiting is the right failure: acting
-on a default would run the agent in a condition the session will be labelled with. Warn loudly if
+on a default would run the agent in a condition the session will be labeled with. Warn loudly if
 it never arrives; `examples/shirado2017/server/bots.mjs` does, after ten seconds, once.
 
 This does not weaken the read guarantee. `tell()` writes to one participant's own channel, is
@@ -224,7 +224,7 @@ to have (same key, same kind of channel, same code path), so it has to be record
 
 - the seats, so an analysis can check the placement happened rather than trust the label. A
   placement bug produces a complete, plausible table with the manipulation silently absent;
-- a per-action flag, so behavioural measures can exclude them. An analysis of human behaviour
+- a per-action flag, so behavioral measures can exclude them. An analysis of human behavior
   that forgot to would be averaging over a population it chose.
 
 `examples/shirado2017` writes both: `bots`, `bot_placement`, `bot_noise` and `bot_indices` in
@@ -236,7 +236,7 @@ and a `0` in both would merge them.
 
 ## 7. Running bots with plain `node`
 
-`empirica-networks/bots` ships as a bundled CJS artefact, and the export map has a single
+`empirica-networks/bots` ships as a bundled CJS artifact, and the export map has a single
 `default` condition rather than an `import` that would resolve and then fail. `@empirica/core/admin`
 (which the runner needs for `TajribaConnection`) cannot be loaded from bare Node ESM
 ([§3a](PLATFORM-NOTES.md#3a-the-published-empiricacore-cannot-be-loaded-from-raw-node-at-all-significant-risk)),
@@ -288,7 +288,7 @@ server/
 - The runner provides no reconnection policy. A bot whose socket drops stays down. Tajriba's client
   reconnects, but nothing here re-establishes a session or re-enters a game, and a restarted server
   cannot put anyone back in their game anyway ([`docs/upstream/ISSUES.md`](upstream/ISSUES.md) U2).
-- The runner provides no lobby, consent or exit-survey behaviour. It sets `introDone` and nothing
+- The runner provides no lobby, consent or exit-survey behavior. It sets `introDone` and nothing
   else on the player scope. A design whose intro steps gate on other player attributes needs the
   policy to write them.
 - The runner provides no rate limiting. `tickMs` is the only pace control. Three bots at 100 ms in

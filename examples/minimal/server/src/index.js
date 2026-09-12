@@ -3,8 +3,8 @@ import { Classic, ClassicLoader, Lobby } from "@empirica/core/admin/classic";
 import { info, setLogLevel } from "@empirica/core/console";
 // THE MANDATORY EDIT. `networkKinds` is `classicKinds` plus the `nbhd` scope
 // kind — the per-participant private channel. Without it the channels are never
-// modelled, there is nothing to write views to, and nothing errors: participants
-// simply sit with empty neighbourhoods forever.
+// modeled, there is nothing to write views to, and nothing errors: participants
+// simply sit with empty neighborhoods forever.
 import { networkKinds } from "empirica-networks/admin";
 import minimist from "minimist";
 import process from "process";

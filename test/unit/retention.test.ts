@@ -210,7 +210,7 @@ test("a participant who chatted in one game is heard in the next", async () => {
 });
 
 test("the duplicate guard still works WITHIN a game", async () => {
-  // The release must not be a licence to redeliver. A relay that fires twice for
+  // The release must not be a license to redeliver. A relay that fires twice for
   // one value — which an attribute listener may do — still has to drop the
   // second, or a transcript double-counts.
   const { collector, ctx } = experiment();

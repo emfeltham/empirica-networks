@@ -2,7 +2,7 @@ import { toldKey } from "../shared/keys.js";
 import type { Nbhd } from "./mode.js";
 
 /**
- * Pure derivations from a neighbourhood channel.
+ * Pure derivations from a neighborhood channel.
  *
  * Kept out of the React layer on purpose. `ParticipantCtx` — the context the
  * upstream hooks read — is not exported from @empirica/core, so a hook cannot be
@@ -14,10 +14,10 @@ import type { Nbhd } from "./mode.js";
 
 /** The viewer's own position in the network. */
 export interface NetworkSelf {
-  /** The viewer's player id, in the same id space as neighbour projections. */
+  /** The viewer's player id, in the same id space as neighbor projections. */
   playerID: string | undefined;
   /**
-   * Number of neighbours currently visible, or undefined before the first
+   * Number of neighbors currently visible, or undefined before the first
    * publish. Undefined means "not known yet", NOT "isolated".
    */
   degree: number | undefined;
@@ -26,11 +26,11 @@ export interface NetworkSelf {
 }
 
 /**
- * The projected neighbour views, or `undefined` until the server has published.
+ * The projected neighbor views, or `undefined` until the server has published.
  *
  * The undefined-until-ready convention matches Empirica's own hooks
  * (`usePlayer`, `useGame`), and it matters more here than it does there: an
- * empty array is a legitimate result — a node with no neighbours — so returning
+ * empty array is a legitimate result — a node with no neighbors — so returning
  * `[]` while loading would render a participant as isolated during startup and
  * look entirely normal. Callers are expected to branch on it, exactly as they
  * already do for `usePlayer()`.
@@ -96,7 +96,7 @@ export class NetworkModeNotInstalledError extends Error {
   constructor() {
     super(
       "empirica-networks: the participant context was built without the network " +
-        "mode, so there is no neighbourhood to read. Pass modeFunc to " +
+        "mode, so there is no neighborhood to read. Pass modeFunc to " +
         "EmpiricaParticipant:\n\n" +
         '  import { EmpiricaNetwork } from "empirica-networks/player";\n' +
         "  <EmpiricaParticipant url={url} ns={ns} modeFunc={EmpiricaNetwork}>\n"

@@ -82,7 +82,7 @@ export function callbackShape(fn: unknown): string | undefined {
  *
  * Returns `undefined` if anything about the probe is unfamiliar, which switches
  * the detector off. It reads an `/** @internal *\/` field; going quiet is the
- * correct response to not recognising what it finds.
+ * correct response to not recognizing what it finds.
  */
 export function calibrate(
   collector: unknown

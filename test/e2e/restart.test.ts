@@ -40,18 +40,18 @@ const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
 
 /** playerID -> choice, as this participant currently sees it. */
 function viewOf(p: { mode: unknown }): Record<string, unknown> {
-  const neighbours = (modeOf(p).nbhd.getValue()?.neighbors ?? []) as {
+  const neighbors = (modeOf(p).nbhd.getValue()?.neighbors ?? []) as {
     id: string;
     choice?: unknown;
   }[];
-  return Object.fromEntries(neighbours.map((n) => [n.id, n.choice]));
+  return Object.fromEntries(neighbors.map((n) => [n.id, n.choice]));
 }
 
 const makeListeners = () => (_: any) => {
   gameInit(1, 1, 3_600_000)(_);
   withNetwork(_, {
     topology: ({ playerCount }) => ring(playerCount),
-    project: (neighbour: any) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+    project: (neighbor: any) => ({ id: neighbor.id, choice: neighbor.get("choice") }),
     watch: ["choice"],
   });
 };
@@ -73,17 +73,17 @@ test("the network keeps updating after the callbacks process restarts", async ()
         timeoutMs: 30_000,
       });
 
-      // Pick an actor and one of its REAL neighbours — ring position does not
+      // Pick an actor and one of its REAL neighbors — ring position does not
       // follow harness connection order, so choosing by index picks a
-      // non-neighbour about half the time.
+      // non-neighbor about half the time.
       const actor = participants[0]!;
       const actorID = modeOf(actor).player.getValue()!.id;
-      const neighbourIDs = Object.keys(viewOf(actor));
-      assert.equal(neighbourIDs.length, 2, "a ring of 4 gives the actor two neighbours");
+      const neighborIDs = Object.keys(viewOf(actor));
+      assert.equal(neighborIDs.length, 2, "a ring of 4 gives the actor two neighbors");
       const watcher = participants.find((p) =>
-        neighbourIDs.includes(modeOf(p).player.getValue()!.id)
+        neighborIDs.includes(modeOf(p).player.getValue()!.id)
       )!;
-      assert.ok(watcher, "one of the actor's neighbours is connected");
+      assert.ok(watcher, "one of the actor's neighbors is connected");
 
       modeOf(actor).player.getValue()!.set("choice", "BEFORE");
       await waitFor(() => viewOf(watcher)[actorID] === "BEFORE", {
@@ -92,7 +92,7 @@ test("the network keeps updating after the callbacks process restarts", async ()
       });
 
       // Snapshot the whole seating plan, not just the actor's: a restart that
-      // preserved one participant's neighbours while moving everyone else would
+      // preserved one participant's neighbors while moving everyone else would
       // otherwise pass.
       const seatingBefore = new Map(
         participants.map((p) => [
@@ -127,21 +127,21 @@ test("the network keeps updating after the callbacks process restarts", async ()
         modeOf(actor).player.getValue()!.set("choice", "AFTER");
 
         await waitFor(() => viewOf(watcher)[actorID] === "AFTER", {
-          label: "a change made after the restart still reaches neighbours",
+          label: "a change made after the restart still reaches neighbors",
           timeoutMs: 30_000,
         });
 
-        // The topology has to be the SAME one, not a fresh realisation. The seed
+        // The topology has to be the SAME one, not a fresh realization. The seed
         // is stable, so the graph SHAPE always survives; what did not survive
         // was the assignment of people to nodes, rebuilt from `game.players`
-        // order. Everyone stayed on a ring and simply had different neighbours
+        // order. Everyone stayed on a ring and simply had different neighbors
         // for the rest of the study, with nothing logged.
         for (const p of participants) {
           const playerID = modeOf(p).player.getValue()!.id;
           assert.equal(
             Object.keys(viewOf(p)).sort().join(","),
             seatingBefore.get(playerID),
-            `participant ${playerID} kept the same neighbours across the restart`
+            `participant ${playerID} kept the same neighbors across the restart`
           );
         }
 

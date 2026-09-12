@@ -6,7 +6,7 @@ import {
   MEASURED_DENSE_N,
   MEASURED_SPARSE_DEGREE,
   checkDegrees,
-  checkNeighbourhoodBytes,
+  checkNeighborhoodBytes,
   checkViewBytes,
   defaultMaxDegree,
   resolveEnvelope,
@@ -25,7 +25,7 @@ test("defaults encode the measured envelope", () => {
   assert.equal(DEFAULT_ENVELOPE.maxDegree, MEASURED_SPARSE_DEGREE);
   assert.equal(MEASURED_SPARSE_DEGREE, 16, "sparse, per SPIKE-REPORT §4");
   assert.equal(DEFAULT_ENVELOPE.onExceed, "throw", "enforced unless opted out");
-  assert.equal(DEFAULT_ENVELOPE.maxNeighbourhoodBytes, 65536);
+  assert.equal(DEFAULT_ENVELOPE.maxNeighborhoodBytes, 65536);
   assert.deepEqual(resolveEnvelope(), DEFAULT_ENVELOPE);
   assert.equal(resolveEnvelope({ maxDegree: 4 }).maxDegree, 4);
   assert.equal(resolveEnvelope({ maxDegree: 4 }).onExceed, "throw", "partial override");
@@ -176,7 +176,7 @@ test("view size reports only the worst offender", () => {
 
   checkViewBytes(views, { onExceed: "warn" }, warn);
   assert.equal(seen.length, 1);
-  assert.match(seen[0]!, /50 neighbour view\(s\)/);
+  assert.match(seen[0]!, /50 neighbor view\(s\)/);
   assert.match(seen[0]!, /view-49 at 9049 bytes/, "names the largest");
 });
 
@@ -193,7 +193,7 @@ test("the view-size message does not claim to be a performance measurement", () 
 });
 
 test("MANY reasonable views add up: the case neither other limit can see", () => {
-  // The whole reason `maxNeighbourhoodBytes` exists. Lifting the degree cap rests
+  // The whole reason `maxNeighborhoodBytes` exists. Lifting the degree cap rests
   // on a latency bench that published two fields per view, so it established that
   // degree is cheap AT SMALL VIEW SIZES. Degree x view size is what a
   // participant's connection carries, and it is invisible to both a per-view limit
@@ -215,14 +215,14 @@ test("MANY reasonable views add up: the case neither other limit can see", () =>
 
   // 49 x 1500 = 73500 bytes, over the 65536 default.
   try {
-    checkNeighbourhoodBytes(views);
+    checkNeighborhoodBytes(views);
     assert.fail("should have thrown");
   } catch (e) {
     const m = (e as Error).message;
     assert.match(m, /1 participant\(s\) would receive more than 65536 bytes/);
-    assert.match(m, /alice at 73500 bytes across 49 neighbours/);
+    assert.match(m, /alice at 73500 bytes across 49 neighbors/);
     assert.match(m, /individually inside `maxViewBytes`/);
-    assert.match(m, /maxNeighbourhoodBytes: 147000/, "a working override");
+    assert.match(m, /maxNeighborhoodBytes: 147000/, "a working override");
   }
 });
 
@@ -233,7 +233,7 @@ test("the aggregate check groups per participant, not across the whole publish",
     ...Array.from({ length: 40 }, (_, i) => ({ bytes: 1024, label: `a/${i}`, viewer: "a" })),
     ...Array.from({ length: 40 }, (_, i) => ({ bytes: 1024, label: `b/${i}`, viewer: "b" })),
   ];
-  assert.doesNotThrow(() => checkNeighbourhoodBytes(views));
+  assert.doesNotThrow(() => checkNeighborhoodBytes(views));
 
   // And when several DO breach, one message names the worst.
   const { warn, seen } = collectWarnings();
@@ -244,7 +244,7 @@ test("the aggregate check groups per participant, not across the whole publish",
       viewer,
     }))
   );
-  checkNeighbourhoodBytes(heavy, { onExceed: "warn" }, warn);
+  checkNeighborhoodBytes(heavy, { onExceed: "warn" }, warn);
   assert.equal(seen.length, 1);
   assert.match(seen[0]!, /3 participant\(s\)/);
   assert.match(seen[0]!, /worst: c at 100100 bytes/);
@@ -258,13 +258,13 @@ test("checkViewBytes runs the aggregate check too, and reports the sharper one f
     { bytes: 90_000, label: "a's view of b", viewer: "a" },
     ...Array.from({ length: 40 }, (_, i) => ({ bytes: 1000, label: `a/${i}`, viewer: "a" })),
   ];
-  assert.throws(() => checkViewBytes(views), /neighbour view\(s\) exceed/);
+  assert.throws(() => checkViewBytes(views), /neighbor view\(s\) exceed/);
 
   // With `warn` both are reported, because both are true and the fix may be one
   // change or two.
   const { warn, seen } = collectWarnings();
   checkViewBytes(views, { onExceed: "warn" }, warn);
   assert.equal(seen.length, 2);
-  assert.match(seen[0]!, /neighbour view\(s\) exceed/);
+  assert.match(seen[0]!, /neighbor view\(s\) exceed/);
   assert.match(seen[1]!, /would receive more than/);
 });

@@ -3,7 +3,7 @@
  *
  * Runs the leak check against the consumer's OWN installed versions of the
  * Empirica CLI and @empirica/core. The point is that the module's central claim
- * — a participant never receives a non-neighbour's state — is something a
+ * — a participant never receives a non-neighbor's state — is something a
  * researcher, a collaborator, or a reviewer can reproduce in about thirty
  * seconds rather than take on trust. It doubles as the upgrade canary.
  *
@@ -73,7 +73,7 @@ function parseArgs(argv: string[]): Args {
 }
 
 const USAGE = `
-empirica-networks verify — reproduce the neighbour-limited visibility guarantee
+empirica-networks verify — reproduce the neighbor-limited visibility guarantee
 
 Usage:
   npx empirica-networks verify [options]
@@ -82,7 +82,7 @@ Options:
   -n, --n <count>        participants (default 4, minimum 4)
       --topology <name>  ring (default), star, wheel, pairs, ladder, complete
                          Refused when the shape would prove nothing: a complete
-                         graph has no non-neighbour to leak to, and a wheel of 4
+                         graph has no non-neighbor to leak to, and a wheel of 4
                          is a complete graph. Parameterised generators (grid,
                          wattsStrogatz, erdosRenyi, …) take an argument a flag
                          cannot carry — pass the generator to runLeakCheck().
@@ -106,7 +106,7 @@ async function main(): Promise<number> {
   if (!Number.isFinite(args.n) || args.n < 4) {
     process.stderr.write(
       `\n  n must be at least 4: below that every named topology makes everyone\n` +
-        `  everyone's neighbour, so there is no non-neighbour and the check proves\n` +
+        `  everyone's neighbor, so there is no non-neighbor and the check proves\n` +
         `  nothing.\n\n`
     );
     return 1;

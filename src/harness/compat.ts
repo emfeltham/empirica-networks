@@ -100,7 +100,7 @@ export function makeProvider(
  * on that history — and its own non-vacuity guard caught the difference
  * immediately: *"no player attribute was visible in any wire, so the key-shaped
  * search is blind"*. With `record`, every frame since connect is replayed, which is
- * strictly more than the old behaviour gave and removes the ordering hazard
+ * strictly more than the old behavior gave and removes the ordering hazard
  * entirely: an observer may subscribe whenever it likes.
  *
  * Off by default because it retains every frame for the participant's lifetime.

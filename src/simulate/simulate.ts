@@ -17,7 +17,7 @@
  *
  * All twenty simulated participants run `botChoice`. It is the only policy the
  * example ships, and an agent is indistinguishable from a human by construction —
- * `is_bot` is a label applied to three seats, not a behavioural difference. So in
+ * `is_bot` is a label applied to three seats, not a behavioral difference. So in
  * the agent arm every node executes the agent policy, and in the control arm
  * nobody is told a noise level at all, which means simulated humans need a locally
  * supplied default (0) — and noise 0 is the deterministic-agent condition, which
@@ -109,7 +109,7 @@ export interface SessionOutcome {
    * to the batch scope, the harness runs an in-memory store, and the example's
    * own `graph` record logs the edge COUNT and the condition but not the seed —
    * so once the server stops, the seed that produced this graph is gone. C4 ("same
-   * seed, same realised graph, across processes") is unanswerable without it, and
+   * seed, same realized graph, across processes") is unanswerable without it, and
    * adding it to the example is the one thing runbook §9 forbids. Writing it into
    * our own `session.json` costs nothing and touches nothing.
    */
@@ -132,27 +132,27 @@ export interface SessionOutcome {
  */
 const UNTOLD_NOISE = 0;
 
-/** What this design's `project()` puts in a neighbour view. */
-interface ColourView {
+/** What this design's `project()` puts in a neighbor view. */
+interface ColorView {
   id: string;
   color?: string;
 }
 
-function colourPolicy(seen: { gameID?: string }): BotPolicy<ColourView> {
+function colorPolicy(seen: { gameID?: string }): BotPolicy<ColorView> {
   return {
     tickMs: Number(BOT_INTERVAL_MS),
-    onStart(ctx: BotContext<ColourView>) {
+    onStart(ctx: BotContext<ColorView>) {
       // The only place the game id is available to the runner: `BotRun` exposes
       // player ids and phases, not the game each bot landed in.
       if (ctx.gameID) seen.gameID = ctx.gameID;
       ctx.log({ type: "seated", gameID: ctx.gameID, playerID: ctx.playerID });
     },
-    onTick(ctx: BotContext<ColourView>) {
-      const neighbours = ctx.neighbors();
+    onTick(ctx: BotContext<ColorView>) {
+      const neighbors = ctx.neighbors();
       // `undefined` before first publish, and an isolated node legitimately has
       // an empty list — so this guards on having been published to, not on
-      // having neighbours.
-      if (neighbours === undefined) return;
+      // having neighbors.
+      if (neighbors === undefined) return;
       const state = ctx.state();
       if (!state) return;
 
@@ -161,7 +161,7 @@ function colourPolicy(seen: { gameID?: string }): BotPolicy<ColourView> {
       const ownColor = state.get("color") as string | undefined;
       const next = botChoice({
         ownColor,
-        neighbourColors: neighbours.map((nb) => nb.color),
+        neighborColors: neighbors.map((nb) => nb.color),
         noise,
         rng: ctx.rng,
       }) as string;
@@ -238,10 +238,10 @@ export async function runSession(opts: {
           url: server.url,
           identifiers: fleet,
           seed: opts.seed,
-          policy: colourPolicy(seen),
+          policy: colorPolicy(seen),
           log: (r: Record<string, unknown>) => botLog.push(r),
         });
-        // A participant who connects, is seated, and then never writes a colour.
+        // A participant who connects, is seated, and then never writes a color.
         // `onTick` returning without touching state is exactly "never submits":
         // the seat is occupied and the network is complete, but nothing arrives
         // from it.
@@ -254,7 +254,7 @@ export async function runSession(opts: {
                 policy:
                   opts.inject === "silent"
                     ? { tickMs: Number(BOT_INTERVAL_MS), onTick() {} }
-                    : colourPolicy(seen),
+                    : colorPolicy(seen),
                 log: (r: Record<string, unknown>) => botLog.push(r),
               })
             : undefined;
@@ -274,7 +274,7 @@ export async function runSession(opts: {
           // To the design's own limit, plus headroom for the end-of-game export.
           // A session that times out without solving is a normal outcome here,
           // not a failure: the dependent variable is time to solution and some
-          // colourings are not found.
+          // colorings are not found.
           if (opts.inject === "drop" && soloRun) {
             // Partway through, not at the start: the claim is about a session
             // losing a participant it already had, which is the failure a real
@@ -457,7 +457,7 @@ async function sweep(args: SweepArgs): Promise<number> {
       outcomes.push(outcome);
 
       // Audited as it lands, not at the end of the sweep. The kill criterion is
-      // fixed in advance — one non-neighbour view ends the evaluation
+      // fixed in advance — one non-neighbor view ends the evaluation
       // — and a runner that discovered it ninety minutes later would be ignoring
       // an instruction it was built to obey.
       const audit = auditSession(outcome);
@@ -473,7 +473,7 @@ async function sweep(args: SweepArgs): Promise<number> {
 
       if (audit.leaks > 0) {
         halted =
-          `C1 FAILED in ${label}: ${audit.leaks} non-neighbour view(s) of ` +
+          `C1 FAILED in ${label}: ${audit.leaks} non-neighbor view(s) of ` +
           `${audit.deliveriesChecked} deliveries. The evaluation stops here — this is ` +
           `the finding. Do not re-run to ` +
           `see if it goes away.`;
@@ -505,7 +505,7 @@ async function sweep(args: SweepArgs): Promise<number> {
         n: args.n,
         seedsPerArm: args.seeds,
         arms: args.arms,
-        // Repeated in the artefact, not only in the source, because this is the
+        // Repeated in the artifact, not only in the source, because this is the
         // single easiest thing for a later reader to get wrong.
         vacuityRule:
           "All participants run the example's own botChoice, so in the agent arm every " +
@@ -608,7 +608,7 @@ function regeneratesFromSeed(
   }
   try {
     const n = o.order.length;
-    const realised = structuralEdges(
+    const realized = structuralEdges(
       fs.readFileSync(path.join(o.outDir, o.gameID, "edges.csv"), "utf8"),
       o.gameID,
       o.order
@@ -618,10 +618,10 @@ function regeneratesFromSeed(
     if (botIndices.length > 0) {
       regen = placeBots(regen, n, botIndices, placement, rng) as IndexEdge[];
     }
-    const ok = canonicalEdges(regen) === canonicalEdges(realised);
+    const ok = canonicalEdges(regen) === canonicalEdges(realized);
     return {
       ok,
-      note: ok ? "" : `regenerated ${regen.length} edges, realised ${realised.length}`,
+      note: ok ? "" : `regenerated ${regen.length} edges, realized ${realized.length}`,
     };
   } catch (e) {
     return { ok: false, note: e instanceof Error ? e.message.split("\n")[0]! : String(e) };
@@ -717,7 +717,7 @@ function checkResults(root: string): number {
  */
 const INJECTIONS: { kind: string; what: string; killAfterMs?: number }[] = [
   { kind: "drop", what: "a participant drops sixty seconds into the session" },
-  { kind: "silent", what: "a participant is seated but never submits a colour" },
+  { kind: "silent", what: "a participant is seated but never submits a color" },
   { kind: "kill", what: "the session process is killed outright mid-game", killAfterMs: 90_000 },
 ];
 

@@ -15,7 +15,7 @@
  * milliseconds by `test/unit/rand2011.test.ts`, with no server and no browser.
  * `callbacks.js` is left with wiring.
  *
- * That split is the one defence available against the problem that an example is
+ * That split is the one defense available against the problem that an example is
  * a TEMPLATE: it gets copied, and the tests do not travel with the copy. The
  * least-bad answer is to make the part that gets copied small, pure, and correct
  * — a payoff rule you can read in one screen and check by hand is a payoff rule
@@ -32,14 +32,14 @@ export const DEFECT = "D";
  * neighbor gaining 100 units; defection involves paying no costs and generating
  * no benefits."
  *
- * Note the cost is per NEIGHBOUR, not per round, which is what makes degree part
+ * Note the cost is per NEIGHBOR, not per round, which is what makes degree part
  * of the incentive: a well-connected cooperator pays more. The paper is explicit
  * that this is deliberate — "we do not normalize payoffs across subjects with
  * different numbers of connections, creating an incentive to increase the number
  * of cooperative partners".
  */
-export const COST_PER_NEIGHBOUR = 50;
-export const BENEFIT_PER_NEIGHBOUR = 100;
+export const COST_PER_NEIGHBOR = 50;
+export const BENEFIT_PER_NEIGHBOR = 100;
 
 /** "the probability that another round will occur is 0.8". */
 export const CONTINUATION_PROBABILITY = 0.8;
@@ -73,8 +73,8 @@ export const CONDITIONS = {
 /**
  * One player's payoff for one cooperation round.
  *
- * `neighbourActions` is what each of this player's CURRENT neighbours chose. A
- * player with no neighbours scores 0, which is correct rather than a special
+ * `neighborActions` is what each of this player's CURRENT neighbors chose. A
+ * player with no neighbors scores 0, which is correct rather than a special
  * case: they pay nothing and receive nothing.
  *
  * Pure and total, so `test/unit/rand2011.test.ts` checks it against the paper's
@@ -87,17 +87,17 @@ export const CONDITIONS = {
  * the number in the data silently come to disagree, and it is also what the paper
  * describes ("subjects are informed ... about their own payoff").
  */
-export function roundPayoff(ownAction, neighbourActions) {
-  const cooperators = neighbourActions.filter((a) => a === COOPERATE).length;
-  const benefit = BENEFIT_PER_NEIGHBOUR * cooperators;
-  const cost = ownAction === COOPERATE ? COST_PER_NEIGHBOUR * neighbourActions.length : 0;
+export function roundPayoff(ownAction, neighborActions) {
+  const cooperators = neighborActions.filter((a) => a === COOPERATE).length;
+  const benefit = BENEFIT_PER_NEIGHBOR * cooperators;
+  const cost = ownAction === COOPERATE ? COST_PER_NEIGHBOR * neighborActions.length : 0;
   return benefit - cost;
 }
 
 /**
  * Whether another round follows this one.
  *
- * Takes the seeded rng, so the realised session length is reproducible from the
+ * Takes the seeded rng, so the realized session length is reproducible from the
  * seed this package records on the batch scope. The paper's sessions ran a
  * stochastic number of rounds and reported eleven; a fixed round count would
  * have been a deviation, and it would have been an avoidable one.
@@ -219,7 +219,7 @@ export function applyRewiring(n, edges, offers, answers) {
  *
  * Used for game start and, in the `random` condition, for every round's
  * regeneration. Deliberately NOT resampled until connected: the paper says the
- * network is initialised with 20% of possible links at random, and rejection
+ * network is initialized with 20% of possible links at random, and rejection
  * sampling for connectivity would change the distribution being sampled from.
  * The package makes the same choice for the same reason (`isConnected` is offered
  * rather than enforced).
@@ -236,7 +236,7 @@ export function randomGraph(n, density, rng) {
  * The round-level table, one row per participant per round.
  *
  * Long format, and joinable on `game_id` to the package's own `edges.csv` — so
- * "did this person's neighbourhood change after they defected" is a merge rather
+ * "did this person's neighborhood change after they defected" is a merge rather
  * than a conversation with whoever ran the study. That is the whole point: an
  * analyst should not have to ask how the data is laid out.
  *

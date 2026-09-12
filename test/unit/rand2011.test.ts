@@ -1,7 +1,7 @@
 /**
  * The Rand 2011 reconstruction's design rules, checked against the paper.
  *
- * These assert the EXPERIMENT, not the package. A ported experiment's behaviour
+ * These assert the EXPERIMENT, not the package. A ported experiment's behavior
  * is a claim, and the way this repo treats a claim is to assert it — a payoff
  * rule that is merely described in a comment is a payoff rule nobody has
  * checked. Every expected number below is worked out from the sentence quoted in
@@ -19,12 +19,12 @@ import {
   allPairs,
   anotherRound,
   applyRewiring,
-  BENEFIT_PER_NEIGHBOUR,
+  BENEFIT_PER_NEIGHBOR,
   exportFiles,
   CONDITIONS,
   CONTINUATION_PROBABILITY,
   COOPERATE,
-  COST_PER_NEIGHBOUR,
+  COST_PER_NEIGHBOR,
   DEFECT,
   fromLog,
   INITIAL_DENSITY,
@@ -44,10 +44,10 @@ interface Offer {
 }
 
 test("the paper's constants are what the paper says", () => {
-  assert.equal(COST_PER_NEIGHBOUR, 50, "pay 50 units for each neighbour");
-  assert.equal(BENEFIT_PER_NEIGHBOUR, 100, "each neighbour gains 100 units");
+  assert.equal(COST_PER_NEIGHBOR, 50, "pay 50 units for each neighbor");
+  assert.equal(BENEFIT_PER_NEIGHBOR, 100, "each neighbor gains 100 units");
   assert.equal(CONTINUATION_PROBABILITY, 0.8, "80% chance of another round");
-  assert.equal(INITIAL_DENSITY, 0.2, "initialised with 20% of possible links");
+  assert.equal(INITIAL_DENSITY, 0.2, "initialized with 20% of possible links");
   assert.equal(CONDITIONS.viscous.k, 0.1, "viscous: k = 10%");
   assert.equal(CONDITIONS.fluid.k, 0.3, "fluid: k = 30%");
   assert.equal(CONDITIONS.fixed.k, 0);
@@ -56,27 +56,27 @@ test("the paper's constants are what the paper says", () => {
 });
 
 test("roundPayoff: worked by hand from the paper's rule", () => {
-  // Three neighbours, two of whom cooperated, and I cooperated.
+  // Three neighbors, two of whom cooperated, and I cooperated.
   //   benefit = 2 x 100 = 200 ; cost = 3 x 50 = 150 ; net = 50
   assert.equal(roundPayoff(COOPERATE, [COOPERATE, COOPERATE, DEFECT]), 50);
 
-  // Same neighbours, but I defected: I keep the benefit and pay nothing.
+  // Same neighbors, but I defected: I keep the benefit and pay nothing.
   //   benefit = 200 ; cost = 0 ; net = 200
   assert.equal(roundPayoff(DEFECT, [COOPERATE, COOPERATE, DEFECT]), 200);
 
   // The defection incentive, stated as the arithmetic: switching to D is worth
-  // exactly the cost you avoid, whatever your neighbours do.
+  // exactly the cost you avoid, whatever your neighbors do.
   const nbrs = [COOPERATE, DEFECT, DEFECT, COOPERATE];
   assert.equal(
     roundPayoff(DEFECT, nbrs) - roundPayoff(COOPERATE, nbrs),
-    COST_PER_NEIGHBOUR * nbrs.length
+    COST_PER_NEIGHBOR * nbrs.length
   );
 
   // Cooperating with only defectors is a pure loss; the sign matters, because a
   // payoff rule that cannot go negative is a different game.
   assert.equal(roundPayoff(COOPERATE, [DEFECT, DEFECT]), -100);
 
-  // Degree is part of the incentive: the paper does NOT normalise payoffs, so a
+  // Degree is part of the incentive: the paper does NOT normalize payoffs, so a
   // well-connected cooperator surrounded by cooperators earns more...
   assert.ok(
     roundPayoff(COOPERATE, Array(8).fill(COOPERATE)) >
@@ -165,7 +165,7 @@ test("rewiringOffers: who decides is not predicted by topology index", () => {
   // "one of the two (picked at random)". Always giving it to the lower index
   // would make position predict who acts, and the seed deliberately permutes who
   // sits where — so the bias would be invisible in the data and real in the
-  // behaviour.
+  // behavior.
   const offers = rewiringOffers(30, 0.4, () => false, makeRng(2024)) as Offer[];
   const lower = offers.filter((o) => o.decider < o.other).length;
   assert.ok(lower > 0 && lower < offers.length, "both directions occur");
@@ -246,7 +246,7 @@ test("applyRewiring: feedback counts what OTHERS did to you, not what you did", 
 
 test("applyRewiring: no duplicate edges, and edges stay canonically ordered", () => {
   // A duplicate tie would double a cooperator's cost and be invisible in a
-  // rendered neighbour list.
+  // rendered neighbor list.
   const offers = [{ decider: 5, other: 2, exists: false }];
   const out = applyRewiring(6, [[2, 5]], offers, { "5-2": true });
   assert.equal(out.edges.length, 1, "forming an existing tie is a no-op");
@@ -294,7 +294,7 @@ test("anotherRound: stochastic, seeded, and near the paper's 0.8", () => {
     `continuation rate ${rate.toFixed(3)} should be near ${CONTINUATION_PROBABILITY}`
   );
 
-  // Reproducible from the seed, so the realised session length is recoverable
+  // Reproducible from the seed, so the realized session length is recoverable
   // from the seed this package stores. One rng drawn repeatedly, not a fresh one
   // per draw — a fresh rng per call would return the same value every time and
   // this assertion would hold for the wrong reason.
@@ -502,7 +502,7 @@ test("fromLog: out-of-order and duplicate records, and a truncated tail", () => 
   assert.equal(recovered.condition, "viscous");
 
   // A hard kill can cut the final line mid-record. The caller drops what will not
-  // parse, so `fromLog` never sees it — this pins the behaviour of the parse step
+  // parse, so `fromLog` never sees it — this pins the behavior of the parse step
   // that a recovery tool has to perform.
   const text = '{"type":"start","condition":"fluid"}\n{"type":"round","round":1,"ro';
   const parsed = text

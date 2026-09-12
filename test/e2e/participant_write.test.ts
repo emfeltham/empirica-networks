@@ -4,8 +4,8 @@
  * Why this is scope-defining. Empirica's Classic links the cross product of
  * every participant to every player node, so `player.set("choice", x)` is
  * already visible to everyone. If that is the only way a participant can write,
- * then neighbour-limited visibility is violated *at the source* and projecting
- * on the server buys nothing: a participant could read non-neighbours' raw
+ * then neighbor-limited visibility is violated *at the source* and projecting
+ * on the server buys nothing: a participant could read non-neighbors' raw
  * choices straight off the wire.
  *
  * The module's premise is that a participant writes to its own `nbhd` scope —
@@ -14,8 +14,8 @@
  * other direction.
  *
  * Outcomes:
- *   PASS  -> the module can claim "your state is visible only to your neighbours"
- *   FAIL  -> the claim must be restated as "your neighbours' PROJECTED VIEW is
+ *   PASS  -> the module can claim "your state is visible only to your neighbors"
+ *   FAIL  -> the claim must be restated as "your neighbors' PROJECTED VIEW is
  *            private; raw player attributes remain public", which is a much
  *            weaker product.
  */
@@ -214,7 +214,7 @@ test("R1: a participant can write to its own nbhd scope, and it does not broadca
       // certainly has attributes — the assertions two lines up have just proved
       // the participant's write landed on it.
       //
-      // So this is a characterisation, in the same spirit as R1b below, and the
+      // So this is a characterization, in the same spirit as R1b below, and the
       // assertion is on the SHAPE of the answer rather than on success: whatever
       // else changes, "the admin can enumerate a scope's attributes" must not
       // silently start being believed on no evidence. If upstream fixes it, the
@@ -267,7 +267,7 @@ test("R1: a participant can write to its own nbhd scope, and it does not broadca
  * decides whether the module writes every projected attribute `protected` (and
  * whether the server may ever trust a participant-written value).
  */
-test("R1b: Empirica has no write ACL — characterising what a participant can write", async () => {
+test("R1b: Empirica has no write ACL — characterizing what a participant can write", async () => {
   const channels = new Map<string, string>();
   let provisioned = false;
 
@@ -358,22 +358,22 @@ test("R1b: Empirica has no write ACL — characterising what a participant can w
       console.log(`  overwrite PROTECTED attribute  : ${errGuarded ? "REJECTED" : "accepted"}, reached victim=${reached(OVER_GUARDED)}`);
       console.log(`  write into another PLAYER scope: ${errPlayer ? "REJECTED" : "accepted"}, reached victim=${reached(OVER_PLAYER)}`);
 
-      // CHARACTERISATION, not aspiration. Empirica/Tajriba has no write ACL:
+      // CHARACTERIZATION, not aspiration. Empirica/Tajriba has no write ACL:
       // any participant that knows a node id can set attributes on it, and
       // `protected: true` does not prevent it. These assertions pin the CURRENT
-      // behaviour so that if upstream ever adds enforcement, this test fails
+      // behavior so that if upstream ever adds enforcement, this test fails
       // loudly and we can tighten the module's guarantees rather than silently
       // keep defending against a threat that no longer exists.
-      assert.equal(errGuarded, undefined, "characterisation: protected writes are not rejected today");
+      assert.equal(errGuarded, undefined, "characterization: protected writes are not rejected today");
       assert.equal(
         reached(OVER_GUARDED),
         true,
-        "characterisation: a protected attribute IS overwritable by another participant"
+        "characterization: a protected attribute IS overwritable by another participant"
       );
       assert.equal(
         reached(OVER_PLAYER),
         true,
-        "characterisation: any participant can write into any other participant's player scope"
+        "characterization: any participant can write into any other participant's player scope"
       );
 
       // The invariant the module must therefore be built on: server-side code

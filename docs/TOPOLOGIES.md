@@ -1,6 +1,6 @@
 # Topologies
 
-This is the generator catalogue, the page to read while designing a study, choosing a structure
+This is the generator catalog, the page to read while designing a study, choosing a structure
 and checking that it will fit, rather than while writing code; for the surrounding API see
 [API.md](API.md).
 
@@ -28,7 +28,7 @@ reordering people. [BOTS §4](BOTS.md) is the worked case.
 1. Randomness is always seeded. Every generator that makes a random choice takes an `rng`,
 and four of them throw without one. This requirement is about reproducibility, not tidiness:
 Breadboard used an unseeded generator, so a finished run stored the generator and its parameters
-but not the realised graph, and for a network experiment the realised graph is often the
+but not the realized graph, and for a network experiment the realized graph is often the
 independent variable. `withNetwork` passes you a seeded `rng` and records the seed. Pinned by
 `test/e2e/reproducibility.test.ts`.
 
@@ -69,7 +69,7 @@ rather than stranding one participant.
 
 | | Degree | Needs `rng`? | Connected? | Notes |
 |---|---|---|---|---|
-| `star(n, { rng })` | hub n−1, spokes 1 | no | always | Requires n ≥ 2. Pass `rng` to randomise who is the hub |
+| `star(n, { rng })` | hub n−1, spokes 1 | no | always | Requires n ≥ 2. Pass `rng` to randomize who is the hub |
 | `wheel(n, { rng })` | hub n−1, rim 3 | no | always | A star whose spokes are also joined in a ring. Requires n ≥ 4 |
 
 ## Random
@@ -87,7 +87,7 @@ rather than stranding one participant.
 |---|---|---|
 | `pairs(n, { rng })` | 1 | Disjoint dyads. The natural control for a network study: same interaction, no structure. `n` must be even, or one participant is left with nobody |
 | `empty()` | 0 | No edges. Takes no arguments |
-| `fromEdgeList(n, edges)` | yours | Normalises: drops self-loops, deduplicates, orders each pair, sorts |
+| `fromEdgeList(n, edges)` | yours | Normalizes: drops self-loops, deduplicates, orders each pair, sorts |
 
 Route hand-built graphs through `fromEdgeList`. A duplicate edge is harmless to `adjacency`
 but makes `edges.length` misreport the tie count in the recorded data, and the recorded edge
@@ -96,11 +96,11 @@ list is what your analysis reads.
 ## Measures
 
 Pure functions over `(n, edges)`, usable before a study to check a design and after one to
-describe what was realised.
+describe what was realized.
 
 | | Returns |
 |---|---|
-| `adjacency(n, edges)` | `number[][]`: neighbour lists by index |
+| `adjacency(n, edges)` | `number[][]`: neighbor lists by index |
 | `degrees(n, edges)` | `number[]` |
 | `meanDegree(n, edges)` | `number` |
 | `maxDegree(n, edges)` | `number`: check this against the envelope for any random generator |
@@ -115,13 +115,13 @@ if (!topology.isConnected(n, edges)) { /* your call, not the package's */ }
 
 ## What the leak check can say about each
 
-`npx empirica-networks verify --topology <name>` reproduces the neighbour-limited visibility
-guarantee on a shape, and the shape decides what a pass is worth. Two properties of the realised
+`npx empirica-networks verify --topology <name>` reproduces the neighbor-limited visibility
+guarantee on a shape, and the shape decides what a pass is worth. Two properties of the realized
 graph matter, and neither is a function of `n`:
 
-- A participant adjacent to everyone has no non-neighbour, so the check cannot speak to them.
+- A participant adjacent to everyone has no non-neighbor, so the check cannot speak to them.
   A star's or wheel's hub, and every node of `complete`.
-- A participant adjacent to nobody receives no neighbour view, so there is nothing to confirm
+- A participant adjacent to nobody receives no neighbor view, so there is nothing to confirm
   arrived. `empty`, and `erdosRenyi`/`geometricRandom`/`wattsStrogatz` below their thresholds.
 
 Either is fine in moderation: they are counted and reported. A graph where every participant is

@@ -157,7 +157,7 @@ async function armLongGame(minutes: number): Promise<void> {
     gameInit(1, 1, 7_200_000)(_);
     handle = withNetwork(_, {
       topology: ({ playerCount }) => ringLattice(playerCount, 4),
-      project: (neighbour: any) => ({ id: neighbour.id, tick: neighbour.get("tick") }),
+      project: (neighbor: any) => ({ id: neighbor.id, tick: neighbor.get("tick") }),
       watch: ["tick"],
     });
   };
@@ -197,7 +197,7 @@ async function armLongGame(minutes: number): Promise<void> {
     );
 
     while (Date.now() < endAt) {
-      // Rotate the writer so this is not one player's neighbourhood over and
+      // Rotate the writer so this is not one player's neighborhood over and
       // over, and always write a NEW value — the byte-identical check would
       // otherwise suppress the publish and the arm would measure nothing.
       const actor = participants[writes % participants.length]!;
@@ -293,7 +293,7 @@ async function armManyGames(games: number): Promise<void> {
     });
     handle = withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id, tick: neighbour.get("tick") }),
+      project: (neighbor: any) => ({ id: neighbor.id, tick: neighbor.get("tick") }),
       watch: ["tick"],
     });
   };

@@ -1,10 +1,10 @@
 /**
  * Deterministic seeding for topology generation.
  *
- * Breadboard used an unseeded `new Random()`, which means a network realisation
+ * Breadboard used an unseeded `new Random()`, which means a network realization
  * cannot be reconstructed from stored data — you know the generator and its
  * parameters, but not the graph that was actually shown to participants. For a
- * network experiment the realised graph is often the independent variable, so
+ * network experiment the realized graph is often the independent variable, so
  * that is a genuine analysis gap rather than a nicety.
  *
  * Here the seed is derived from the game id by default and recorded as a game

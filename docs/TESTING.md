@@ -101,7 +101,7 @@ Some of the most important ones:
 
 | | Proves |
 |---|---|
-| `leak.test.ts`, `scope_visibility.test.ts` | non-neighbours receive nothing, across a ring, a star and a disconnected graph; a shape that could prove nothing is refused; the batch scope is not delivered |
+| `leak.test.ts`, `scope_visibility.test.ts` | non-neighbors receive nothing, across a ring, a star and a disconnected graph; a shape that could prove nothing is refused; the batch scope is not delivered |
 | `topology_visibility.test.ts` | the seed and edge list do not reach participants |
 | `restart.test.ts`, `restart_full.test.ts` | a restart does not silently reseat anyone |
 | `duplicate_listeners.test.ts` | the U8 detector fires, and if it ever fails by saying the second handler did run, upstream has fixed U8 and the warning should be withdrawn |
@@ -118,8 +118,8 @@ list rather than a count: it finds each participant's key as a substring of ever
 participant's frames, with the participant's own key as the non-vacuity arm.
 
 The fact that the examples are imported unmodified is itself significant. An example whose
-behaviour is asserted found three real bugs during M5, two of them in itself; an example whose
-behaviour is described would have shipped all three.
+behavior is asserted found three real bugs during M5, two of them in itself; an example whose
+behavior is described would have shipped all three.
 
 ### The browser tier — real Chromium, run deliberately
 
@@ -129,11 +129,11 @@ file, one process at a time; a substring argument runs a subset.
 
 | | Proves | Needs |
 |---|---|---|
-| `two_windows.ts` | the guarantee at the tab level: four real windows, and a non-neighbour's private value never arrives in the bytes, which cannot be checked by looking at the screen | CLI, ports 3000/8844, approximately 1 minute |
-| `monitor_page.ts` | the monitor's served script: the scrubber, the colour scale, and the two banners | Chromium only, approximately 4 seconds |
+| `two_windows.ts` | the guarantee at the tab level: four real windows, and a non-neighbor's private value never arrives in the bytes, which cannot be checked by looking at the screen | CLI, ports 3000/8844, approximately 1 minute |
+| `monitor_page.ts` | the monitor's served script: the scrubber, the color scale, and the two banners | Chromium only, approximately 4 seconds |
 
 Can prove: what only a browser can, including a real reload restoring a real session, the actual
-bytes a tab received, and the behaviour of the one script in this package that no other tier can
+bytes a tab received, and the behavior of the one script in this package that no other tier can
 load.
 
 Cannot prove anything cheaper than the tier below it can, which is why it is not in `npm test`.
@@ -156,8 +156,8 @@ This is not a test tier. It is the command a reviewer would run, which is why CI
 itself rather than only the library it wraps. It has three required components:
 
 ```
-  non-neighbour sentinels received : 0/4 pairs  (must be 0)
-  neighbour sentinels delivered    : 8/8  (non-vacuity)
+  non-neighbor sentinels received : 0/4 pairs  (must be 0)
+  neighbor sentinels delivered    : 8/8  (non-vacuity)
   control values observed          : 12  (must be > 0, proves detection works)
 ```
 
@@ -387,7 +387,7 @@ re-testing the pinned version weekly under a name that says otherwise. Mode test
 are reported separately, because they are the tier that catches a `dones` break.
 
 It also catches upstream fixes, which is why the e2e step is not optional. Two findings are
-pinned by tests that assert the current broken behaviour: U8 (`duplicate_listeners.test.ts`,
+pinned by tests that assert the current broken behavior: U8 (`duplicate_listeners.test.ts`,
 "the second handler never ran") and U9 (`participant_write.test.ts`, `attributes()` errors). A fix
 upstream turns those red with a message saying what to close. This job is the only thing that ever
 runs them against a version where they could pass.

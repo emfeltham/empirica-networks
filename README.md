@@ -1,6 +1,6 @@
 # empirica-networks
 
-Network experiments for [Empirica](https://empirica.ly): participants are nodes in a graph, and each participant sees only the state of their neighbours.
+Network experiments for [Empirica](https://empirica.ly): participants are nodes in a graph, and each participant sees only the state of their neighbors.
 
 The package runs real games today but is not yet published. All three examples in this repository play end to end against a real Empirica server, and the read-privacy guarantee they depend on is enforced and tested, not merely documented; see [Runnable examples](#runnable-examples) and [Verifying the guarantee](#verifying-the-guarantee). What does not yet hold is the public API, which remains unfrozen, and the package is kept at `private: true`, version `0.0.0`; see [Installation](#installation).
 
@@ -68,7 +68,7 @@ The name is `empirica-networks`, unscoped: discovery is the binding constraint i
 
 ## Quick start
 
-Three edits to a stock `empirica create` project. The first is mandatory, and skipping it is silently fatal in itself: nothing errors, and participants are left with empty neighbourhoods indefinitely. The package checks for this omission, since `assertKindsRegistered(networkKinds)` fails before the server starts; failing that, an automatic check warns a few seconds into the first game.
+Three edits to a stock `empirica create` project. The first is mandatory, and skipping it is silently fatal in itself: nothing errors, and participants are left with empty neighborhoods indefinitely. The package checks for this omission, since `assertKindsRegistered(networkKinds)` fails before the server starts; failing that, an automatic check warns a few seconds into the first game.
 
 ```diff
   // server/src/index.js
@@ -89,9 +89,9 @@ import { topology, withNetwork } from "empirica-networks/admin";
 
 export const net = withNetwork(Empirica, {
   topology: ({ playerCount, rng }) => topology.ring(playerCount, { rng }),
-  project: (neighbour, viewer, ctx) => ({
-    id: neighbour.id,
-    choice: ctx.stateOf(neighbour).get("choice"),
+  project: (neighbor, viewer, ctx) => ({
+    id: neighbor.id,
+    choice: ctx.stateOf(neighbor).get("choice"),
   }),
   watch: ["choice"],          // project() reads it, so a change republishes
   read: ["submission"],       // only the server reads it
@@ -116,19 +116,19 @@ step named where it bites. [`docs/API.md`](docs/API.md) is the full surface.
 
 ## The guarantee and its limit
 
-What holds is that a participant never receives a non-neighbour's projected state: the bytes
+What holds is that a participant never receives a non-neighbor's projected state: the bytes
 themselves never arrive, rather than merely being hidden by the interface. Each participant has a
 private channel scope linked to them alone, and projections are written only there.
 
 Where participants write also matters. Empirica cross-links every participant to every player
 node, so anything written with `player.set(key, value)` is broadcast to everyone, regardless of
 topology. Projecting such a value restricts nothing, since the raw attribute is already out. Write
-with `useNetworkState().set()`, and read on the server through `ctx.stateOf(neighbour)`.
+with `useNetworkState().set()`, and read on the server through `ctx.stateOf(neighbor)`.
 
-`npm run test:browser` asserts both halves in real browsers: a non-neighbour's private value
+`npm run test:browser` asserts both halves in real browsers: a non-neighbor's private value
 appears nowhere in the bytes a tab received, while a player attribute does.
 
-The network itself is private too. The seed and realised edge list are recorded on the batch
+The network itself is private too. The seed and realized edge list are recorded on the batch
 scope, the one durable scope measured not to be delivered to participants, so that a finished run
 stays reproducible from stored data without handing the seating plan to the people inside it. The
 game scope would be the obvious place to keep them, but doing so would deliver both to every
@@ -150,8 +150,8 @@ npx empirica-networks verify --n 4        # once published
 It boots a real Tajriba, connects four headless participants on a ring by default (`--topology` takes `star`, `wheel`, `pairs` or `ladder` too), and checks the wire:
 
 ```
-  non-neighbour sentinels received : 0/4 pairs  (must be 0)
-  neighbour sentinels delivered    : 8/8  (non-vacuity)
+  non-neighbor sentinels received : 0/4 pairs  (must be 0)
+  neighbor sentinels delivered    : 8/8  (non-vacuity)
   control values observed          : 12  (must be > 0, proves detection works)
 
   PASS
@@ -179,9 +179,9 @@ consumer cannot patch, and only the in-package path is testable by this suite.
 
 | | What it is |
 |---|---|
-| [`examples/minimal`](examples/minimal) | A stock `empirica create` project with four files changed. Participants on a ring pick a colour and see only their two neighbours'. Start here |
+| [`examples/minimal`](examples/minimal) | A stock `empirica create` project with four files changed. Participants on a ring pick a color and see only their two neighbors'. Start here |
 | [`examples/rand2011`](examples/rand2011) | A reconstruction of the design in Rand, Arbesman & Christakis (2011), *PNAS*. Cooperation in dynamic networks: rewiring during play, private decisions, four conditions |
-| [`examples/shirado2017`](examples/shirado2017) | A reconstruction of Shirado & Christakis (2017), *Nature*. Colour coordination on a scale-free network, with a global objective participants cannot see — both the control arm and the paper's autonomous-agent conditions |
+| [`examples/shirado2017`](examples/shirado2017) | A reconstruction of Shirado & Christakis (2017), *Nature*. Color coordination on a scale-free network, with a global objective participants cannot see — both the control arm and the paper's autonomous-agent conditions |
 
 ```sh
 npm install && node scripts/example-install.mjs minimal   # or: npm run example:install, for all three
@@ -212,17 +212,17 @@ await runBots({
   policy: {
     tickMs: 1500,
     onTick(ctx) {
-      const neighbours = ctx.neighbors();          // undefined until the first publish
-      if (neighbours === undefined) return;
-      ctx.state().set("choice", decide(neighbours, ctx.rng));
+      const neighbors = ctx.neighbors();          // undefined until the first publish
+      if (neighbors === undefined) return;
+      ctx.state().set("choice", decide(neighbors, ctx.rng));
     },
   },
 });
 ```
 
 A bot reads through the same `project()` and writes to the same private channel a human does.
-There is deliberately no server-side path: a bot that could see the graph or a non-neighbour would
-turn any comparison against humans into a comparison of access rather than of behaviour.
+There is deliberately no server-side path: a bot that could see the graph or a non-neighbor would
+turn any comparison against humans into a comparison of access rather than of behavior.
 
 Three things are worth knowing before using it, each the subject of a section in
 [`docs/BOTS.md`](docs/BOTS.md):
@@ -234,7 +234,7 @@ Three things are worth knowing before using it, each the subject of a section in
   is whoever will occupy index `i`. Relabel the graph rather than reordering people, since that is
   what keeps the degree distribution identical across arms.
 - A bot's name is participant-visible (U10 above), so `runBots` takes an identifier list
-  rather than inventing one, and the server should recognise its bots by holding that list.
+  rather than inventing one, and the server should recognize its bots by holding that list.
 
 `examples/shirado2017` is the worked case: 3 agents × 3 noise levels × 3 placements, which is the
 contribution of the paper it reconstructs.
@@ -253,7 +253,7 @@ Per-participant payload is O(d), independent of n; server egress is O(n·d).
 
 The regime this package was written for is n ≤ 50, where every figure has margin to spare.
 
-End-to-end publish latency, from a watched attribute changing to a neighbour's client holding the
+End-to-end publish latency, from a watched attribute changing to a neighbor's client holding the
 new value (`npm run bench`):
 
 Each figure is the median of three runs, each against a fresh server, with the observed range
@@ -267,9 +267,14 @@ beside it (`npm run bench -- --repeats 3`, 2026-08-16):
   n=200  d=8  p50 median 26.8ms   (one run in three completed — see U7)
 ```
 
-The scale matters here more than any single value, and n barely predicts the result. Those ranges
-are not noise around a true figure: the same n=25 cell measured anywhere from 3.3 to 18.3 ms across
-one afternoon, while repeats within any sweep agreed to under 17%. The cause is the measuring
+The scale matters here more than any single value, and n barely predicts the result. Two kinds of
+variation are at work above and neither is noise around a true figure. **Within** this sweep, the
+three runs of a cell agree closely at n=25 and diverge by a factor of two or more from n=50 up,
+because `withServer` is per run: every repeat re-measures process startup, batch creation and first
+publish, which is where the run-to-run variance lives. **Across** sweeps, the same n=25 cell
+measured anywhere from 3.3 to 18.3 ms in one afternoon — an offset shared by every cell in a sweep
+and therefore invisible to repeats, which is why O1's "4–17%" is the within-sweep agreement of that
+one cell and not a property of the table above. The cause is the measuring
 machine rather than the package: a busier host measures faster, non-monotonically, because an
 idle laptop clocks its cores down (`docs/PLATFORM-NOTES.md` §21 finds that the coordinator burns
 57% more CPU time for identical work when the machine is quiet). Repeats buy precision, not
@@ -277,19 +282,19 @@ accuracy, so any single figure here should be treated as an order of magnitude. 
 within one sweep, such as the payload table below, remain sound, because both arms see the same
 clock.
 
-The dominant term is how many participants share an event loop, which is an artefact of measuring
+The dominant term is how many participants share an event loop, which is an artifact of measuring
 hundreds of clients on one machine; real participants in separate browsers do not. The package's
 own contribution is somewhere below these numbers, and this bench cannot resolve it (`ISSUES.md`
 O1). The n ≥ 200 start failure is discussed in §16; the degree-cap correction, in §19.
 
-The following measurements show what a large per-neighbour payload costs, paired inside one sweep
+The following measurements show what a large per-neighbor payload costs, paired inside one sweep
 so that the offset cancels (§21):
 
 ```
   n=20  d=19   2 fields  →  1.4KiB per publish   p50 11.5ms
   n=20  d=19  +1KiB/view →  20.6KiB              p50 21.4ms
   n=50  d=49   2 fields  →  3.7KiB               p50 22.8ms
-  n=50  d=49  +1KiB/view →  53.1KiB              p50 67.0ms   ← just under maxNeighbourhoodBytes
+  n=50  d=49  +1KiB/view →  53.1KiB              p50 67.0ms   ← just under maxNeighborhoodBytes
 ```
 
 Nothing was dropped at any size, so the 64 KiB default behaves as a slope rather than a cliff: a
@@ -314,6 +319,6 @@ npm run build
 things. [`docs/TESTING.md`](docs/TESTING.md) has the three tiers, what each one can and cannot
 prove, and, importantly, how to read a red run before concluding that it is a regression.
 
-## Licence
+## License
 
 MIT. See [LICENSE](LICENSE).

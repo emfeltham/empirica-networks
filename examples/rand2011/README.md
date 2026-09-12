@@ -12,7 +12,7 @@ results, and nothing here supports or challenges their findings. No code from th
 Breadboard implementation exists, so nothing here has been ported from it. If you run it and write about it,
 call it *a reconstruction of the design in Rand et al. (2011)*.
 
-Participants sit in a network and repeatedly choose, in one move toward all of their neighbours,
+Participants sit in a network and repeatedly choose, in one move toward all of their neighbors,
 whether to cooperate or defect. Between rounds, in the dynamic conditions, they are
 offered the chance to break existing ties and form new ones. The paper's finding is that when
 the network updates fast enough, cooperation is sustained; when it is static or slow, it
@@ -23,7 +23,7 @@ collapses.
 Rewiring during play is the capability that motivated this package, and this is its canonical
 published use. It exercises the parts nothing else does: `network().addEdge`/`removeEdge`, the
 append-only edge history, `edgeRows`/`snapshotRows`, `tell()`, and a per-round private decision
-whose payoff is neighbour-limited.
+whose payoff is neighbor-limited.
 
 ## Run it
 
@@ -47,9 +47,9 @@ Pick a treatment in the admin console. `Fluid (n=6, demo only)` is the one you c
 hand; the four `n=20` treatments are the paper's own scale (it ran 785 subjects over 40 sessions,
 mean network size 19.6, SD 6.4). At n=6 there are 15 pairs rather than 190, so a round offers
 about 5 rewiring decisions rather than 57 — use it to watch the mechanism, not to look at
-behaviour.
+behavior.
 
-Prove the neighbour-limited claim on your own machine, rather than taking it from this file:
+Prove the neighbor-limited claim on your own machine, rather than taking it from this file:
 
 ```sh
 npx empirica-networks verify --n 4        # once the package is published
@@ -77,7 +77,7 @@ less fluid than the paper's — which is why `test/unit/rand2011.test.ts` pins t
 
 | Value | Written with | Who can read it |
 |---|---|---|
-| `action` (cooperate/defect) | `state.set("action", …)` — the participant's own channel | **only their neighbours**, via `project()` |
+| `action` (cooperate/defect) | `state.set("action", …)` — the participant's own channel | **only their neighbors**, via `project()` |
 | `rewireAnswers` | `state.set(…)` — the participant's own channel | **only the server** |
 | `score` / rewiring offers / feedback | `net.tell(playerID, …)` — server to one participant | **only that participant** |
 | `wealth` (authoritative) | `game.batch.set(…)` | **nobody but the server** |
@@ -89,7 +89,7 @@ the visible condition of a different published experiment:
 > Nishi, A., Shirado, H., Rand, D. G. & Christakis, N. A. (2015). Inequality and visibility of
 > wealth in experimental social networks. *Nature* **526**, 426–429.
 
-whose whole finding is that this one field changes behaviour and raises inequality. The
+whose whole finding is that this one field changes behavior and raises inequality. The
 experiment would still run, the screens would still look right, and the data would answer
 someone else's question. `test/e2e/rand2011.test.ts` asserts the absence at the wire, in both
 shapes a leak can take — a broadcast player attribute (`"key":"wealth"`) and a field inside a
@@ -104,21 +104,21 @@ confirmed by measurement not to be delivered to participants (`docs/PLATFORM-NOT
 
 **Reconstructed from the paper:**
 
-- Payoffs: cooperating costs 50 units per neighbour and gives each neighbour 100; defecting
-  costs and gives nothing. Payoffs are not normalised by degree, which is what makes
+- Payoffs: cooperating costs 50 units per neighbor and gives each neighbor 100; defecting
+  costs and gives nothing. Payoffs are not normalized by degree, which is what makes
   connections worth acquiring.
 - The initial network: 20% of possible links, at random.
 - The rewiring protocol: a fraction *k* of pairs per round; one of the two, at random, decides;
   the decider is shown the other's last action and nothing else — not their degree, not the
   shape of the graph.
 - Post-rewiring feedback: how many others broke ties with you, and how many formed new ones.
-- Stochastic session length: 80% chance of another round, drawn from a seeded random number generator so the realised
+- Stochastic session length: 80% chance of another round, drawn from a seeded random number generator so the realized
   length is part of the reproducible record.
 
 **Not reconstructed, and each of these is a real difference:**
 
 - **Incentives.** The paper ran paid on Mechanical Turk, converting units to money. This scores
-  in units only. Payment changes behaviour, so no behavioural comparison should be read across.
+  in units only. Payment changes behavior, so no behavioral comparison should be read across.
 - **A round cap.** Rounds stop at 15 regardless of the continuation draw, so a session cannot run
   unboundedly. The paper reports eleven rounds; the cap is recorded in `rounds.csv` via the round
   number, so an analyst can see it rather than infer it.
@@ -196,8 +196,8 @@ game end, and process exit, so a hard kill loses at most one batch.
   hand: payoffs, the rewiring draw, the feedback counts, the continuation probability, the export
   shape. No server is involved, and it runs in milliseconds.
 - `test/e2e/rand2011.test.ts` — this experiment's `callbacks.js`, imported unmodified, against
-  a real Tajriba: wealth is absent from the wire, a non-neighbour's action never arrives, payoffs
-  match the paper's rule applied to the realised graph, rewiring offers are about non-neighbours
+  a real Tajriba: wealth is absent from the wire, a non-neighbor's action never arrives, payoffs
+  match the paper's rule applied to the realized graph, rewiring offers are about non-neighbors
   and reach only their decider, and an answer really does change the graph and gets logged.
 - `npm run example:build rand2011` (from the repository root) compiles the client. CI runs it for every
   example, which is what catches an import path that resolves nowhere — the package's exports map

@@ -26,7 +26,7 @@ function snapshot(over: Partial<GameSnapshot> = {}): GameSnapshot {
       index,
       playerID,
       degree: 2,
-      neighbours: [],
+      neighbors: [],
       channel: true,
       attrs: {},
       state: {},

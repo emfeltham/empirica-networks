@@ -60,16 +60,16 @@ test("a REAL admin Player is detected as a scope and refused", async () => {
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
       topology: ({ playerCount }) => ring(playerCount),
-      project: (neighbour: any) => {
-        captured = neighbour;
+      project: (neighbor: any) => {
+        captured = neighbor;
         try {
           // Exactly what an author would write if they thought project() was a
-          // filter rather than a serialiser.
-          validateProjection(neighbour, "probe");
+          // filter rather than a serializer.
+          validateProjection(neighbor, "probe");
         } catch (e) {
           thrown = e as Error;
         }
-        return { id: neighbour.id };
+        return { id: neighbor.id };
       },
     });
   };
@@ -84,7 +84,7 @@ test("a REAL admin Player is detected as a scope and refused", async () => {
     }
   );
 
-  assert.ok(captured, "project() received a neighbour");
+  assert.ok(captured, "project() received a neighbor");
   assert.ok(
     thrown,
     "a real admin Player must be refused — if this fails, scope detection has " +
@@ -113,9 +113,9 @@ test("an over-dense topology is refused BEFORE any channel is provisioned", asyn
         started++;
         return complete(playerCount); // degree n-1
       },
-      project: (neighbour: any) => {
+      project: (neighbor: any) => {
         projected++;
-        return { id: neighbour.id };
+        return { id: neighbor.id };
       },
       envelope: { maxDegree: 2 },
     });
@@ -160,7 +160,7 @@ test('envelope onExceed:"warn" lets a dense topology through', async () => {
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
       topology: ({ playerCount }) => complete(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id }),
+      project: (neighbor: any) => ({ id: neighbor.id }),
       envelope: { maxDegree: 2, onExceed: "warn" },
     });
   };
@@ -193,11 +193,11 @@ test('envelope onExceed:"warn" lets a dense topology through', async () => {
   assert.ok(published, "the warn path published");
 });
 
-test("the aggregate neighbourhood limit is wired into publish, per participant", async () => {
+test("the aggregate neighborhood limit is wired into publish, per participant", async () => {
   /**
    * The only test that proves `publish()` labels each view with its VIEWER.
    *
-   * `checkNeighbourhoodBytes` sums per participant, and it can only do that if
+   * `checkNeighborhoodBytes` sums per participant, and it can only do that if
    * `publish()` threads `viewer` into the size list it hands over. That threading
    * is one word, and deleting it makes the aggregate check find nothing to group
    * by and pass — verified by doing exactly that, with every unit test staying
@@ -214,7 +214,7 @@ test("the aggregate neighbourhood limit is wired into publish, per participant",
    *
    * The limit is set low rather than the views made large, so this stays at n=4.
    * Three views of ~1 KiB each are individually far inside `maxViewBytes` and
-   * together over a 2 KiB neighbourhood limit — exactly the shape the limit exists
+   * together over a 2 KiB neighborhood limit — exactly the shape the limit exists
    * for: degree x view size, invisible to both a
    * per-view limit and a per-node degree limit.
    */
@@ -225,8 +225,8 @@ test("the aggregate neighbourhood limit is wired into publish, per participant",
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
       topology: ({ playerCount }) => complete(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id, pad: PAD }),
-      envelope: { maxNeighbourhoodBytes: 2048, onExceed: "warn" },
+      project: (neighbor: any) => ({ id: neighbor.id, pad: PAD }),
+      envelope: { maxNeighborhoodBytes: 2048, onExceed: "warn" },
     });
   };
 
@@ -262,11 +262,11 @@ test("the aggregate neighbourhood limit is wired into publish, per participant",
   assert.match(
     text,
     /would receive more than 2048 bytes in one publish/,
-    "the aggregate limit never fired: publish() is not labelling views with a viewer"
+    "the aggregate limit never fired: publish() is not labeling views with a viewer"
   );
-  // Per participant, and across all three of their neighbours — which is the part
+  // Per participant, and across all three of their neighbors — which is the part
   // that can only be true if the grouping key survived the trip.
-  assert.match(text, /across 3 neighbours/);
+  assert.match(text, /across 3 neighbors/);
   // Non-vacuity for the capture, and for the arm as a whole: the publish really
   // happened (the waitFor above returned), so this is the limit reporting on real
   // traffic rather than a scenario that failed to start.

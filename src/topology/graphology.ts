@@ -18,7 +18,7 @@
  *   2. There is no dual-instance hazard. The graph is built by the caller's own
  *      constructor, so their `instanceof` checks and their graphology-* helpers
  *      all agree with it.
- *   3. The caller chooses the flavour: Graph, UndirectedGraph, MultiGraph and
+ *   3. The caller chooses the flavor: Graph, UndirectedGraph, MultiGraph and
  *      MultiUndirectedGraph all work. `DirectedGraph` throws a graphology
  *      UsageGraphError, which is the correct outcome rather than a gap — this
  *      module's model is a simple undirected graph, and a directed tie would be
@@ -65,7 +65,7 @@ export type GraphConstructor = new () => Graph;
  * keeps structural index (`number`) and participant identity (`order[i]`)
  * separate — the seed permutes who sits where, never the structure, which is
  * what makes seed + edge list a complete record of a run. graphology keys nodes
- * by string, so labelling by playerID would destroy that distinction. Writing
+ * by string, so labeling by playerID would destroy that distinction. Writing
  * the index as an attribute keeps both, and makes the round trip exact.
  */
 export const TOPOLOGY_INDEX_ATTRIBUTE = "topologyIndex";
@@ -97,7 +97,7 @@ export interface ToGraphologyOptions {
  * cross-fetch/polyfill. Bundlers resolve it either way; plain `node` does not.
  *
  * Edges are taken from `adjacency()` rather than from the raw list, so this
- * graph is by construction the same one the module publishes neighbourhoods
+ * graph is by construction the same one the module publishes neighborhoods
  * from: same deduplication, same dropped self-loops, same out-of-range error.
  * Reading the raw list instead would let the two disagree — and a graph that
  * renders in the monitor differently from the one participants are in is worse

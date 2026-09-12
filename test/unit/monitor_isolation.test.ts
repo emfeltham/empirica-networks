@@ -38,7 +38,7 @@ test("no player-side file imports admin, the monitor, or any node builtin", () =
     const source = fs.readFileSync(file, "utf8");
     const rel = path.relative(SRC, file);
     // `import type` / `export type` are erased and cannot ship anything, so they
-    // are not offences — but a value import from admin drags server-only code,
+    // are not offenses — but a value import from admin drags server-only code,
     // and from admin/monitor it drags the complete graph.
     //
     // `export … from` is covered as well as `import`, and that is not

@@ -20,7 +20,7 @@ export interface NetworkState {
   get<T = unknown>(key: string): T | undefined;
   /**
    * Write one of your own values. Visible to the server and, through
-   * `project()`, to your neighbours — nobody else.
+   * `project()`, to your neighbors — nobody else.
    *
    * Typed `JsonValue` rather than `unknown` because it goes over the wire as
    * JSON: a Map, a class instance or a function would be silently mangled.

@@ -51,7 +51,7 @@ function makeListeners(views: { onView?: (r: ViewRecord) => void; file?: string;
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
       topology: ({ playerCount }: any) => ring(playerCount),
-      project: (neighbour: any) => ({ id: neighbour.id, choice: neighbour.get("choice") }),
+      project: (neighbor: any) => ({ id: neighbor.id, choice: neighbor.get("choice") }),
       watch: ["choice", "ping"],
       views,
     });
@@ -91,7 +91,7 @@ test("a record matches what the participant's own client resolved", async () => 
       modeOf(actor).player.getValue()!.set("choice", "cooperate");
       await waitFor(
         () => seenBy(watcher).some((v) => v.id === actorID && v.choice === "cooperate"),
-        { label: "the change reached a neighbour", timeoutMs: 30_000 }
+        { label: "the change reached a neighbor", timeoutMs: 30_000 }
       );
       // Let any straggling publish land, so "the last record" really is the last.
       await new Promise((r) => setTimeout(r, 1_000));
@@ -189,12 +189,12 @@ test("the file sink produces NDJSON that converts to view rows", async () => {
     assert.ok(records.length >= N, "every participant's first view is on disk");
 
     const rows = viewRows(records);
-    // On a ring of four every viewer has exactly two neighbours, so every
+    // On a ring of four every viewer has exactly two neighbors, so every
     // delivery flattens to exactly two rows.
-    assert.equal(rows.length, records.length * 2, "one row per neighbour per delivery");
+    assert.equal(rows.length, records.length * 2, "one row per neighbor per delivery");
     assert.ok(
-      rows.every((r) => r.neighbour_id !== ""),
-      "each row names the neighbour it describes"
+      rows.every((r) => r.neighbor_id !== ""),
+      "each row names the neighbor it describes"
     );
     assert.ok(
       rows.some((r) => r["choice"] === "cooperate"),
@@ -202,10 +202,10 @@ test("the file sink produces NDJSON that converts to view rows", async () => {
     );
 
     // The privacy claim, checked against the capture rather than against a
-    // test fixture: on a ring, nobody's log ever mentions a non-neighbour.
+    // test fixture: on a ring, nobody's log ever mentions a non-neighbor.
     const viewers = new Set(rows.map((r) => r.viewer));
     for (const v of viewers) {
-      const seen = new Set(rows.filter((r) => r.viewer === v).map((r) => r.neighbour_id));
+      const seen = new Set(rows.filter((r) => r.viewer === v).map((r) => r.neighbor_id));
       assert.equal(seen.size, 2, `${v} only ever saw two people`);
       assert.ok(!seen.has(v), "and never themselves");
     }
