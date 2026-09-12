@@ -8,6 +8,7 @@ authors:
   - family-names: Feltham
     given-names: Eric Martin
     email: eric.feltham@aya.yale.edu
+    orcid: "https://orcid.org/0000-0001-8080-7119"
 repository-code: "https://github.com/emfeltham/empirica-networks"
 abstract: >-
   Network experiments for Empirica. Each participant has a private channel and
