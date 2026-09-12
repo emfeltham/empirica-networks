@@ -259,12 +259,12 @@ test("running the monitor leaks nothing to participants, and reads their private
           stateOf(p).set("secret", secret);
         }
 
-        // THE U3 WITNESS. A participant's own write only reaches this process
+        // THE SUBSCRIPTION WITNESS. A participant's own write only reaches this process
         // because `withNetwork` issues an explicit `ctx.scopeSub({ kinds })`;
         // `subscribeAttribute` subscribes the admin to nothing on its own
         // (PLATFORM-NOTES §12). Without that call every value below is
         // `undefined` and nothing errors — so this assertion is what stops the
-        // monitor from being a silent victim of U3 if it ever regresses.
+        // monitor from being a silent victim of that behaviour if it ever regresses.
         let seen: any;
         await waitFor(
           async () => {

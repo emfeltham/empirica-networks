@@ -13,7 +13,7 @@
  * realized edge list, the seat order, the authoritative in-memory history log,
  * the materialised channel scopes, the publish counters. A standalone monitor
  * would fetch all of it back over the wire and would need an admin credential
- * to do so; and because there is NO write access control (ISSUES.md U1), an
+ * to do so; and because there is NO write access control, an
  * admin credential is not "read access with a login", it is the ability to write
  * any attribute on any node including every participant's player scope. So the
  * monitor is not an Empirica client at all. It is a read-only window onto memory

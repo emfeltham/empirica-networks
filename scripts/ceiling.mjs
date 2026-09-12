@@ -1,5 +1,5 @@
 /**
- * Runner for the U7 reproduction (test/bench/ceiling.ts).
+ * Runner for the scale-limit reproduction (test/bench/ceiling.ts).
  *
  * Bundled to CJS first, same as every other tier here: the published
  * @empirica/core cannot be loaded from raw Node in either module system

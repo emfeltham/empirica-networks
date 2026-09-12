@@ -111,7 +111,7 @@ Empirica.onStageEnded(({ stage }) => { if (stage.get("name") === "decide") … }
 Empirica.onStageEnded(({ stage }) => { if (stage.get("name") === "rewire") … });   // NEVER runs
 ```
 
-Cause: upstream U8. The six lifecycle helpers are wrapped in a `unique` guard whose
+Cause: upstream. The six lifecycle helpers are wrapped in a `unique` guard whose
 "already ran" marker is stored on the scope, so it is shared by every listener for that event.
 The first callback to run sets it and every later one silently returns.
 
@@ -128,9 +128,9 @@ empirica-networks: a lifecycle listener is registered more than once, and ONLY T
 Read the warning rather than trusting it blindly: it cannot distinguish a duplicated helper from
 two plain `Empirica.on("stage", "ended", cb)` calls when both callbacks are anonymous 2-argument
 async functions, and those are legitimate. Plain `Empirica.on(kind, key, cb)` is not affected
-by U8.
+by this.
 
-`docs/PLATFORM-NOTES.md` Section 18, Section 18a · `docs/upstream/ISSUES.md` U8
+`docs/PLATFORM-NOTES.md` Section 17, Section 17a
 
 ### A mutation reaches nobody, and the server's own state looks correct
 
@@ -222,7 +222,7 @@ the observation the entry is waiting for.
 
 What is worth writing down, because it is gone from the log by the time anyone looks: your
 `@empirica/core` version, whether the server had just restarted (the suspect window is the
-subscription replay at process start, `docs/PLATFORM-NOTES.md` §20, and `docs/upstream/ISSUES.md` U2's
+subscription replay at process start, `docs/PLATFORM-NOTES.md` §20, and upstream's restart path's
 territory), and `net.stats().lateProvisioned`. Add it to O4.
 
 The counters are `net.stats().pendingAtStart` and `net.stats().lateProvisioned`, both per process
@@ -264,7 +264,7 @@ rewires mid-conversation.
 
 ### A restart brought the server back, and no game resumed
 
-Cause: upstream U2. A full restart reloads the store, but `gameID` is never restored and no
+Cause: upstream. A full restart reloads the store, but `gameID` is never restored and no
 game resumes. It can also leave two player scopes for one participant.
 
 There is no fix. No amount of configuration or documentation makes a crashed study resumable.
@@ -272,7 +272,7 @@ Plan for a crash mid-study to end the games in progress, and turn on the run log
 (`log: { file }`) so a killed study still leaves analysable data; `onGameEnded` only fires when
 a game ends naturally.
 
-`docs/upstream/ISSUES.md` U2 · `docs/PLATFORM-NOTES.md` Section 4e
+`docs/PLATFORM-NOTES.md` Section 4e
 
 ### The session ran, and `data/` is empty
 
@@ -300,13 +300,13 @@ invented; logging `network(game).history()` verbatim recovers the real table.
 
 ### Games do not reliably start at n ≥ 200
 
-Cause: upstream U7. Game start corrupts the websocket stream at scale: measured at 1 run in
+Cause: upstream. Game start corrupts the websocket stream at scale: measured at 1 run in
 6 at n=200, and it reproduces with stock Classic, without this package.
 
 Fix: stay inside the measured regime. n ≤ 50 at any density is where everything here has
 margin.
 
-`docs/upstream/ISSUES.md` U7 · `docs/PLATFORM-NOTES.md` Section 16
+`docs/PLATFORM-NOTES.md` Section 15
 
 ### The bot process dies immediately with `invalid URL`, and the stack names no frame
 
@@ -456,15 +456,15 @@ table is for finding the context.
 | `N participant(s) would receive more than … bytes in one publish` | Degree × view size is over `maxNeighborhoodBytes` (64 KiB). Each view is individually legal; together they are not | API.md, [Envelope](API.md#envelope) |
 | `the projection at … is a function` / `a BigInt` / `contains a cycle` / `is a scope` | `project()` returned something JSON cannot carry, or the scope itself. Nothing was sent; validation runs before the publish | API.md, `project()` |
 | `no network for game …` | The game has not started, has ended, or `withNetwork()` was never called on this collector | ARCHITECTURE Section 3 |
-| `game … is not networked by this process` | Ended, never started, or lost to a restart (U2) | ARCHITECTURE Section 3 |
-| `game … was networked by a previous process but has no recorded edge list` | A restart found the game but not its network, so it cannot be recovered (warning) | `docs/upstream/ISSUES.md` U2 |
+| `game … is not networked by this process` | Ended, never started, or lost to a restart | ARCHITECTURE Section 3 |
+| `game … was networked by a previous process but has no recorded edge list` | A restart found the game but not its network, so it cannot be recovered (warning) | `docs/PLATFORM-NOTES.md` §4e |
 | `player … has no materialised channel in game …` | Channel has not arrived yet, or the player has no `participantID` | ARCHITECTURE Section 3 step 7 |
 | `player … is not in game …'s network` | Player is outside the topology: check your `order` assumptions | — |
 | `project() threw while building X's view of Y` | Your projection threw; the cause is attached | — |
 | `project() reads player attribute(s) …` | Declare them in `watch` (warning, not an error) | Section 1, "views never update" |
 | `game … has no batch` | The realized network cannot be recorded, so the run is neither reproducible nor restart-survivable | ARCHITECTURE Section 3 step 6 |
 | `net.log() was called but no run log is configured` | Add `log: { file }` to the config | DATA-AND-ANALYSIS |
-| `a lifecycle listener is registered more than once` | U8 (warning) | Section 1, "the second `onStageEnded`" |
+| `a lifecycle listener is registered more than once` | upstream (warning) | Section 1, "the second `onStageEnded`" |
 | `N of M players have no participantID` | Unprovisioned players are blocking every publish (warning) | ARCHITECTURE Section 3 step 7 |
 | `the neighborhood scope exists but its attributes are unreadable` | `DonesWiringError`: the client-side dones protocol broke, almost certainly an upstream version change | ARCHITECTURE Section 8 |
 | `the participant context was built without the network mode` | `modeFunc={EmpiricaNetwork}` is missing from `<EmpiricaParticipant>` | GETTING-STARTED Section 5 |
@@ -475,7 +475,7 @@ table is for finding the context.
 | `runBots needs at least one identifier` | The list is the bot count; there is no `count` that invents names | BOTS Section 1 |
 | `duplicate bot identifier(s): …` | Two bots sharing a key are one participant with two sockets, and the game sits one short forever | BOTS Section 1 |
 | `a policy with onTick must set tickMs` | Without it the tick would never fire, so it is refused rather than silently idle | BOTS Section 2 |
-| `N of M bot identifier(s) …` | An identifier names itself (`bot`, `agent`, `robot`, …) and participants can read it (warning, U10) | BOTS Section 1 |
+| `N of M bot identifier(s) …` | An identifier names itself (`bot`, `agent`, `robot`, …) and participants can read it (warning) | BOTS Section 1 |
 | `bot X has been in phase "…" for …` | A bot has been stuck in one non-playing phase for 30 s (warning). The message names what to check for that phase | Section 1, "the bots are connected and the study never starts" |
 
 ---
@@ -490,7 +490,8 @@ table is for finding the context.
 2. Turn on the monitor (`MONITOR=1 empirica`) and look at the graph, the per-node state, the
    publish counts, and any channel that has not materialised. It shows the things you cannot see
    from inside the experiment. Do not expose it beyond localhost.
-3. Check `ISSUES.md`: U-numbered entries are upstream and generally cannot be fixed here.
+3. Check `ISSUES.md` for a known defect, and `docs/PLATFORM-NOTES.md` for a platform constraint
+   that cannot be fixed here.
 4. Check `docs/PLATFORM-NOTES.md`: every constraint is recorded with the date and version it
    was measured against, so a behavior that contradicts one may simply be newer than the note.
 

@@ -1,7 +1,7 @@
 # Scaffold-local development credentials. Not secrets, and not shared.
 #
 # `srtoken` is a service token for the local Tajriba server, and Empirica has no
-# write access control behind it (`ISSUES.md` U1): whoever holds it can write any
+# write access control behind it: whoever holds it can write any
 # attribute on any scope, including every participant's. It is committed because
 # these are the values `empirica create` generated for a throwaway localhost
 # project and the example has to run out of the box.

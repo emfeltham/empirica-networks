@@ -353,7 +353,7 @@ async function main(): Promise<void> {
     // ---- 6. gone: the picture goes with the label ---------------------------
     //
     // The assertion O9 was opened for. A restart never puts participants back
-    // into their game (U2), so there is nothing to reconnect to and the last
+    // into their game, so there is nothing to reconnect to and the last
     // graph is not "the current state" — it is a picture of a study that has
     // stopped, presented as live.
     assert.ok((await drawn(page)).nodes > 0, "non-vacuity: there IS a graph to lose");

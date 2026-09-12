@@ -146,7 +146,7 @@ function main(): void {
       if (!busy) return;
       busy = false;
       // A coordinator that died mid-sweep must not leave participants holding
-      // connections to a server that is also gone — that is U6's failure mode
+      // connections to a server that is also gone — that is the orphan failure mode
       // with the roles reversed, and it would poison the next sweep.
       for (const proc of shards.values()) {
         try {

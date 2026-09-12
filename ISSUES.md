@@ -1,11 +1,11 @@
 # Open issues
 
-Everything known to be outstanding in this package, with the evidence for each. Defects found
-in Empirica itself, rather than in this package, are tracked separately, in
-[`docs/upstream/ISSUES.md`](docs/upstream/ISSUES.md).
+Everything known to be outstanding in this package, with the evidence for each. Defects in
+Empirica itself are not tracked here; where one constrains this package, it is described in
+[`docs/PLATFORM-NOTES.md`](docs/PLATFORM-NOTES.md).
 
-Status key: **ours** = fixable here · **debt** = measurement or process, not a defect. An O-number
-below citing a U-number (e.g. "pending U2") is citing an entry in the upstream file, not one here.
+Status key: **ours** = fixable here · **debt** = measurement or process, not a defect. Defects in
+Empirica itself are not tracked here; where one blocks an entry below, it is named in words.
 
 Closed entries are not kept in this file. What each fix changed is recorded in
 [`CHANGELOG.md`](CHANGELOG.md), and the reasoning behind each is in the git history.
@@ -83,7 +83,7 @@ Seven hypotheses, each settled by measurement rather than argument:
 
 | hypothesis | verdict |
 |---|---|
-| orphaned servers (U6) | no — 2 live processes, none orphaned |
+| orphaned servers | no — 2 live processes, none orphaned |
 | accumulated writes slowing Tajriba (append-only per attribute) | no — 20 rounds and 100 rounds both give p50 7.3 ms |
 | within-run drift | no — `first/last third` flat in every cell |
 | position in the sweep | not supported — slow run is first in one cell, last in another |
@@ -170,13 +170,14 @@ the physics.
 `npm run bench -- --clients HOST:PORT --absolute --repeats 3`, and the result is recorded in
 `docs/PLATFORM-NOTES.md` §21 beside the DVFS finding it answers.
 
-### O3. `restart_full` asserts conditionally, pending U2
+### O3. `restart_full` asserts conditionally, pending an upstream fix to restart recovery
 
 The test reports which way the reassignment race went and asserts our recovery only in runs
-where the platform cooperated. If U2 is ever fixed upstream, the conditional branch should
+where the platform cooperated. If restart recovery is ever fixed upstream, the conditional branch should
 become unconditional.
 
-*Done when:* U2 is resolved and the `if (!restored) return;` branch is removed.
+*Done when:* upstream restores a participant's game across a restart, and the
+`if (!restored) return;` branch is removed.
 
 ### O4. Late-joiner provisioning is a net under a path we could not construct — **the net was broken; still no reproduction**
 
@@ -198,7 +199,7 @@ at all.
 two different mechanisms, so "Classic sets it in its own listener, therefore players in
 `game.players` have one" does not follow. Nothing structural keeps them in step. This does not
 show that Classic produces such a player, and the entry stays open on that: the suspect window is
-the subscription replay at process start, which is U2's territory and still unreproduced.
+the subscription replay at process start, which is upstream's restart path and still unreproduced.
 
 2. The net was itself defective, and would have failed silently. This was found by writing the
 first test for it. The repair path called `provisionChannels(ctx, game)` without `indexOf`, so the
@@ -245,7 +246,7 @@ The repair also now says so out loud (`lateProvisionMessage`), and the message i
 read as evidence rather than as a fault: the game is fine, and the reader is holding the
 observation this entry wants. It asks for the two facts a later reader cannot recover, the
 `@empirica/core` version and whether the server had just restarted, because the suspect window is
-the subscription replay at process start (§20), which is U2's territory.
+the subscription replay at process start (§20), which is upstream's restart path.
 
 `npm run soak` prints the pair in its summary, being the longest real run in the repository. The
 first observation, 2026-09-11, was `--minutes 1`, arm A, n=20 against a real Classic server:

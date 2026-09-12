@@ -22,7 +22,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
  *
  * The pattern matches this harness's temp config only, and every server it starts
  * runs `--tajriba.store.mem`, so nothing with data in it is in range. The orphans
- * are U6's: the `empirica` CLI execs a versioned binary as its own child, so a
+ * are upstream's: the `empirica` CLI execs a versioned binary as its own child, so a
  * killed CLI can leave the real server holding its port.
  *
  * Reported rather than silent, because the COUNT is evidence. `ISSUES.md` O8 spent
@@ -36,7 +36,7 @@ function sweepOrphans(label) {
   const count = (before.stdout ?? "").trim().split("\n").filter(Boolean).length;
   if (count > 0) {
     spawnSync("pkill", ["-f", pattern]);
-    console.log(`${label}: swept ${count} orphaned harness server(s) — see ISSUES.md U6`);
+    console.log(`${label}: swept ${count} orphaned harness server(s)`);
   } else {
     console.log(`${label}: 0 orphaned harness servers`);
   }

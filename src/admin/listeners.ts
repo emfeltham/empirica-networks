@@ -1,5 +1,5 @@
 /**
- * Detecting the duplicate-lifecycle-listener trap (`ISSUES.md` U8).
+ * Detecting the duplicate-lifecycle-listener trap.
  *
  * `onGameStart`, `onRoundStart`, `onStageStart`, `onStageEnded`, `onRoundEnded`
  * and `onGameEnded` all register through Empirica's `unique` wrapper, whose
@@ -184,7 +184,7 @@ export function duplicateListenersMessage(dupes: DuplicateListener[]): string {
     `  Empirica wraps these helpers in a \`unique\` guard whose "already ran" marker is\n` +
     `  stored on the SCOPE, so it is shared by every listener for the same event. The\n` +
     `  first callback to run sets it and every later one returns without running —\n` +
-    `  silently, with no error and no log line (ISSUES.md U8).\n\n` +
+    `  silently, with no error and no log line.\n\n` +
     `  Register each helper ONCE and dispatch inside it:\n\n` +
     `    Empirica.${example.helper}((props) => {\n` +
     `      const name = props.stage?.get("name");\n` +

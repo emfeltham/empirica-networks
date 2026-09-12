@@ -104,16 +104,16 @@ Some of the most important ones:
 | `leak.test.ts`, `scope_visibility.test.ts` | non-neighbors receive nothing, across a ring, a star and a disconnected graph; a shape that could prove nothing is refused; the batch scope is not delivered |
 | `topology_visibility.test.ts` | the seed and edge list do not reach participants |
 | `restart.test.ts`, `restart_full.test.ts` | a restart does not silently reseat anyone |
-| `duplicate_listeners.test.ts` | the U8 detector fires, and if it ever fails by saying the second handler did run, upstream has fixed U8 and the warning should be withdrawn |
+| `duplicate_listeners.test.ts` | the duplicate-listener detector fires, and if it ever fails by saying the second handler did run, upstream has fixed its dispatcher and the warning should be withdrawn |
 | `kind_registration.test.ts` | the unregistered-kind check fires, and that the defect it warns about is real (`ISSUES.md` O14) |
 | `example.test.ts`, `rand2011.test.ts`, `shirado2017.test.ts` | each example's real `callbacks.js`, imported unmodified |
-| `upstream_u1.test.ts`, `participant_write.test.ts` | U1 is real, through the public API |
-| `bots.test.ts` | a bot is a participant: it seats the game, is placed, and its writes project both ways, plus U10 at the wire, and that a game ending ends the bots |
+| `write_acl.test.ts`, `participant_write.test.ts` | the missing write ACL is real, through the public API |
+| `bots.test.ts` | a bot is a participant: it seats the game, is placed, and its writes project both ways, plus the recruitment-identifier leak at the wire, and that a game ending ends the bots |
 
 `bots.test.ts` is the tier's most direct answer to "is this really the same code path". A bot in
 these tests behaves as a genuine participant: it opens a real session, sets `introDone` (without
 which the game never reaches its player count), receives a real channel, and its `state.set()`
-shows up in a human's view. The U10 case in the same file is why the bot API takes an identifier
+shows up in a human's view. The identifier-leak case in the same file is why the bot API takes an identifier
 list rather than a count: it finds each participant's key as a substring of every other
 participant's frames, with the participant's own key as the non-vacuity arm.
 
@@ -183,7 +183,7 @@ wire frames, so a leak through a channel nobody enumerated is still caught.
 | `scripts/example-build.mjs` | builds each example's client. Catches import-resolution errors a parse check cannot |
 | `scripts/bench.mjs` | end-to-end publish latency, plus first-channel latency (`ISSUES.md` O15) reported even for runs that do not complete. `--dense` for the degree sweep, `--payload` for degree × view size, `--repeats` for a published figure, `--clients` to put the participants on another machine |
 | `scripts/soak.mjs` | long-run memory. Prints `net.stats()` alongside RSS |
-| `scripts/ceiling.mjs` | the U7 reproduction. `CEILING_PLAIN=1` runs it without this package |
+| `scripts/ceiling.mjs` | the scale-limit reproduction. `CEILING_PLAIN=1` runs it without this package |
 | `scripts/simulate.mjs` | the platform evaluation: the shipped Shirado reconstruction at its own n, across arms and seeds, keeping every output file, then auditing `views.ndjson` for C1. The one harness that does not throw its sessions away. `--seeds`, `--arms`, `--n`, `--out` |
 
 Everything that touches `@empirica/core/admin` is bundled to CJS first, for the same reason every
@@ -266,7 +266,7 @@ sufficient.
 
 There are two causes, and neither indicates a regression. Check both before concluding anything.
 
-### Orphaned harness servers — `docs/upstream/ISSUES.md` U6
+### Orphaned harness servers
 
 The Empirica CLI execs a versioned binary as its own child, so killing the CLI leaves the real
 server running and holding its port. Accumulated orphans starve player assignment, and the suite
@@ -378,7 +378,7 @@ It exists because four contracts this package depends on are version-fragile, an
 silently: the `TajribaProvider` constructor shape, the `dones` protocol, `AdminContext.init`
 arity, and `ListenersCollector.attributeListeners` plus the `unique` wrapper shape.
 
-The last is the only one touching an `@internal` field. The U8 detector calibrates the wrapper
+The last is the only one touching an `@internal` field. The duplicate-listener detector calibrates the wrapper
 shape at startup rather than hardcoding it, so it retunes itself, but if the field moves or is
 renamed, the detector switches off and consumers stop being warned about a real defect.
 
@@ -387,8 +387,9 @@ re-testing the pinned version weekly under a name that says otherwise. Mode test
 are reported separately, because they are the tier that catches a `dones` break.
 
 It also catches upstream fixes, which is why the e2e step is not optional. Two findings are
-pinned by tests that assert the current broken behavior: U8 (`duplicate_listeners.test.ts`,
-"the second handler never ran") and U9 (`participant_write.test.ts`, `attributes()` errors). A fix
+pinned by tests that assert the current broken behavior: the lifecycle dispatcher
+(`duplicate_listeners.test.ts`, "the second handler never ran") and `attributes()`
+(`participant_write.test.ts`, it errors). A fix
 upstream turns those red with a message saying what to close. This job is the only thing that ever
 runs them against a version where they could pass.
 
@@ -419,5 +420,5 @@ Recorded rather than implied.
 
 Two entries left this list on 2026-08-16, and the removals are worth as much as the list: the
 monitor's browser script (O9) and `admin.taj.attributes()` (O7) are both exercised now. The
-attributes result was that the API does not work at all; see `docs/upstream/ISSUES.md` U9. A gap list is only
+attributes result was that the API does not work at all. A gap list is only
 useful if closing something removes it, and only honest if what closing revealed is written down.

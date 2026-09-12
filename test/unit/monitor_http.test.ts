@@ -249,7 +249,7 @@ test("/api/state serves the graph and its coordinates", async () => {
 
 test("a game this process does not hold is reported gone, not empty", async () => {
   // The distinction the monitor's `gone` state turns on. An empty graph and a lost game
-  // look identical on screen, and U2 makes the second one common.
+  // look identical on screen, and an unresumable restart makes the second one common.
   const fake = fakeSource();
   await withMonitor(fake, async (m) => {
     const res = await get(m, "/api/state?t=" + m.token + "&game=nope");

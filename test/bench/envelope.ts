@@ -222,7 +222,7 @@ const PAYLOAD = Math.max(0, flag("payload", 0));
  * So those are the gate, and the timings are recorded beside them ungated.
  *
  * n >= 200 is excluded: it fails to start on this platform for reasons that are
- * not ours (`ISSUES.md` U7, PLATFORM-NOTES §16), and gating on it would make the
+ * not ours (PLATFORM-NOTES §15), and gating on it would make the
  * job red for a documented upstream defect.
  */
 const ASSERT = argv.includes("--assert");

@@ -238,7 +238,7 @@ export interface NetworkConfig {
    *
    * **What this is for.** Analysis files are normally written in `onGameEnded`,
    * which fires only when a game ends NATURALLY. A study that is killed, crashes,
-   * or is stopped mid-session never reaches it — and after `ISSUES.md` U2 a crash
+   * or is stopped mid-session never reaches it — and since upstream cannot resume one, a crash
    * mid-study is the *normal* shape of "something went wrong", because a restarted
    * server cannot put participants back in their game anyway. So the case where
    * partial data matters most was the case that produced none. Measured, not
@@ -276,11 +276,11 @@ export interface NetworkConfig {
    *
    *     Empirica.on(NBHD_KIND, stateKey("color"), (_ctx, props) => { … });
    *
-   * which requires knowing that a plain `.on` escapes the `unique` guard
-   * (`ISSUES.md` U8), and which works ONLY because `withNetwork` issued
+   * which requires knowing that a plain `.on` escapes the `unique` guard, and
+   * which works ONLY because `withNetwork` issued
    * `ctx.scopeSub({ kinds: ["nbhd"] })` at start — so the same three lines copied
    * into a project that does not call `withNetwork` produce a listener that never
-   * fires, silently (`docs/PLATFORM-NOTES.md` §12, U3). It was in
+   * fires, silently (`docs/PLATFORM-NOTES.md` §11). It was in
    * `examples/shirado2017` for a whole milestone, which is how a package finds out
    * it is missing something.
    *
@@ -447,7 +447,7 @@ export interface NetworkHandle {
    *
    * Returns `undefined` for a game this process is not networking — which is
    * the honest answer for a game that has ended, was never started, or was lost
-   * to a restart (U2). It is deliberately NOT an empty snapshot: an observer
+   * to a restart. It is deliberately NOT an empty snapshot: an observer
    * cannot tell an empty graph from a missing one, and this package's
    * characteristic failure is exactly that confusion.
    *
@@ -1490,7 +1490,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * thousands of times is a message nobody reads.
    */
   /**
-   * Warn if a lifecycle helper was registered more than once (`ISSUES.md` U8).
+   * Warn if a lifecycle helper was registered more than once.
    *
    * Reads `collector.attributeListeners`, which is marked `/** @internal *\/`
    * upstream but is a plain array on the instance. Depending on an internal
@@ -1685,7 +1685,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       throw new Error(
         `empirica-networks: game ${gameID} is not networked by this process, so ` +
           `stateOf(${JSON.stringify(key)}) has no answer. The game has not started, has ` +
-          `ended, or was lost to a restart (ISSUES.md U2).`
+          `ended, or was lost to a restart.`
       );
     }
     if (!state.order.includes(playerID)) {
@@ -1740,7 +1740,8 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         // registration above). An operator looking at a stalled study should
         // not have to know which one the author picked.
         if (player) attrs[key] = player.get(key);
-        // Reading the private channel is the whole reason this depends on U3:
+        // Reading the private channel is the whole reason this depends on the
+        // explicit scope subscription:
         // `withNetwork`'s explicit `ctx.scopeSub({ kinds: ["nbhd"] })` is what
         // makes a participant's own writes reach this process at all. Without
         // it these are all `undefined` and nothing errors

@@ -97,7 +97,7 @@ const conditionOf = (game) => {
  * Seeded from the game id, the same input `withNetwork` uses for its own default
  * seed, but offset so the two draws are not the same stream. Held in process
  * memory only, which is honest rather than lazy: a server restart ends the game
- * regardless (docs/PLATFORM-NOTES.md §4e, U2), so there is nothing to survive.
+ * regardless (docs/PLATFORM-NOTES.md §4e), so there is nothing to survive.
  */
 const rngs = new Map();
 function rngFor(game) {
@@ -235,7 +235,7 @@ export const net = withNetwork(Empirica, {
    * WHY, in one line: the CSVs are written in `onGameEnded`, and a study that is
    * killed, crashes or is stopped never gets there. Measured — a green run of
    * `test/e2e/rand2011.test.ts` left `views.ndjson` and not one CSV — and after
-   * U2 a restart cannot resume a game anyway, so ending early is the *normal*
+   * a restart cannot resume a game anyway, so ending early is the *normal*
    * shape of something going wrong. `recover.mjs` turns this file back into the
    * same CSVs, and `test/unit/rand2011.test.ts` pins the two byte-for-byte.
    *
@@ -264,7 +264,7 @@ export const net = withNetwork(Empirica, {
  * stage. The second never ran once: the rewiring answers were never applied, the
  * network never changed in the fluid condition, no feedback was ever delivered,
  * and NOTHING ERRORED. Caught by `test/e2e/rand2011.test.ts`; recorded as
- * `docs/PLATFORM-NOTES.md` §18 and `ISSUES.md` U8.
+ * `docs/PLATFORM-NOTES.md` §17.
  *
  * The same applies to `onGameStart`, `onStageStart`, `onRoundStart`,
  * `onRoundEnded` and `onGameEnded`. One registration each; dispatch inside.
@@ -339,7 +339,7 @@ function scoreRound(stage) {
      * the data silently come to disagree.
      *
      * A participant's own tally is never read back for the record, because a
-     * participant can write any attribute anywhere (U1) and a self-reported
+     * participant can write any attribute anywhere and a self-reported
      * payoff is untrusted input.
      */
     const wealthKey = `wealth:${game.id}:${node.playerID}`;
@@ -473,7 +473,7 @@ function applyRewireRound(stage) {
   const offers = game.batch?.get(`offers:${game.id}:${stage.id}`) ?? [];
 
   // Each decider's answers, from their own private state. Untrusted input in
-  // principle (U1) — but the worst a participant can do is answer their own
+  // principle — but the worst a participant can do is answer their own
   // offer, which is precisely what they were asked to do. An answer naming a
   // pair nobody was offered is dropped by `applyRewiring`, which only looks at
   // the offers it was given.

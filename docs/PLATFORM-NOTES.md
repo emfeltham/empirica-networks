@@ -597,7 +597,6 @@ What is not established is whether a browser survives it. The failure is fatal h
 Node's `ws` validates frames strictly and throws; a browser's native WebSocket would see a
 closed socket and Empirica would reconnect. So the accurate statement is that the Node harness
 cannot reliably start a game at n=200, and the consequence for real participants is untested.
-Filed as `docs/upstream/ISSUES.md` U7.
 
 ### 15a. The same burst delays channel materialisation, measured 2026-08-16
 
@@ -722,7 +721,7 @@ one.
 
 The workaround is to register each helper exactly once and dispatch inside it, on
 `stage.get("name")` or equivalent. Both reconstructions do this and explain why at the call
-site. Filed as `docs/upstream/ISSUES.md` U8.
+site.
 
 ### 17a. It is detectable from outside, measured 2026-08-16
 
@@ -922,7 +921,7 @@ Two consequences follow, both adopted:
 - Published latency figures should be read as a scale, not a single value. The README says so.
 
 Also seen once, and worth noting as new: a run died with `tajriba exited early (code 1)` at
-n=25, a server failing to start, which is neither U6 (orphaned processes) nor U7 (participant
+n=25, a server failing to start, which is neither an orphaned process nor the scale defect (participant
 loss at n≥200). This was a single occurrence and has not been characterized further.
 
 ## 20. `game.players` and `player.participantID` come from two different mechanisms
@@ -958,7 +957,7 @@ own player listener, and therefore that players in `game.players` have one, does
 stated. The two facts concern different things.
 
 The suspect window is the subscription replay at process start, where player scopes arrive
-already carrying a `gameID` from a previous run. That is U2's territory, it has not been
+already carrying a `gameID` from a previous run. That is upstream's restart path, it has not been
 reproduced, and `ISSUES.md` O4 stays open on the reproduction rather than being closed on this
 reading.
 
@@ -972,7 +971,7 @@ left open indefinitely, and it costs nothing.
 ## 21. Every participant receives every co-player's recruitment identifier (significant risk)
 
 Measured 2026-08-16, `@empirica/core@1.12.5`, at the wire. Witness: `test/e2e/bots.test.ts`,
-"a co-player's recruitment identifier is on the wire". Filed as `docs/upstream/ISSUES.md` U10.
+"a co-player's recruitment identifier is on the wire".
 
 `participantIdentifier`, the raw value of `?participantKey=`, is delivered to every other
 participant in the game. Two upstream lines put it there, and neither is doing anything unusual:

@@ -89,7 +89,7 @@ So both arms are here on top of `empirica-networks/bots`, which runs each agent 
 
 - the lifecycle is where bots fail, and every way of failing is silent: a bot that never plays leaves the study waiting for a game that will never reach its player count, with no error anywhere;
 - placement needed a package change. The paper's independent variable is where the agents sit, and the topology function had no way to say which participant would occupy which node;
-- a bot's name is participant-visible. Measuring that turned up an upstream privacy finding, U10: every participant receives every co-player's `participantIdentifier`.
+- a bot's name is participant-visible. Measuring that turned up an upstream privacy finding: every participant receives every co-player's `participantIdentifier`.
 
 Also left out: incentives, and the chromatic-polynomial solution-space covariate (computable offline from the exported `edges.csv`).
 
@@ -98,7 +98,7 @@ Also left out: incentives, and the chromatic-polynomial solution-space covariate
 The examples exist to have their behavior asserted rather than described, and these are what that bought: three silent defects, each caught by an e2e assertion rather than by reading the code.
 
 - `watch` is not the server's read list. `read` declares the keys the server needs, and `net.stateOf()` throws for an undeclared one rather than returning `undefined`, which is indistinguishable from "not written yet". Fill a node's `state` from `watch` alone and a key the server needs but `project()` never reads comes back empty; in the Rand design that silently drops every rewiring answer, and the network never changes in the condition whose defining feature is that it changes. `ISSUES.md` O11.
-- A lifecycle listener can only be registered once. Empirica wraps `onStageEnded` and its siblings in a `unique` guard whose "already ran" marker is stored on the scope, so the first callback to run sets it and every later registration silently returns. Register each helper once and dispatch inside it. `docs/PLATFORM-NOTES.md` §18, `docs/upstream/ISSUES.md` U8.
+- A lifecycle listener can only be registered once. Empirica wraps `onStageEnded` and its siblings in a `unique` guard whose "already ran" marker is stored on the scope, so the first callback to run sets it and every later registration silently returns. Register each helper once and dispatch inside it. `docs/PLATFORM-NOTES.md` §17.
 - The analysis CSVs are written in `onGameEnded`, which fires only when a game ends naturally. A session that crashes, or a test that tears its server down first, gives you a green run and an empty `data/`. Both reconstructions therefore write an append-only run log as they go and ship a `recover.mjs` that rebuilds the same tables from it; the plumbing is in the package as `log: { file }` and `net.log()`.
 
 `CHANGELOG.md` records what each of these cost.
@@ -113,4 +113,4 @@ The examples exist to have their behavior asserted rather than described, and th
 - Turn on view capture and keep `views.ndjson`. It is the audit trail for the privacy claim on your data rather than on this package's tests.
 - Turn on the run log (`log: { file }`) and keep `run.ndjson`. It is the difference between a session that died at four minutes leaving four minutes of data and leaving none.
 - Read [the write-access warning](../README.md#before-running-a-study). Both designs give participants a reason to want to alter someone else's state, and Empirica cannot stop them.
-- Plan for a crash to end the session. A full server restart never puts participants back in their game (`docs/upstream/ISSUES.md` U2).
+- Plan for a crash to end the session. A full server restart never puts participants back in their game.

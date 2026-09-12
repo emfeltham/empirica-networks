@@ -28,7 +28,7 @@
  *    carries the recruitment identity — the Prolific PID, whatever the
  *    recruitment URL put there. Co-players learn it. That is
  *    upstream's, affects every Empirica Classic study rather than only networked
- *    ones, and is filed as `ISSUES.md` U10.
+ *    ones.
  */
 
 /**
@@ -77,7 +77,7 @@ export function botMarkerWarning(identifiers: readonly string[]): string | undef
   return (
     `empirica-networks: ${hits.length} of ${identifiers.length} bot identifier(s) ` +
     `name themselves as bots: ${shown}${more}. Every participant in the game ` +
-    `receives every other participant's identifier (ISSUES.md U10), so these are ` +
+    `receives every other participant's identifier, so these are ` +
     `readable from a browser. If your design does not tell participants which of ` +
     `their neighbors are software, this discloses it. See docs/BOTS.md.`
   );

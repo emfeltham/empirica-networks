@@ -12,7 +12,7 @@
  * The SAME keys must be in the server's environment, because that list is how
  * `src/callbacks.js` knows which seated participants are agents. There is no
  * pattern to match on: every participant receives every other participant's
- * `?participantKey=` (`ISSUES.md` U10), so a recognisable key would tell subjects
+ * `?participantKey=`, so a recognisable key would tell subjects
  * which of their neighbors are software — which in this design is the
  * manipulation, disclosed.
  *

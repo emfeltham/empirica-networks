@@ -29,7 +29,8 @@ makes the entries below meaningful as a baseline rather than a moving target.
   (`ISSUES.md` O12).
 - `NetworkConfig.onPrivateState`: a first-class hook for "a participant wrote private state",
   replacing a pattern that reached into the package's key layout (`ISSUES.md` O13).
-- Duplicate-lifecycle-listener detection at server start, for upstream U8.
+- Duplicate-lifecycle-listener detection at server start, for the upstream defect where only
+  the first registration of a lifecycle helper ever runs.
 - `net.activeGames()`, replacing `net.games()`; `GameRef` and `gameIDOf()` so every entry point
   takes either a game scope or its id.
 - `envelope.maxNeighborhoodBytes` (64 KiB default).
@@ -225,10 +226,11 @@ makes the entries below meaningful as a baseline rather than a moving target.
   could re-date none of them in silence. `test/unit/upstream_pin.test.ts` now fails on a bump and
   lists every stale citation by `file:line`, saying that re-dating is not the remedy.
 
-  Found by disproving the issue itself: O7b claimed nothing would notice if `attributes()` (U9)
+  Found by disproving the issue itself: O7b claimed nothing would notice if `attributes()`
   started working, and the drift job running the e2e tier against `@empirica/core@latest` weekly
   means something would. Two real defects came out of the disproof: the assertion that carries
-  that news asked only for a test rewrite, never mentioning that U9 working would unforce `ISSUES.md`
+  that news asked only for a test rewrite, never mentioning that a working `attributes()` would
+  unforce `ISSUES.md`
   O11's declared-keys design; and `VERIFIED_CORE` in `src/harness/compat.ts` was exported and read by
   nothing, a second copy of the pin beside a first in `cli.ts` that a test did check. Collapsed
   to one declaration.
@@ -314,15 +316,3 @@ makes the entries below meaningful as a baseline rather than a moving target.
   README now says so; paired comparisons inside one sweep remain sound and are the supported way to
   ask a performance question; and `perf.yml` gating on delivery rather than latency gains a second,
   stronger justification, since a quiet CI runner may measure slower than a busy one.
-
-### Known
-
-- U1: no write access control anywhere in Empirica. Affects every Empirica study.
-- U10: every participant receives every co-player's `participantIdentifier`, i.e. the raw
-  `?participantKey=`. In a deployed study that is the recruitment-platform participant ID. Affects
-  every Empirica Classic study; same root cause as U1.
-- U9: `attributes(scopeID)` always returns `internal system error`, so there is no working way
-  to enumerate a scope's attributes at any layer.
-- U2: a crashed study cannot be resumed.
-- U7: games do not reliably start at n ≥ 200.
-- U8: a lifecycle listener can only be registered once, silently.

@@ -46,8 +46,8 @@ const OUT_DIR = process.env["SHIRADO2017_OUT"] ?? "data";
  * A SHARED LIST rather than a recognisable prefix, and that is forced rather than
  * fastidious. Every participant in a game receives every other participant's
  * `participantIdentifier` — the raw `?participantKey=` — because Classic writes it
- * on the player scope and links everyone to every player node (`ISSUES.md` U10,
- * measured in `test/e2e/bots.test.ts`). So a key like `bot-1` is readable from any
+ * on the player scope and links everyone to every player node (measured in
+ * `test/e2e/bots.test.ts`). So a key like `bot-1` is readable from any
  * participant's browser, and in THIS design that is not a metadata leak: subjects
  * are not told which of their neighbors are software, so a recognisable key
  * discloses the manipulation itself.
@@ -107,7 +107,7 @@ const botSeating = new Map();
  * than fetch them.
  *
  * Not persisted, and that is honest rather than lazy: a server restart never puts
- * participants back in their game (U2), so there is no session to resume and
+ * participants back in their game, so there is no session to resume and
  * nothing worth surviving.
  */
 const sessions = new Map();
@@ -128,7 +128,7 @@ Empirica.onGameStart(({ game }) => {
 /**
  * ONE `onStageStart`. See the note in the Rand 2011 example: these helpers are
  * wrapped in a `unique` guard keyed on the scope, so a SECOND registration of the
- * same helper never runs (`ISSUES.md` U8). One each, dispatch inside.
+ * same helper never runs. One each, dispatch inside.
  */
 Empirica.onStageStart(({ stage }) => {
   const game = stage.currentGame;
@@ -338,14 +338,14 @@ export const net = withNetwork(Empirica, {
    * which is what this file did for a whole milestone. That worked, and it is
    * worth being precise about what was wrong with it: it reached into the
    * package's private key layout, it required knowing that a plain `.on` escapes
-   * the `unique` guard (`ISSUES.md` U8), and it fired ONLY because `withNetwork`
+   * the `unique` guard, and it fired ONLY because `withNetwork`
    * issues `ctx.scopeSub({ kinds: ["nbhd"] })` at start — so the same three lines
    * copied into a project that does not call `withNetwork` produce a listener that
-   * never runs, silently (`docs/PLATFORM-NOTES.md` §12, U3).
+   * never runs, silently (`docs/PLATFORM-NOTES.md` §11).
    *
    * That dependency has not gone away, it has moved inside the package where it
    * belongs. `test/e2e/shirado2017.test.ts` asserting that a solved game actually
-   * ends is still the witness that U3 has not regressed.
+   * ends is still the witness that the subscription behaviour has not regressed.
    */
   onPrivateState: detectSolution,
 });

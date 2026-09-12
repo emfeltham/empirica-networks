@@ -73,7 +73,7 @@ export function rememberEndedGame(
  *
  * The warning has to be honest about being mostly harmless, or it is the kind of
  * message that teaches people to ignore warnings from this package — and two of
- * them (`ISSUES.md` U8, O14) have to be believed the one time they fire.
+ * them (`ISSUES.md` O14) have to be believed the one time they fire.
  */
 export function endedGamesEvictedMessage(cap: number): string {
   return (

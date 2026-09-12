@@ -1,5 +1,5 @@
 /**
- * The duplicate-lifecycle-listener detector (`ISSUES.md` U8).
+ * The duplicate-lifecycle-listener detector.
  *
  * A detector's failure modes are its design, so this tier is mostly about what
  * must NOT fire. Every filter in `duplicateLifecycleListeners` exists to keep
@@ -236,5 +236,5 @@ test("the message names the helper, gives the fix, and admits its false positive
   // believed on a question it cannot settle.
   assert.match(msg, /this warning is wrong/);
   assert.match(msg, /`Empirica\.on\("stage", "ended", cb\)` directly/);
-  assert.match(msg, /ISSUES\.md U8/);
+  assert.match(msg, /silently, with no error and no log line/);
 });

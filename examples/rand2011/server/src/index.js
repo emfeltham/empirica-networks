@@ -47,7 +47,7 @@ setLogLevel(argv["loglevel"] || "info");
    *
    * It holds no Empirica credential: it reads this process's own memory and
    * serves JSON. That matters because there is no write access control in
-   * Empirica (see the module's ISSUES.md U1), so an admin token in a browser
+   * Empirica, so an admin token in a browser
    * would be unlimited write access over every participant's data, not just a
    * read-only view. Never put one there.
    */

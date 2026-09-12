@@ -76,7 +76,7 @@ rather than remaining silent about it. `n=6, 3 agents: central, 10% noise (demo 
 windows and is the one to try first.
 
 A shared key list is used rather than a `bot-` prefix, because every participant in a game receives every
-other participant's `?participantKey=` (`docs/upstream/ISSUES.md` U10). A recognisable key would be readable
+other participant's `?participantKey=`. A recognisable key would be readable
 from any browser, and this design does not tell subjects which of their neighbors are software,
 so that is the manipulation being disclosed, not a metadata leak. `node bots.mjs --keys` generates keys
 shaped like the ones Empirica's own client produces; a deployed study should use keys drawn from
@@ -141,7 +141,7 @@ node dist/verify/cli.cjs verify --n 4     # from a clone today
 | the global conflict count | nothing — held in the callbacks process | **nobody** |
 | time to solution | `game.batch.set(…)` at the end | **nobody but the server** |
 | an agent's noise level | `network(game).tell(playerID, "noise", …)` — that agent's own channel | **only that agent** |
-| which nodes are agents | `SHIRADO2017_BOT_KEYS`, in both processes' environments | the server — and, unavoidably, anyone reading their own wire (U10) |
+| which nodes are agents | `SHIRADO2017_BOT_KEYS`, in both processes' environments | the server — and, unavoidably, anyone reading their own wire |
 
 The last row is the uncomfortable one and is stated rather than glossed over. The list is a shared
 secret between the two processes, but the identifiers themselves are not secret from participants:

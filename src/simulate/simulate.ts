@@ -378,7 +378,7 @@ makes no cross-arm outcome claim, and none may be read from its output.
  *
  * `scripts/test.mjs` does this before the e2e tier and the reasoning carries: the
  * `empirica` CLI execs a versioned binary as its own child, so a killed session can
- * leave the real server holding its port (`ISSUES.md` U6). A sweep matters more
+ * leave the real server holding its port. A sweep matters more
  * here than in the test suite, because a session that times out is killed rather
  * than torn down, and the next twenty sessions inherit whatever it left.
  *

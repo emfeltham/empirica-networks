@@ -46,7 +46,7 @@ src/
     projection.ts     validateProjection, projectionBytes — what a view may contain
     envelope.ts       degree / view-bytes / neighborhood-bytes limits
     reads.ts          recording proxies; the unwatched-key report
-    listeners.ts      the U8 duplicate-lifecycle-listener detector
+    listeners.ts      the duplicate-lifecycle-listener detector
     registration.ts   the O14 kind-registration check: constants and messages, zero imports
     retention.ts      the bound on what a long-running process keeps (O5), zero imports
     seed.ts           hashSeed, makeRng — deterministic realization
@@ -64,7 +64,7 @@ src/
   bots/               artificial participants; a PARTICIPANT process, not a server-side object
     runner.ts         runBots: sessions, the poll loop, hook dispatch. Reuses harness/compat.ts
     lifecycle.ts      the six phases as a pure function, and the stall reasons. Zero imports
-    identity.ts       identifier generation and the U10 warnings. Zero imports
+    identity.ts       identifier generation and the identifier warnings. Zero imports
     policy.ts         the BotPolicy / BotContext types. Type-only imports, so it bundles to nothing
   topology/
     index.ts          14 generators + 6 measures (adjacency, degrees, meanDegree, maxDegree,
@@ -109,7 +109,7 @@ Two things happen, and the timing of both is deliberate:
 
 - `ctx.scopeSub({ kinds: ["nbhd"] })` subscribes the admin to channel scopes. This is
   load-bearing specifically for reading what participants write: attribute listeners subscribe
-  nothing on their own (`docs/PLATFORM-NOTES.md` §12, `docs/upstream/ISSUES.md` U3). Publishing worked without
+  nothing on their own (`docs/PLATFORM-NOTES.md` §11). Publishing worked without
   it for a long time, because creation-time attributes arrive inside the `addScopes` response, but
   a participant's later write is never delivered, and the listener waiting for it simply never
   runs.
@@ -165,7 +165,7 @@ preserves input order); and the channel map is never participant-visible, living
 only, keyed by game id.
 
 That last property is functionally necessary, not merely a matter of tidiness. Empirica has no
-write access control (`docs/upstream/ISSUES.md` U1), so a channel id is precisely the capability needed to inject
+write access control, so a channel id is precisely the capability needed to inject
 into someone else's private channel. It was briefly on the game scope, and an end-to-end test
 caught every participant receiving every channel id.
 
@@ -213,7 +213,7 @@ Called on every channel arrival, because channels stream in from the subscriptio
 completion signal. Idempotent, and gives up quietly until the last seat is filled.
 
 It is worth noting what this does not fix. A full server restart still does not put participants
-back in their game: `gameID` is never restored, upstream (`docs/upstream/ISSUES.md` U2). Recovery here is about
+back in their game: `gameID` is never restored, upstream. Recovery here is about
 not corrupting a game that survives, not about resuming a crashed study. Nothing here can make a
 crashed study resumable.
 
@@ -429,12 +429,13 @@ intended signal, rather than an intermittent test failure.
 | `TajribaProvider` constructor shape | Silent | mode tier |
 | The `dones` protocol | Silent: every `.get()` returns `undefined` | `test/mode/*`, and the `DonesWiringError` self-check |
 | `AdminContext.init` parameter count | Loud | end-to-end tests |
-| `ListenersCollector.attributeListeners` and the `unique` wrapper shape | Silent: the U8 detector switches off and consumers stop being warned | `test/unit/listeners.test.ts`, `test/e2e/duplicate_listeners.test.ts` |
+| `ListenersCollector.attributeListeners` and the `unique` wrapper shape | Silent: the duplicate-listener detector switches off and consumers stop being warned | `test/unit/listeners.test.ts`, `test/e2e/duplicate_listeners.test.ts` |
 
 The fourth is the only one that depends on an `@internal` field. The detector calibrates the
 wrapper shape at startup rather than hardcoding it, so it retunes itself rather than going quiet,
 but if the field moves or is renamed, it switches off. If `duplicate_listeners.test.ts` ever fails
-saying the second handler did run, upstream fixed U8 and the warning should be withdrawn.
+saying the second handler did run, upstream has fixed the dispatcher and the warning should be
+withdrawn.
 
 ## 9. What is held in memory, per process
 

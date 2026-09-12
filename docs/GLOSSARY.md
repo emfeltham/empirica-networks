@@ -17,7 +17,7 @@ non-neighbor. Empirica v2 ships no such facility; this one is `empirica-networks
 **channel** — the private `nbhd` scope belonging to one participant. Created at game start, one
 per participant, linked to them alone. Everything neighbor-limited goes through it: the server
 writes their view here, they write their own private state here, and the server writes anything
-it tells them privately here. Its id is a capability (there is no write access control; see U1), so the
+it tells them privately here. Its id is a capability (Empirica has no write access control), so the
 map from participants to channels is never participant-visible. → [ARCHITECTURE §3
 step 7](ARCHITECTURE.md#3-the-lifecycle-end-to-end)
 
@@ -83,8 +83,8 @@ reproduced anything. → [EXPERIMENTS.md](EXPERIMENTS.md)
 
 **run log** — an append-only NDJSON file written as the study happens (`log: { file }`), for
 whatever your analysis needs. Exists because `onGameEnded` fires only when a game ends naturally,
-so a killed or crashed study (which after U2 is the normal shape of "something went wrong")
-produced no data at all. → [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md)
+so a killed or crashed study — the normal shape of "something went wrong", since upstream cannot
+resume one — produced no data at all. → [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md)
 
 **scope** — Empirica's unit of state: an object with attributes, of some kind, delivered to
 whichever participants are linked to it. Batch, game, round, stage, player and this package's
@@ -115,17 +115,11 @@ it; view capture (`views: { file }`) is the only record of what a participant wa
 as distinct from what they could have known, which is all an edge log plus an
 attribute export can reconstruct. → [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md)
 
-**U-numbers / O-numbers** — issue ids for, respectively, [`docs/upstream/ISSUES.md`](upstream/ISSUES.md)
-and [`../ISSUES.md`](../ISSUES.md). U is upstream, in Empirica itself, generally not fixable
-here. O is ours. The ones you are most likely to meet:
+**O-numbers** — issue ids in [`../ISSUES.md`](../ISSUES.md), this package's own defect log. The ones
+you are most likely to meet:
 
 | | |
 |---|---|
-| U1 | No write access control: `protected` does not protect. Affects every Empirica study |
-| U2 | A full restart does not put participants back in their game. A crashed study cannot be resumed |
-| U7 | Game start corrupts the websocket stream at n ≥ 200 |
-| U8 | A lifecycle listener can only be registered once, silently |
-| U10 | Every participant receives every co-player's recruitment identifier, a Prolific PID, say, if that is what `?participantKey=` carried |
 | O1 | The published latency figures are single runs on one machine, and are upper bounds. Read them as a scale, not a value |
 | O4 | Late-joiner provisioning is a net under a path nobody has reproduced: a player with no `participantID` gets no channel, and one unprovisioned player blocks every publish in the game |
 
