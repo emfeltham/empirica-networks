@@ -241,7 +241,7 @@ private network for the length of one sweep.
 
 The other half of O1 is the host's own clock. The same cell measured 3.3 to 18.3 ms across one
 session while repeats within a sweep agreed to 4–17%, and the cause was DVFS: the coordinator
-burned 1.1 CPU-seconds idle against 0.7 loaded for identical work (`docs/PLATFORM-NOTES.md` §21).
+burned 1.1 CPU-seconds idle against 0.7 loaded for identical work (`docs/PLATFORM-NOTES.md` §19).
 A bench that leaves the machine nearly idle asks for the slowest clock it has.
 
 So every run now prints the host, CPU, governor and turbo state of both machines, and `--absolute`

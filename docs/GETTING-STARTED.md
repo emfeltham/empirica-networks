@@ -40,7 +40,7 @@ npm --prefix client install empirica-networks
 > Counting strings in the bundle does not reveal it; comparing class identity does
 > (`classicKinds.game === networkKinds.game` → `false`).
 >
-> Use a packed tarball instead; this is measured and written up in `docs/PLATFORM-NOTES.md` §11.
+> Use a packed tarball instead; this is measured and written up in `docs/PLATFORM-NOTES.md` §10.
 
 ## 3. The mandatory edit
 
@@ -224,7 +224,7 @@ Empirica.onStageEnded(({ stage }) => {
 });
 ```
 
-Plain `Empirica.on(kind, key, cb)` is not affected. `docs/PLATFORM-NOTES.md` §18.
+Plain `Empirica.on(kind, key, cb)` is not affected. `docs/PLATFORM-NOTES.md` §17.
 
 Empirica itself provides no protection here, so `withNetwork` counts your registrations when the server
 starts and warns if it finds a duplicate:

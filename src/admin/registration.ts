@@ -64,7 +64,7 @@ export const REGISTRATION_CHECK_MS = 5000;
  *
  * **Linear, and that is a decision the data forced.** Two shapes were candidates.
  * The competing load at game start is Classic cross-linking every participant to
- * every player scope, O(n²) deliveries (`docs/PLATFORM-NOTES.md` §16), which
+ * every player scope, O(n²) deliveries (`docs/PLATFORM-NOTES.md` §15), which
  * argues for a quadratic deadline; the subscription replay this check waits on is
  * O(channels), which argues for a linear one. The measurement above settles it:
  * the growth STEEPENS to n=150 and then flattens (n=150 -> 200 is 1.37x for 1.33x
@@ -73,7 +73,7 @@ export const REGISTRATION_CHECK_MS = 5000;
  *
  * **100ms per channel, and the number is a safety factor, not a fit.** The fitted
  * slowest latency is nearer 30ms per channel. Three times that, because
- * `docs/PLATFORM-NOTES.md` §21 measured a 2.5x sweep-level offset attributable to
+ * `docs/PLATFORM-NOTES.md` §19 measured a 2.5x sweep-level offset attributable to
  * machine power state alone — the same cell at 7.3ms and 18.3ms an hour apart. A
  * deadline sized to a fit would false-accuse on a cold laptop. This holds a
  * margin of 3.4x-4.3x at every measured n above the floor, and roughly constant,
@@ -145,7 +145,7 @@ export function registrationNotDetectedMessage(created: number, waitedMs: number
     `participant sits with an empty neighborhood forever and nothing else will report it.` +
     REGISTRATION_DIFF +
     `\n2. The subscription is only slow. Channel delivery queues behind Classic's game-start ` +
-    `burst, which grows with the participant count (docs/PLATFORM-NOTES.md §16). This deadline ` +
+    `burst, which grows with the participant count (docs/PLATFORM-NOTES.md §15a). This deadline ` +
     `scales with the channels created for that reason, but it is sized from measurements up to ` +
     `n=200.\n` +
     `\nCheck 1 first. net.inspect(gameID).pendingChannels lists who is missing. If a channel ` +

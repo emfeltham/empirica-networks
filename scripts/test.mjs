@@ -88,7 +88,7 @@ const skipped = [];
  * (`@empirica/core/src/player/steps.ts:238`) which is polyfilled to `setTimeout`
  * under Node and never stops. Measured 2026-08-15: 68 uncleared timers after one
  * mode test file, and the run hangs forever without the flag. Upstream's, not
- * ours — see docs/PLATFORM-NOTES.md §13.
+ * ours — see docs/PLATFORM-NOTES.md §12.
  *
  * The unit tier does not touch the mode and exits cleanly on its own, so it does
  * NOT get the flag: leaving it on everywhere would hide a handle leak we

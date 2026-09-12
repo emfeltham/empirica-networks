@@ -203,7 +203,7 @@ export const OUTBOX_KEY = "_outbox";
  *
  * The only record of what a participant was told. Views are published
  * `ephemeral`, deliberately — persisting them would grow the store on every
- * tick (docs/PLATFORM-NOTES.md §10) — so unlike edges, attributes, the seed and
+ * tick (docs/PLATFORM-NOTES.md §9) — so unlike edges, attributes, the seed and
  * chat, nothing durable holds them. Capture is opt-in for that reason: it is a
  * cost you choose, not one you pay by default.
  *

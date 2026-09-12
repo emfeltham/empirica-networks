@@ -186,7 +186,7 @@ payload carries no owner attribute, so `created > 0` establishes that the scopes
 if none of them has come back as a modeled scope by `registrationWaitMs(created)` (5 s, plus
 100 ms per channel past fifty), the check warns. It names both causes and diagnoses neither, and
 retracts itself if a channel arrives afterwards: the deadline is sized from measured first-channel
-latency (`ISSUES.md` O15, `docs/PLATFORM-NOTES.md` §16a), and a measurement can be beaten by a
+latency (`ISSUES.md` O15, `docs/PLATFORM-NOTES.md` §15a), and a measurement can be beaten by a
 slower machine. Witnesses: `test/e2e/kind_registration.test.ts` against a real server, and
 `test/unit/registration.test.ts` for the arithmetic and for the retraction, which needs a deadline
 that expires while healthy channels are in flight, a race no real server can be asked to lose on

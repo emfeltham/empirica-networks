@@ -37,7 +37,7 @@ makes the entries below meaningful as a baseline rather than a moving target.
 - `NetworkStats.endedGames` and `NetworkStats.chatSeqs`: the two counts that outlive a game, so
   retention is assertable exactly rather than by watching a heap graph.
 - `empirica-networks/bots`: artificial participants, which Empirica ships none of
-  (`docs/PLATFORM-NOTES.md` §17, `ISSUES.md` O10). A bot is a headless participant process:
+  (`docs/PLATFORM-NOTES.md` §16, `ISSUES.md` O10). A bot is a headless participant process:
   it opens a real Tajriba session, sets `introDone` (without which a game never reaches its
   player count), reads its neighbors through the same `project()`, and writes through the same
   private channel a browser writes to. There is deliberately no server-side path; a bot that could
@@ -111,9 +111,9 @@ makes the entries below meaningful as a baseline rather than a moving target.
   size rather than degree alone. That product is what a participant's uplink carries and what
   `maxNeighborhoodBytes` was added to guard on a guess.
 - The bench reports first-channel latency per run and the slowest across repeats, including
-  for runs that did not complete: at n=200 most do not (`docs/PLATFORM-NOTES.md` §16), and those
+  for runs that did not complete: at n=200 most do not (`docs/PLATFORM-NOTES.md` §15), and those
   are exactly the runs in which the registration check misfires. The measurement behind
-  `ISSUES.md` O15 and §16a.
+  `ISSUES.md` O15 and §15a.
 - `npm run bench -- --assert` and `npm run soak -- --assert`: exit non-zero on a delivery or
   retention regression, never on a slow or memory-hungry one. This is what lets both run in CI
   (`ISSUES.md` O6, `.github/workflows/perf.yml`, weekly).
@@ -299,13 +299,13 @@ makes the entries below meaningful as a baseline rather than a moving target.
 
 ### Measured
 
-- `maxNeighborhoodBytes` is no longer a guess (`ISSUES.md` O1, PLATFORM-NOTES §21). A design
+- `maxNeighborhoodBytes` is no longer a guess (`ISSUES.md` O1, PLATFORM-NOTES §19). A design
   sitting just under the 64 KiB default (53 KiB per participant per publish, n=50 d=49) delivers
   at p50 67 ms against 10–25 ms for a small-view design, and drops nothing. A slope, not a
   cliff. Payload also costs more at higher degree, confirming that degree × view size is the
   product neither per-view nor per-degree limits can see alone.
 - A bench figure is worth less than it looks, and the reason is the measuring machine
-  (`ISSUES.md` O1, PLATFORM-NOTES §21). The same cell ranged 3.3–18.3 ms across one afternoon while
+  (`ISSUES.md` O1, PLATFORM-NOTES §19). The same cell ranged 3.3–18.3 ms across one afternoon while
   repeats within any sweep agreed to 4–17%. Imposed-load testing found the cause and it runs
   backwards: a busier host measures faster, non-monotonically, because an idle machine clocks
   its cores down; the coordinator burns 1.1 CPU-seconds idle against 0.7 loaded for identical

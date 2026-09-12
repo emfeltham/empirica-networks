@@ -262,7 +262,7 @@ test("running the monitor leaks nothing to participants, and reads their private
         // THE SUBSCRIPTION WITNESS. A participant's own write only reaches this process
         // because `withNetwork` issues an explicit `ctx.scopeSub({ kinds })`;
         // `subscribeAttribute` subscribes the admin to nothing on its own
-        // (PLATFORM-NOTES §12). Without that call every value below is
+        // (PLATFORM-NOTES §11). Without that call every value below is
         // `undefined` and nothing errors — so this assertion is what stops the
         // monitor from being a silent victim of that behaviour if it ever regresses.
         let seen: any;

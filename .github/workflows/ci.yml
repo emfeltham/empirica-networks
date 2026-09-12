@@ -124,6 +124,6 @@ jobs:
       # Installs a packed tarball rather than linking: a `file:` link resolves
       # to the repo root, whose node_modules holds a second copy of
       # @empirica/core, and two copies break every instanceof inside Empirica.
-      # See docs/PLATFORM-NOTES.md §11.
+      # See docs/PLATFORM-NOTES.md §10.
       - run: npm run example:install
       - run: npm run example:build

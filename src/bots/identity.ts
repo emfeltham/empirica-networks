@@ -34,7 +34,7 @@
 /**
  * Substrings that give a bot away.
  *
- * The same words `docs/PLATFORM-NOTES.md` §17 searched the Empirica bundles for,
+ * The same words `docs/PLATFORM-NOTES.md` §16 searched the Empirica bundles for,
  * turned around: there they were how we established Empirica ships no bots, here
  * they are how a participant would establish that yours are. `test` and `debug`
  * are added because a study that ran with its rehearsal keys is the same mistake

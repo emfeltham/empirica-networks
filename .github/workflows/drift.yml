@@ -11,7 +11,7 @@ name: upstream drift
 #   - AdminContext.init arity
 #   - `ListenersCollector.attributeListeners` and the shape of the `unique`
 #     wrapper, which the duplicate-listener detector reads
-#     (src/admin/listeners.ts, PLATFORM-NOTES §18a). This is the only one that
+#     (src/admin/listeners.ts, PLATFORM-NOTES §17a). This is the only one that
 #     depends on an `@internal` field. The detector calibrates the wrapper shape
 #     at startup rather than hardcoding it, so it retunes itself rather than
 #     going quiet — but if the FIELD moves or is renamed, the detector switches

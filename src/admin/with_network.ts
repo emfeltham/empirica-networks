@@ -806,7 +806,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     // Already networked by a previous process.
     //
     // This listener re-fires on restart, because attribute listeners replay
-    // attributes the admin already holds (PLATFORM-NOTES §12) and `start` is one
+    // attributes the admin already holds (PLATFORM-NOTES §4d) and `start` is one
     // of them. Taking the normal path here is what made a restart destructive:
     // the topology got re-derived from `game.players` order — which is not
     // stable — so everyone was silently moved to a different node, and
@@ -984,7 +984,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * handler disabled, `test/e2e/publisher.test.ts` "a reconnecting participant
    * gets its view back" still passes. Tajriba replays current attribute values
    * to a returning participant even though views are written `ephemeral`
-   * (docs/PLATFORM-NOTES.md §10).
+   * (docs/PLATFORM-NOTES.md §9).
    *
    * Kept anyway, because that replay is undocumented behavior we found by
    * experiment, not a guarantee. If it ever stops, every reconnecting

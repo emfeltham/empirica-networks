@@ -62,7 +62,7 @@ npm --prefix client install /path/to/empirica-networks-0.0.0.tgz
 
 Requires Node 20+ and the Empirica CLI (`curl https://install.empirica.dev | sh`). Install into both halves, since the package ships server code and client code separately.
 
-Do not use a `file:` link. npm turns it into a symbolic link, which loads two copies of `@empirica/core` and breaks every `instanceof` inside Empirica. The resulting symptom names nothing in particular: every participant is stuck on "Waiting for other players" with a full game (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) and `docs/PLATFORM-NOTES.md` §11).
+Do not use a `file:` link. npm turns it into a symbolic link, which loads two copies of `@empirica/core` and breaks every `instanceof` inside Empirica. The resulting symptom names nothing in particular: every participant is stuck on "Waiting for other players" with a full game (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) and `docs/PLATFORM-NOTES.md` §10).
 
 The name is `empirica-networks`, unscoped: discovery is the binding constraint in an ecosystem with no registry, no plugin API, and no curated list. Renaming after the first publish would be a breaking change, which is why the decision was made before publication rather than at it.
 
@@ -198,7 +198,7 @@ has been collected with them, and nothing has been compared against the authors'
 ## Bots
 
 Empirica v2 ships no artificial-player facility of any kind. Version 1 had them, so assuming they
-still exist is a natural mistake to make (`docs/PLATFORM-NOTES.md` §17). `empirica-networks/bots`
+still exist is a natural mistake to make (`docs/PLATFORM-NOTES.md` §16). `empirica-networks/bots`
 is one, built the only way the platform allows: a headless participant process, indistinguishable
 from a browser at the wire.
 
@@ -276,7 +276,7 @@ measured anywhere from 3.3 to 18.3 ms in one afternoon — an offset shared by e
 and therefore invisible to repeats, which is why O1's "4–17%" is the within-sweep agreement of that
 one cell and not a property of the table above. The cause is the measuring
 machine rather than the package: a busier host measures faster, non-monotonically, because an
-idle laptop clocks its cores down (`docs/PLATFORM-NOTES.md` §21 finds that the coordinator burns
+idle laptop clocks its cores down (`docs/PLATFORM-NOTES.md` §19 finds that the coordinator burns
 57% more CPU time for identical work when the machine is quiet). Repeats buy precision, not
 accuracy, so any single figure here should be treated as an order of magnitude. Comparisons made
 within one sweep, such as the payload table below, remain sound, because both arms see the same

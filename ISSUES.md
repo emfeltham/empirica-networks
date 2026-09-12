@@ -53,7 +53,7 @@ server and reports the median of the per-run p50s with the observed range. The R
 cites three runs per cell.
 
 2. `maxNeighborhoodBytes` is measured and the guess retired. `npm run bench -- --bytes` pads each
-neighbor view, so degree × view size is measurable at last (PLATFORM-NOTES §21):
+neighbor view, so degree × view size is measurable at last (PLATFORM-NOTES §19):
 
 | cell | neighborhood / publish | p50 |
 |---|---|---|
@@ -103,7 +103,7 @@ A busier machine is faster, non-monotonically, with a minimum at moderate load, 
 not the mechanism, or the ordering would reverse. The identifying detail is the CPU column: the
 coordinator does identical work at 2–3% duty cycle throughout, yet burns 1.1 CPU-seconds idle
 against 0.7 loaded. 57% more CPU time for the same instructions is a clock-frequency signature,
-consistent with DVFS, plausibly with efficiency-core placement. PLATFORM-NOTES §21 has the detail
+consistent with DVFS, plausibly with efficiency-core placement. PLATFORM-NOTES §19 has the detail
 and what was deliberately not isolated (that needs `powermetrics` and root, and changes nothing).
 
 So the offset was never the package, the harness, or contention. It was the host deciding how fast
@@ -168,7 +168,7 @@ the physics.
 
 *Now done when:* a pinned bare-metal Linux host and a second machine for the clients run
 `npm run bench -- --clients HOST:PORT --absolute --repeats 3`, and the result is recorded in
-`docs/PLATFORM-NOTES.md` §21 beside the DVFS finding it answers.
+`docs/PLATFORM-NOTES.md` §19 beside the DVFS finding it answers.
 
 ### O3. `restart_full` asserts conditionally, pending an upstream fix to restart recovery
 

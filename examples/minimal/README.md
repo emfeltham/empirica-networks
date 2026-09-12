@@ -14,7 +14,7 @@ cd examples/minimal
 empirica
 ```
 
-`example:install` installs a packed tarball rather than linking the repository. This is necessary because a `file:` link makes npm create a symbolic link to the repository root, whose own `node_modules` directory has a second copy of `@empirica/core`, and two copies break every `instanceof` check inside Empirica. The symptom is every participant stuck on "Waiting for other players" with a full game. Details in `docs/PLATFORM-NOTES.md` §11. Re-run `npm run example:install` after changing the package.
+`example:install` installs a packed tarball rather than linking the repository. This is necessary because a `file:` link makes npm create a symbolic link to the repository root, whose own `node_modules` directory has a second copy of `@empirica/core`, and two copies break every `instanceof` check inside Empirica. The symptom is every participant stuck on "Waiting for other players" with a full game. Details in `docs/PLATFORM-NOTES.md` §10. Re-run `npm run example:install` after changing the package.
 
 Then open four browser windows at the printed URL, each with a different `?participantKey=`:
 

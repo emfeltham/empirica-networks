@@ -91,7 +91,7 @@ function experiment(): {
  *
  * `console.log`, not `console.warn`: `warn()` from `@empirica/core/console` routes
  * every level through `console.log`, so swapping `console.warn` captures nothing
- * (`docs/PLATFORM-NOTES.md` §18b).
+ * (`docs/PLATFORM-NOTES.md` §17b).
  */
 async function capture(
   kinds: Record<string, any>

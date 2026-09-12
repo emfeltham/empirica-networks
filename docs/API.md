@@ -479,7 +479,7 @@ registrationWaitMs(created) = max(REGISTRATION_CHECK_MS,          // 5 s floor
 ```
 
 "Channels materialise in milliseconds" is true at small n and false at large. Slowest
-first-channel latency, three runs per cell (`docs/PLATFORM-NOTES.md` §16a): 86 ms at n=25, 2320 ms
+first-channel latency, three runs per cell (`docs/PLATFORM-NOTES.md` §15a): 86 ms at n=25, 2320 ms
 at n=100, 4287 ms at n=150, 5870 ms at n=200. At n=150, which is inside the supported envelope, a
 flat 5 s deadline would have 14% of its time left.
 

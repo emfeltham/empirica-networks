@@ -66,7 +66,7 @@ test("the deadline grows with the channels created, and never drops below the fl
  * A test that pinned `registrationWaitMs(150) === 15000` would pass for any
  * coefficient anyone later typed in. What has to hold is that the deadline
  * clears the measured worst case by enough to survive a slower machine — and
- * `docs/PLATFORM-NOTES.md` §21 measured that margin: the same bench cell at
+ * `docs/PLATFORM-NOTES.md` §19 measured that margin: the same bench cell at
  * 7.3ms and 18.3ms an hour apart, a 2.5x swing from machine power state alone.
  */
 test("every measured first-channel latency clears the deadline by at least 3x", () => {
@@ -82,7 +82,7 @@ test("every measured first-channel latency clears the deadline by at least 3x", 
     assert.ok(
       margin >= 3,
       `n=${n}: deadline ${registrationWaitMs(n)}ms is only ${margin.toFixed(1)}x the slowest ` +
-        `measured ${slowest}ms — a 2.5x machine-state swing (PLATFORM-NOTES §21) would ` +
+        `measured ${slowest}ms — a 2.5x machine-state swing (PLATFORM-NOTES §19) would ` +
         `false-accuse correct code`
     );
   }
@@ -165,7 +165,7 @@ async function captureWith(
   const lines: string[] = [];
   const originalLog = console.log;
   // `console.log`, not `console.warn`: `warn()` from `@empirica/core/console`
-  // routes every level through `console.log` (PLATFORM-NOTES §18b).
+  // routes every level through `console.log` (PLATFORM-NOTES §17b).
   console.log = (...args: unknown[]) => {
     lines.push(args.map((a) => String(a)).join(" "));
   };

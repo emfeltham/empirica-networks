@@ -10,7 +10,7 @@
  *
  * The real `ClassicListenersCollector` is exercised in `test/e2e/duplicate_
  * listeners.test.ts`; the fake below mirrors the shapes measured from
- * `@empirica/core@1.12.5` on 2026-08-16, recorded in `docs/PLATFORM-NOTES.md` §18.
+ * `@empirica/core@1.12.5` on 2026-08-16, recorded in `docs/PLATFORM-NOTES.md` §17a.
  */
 import assert from "node:assert/strict";
 import test from "node:test";

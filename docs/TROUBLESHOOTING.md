@@ -33,7 +33,7 @@ Fix: install from a packed tarball instead. `npm pack` in this repository, then
 `npm --prefix server install /path/to/empirica-networks-0.0.0.tgz`. `npm run example:install`
 does exactly this for the bundled examples.
 
-`docs/PLATFORM-NOTES.md` Section 11 · `docs/GETTING-STARTED.md` Section 2
+`docs/PLATFORM-NOTES.md` Section 10 · `docs/GETTING-STARTED.md` Section 2
 
 ### Participants sit with empty neighborhoods forever, and nothing errors
 
@@ -78,7 +78,7 @@ means your setup beat the measurement, which is worth reporting along with the p
 `net.inspect(gameID).pendingChannels` lists who is still missing;
 `net.stats().firstChannelMs` is the figure itself.
 
-`docs/PLATFORM-NOTES.md` Section 6, Section 16a
+`docs/PLATFORM-NOTES.md` Section 6, Section 15a
 
 ### A private value reads back as `undefined`, and the manipulation silently does nothing
 
@@ -151,7 +151,7 @@ The same trap arrives by a different route inside `onPrivateState`: the hook is 
 returned promise is not awaited, and any write made after an `await` inside it lands outside the
 flush.
 
-`docs/PLATFORM-NOTES.md` Section 15
+`docs/PLATFORM-NOTES.md` Section 14
 
 ### Everyone can see a value that was supposed to be neighbor-limited
 

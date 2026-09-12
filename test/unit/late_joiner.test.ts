@@ -131,7 +131,7 @@ test("the repair is COUNTED and said out loud, because it has never been observe
   const lines: string[] = [];
   const originalLog = console.log;
   // `console.log`, not `console.warn`: `warn()` from `@empirica/core/console`
-  // routes every level through `console.log` (PLATFORM-NOTES §18b).
+  // routes every level through `console.log` (PLATFORM-NOTES §17b).
   console.log = (...args: unknown[]) => {
     lines.push(args.map((a) => String(a)).join(" "));
   };

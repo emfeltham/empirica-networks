@@ -58,7 +58,7 @@ export interface EnvelopeLimits {
    * per-view limit cannot see.
    *
    * **The number was a guess when it was chosen and has since been measured**
-   * (2026-08-16, `npm run bench -- --bytes`, PLATFORM-NOTES §21). It survives,
+   * (2026-08-16, `npm run bench -- --bytes`, PLATFORM-NOTES §19). It survives,
    * with its meaning sharpened: a design sitting just under the limit — 53 KiB
    * per participant per publish, at n=50 d=49, the densest realistic case in the
    * target regime — delivers at **p50 67ms** against 10-25ms for a small-view
