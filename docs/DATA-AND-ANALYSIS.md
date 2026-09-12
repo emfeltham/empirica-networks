@@ -1,16 +1,15 @@
 # Data and analysis — what a run produces
 
-This document starts where a study ends: once a run has finished, this is what you have. It is written against the
-post-M6 surface, where the run log is part of the package rather than something each example
-built for itself.
+This document describes the data available after a study run. It reflects the post-M6 API, in
+which the package provides a shared run log for all examples.
 
-One thing to decide before the run rather than after, so it is stated first:
+Decide whether to capture projected views before beginning data collection:
 
-> Turn on view capture if `project()` does anything beyond passing values through. Views are
-> published `ephemeral`: nothing durable holds them. An edge log plus an attribute export tells
-> you what a participant could have known; only view capture tells you what they were
-> told. If your projection buckets, adds noise, or keys off `stateOf()`, those are not the
-> same table, and the second one cannot be reconstructed afterwards.
+> Enable view capture when `project()` transforms values through operations such as grouping,
+> adding noise, or consulting `stateOf()`. Empirica publishes views as `ephemeral`, meaning it
+> delivers them without retaining a durable copy. An edge log and attribute export describe the
+> information available to a participant, whereas captured views record the information actually
+> delivered. The latter cannot be reconstructed retrospectively after a transformation.
 >
 > ```js
 > withNetwork(Empirica, { …, views: { file: "data/views.ndjson" } });
@@ -30,24 +29,23 @@ One thing to decide before the run rather than after, so it is stated first:
 | Captured views | `views: { file }`, opt-in | Yes | Exactly what each participant was delivered, per delivery |
 | The views themselves | — | No | Published `ephemeral`. Gone unless captured |
 
-Two of these points need stating plainly.
+Two properties of these outputs deserve particular attention.
 
-The store holds private state. Everything a participant wrote to their own channel is in
-`tajriba.json`, prefixed `state:`. It was neighbor-limited in transit; it is not anonymised at
-rest. Treat the store as identifiable data.
+The store contains private state. Every value a participant writes to their channel appears in
+`tajriba.json` with a `state:` prefix. Although delivery was limited to neighbors, the stored data
+remain identifiable and should be handled accordingly.
 
-`onGameEnded` is not a reliable place to write files. It fires only when a game ends
-naturally. A study that is killed, crashes, or is stopped mid-session never reaches it. After
-upstream cannot resume a crashed study, a crash mid-study is the normal shape of "something went wrong", since a
-restarted server cannot put participants back in their game anyway. That is what the run log is
-for: unbuffered by default, so a hard kill loses nothing.
+`onGameEnded` runs only after a game ends normally, so it provides an incomplete basis for durable
+file output. A killed, crashed, or manually stopped session bypasses the callback. Because the
+upstream platform cannot resume such a session, use the run log for recovery. Its default
+unbuffered writes preserve all records already emitted before a hard termination.
 
-This is measured, not imagined: a passing run of `test/e2e/rand2011.test.ts` left `views.ndjson` and not one
-CSV.
+In a measured run of `test/e2e/rand2011.test.ts`, early termination preserved `views.ndjson` while
+producing no CSV output.
 
 ## 2. Getting the rows out
 
-There are two import paths, and picking the wrong one is the most common first mistake.
+Choose the import path according to the execution environment.
 
 ```js
 // Inside your callbacks, server-side, running under the Empirica CLI:
@@ -64,9 +62,9 @@ pulls it in. The export subpath has no `@empirica/core` anywhere in its graph, a
 all, including `node:fs`. That is why `parseNdjson` takes the file's text, not its path: your
 `fs.readFileSync(path, "utf8")` is the line you already had.
 
-The row builders are pure: they take a game id and an event log, not Empirica objects. So the
-same functions run offline over data collected months ago, and unit test in milliseconds with no
-server.
+The row builders are pure functions that accept a game identifier and event log rather than
+Empirica objects. The same functions can therefore analyze archived data offline and run in unit
+tests without a server.
 
 ```js
 // server-side, in a listener
@@ -137,7 +135,7 @@ Nested values are JSON-encoded into their cell rather than flattened into `a.b.c
 would guess at a schema you did not declare. A projection returning a bare value
 (`project: (n) => n.id`) gets a `value` column.
 
-### The run log → one NDJSON line per `net.log()` call
+### The run log → one newline-delimited JSON (NDJSON) record per `net.log()` call
 
 ```js
 net.log(stage.currentGame, { type: "round", round: 3, rows });

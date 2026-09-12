@@ -1,18 +1,17 @@
-# Platform constraints, verified
+# Verified platform constraints
 
-Everything here was checked at runtime against `@empirica/core@1.12.5` and
-`@empirica/tajriba@1.7.3` on 2026-08-14, rather than read from documentation. The checks should
-be re-run when either dependency is updated, since several of these are the kind of thing that
-changes silently.
+The findings in this document were measured at runtime against `@empirica/core@1.12.5` and
+`@empirica/tajriba@1.7.3` on 2026-08-14. Repeat these checks after updating either dependency,
+because several underlying behaviors can change without an explicit compatibility error.
 
-`SPIKE-REPORT.md`, cited below and in a few error messages, is the measurement record from the
-investigation that preceded this package. It is not published with it, so those citations name
-where a number came from rather than a file you can open; the numbers themselves, and what each
-one does and does not license, are reproduced here and in `docs/TESTING.md`.
+`SPIKE-REPORT.md`, cited below and in several error messages, records the investigation that
+preceded this package. The report is stored outside this repository, so each citation identifies
+the provenance of a measurement rather than a publicly accessible file. This document and
+`docs/TESTING.md` reproduce the relevant values and explain the conclusions they support.
 
 ## 1. `@empirica/core/player` imports cleanly under bare Node (confirmed)
 
-There is no CSS problem. The source has `import "./index.css"` in `player/index.ts`, but tsup
+CSS creates no import problem in this case. The source contains `import "./index.css"` in `player/index.ts`, but tsup
 emits CSS as separate files (`dist/player.css` etc.) and strips the import from the JavaScript.
 A Node-side import of `@empirica/core/player` works with no loader or stub.
 

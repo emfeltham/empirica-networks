@@ -1,18 +1,18 @@
 # Getting started
 
-The ordered path from nothing to a running network experiment whose privacy guarantee has been verified on your own machine. Read it once, top to bottom; each step names the difficulty specific to it, rather than collecting them all at the end.
+This guide presents an ordered path from installation to a running network experiment with a locally verified privacy guarantee. Read it from beginning to end once; each step explains its associated risks and common failure modes.
 
 If you only want to see it work, skip to [§8](#8-running-a-reconstruction).
 
-Before anything else, read [the write-access warning in the README](../README.md#before-running-a-study). It affects every Empirica study, whether or not you use this package, and it is the one thing here that changes whether some designs should be run at all.
+Before proceeding, read [the write-access warning in the README](../README.md#before-running-a-study). It applies to every Empirica study and may determine whether a proposed design is appropriate for the platform.
 
 ## 1. Package overview
 
-Participants are nodes in a graph, and each participant receives only their neighbors' projected state. This is not merely a matter of the interface hiding the rest: the bytes never arrive. Each participant gets a private channel scope linked to them alone, and the server writes projections only there. The realized network and its seed are recorded on the batch scope, which participants cannot read, so a finished run is reproducible from stored data without handing the seating plan to the people inside it.
+Participants occupy nodes in a graph and receive projected state from their neighbors alone. The server sends each projection through a private channel scope linked to a single participant, so information about non-neighbors remains absent from that participant's network traffic. The realized network and its random seed are recorded on the batch scope, which is hidden from participants. These records make a completed run reproducible while preserving the privacy of the network structure during the study.
 
 ## 2. Installing
 
-Requires Node 20+ and the Empirica CLI (`curl https://install.empirica.dev | sh`).
+The package requires Node 20 or later and the Empirica CLI (`curl https://install.empirica.dev | sh`).
 
 Start from a stock Empirica project (`empirica create my-study`) and add this package to both halves, because it ships server code and client code separately:
 
@@ -21,26 +21,27 @@ npm --prefix server install empirica-networks
 npm --prefix client install empirica-networks
 ```
 
-> The package has not been published yet. It is `"private": true` at `0.0.0` while the public API
-> is still unfrozen.
+> The package remains unpublished. It is marked `"private": true` at version `0.0.0` while the
+> public API remains under development.
 > Until then, install from a packed tarball: run `npm pack` in this repository, then
 > `npm --prefix server install /path/to/empirica-networks-0.0.0.tgz`. Commands below that show
 > `npx empirica-networks` are what they become on publication; the form used from a clone is given
 > alongside.
 
-> ### Caution: do not install with a `file:` link
+> ### Caution: install from a tarball
 >
 > `"empirica-networks": "file:../empirica-networks"` makes npm create a symbolic link, and if the
 > linked directory has its own `node_modules/@empirica/core` the result is two copies of
 > Empirica in one bundle. Every `instanceof` inside Empirica then fails against the other
 > copy's classes.
 >
-> The symptom names nothing distinctive: every participant is stuck on "Waiting for other players" with a
-> full game, and a hundred zod stack traces mentioning neither this package nor the real cause.
-> Counting strings in the bundle does not reveal it; comparing class identity does
+> This problem leaves every participant on “Waiting for other players” despite a full game and
+> produces many validation stack traces unrelated to the underlying cause. Comparing class identity
+> reveals the duplicate installation
 > (`classicKinds.game === networkKinds.game` → `false`).
 >
-> Use a packed tarball instead; this is measured and written up in `docs/PLATFORM-NOTES.md` §10.
+> A packed tarball avoids this duplication. Measurements and further details appear in
+> `docs/PLATFORM-NOTES.md` §10.
 
 ## 3. The mandatory edit
 
@@ -158,8 +159,8 @@ withNetwork(Empirica, {
 
 The handler receives player ids and values, never scopes. It fires after the republish that the
 write triggered, so a handler that ends the stage does so with everyone's view already current. It
-must also be synchronous, because a write made after an `await` inside it lands outside the
-runloop's flush and reaches nobody.
+must also be synchronous. Empirica's run loop batches writes made while a callback executes, so a
+write made after an `await` falls outside that batch and reaches no participants.
 
 ## 5. Writing participant state
 
@@ -241,9 +242,9 @@ functions; those are legitimate and all of them run. The message says so, and it
 what it can see, so it should be treated as a safeguard under the rule above rather than a
 replacement for it.
 
-Writes only count inside a callback. The runloop flushes the `set()` calls made while it is
-processing one. A mutation driven from a timer, an HTTP handler or a test updates the server's
-own state correctly and then reaches nobody, with no error. Reads are safe anywhere.
+Participant-visible writes must occur inside a callback. Empirica's run loop flushes the `set()`
+calls made while processing that callback. A mutation initiated by a timer, HTTP handler, or test
+updates server state but produces no participant update. Reads remain safe in any context.
 
 ```js
 Empirica.onStageStart(({ stage }) => {
@@ -261,7 +262,9 @@ npx empirica-networks verify --n 4        # once published
 node dist/verify/cli.cjs verify --n 4     # from a clone today
 ```
 
-It boots a real Tajriba, connects four headless participants on a ring by default (`--topology` takes `star`, `wheel`, `pairs` or `ladder` too), and checks the raw wire:
+It starts Tajriba, Empirica's data service, connects four automated participants in a ring by
+default, and inspects their raw network traffic. The `--topology` option also accepts `star`,
+`wheel`, `pairs`, and `ladder`.
 
 ```
   non-neighbor sentinels received : 0/4 pairs  (must be 0)
@@ -271,9 +274,9 @@ It boots a real Tajriba, connects four headless participants on a ring by defaul
   PASS
 ```
 
-There are three arms, and all are required. A clean result with a silent control means the check
-is blind; a clean result with nothing delivered means the projection never ran. Most privacy tests
-are wrong in exactly one of those two ways.
+The verification has three required checks: absence of non-neighbor sentinels, delivery of
+neighbor sentinels, and detection of control values. Together, they distinguish genuine privacy
+from a failed projection or an insensitive test.
 
 Run it from `server/`, where you installed the package, so it reports the `@empirica/core` your
 study actually has. Options, exit codes and the version-mismatch note:
@@ -281,19 +284,20 @@ study actually has. Options, exit codes and the version-mismatch note:
 
 ## 8. Running a reconstruction
 
-Two complete designs ship in this repository, both rebuilt from their papers and both covered by the test suite. Start here if you want to see what a real study looks like rather than a demo:
+The repository includes two complete designs reconstructed from published papers, both covered by
+the test suite. They illustrate how the package supports substantive study designs:
 
 - [`examples/rand2011`](../examples/rand2011) — Rand, Arbesman & Christakis (2011), PNAS. Cooperation in dynamic networks: rewiring during play, private cooperation decisions, four conditions.
 - [`examples/shirado2017`](../examples/shirado2017) — Shirado & Christakis (2017), Nature. The color coordination game: a static scale-free network, continuous play, and a global objective participants cannot see.
 - [`examples/minimal`](../examples/minimal) — the smallest thing that demonstrates the guarantee. Four files changed from a stock project.
 
-`docs/EXPERIMENTS.md` says what each one demonstrates, what was left out, and, importantly, what "reconstruction" means and why it is not "replication".
+`docs/EXPERIMENTS.md` explains the capabilities each example demonstrates, its omitted elements,
+and the distinction between a reconstruction and a replication.
 
-> None of this needs real participants. Every example runs on your own machine with nobody
-> recruited: each one's README shows opening one browser tab per seat yourself, with a different
-> `?participantKey=` in each, so you play every role. Where you would rather not open that many tabs,
-> [`docs/BOTS.md`](BOTS.md) covers filling some or all seats with headless scripted participants
-> instead. `examples/shirado2017`'s bot runner is the worked case.
+> Each example runs locally without recruited participants. Its README explains how to open one
+> browser tab per seat with a distinct `?participantKey=`. For larger networks,
+> [`docs/BOTS.md`](BOTS.md) explains how scripted, headless participants can fill some or all
+> seats. The bot runner in `examples/shirado2017` provides a complete example.
 >
 > For someone new to the package, the recommended order is `examples/minimal` first: four tabs,
 > five minutes, and you can watch the neighbor-limited visibility directly. Then
@@ -345,9 +349,8 @@ One file covers the whole study (every record carries its `gameID`), and every r
 | Dense graphs above n = 50 | unmeasured, and capped at degree 16 by default. Per-participant payload is O(degree), so this is where client bandwidth binds |
 | Sessions beyond ~10 minutes | unverified |
 
-What matters is not degree alone, but degree multiplied by how much is projected per neighbor. That product
-is what a participant's connection carries, and `maxNeighborhoodBytes` (64 KiB) caps it, because
-many individually reasonable views can add up while every other limit stays within bounds.
+The relevant load is the product of degree and the projected data per neighbor. A participant's
+connection carries this aggregate payload, which `maxNeighborhoodBytes` caps at 64 KiB by default.
 
 A crashed study cannot be resumed. A full server restart never reassigns participants to their game: the store reloads, but `gameID` is never restored and no game resumes. It can also leave two player scopes for one participant. This is an upstream limitation, and no amount of documentation or configuration changes it, so plan for a crash mid-study to end the games in progress.
 

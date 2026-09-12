@@ -1,7 +1,7 @@
 # Glossary
 
-Terms of art used across these documents, each with the place that develops it. Empirica's own
-vocabulary is included where this package uses it in a specific way.
+This glossary defines specialized terms used throughout the documentation. It also includes
+Empirica terminology when the package assigns it a more specific meaning.
 
 **batch scope** — Empirica's outermost durable scope, one per batch of games. The only durable
 scope measured not to be delivered to participants (`test/e2e/scope_visibility.test.ts`), which
@@ -34,9 +34,16 @@ that will not fit fails while the experiment is still abandonable.
 → [API §Envelope](API.md#envelope), and the README's "Supported envelope" section for the measurements
 
 **ephemeral** — Empirica's publish mode for a value that is delivered and not retained. Views are
-published this way, which is why nothing durable holds what a participant saw and why view
-capture has to be switched on before a run rather than reconstructed after it.
+published this way, so view capture must be enabled before a run to create a durable record of
+what each participant saw.
 → [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md)
+
+**headless participant** — a participant process that uses the same network protocol as a browser
+but has no graphical interface. Bots and automated verification clients run in this form.
+
+**NDJSON** — newline-delimited JSON: a text format containing one complete JSON record per line.
+The run log uses this format so that each record reaches disk independently and an interrupted
+final line can be detected during recovery.
 
 **kind** — Empirica's term for a scope class. This package adds exactly one, `nbhd`, and
 registering it in the consumer's `server/src/index.js` is the one mandatory edit.
@@ -48,18 +55,19 @@ composed with it rather than reimplementing it, so the whole Classic flow keeps 
 network hooks have something to read. Omit it and every hook throws
 `NetworkModeNotInstalledError`. → [ARCHITECTURE §6](ARCHITECTURE.md#6-the-client-half)
 
-**neighborhood** — the set of a participant's current neighbors, and by extension the array of
-projected views delivered to them. `useNeighbors()` returns it; `undefined` means nothing has
-been published yet, `[]` means genuinely isolated, and those are different answers.
+**neighborhood** — the set of a participant's current neighbors and, by extension, the array of
+projected views delivered to that participant. `useNeighbors()` returns `undefined` before the
+first publication and `[]` for a genuinely isolated node.
 
 **placement** — deciding which seats particular participants occupy, usually bots. Expressed by
 relabeling the generated graph inside `topology({ players })` rather than by reordering people,
 which is what keeps the degree distribution identical across arms, so a "central" condition
 differs from a "peripheral" one only in who sits where. → [BOTS §4](BOTS.md)
 
-**private state** — what a participant writes about themselves, on their own channel, under the
-`state:` prefix. Written with `useNetworkState().set()`, never `player.set()`, which is broadcast
-to everyone. Read server-side with `net.stateOf()`. → [GETTING-STARTED §5](GETTING-STARTED.md)
+**private state** — information a participant writes about themselves to their own channel under
+the `state:` prefix. Write it with `useNetworkState().set()`; `player.set()` broadcasts values to
+the entire game. Read private state on the server with `net.stateOf()`.
+→ [GETTING-STARTED §5](GETTING-STARTED.md)
 
 **projection / `project()`** — the pure function that decides what one participant may learn
 about one neighbor. It runs per (viewer, neighbor) pair, and it is the only path by which one
@@ -77,14 +85,14 @@ from, both recorded on the batch scope (`network:<gameID>`, `networkSeed:<gameID
 is stored as well as the seed, so an analysis reads back the graph that was used rather than
 re-deriving one and hoping it matches. → [DATA-AND-ANALYSIS §4](DATA-AND-ANALYSIS.md)
 
-**reconstruction** — a design rebuilt from its published paper, never run and never compared to
-the authors' results. The term deliberately avoids "replication", because nothing here has
-reproduced anything. → [EXPERIMENTS.md](EXPERIMENTS.md)
+**reconstruction** — an experimental design rebuilt from its published description. The projects
+in this repository have been exercised as software but have collected no participant data or
+results for comparison with the original studies. These properties distinguish them from
+replications. → [EXPERIMENTS.md](EXPERIMENTS.md)
 
-**run log** — an append-only NDJSON file written as the study happens (`log: { file }`), for
-whatever your analysis needs. Exists because `onGameEnded` fires only when a game ends naturally,
-so a killed or crashed study — the normal shape of "something went wrong", since upstream cannot
-resume one — produced no data at all. → [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md)
+**run log** — an append-only NDJSON file written during a study (`log: { file }`). It preserves
+analysis records from interrupted sessions, which bypass the `onGameEnded` callback and cannot be
+resumed by the upstream platform. → [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md)
 
 **scope** — Empirica's unit of state: an object with attributes, of some kind, delivered to
 whichever participants are linked to it. Batch, game, round, stage, player and this package's
@@ -96,24 +104,27 @@ pairs, so the seat is what maps the shape onto people. Stored on each channel, i
 `game.players` order is not stable and re-deriving it across a restart silently moved everyone to
 a different node. → [ARCHITECTURE §3 step 9](ARCHITECTURE.md#3-the-lifecycle-end-to-end)
 
-**seating plan** — informal: who occupies which node. Known to the server and to the monitor,
-never to a participant.
+**seating plan** — informal term for the mapping between participants and network nodes. The
+server and monitor know this mapping; participant clients receive only local neighborhood data.
 
-**sentinel** — a high-entropy token held server-side and injected into projections by the
-`verify` command, then matched by substring against raw wire frames. Nothing writes them to a
-scope, so a leak through a channel nobody enumerated is still caught. → README, "Verify it
-yourself"
+**sentinel** — a random token held on the server and injected into projections by the `verify`
+command. The verifier searches for these tokens throughout raw network frames. Keeping them
+outside Empirica scopes allows the test to detect leaks through unexpected channels. → README,
+“Verifying the guarantee”
 
-**told** — a value the server writes to one participant's channel, under the `told:` prefix
-(`network(game).tell(playerID, key, value)`, read with `useNetworkTold()`). A separate namespace
-from `state:` so a participant cannot overwrite a server-authored value. Added because
-`project()` covers only current neighbors, and Rand 2011's rewiring round requires telling
-someone one fact about a non-neighbor. → [ARCHITECTURE §5](ARCHITECTURE.md#5-where-every-value-lives-and-why)
+**Tajriba** — Empirica's data service. It manages sessions, scopes, attributes, and the network
+connection between server code and participant clients.
 
-**view** — one projected neighbor, as delivered. Published `ephemeral`, so nothing durable holds
-it; view capture (`views: { file }`) is the only record of what a participant was actually told,
-as distinct from what they could have known, which is all an edge log plus an
-attribute export can reconstruct. → [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md)
+**told** — a value the server writes to one participant's channel under the `told:` prefix
+(`network(game).tell(playerID, key, value)`, read with `useNetworkTold()`). Its namespace is
+separate from participant-authored `state:` values. This mechanism supports private server
+messages, including the information about a prospective neighbor required by the Rand 2011
+rewiring round. → [ARCHITECTURE §5](ARCHITECTURE.md#5-where-every-value-lives-and-why)
+
+**view** — the projected representation of one neighbor as delivered to a participant. Views use
+Empirica's `ephemeral` publication mode. Enable view capture (`views: { file }`) to record the
+information actually delivered; an edge log and attribute export can reconstruct only the
+information that was potentially available. → [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md)
 
 **O-numbers** — issue ids in [`../ISSUES.md`](../ISSUES.md), this package's own defect log. The ones
 you are most likely to meet:

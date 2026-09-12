@@ -1,14 +1,13 @@
 # Architecture — how the package works
 
-This document is for someone reading the source: a contributor, a reviewer, or the author in six
-months. It is organized by mechanism, tracing the path a value takes from a participant's browser
-to their neighbor's screen. `MODULE-DESIGN.md`, kept with the investigation that produced it
-rather than in this repository, is organized by decision and its reasoning, and is the place to
-find out why a shape was chosen rather than what it does.
+This document describes the source architecture for contributors and reviewers. It is organized
+by mechanism and traces a value from a participant's browser to a neighbor's screen. The separate
+`MODULE-DESIGN.md`, retained with the investigation that produced it, records design decisions and
+their rationale.
 
-Every claim below names the file it lives in, and where a behavior is pinned by a test, names
-the test as well. An architecture document that drifts is worse than none, so pointing at the
-witness is the only defense available.
+Each claim identifies its implementation file and, where applicable, the test that establishes the
+behavior. These references make it possible to detect and correct drift between the documentation
+and implementation.
 
 Written 2026-08-16, against the post-M6 surface (`@empirica/core` 1.12.5).
 
@@ -16,13 +15,13 @@ Written 2026-08-16, against the post-M6 surface (`@empirica/core` 1.12.5).
 
 ## 1. The model, in one paragraph
 
-Participants are nodes in a graph. Each participant owns one private channel: a modeled scope of
-custom kind `nbhd`, linked to that participant alone, and the server writes their projected view
-of their neighbors there and nowhere else. The bytes describing the rest of the graph never reach
-the client at all; the interface does not merely hide them. The realized graph, its seed, and its
-mutation history are recorded on the batch scope, which is the only durable scope measured not to
-be delivered to participants (`test/e2e/scope_visibility.test.ts`), so a finished run is
-reproducible from stored data without handing the seating plan to the people inside it.
+Participants occupy nodes in a graph. Each participant owns a private channel, implemented as a
+modeled scope of custom kind `nbhd` and linked exclusively to that participant. The server writes
+the participant's projected view of their neighbors to this channel, while information about the
+rest of the graph remains absent from the client. The batch scope records the realized graph, its
+seed, and its mutation history. Measurements in `test/e2e/scope_visibility.test.ts` show that this
+durable scope remains hidden from participants, making completed runs reproducible while
+preserving the privacy of the network structure.
 
 Two facts about Empirica make everything else follow. Classic cross-links every participant to
 every player node, so anything on a player scope is broadcast to everyone, which is why private
@@ -35,7 +34,7 @@ a modeled scope, which is why the `nbhd` kind must be registered by the consumer
 
 ```
 src/
-  index.ts            root barrel — isomorphic ONLY, no @empirica/core imports
+  index.ts            root entry point — environment-independent ONLY, no @empirica/core imports
   shared/
     keys.ts           every scope kind and attribute key, in one place
     wait.ts           polling helpers used by tests and the harness
@@ -212,10 +211,9 @@ which the wrong people are neighbors, and the run looks normal for the rest of i
 Called on every channel arrival, because channels stream in from the subscription with no
 completion signal. Idempotent, and gives up quietly until the last seat is filled.
 
-It is worth noting what this does not fix. A full server restart still does not put participants
-back in their game: `gameID` is never restored, upstream. Recovery here is about
-not corrupting a game that survives, not about resuming a crashed study. Nothing here can make a
-crashed study resumable.
+This recovery mechanism preserves the seating of a game that survives a callback-process restart.
+A full server restart has a different outcome: the upstream platform fails to restore `gameID`,
+so participants cannot rejoin their game and the study cannot resume.
 
 10. First publish, or `awaitingPublish` until the last channel arrives. See §4.
 
@@ -456,13 +454,12 @@ these alongside RSS.
 they are the two that outlive a game, and everything else in that record should return to zero
 between games (`test/e2e/retention.test.ts` asserts the whole shape).
 
-The `lastOutbox` row is the one worth reading twice. Being keyed by player rather than by game is
-what put it outside every game-keyed delete. The cost of that choice was not a memory cost but a
-correctness one: Classic reuses a participant's player scope across sequential games while the
+`lastOutbox` requires particular care. Its player-based key placed it outside every game-based
+cleanup operation. This produced a correctness failure: Classic reuses a participant's player scope across sequential games while the
 client's message counter restarts with each new channel, so a stale mark made the relay's
 duplicate guard swallow the opening messages of the next game, silently (`ISSUES.md` O5). When
-adding state here, the question that finds this class of bug is what this new state is keyed by,
-and whether that is the thing that ends.
+When adding state here, identify both the entity used as its key and the lifecycle event that
+should release it.
 
 ## 10. Reading further
 

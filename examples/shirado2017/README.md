@@ -6,25 +6,25 @@
 > coordination in network experiments. *Nature* **545**, 370–374.
 > <https://doi.org/10.1038/nature22332>
 
-This is a reconstruction of the design, not a replication. The design was rebuilt from the
-paper. No data has been collected with this code, and nothing has been compared with the authors'
-results. If you write about it, call it *a reconstruction of the design in Shirado & Christakis
-(2017)*, and see "What is not reconstructed" below: three things are not reconstructed, including the
-incentives.
+This project reconstructs the design from the published paper. It has produced no participant
+data, and its outputs have not been compared with the authors' results. In publications, describe
+it as *a reconstruction of the design in Shirado & Christakis (2017)*. The section “What is not
+reconstructed” below identifies three omitted elements, including participant incentives.
 
-Both arms are here: the 30 control sessions, and the paper's own contribution of 3 autonomous
-agents x 3 noise levels x 3 placements. The agents run as a separate process, `server/bots.mjs`,
-on `empirica-networks/bots`. Empirica provides no artificial-player facility, so this required a new
-entry point rather than a configuration flag (`ISSUES.md` O10, [`docs/BOTS.md`](../../docs/BOTS.md)).
+The reconstruction includes both the 30 control sessions and the paper's principal intervention:
+three autonomous agents crossed with three noise levels and three placements. The agents run in a
+separate `server/bots.mjs` process through `empirica-networks/bots`. Because Empirica provides no
+artificial-player facility, the package supplies a dedicated entry point (`ISSUES.md` O10,
+[`docs/BOTS.md`](../../docs/BOTS.md)).
 
-Twenty participants sit in a network and each picks one of three colors, changing it whenever
+Twenty participants occupy a network and each chooses one of three colors, changing it whenever
 they like. The group succeeds when **every** participant differs from all of their own
-neighbors. Each participant sees only their own color and their neighbors' — never the graph,
-never how close the group is. The dependent variable is time to solution, within five minutes.
+neighbors. Each participant sees their own color and those of their neighbors. The graph and the
+group's distance from a solution remain hidden. The dependent variable is time to solution within five minutes.
 
 ## Why this one, next to `rand2011`
 
-It shares almost nothing with the rand2011 reconstruction, and the differences are the point.
+The Shirado design complements `rand2011` through several important differences.
 
 | | `rand2011` | `shirado2017` |
 |---|---|---|
@@ -33,10 +33,10 @@ It shares almost nothing with the rand2011 reconstruction, and the differences a
 | outcome | cooperation rate over rounds | **time to a global solution** |
 | what locality does | one condition among four | it **is** the task difficulty |
 
-That last row is why this is the sharpest test of the whole package. In most designs a locality
-leak makes the data wrong. Here it makes the task trivial: someone who can see the whole
-graph solves it immediately, so a leak would not produce visibly broken numbers. It would drive
-the dependent variable toward zero while every screen still looked correct.
+The final row makes this design a particularly strong test of neighbor-limited information. In
+many studies, a locality leak biases the data. Here, access to the entire graph would also simplify
+the task dramatically, driving the dependent variable toward zero even while every screen appeared
+to function correctly.
 
 ## Run it
 

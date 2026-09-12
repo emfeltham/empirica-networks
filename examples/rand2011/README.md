@@ -6,13 +6,13 @@
 > cooperation in experiments with humans. *PNAS* **108**(48), 19193–19198.
 > <https://doi.org/10.1073/pnas.1108243108>
 
-This is a reconstruction of the design, not a replication. The design was rebuilt from the
-paper. No data has been collected with this code, nothing has been compared with the authors'
-results, and nothing here supports or challenges their findings. No code from the original
-Breadboard implementation exists, so nothing here has been ported from it. If you run it and write about it,
-call it *a reconstruction of the design in Rand et al. (2011)*.
+This project reconstructs the design from the published paper. It has produced no participant
+data, and its outputs have not been compared with the authors' results; it therefore provides no
+evidence for or against their findings. The original Breadboard implementation is unavailable, so
+the project has no direct code lineage from it. In publications, describe this project as *a
+reconstruction of the design in Rand et al. (2011)*.
 
-Participants sit in a network and repeatedly choose, in one move toward all of their neighbors,
+Participants occupy a network and repeatedly choose, in a single decision applying to all neighbors,
 whether to cooperate or defect. Between rounds, in the dynamic conditions, they are
 offered the chance to break existing ties and form new ones. The paper's finding is that when
 the network updates fast enough, cooperation is sustained; when it is static or slow, it
@@ -20,8 +20,8 @@ collapses.
 
 ## Why this one
 
-Rewiring during play is the capability that motivated this package, and this is its canonical
-published use. It exercises the parts nothing else does: `network().addEdge`/`removeEdge`, the
+Rewiring during play motivated the development of this package, and the Rand design provides its
+canonical published application. The example exercises functionality absent from the other examples: `network().addEdge`/`removeEdge`, the
 append-only edge history, `edgeRows`/`snapshotRows`, `tell()`, and a per-round private decision
 whose payoff is neighbor-limited.
 
