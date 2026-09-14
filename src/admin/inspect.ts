@@ -19,7 +19,14 @@
  * same reason.
  */
 import type { EdgeEvent } from "../shared/keys.js";
-import { components, degrees, maxDegree, meanDegree, type Edge } from "../topology/index.js";
+import {
+  components,
+  degrees,
+  maxDegree,
+  meanDegree,
+  type Edge,
+  type Radius,
+} from "../topology/index.js";
 import { historyIsConsistent, snapshotRows } from "./export.js";
 
 /** One participant's seat, as the monitor sees it. */
@@ -133,7 +140,7 @@ export interface GameSnapshot {
   order: string[];
   seed: number;
   /**
-   * How much of the network this game shows its participants: 1 or 1.5.
+   * How much of the network this game shows its participants.
    *
    * The graph above says what the study RAN on; this says what it let people see
    * of it, and the two are independent. Read from the live configuration rather
@@ -142,7 +149,7 @@ export interface GameSnapshot {
    * `readRadius` reports what the record says — which is the pair that makes the
    * mismatch visible rather than a single number that quietly picks a side.
    */
-  radius: number;
+  radius: Radius;
   /**
    * The radius the batch record says this game ran at, or `undefined` if none
    * was recorded.
@@ -158,7 +165,7 @@ export interface GameSnapshot {
    * one number against a record holding the other. The server warns; an operator
    * watching the monitor should be able to see it without reading the log.
    */
-  recordedRadius?: number;
+  recordedRadius?: Radius;
   /** Publish counter — how many times this game has published a view. */
   seq: number;
   nodes: NodeSnapshot[];

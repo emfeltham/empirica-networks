@@ -132,6 +132,25 @@ export const NETWORK_KEYS = {
    * unfireable.
    */
   radius: (gameID: string) => `networkRadius:${gameID}`,
+  /**
+   * The secret that names distant people to each viewer, per game.
+   *
+   * Only meaningful above radius 1, where a participant is shown nodes that have
+   * no entry in their neighbor array and therefore no positional name. See
+   * `src/admin/pseudonym.ts` for why the names are keyed rather than derived.
+   *
+   * On the BATCH scope for the same reason the edge list is: it is the one
+   * durable scope measured not to reach participants, and a key participants
+   * hold is not a key. Recorded rather than held in memory for exactly one
+   * reason — so a restart keeps every name it had. It is NOT the analyst's way
+   * back to identities: the server records that mapping directly in
+   * `ViewRecord.far`, because `src/admin/export.ts` may not import `node:crypto`
+   * and re-hashing offline is therefore not available to it.
+   *
+   * A study that would rather the names be unrecoverable can decline to record
+   * it and lose only restart stability.
+   */
+  viewKey: (gameID: string) => `networkViewKey:${gameID}`,
 } as const;
 
 /**
@@ -264,9 +283,54 @@ export const OUTBOX_KEY = "_outbox";
  * `1..d` are `view[0..d-1]` in order. `positions` is index-aligned with those.
  */
 export interface ViewGraph {
+  /**
+   * How far this viewer was actually shown, as a finite number.
+   *
+   * Finite even when the study asked for `"whole"`, because `networkGraphOf`
+   * rejects a non-finite radius as malformed and a sentinel on the wire would
+   * have to be translated by every consumer anyway. For `"whole"` this is the
+   * depth the viewer's own component actually reached, which is the honest
+   * answer to "how far did I see" — and `whole` below carries the intent that
+   * produced it, which no number can.
+   */
   radius: number;
+  /** Set only when the study asked for the entire network. */
+  whole?: true;
   edges: Array<[number, number]>;
   positions: Array<{ x: number; y: number }>;
+  /**
+   * The people in the picture who are NOT in the delivered view.
+   *
+   * Absent at radius 1 and 1.5, where every visible node is a neighbor and the
+   * positional scheme names all of them — so a payload from those radii is
+   * byte-identical to one written before this field existed.
+   *
+   * Above that, local index `1 + view.length + k` names `far[k]`. The local
+   * index space is therefore: `0` the viewer, then the delivered view in order,
+   * then these. Extending rather than renumbering is what keeps every existing
+   * consumer correct.
+   */
+  far?: FarNode[];
+}
+
+/**
+ * One person a viewer can see but is not connected to.
+ *
+ * `ref` is what this viewer calls them, and it is all they get: a name that is
+ * stable for this pair, uncorrelated with what any other viewer calls the same
+ * person, and derived from neither a seat nor a player id
+ * (`src/admin/pseudonym.ts`).
+ *
+ * `view` is absent unless the study configured a projection at distance. The
+ * default is structure only — a wider radius discloses topology, and making it
+ * disclose attributes as well should be a second decision rather than a side
+ * effect of a larger number.
+ */
+export interface FarNode {
+  ref: string;
+  /** Hops from the viewer. Always >= 2. */
+  d: number;
+  view?: unknown;
 }
 
 export interface ViewRecord {
@@ -299,6 +363,23 @@ export interface ViewRecord {
    * fail its own audit.
    */
   graph?: ViewGraph;
+  /**
+   * Who the refs in `graph.far` actually were. SERVER-SIDE ONLY.
+   *
+   * Never delivered — `graph` is byte-for-byte what went on the wire, and this
+   * sits beside it as the server's key to its own payload. Without it a captured
+   * run above radius 1 records that a participant was shown four anonymous nodes
+   * and loses which four, which would make the structure unjoinable to anything.
+   *
+   * Recorded here rather than resolved offline because `src/admin/export.ts` may
+   * not import `node:crypto` (`test/unit/export_isolation.test.ts`), so an
+   * analyst cannot re-derive a ref even holding the key. The server already
+   * knows the answer at publish time; writing it down is cheaper and does not
+   * put a secret on the analysis path.
+   *
+   * Absent whenever `graph.far` is.
+   */
+  far?: Array<{ ref: string; id: string; hop: number }>;
 }
 
 /** One chat message as delivered to a recipient. */

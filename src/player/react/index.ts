@@ -159,7 +159,9 @@ export function useNetworkGraph(
     {
       neighbors,
       self,
-      subgraph: structure ? { edges: structure.edges, positions: structure.positions } : undefined,
+      subgraph: structure
+        ? { edges: structure.edges, positions: structure.positions, far: structure.far }
+        : undefined,
     },
     {
       ...opts,

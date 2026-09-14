@@ -186,3 +186,103 @@ test("svgAttrs keeps what CSS can select and drops what the DOM would misread", 
   assert.deepEqual(out, { color: "green", degree: 3, conflict: "1", quiet: "0" });
   assert.deepEqual(svgAttrs(undefined), {});
 });
+
+/**
+ * The outer ring.
+ *
+ * This is the case the node list had to stop being built from `neighbors`. With
+ * the old construction a radius 2 payload rendered as a complete, internally
+ * consistent radius 1.5 picture: the far nodes had no ref to draw, so every edge
+ * touching them failed the `!from || !to` guard and was dropped silently. The
+ * result looked entirely correct and was a picture of a different study — which
+ * is the failure `expectSubgraph` exists to prevent one level up, arriving by
+ * another road.
+ */
+test("a payload with people beyond the neighbors draws all of them", () => {
+  const model = graphModelOf({
+    neighbors: [{ id: "a" }],
+    self: { id: "me" },
+    subgraph: {
+      // 0 me, 1 neighbor a, 2 and 3 two hops out. The 2-3 tie is the one a
+      // radius 2 payload would not carry and a 2.5 payload would.
+      edges: [
+        [0, 1],
+        [1, 2],
+        [1, 3],
+        [2, 3],
+      ],
+      positions: [
+        { x: 300, y: 300 },
+        { x: 300, y: 150 },
+        { x: 200, y: 60 },
+        { x: 400, y: 60 },
+      ],
+      far: [
+        { ref: "k3m9x2pq", d: 2 },
+        { ref: "b7t4wz01", d: 2 },
+      ],
+    },
+  });
+
+  assert.ok(model);
+  assert.equal(model.nodes.length, 4, "viewer, one neighbor, two people further out");
+  assert.equal(model.edges.length, 4, "no edge was dropped for naming a node nobody drew");
+
+  const far = model.nodes.filter((n) => n.distance > 1);
+  assert.equal(far.length, 2);
+  assert.deepEqual(
+    far.map((n) => n.ref),
+    ["k3m9x2pq", "b7t4wz01"],
+    "each distant node keeps the name this viewer was given for it"
+  );
+  assert.equal(far[0]!.data, undefined, "no data at distance unless the study projected it");
+  assert.ok(
+    far.every((n) => n.r < model.nodes[1]!.r),
+    "somebody you cannot act on should not be drawn the size of somebody you can"
+  );
+});
+
+test("a far node carries its projection when the study sent one", () => {
+  const model = graphModelOf({
+    neighbors: [{ id: "a" }],
+    subgraph: {
+      edges: [[0, 1]],
+      positions: [
+        { x: 300, y: 300 },
+        { x: 300, y: 150 },
+        { x: 200, y: 60 },
+      ],
+      far: [{ ref: "k3m9x2pq", d: 3, view: { color: "green" } }],
+    },
+    // The styling hook must see a far node exactly as it sees any other, or a
+    // design cannot colour the outer ring by whatever it was told about them.
+  }, { nodeAttrs: (n) => ({ color: (n.data as { color?: string } | undefined)?.color, hop: n.distance }) });
+
+  assert.ok(model);
+  const far = model.nodes[2]!;
+  assert.equal(far.distance, 3);
+  assert.deepEqual(far.attrs, { color: "green", hop: 3 });
+});
+
+test("with no far array the picture is exactly what it was", () => {
+  const without = graphModelOf({
+    neighbors: [{ id: "a" }, { id: "b" }],
+    self: { id: "me" },
+    subgraph: {
+      edges: [
+        [0, 1],
+        [0, 2],
+        [1, 2],
+      ],
+      positions: [
+        { x: 300, y: 300 },
+        { x: 300, y: 100 },
+        { x: 450, y: 400 },
+      ],
+    },
+  });
+  assert.ok(without);
+  assert.equal(without.nodes.length, 3);
+  assert.ok(without.nodes.every((n) => n.distance <= 1));
+  assert.ok(without.nodes.every((n) => n.ref === undefined));
+});

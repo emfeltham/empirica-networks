@@ -1,4 +1,4 @@
-import { toldKey } from "../shared/keys.js";
+import { toldKey, type FarNode } from "../shared/keys.js";
 import type { Nbhd } from "./mode.js";
 
 /**
@@ -127,7 +127,13 @@ export function networkGraphOf(nbhd: Nbhd | undefined): NetworkGraphInfo | null 
   const raw = nbhd?.graph;
   if (raw === undefined || raw === null) return undefined;
   if (typeof raw !== "object") return null;
-  const g = raw as { radius?: unknown; edges?: unknown; positions?: unknown };
+  const g = raw as {
+    radius?: unknown;
+    whole?: unknown;
+    edges?: unknown;
+    positions?: unknown;
+    far?: unknown;
+  };
 
   if (typeof g.radius !== "number" || !Number.isFinite(g.radius)) return null;
   if (!Array.isArray(g.positions) || !Array.isArray(g.edges)) return null;
@@ -138,6 +144,25 @@ export function networkGraphOf(nbhd: Nbhd | undefined): NetworkGraphInfo | null 
     if (!q || typeof q !== "object") return null;
     if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return null;
     positions.push({ x: q.x as number, y: q.y as number });
+  }
+
+  // Index-aligned with `positions` from `1 + neighbors.length` onward, so a
+  // malformed entry REJECTS the payload rather than being dropped — the same
+  // rule positions follow, for the same reason. Compacting the array would move
+  // every node after the gap onto the next one's coordinates, and the picture
+  // would still look like a network.
+  let far: FarNode[] | undefined;
+  if (g.far !== undefined) {
+    if (!Array.isArray(g.far)) return null;
+    const out: FarNode[] = [];
+    for (const entry of g.far) {
+      const f = entry as { ref?: unknown; d?: unknown; view?: unknown } | null;
+      if (!f || typeof f !== "object") return null;
+      if (typeof f.ref !== "string" || f.ref.length === 0) return null;
+      if (!Number.isInteger(f.d) || (f.d as number) < 2) return null;
+      out.push("view" in f ? { ref: f.ref, d: f.d as number, view: f.view } : { ref: f.ref, d: f.d as number });
+    }
+    far = out;
   }
 
   const n = positions.length;
@@ -154,16 +179,40 @@ export function networkGraphOf(nbhd: Nbhd | undefined): NetworkGraphInfo | null 
       (e[1] as number) < n
   );
 
-  return { radius: g.radius, edges, positions };
+  const info: NetworkGraphInfo = { radius: g.radius, edges, positions };
+  if (g.whole === true) info.whole = true;
+  if (far) info.far = far;
+  return info;
 }
 
 export interface NetworkGraphInfo {
-  /** What the study is configured to show. `1.5` is the only value sent today. */
+  /**
+   * How far this participant was shown, as a finite number.
+   *
+   * Finite even when the study asked for the entire network — see `whole`, which
+   * carries that intent. Branch on it in instructions text: a participant shown
+   * two hops and told they can see their own connections has been told something
+   * other than what is on their screen.
+   */
   radius: number;
-  /** Pairs of indices into `neighbors`, offset by one; 0 is the viewer. */
+  /** Set when the study asked for the whole network rather than a radius. */
+  whole?: true;
+  /**
+   * Local indices. `0` is the viewer, `1..d` index `neighbors`, and anything
+   * beyond that indexes `far`.
+   */
   edges: Array<[number, number]>;
   /** Index-aligned with those indices. */
   positions: Array<{ x: number; y: number }>;
+  /**
+   * People in the picture who are not among `neighbors`.
+   *
+   * Absent below radius 2, where every visible node is a neighbor. Each carries
+   * only what this participant is allowed to know: a name that is theirs alone
+   * for that person, and how many hops away they are. `view` appears only if the
+   * study configured a projection at distance.
+   */
+  far?: FarNode[];
 }
 
 export class NetworkModeNotInstalledError extends Error {

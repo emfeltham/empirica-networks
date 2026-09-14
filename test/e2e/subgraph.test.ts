@@ -35,7 +35,7 @@ import {
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
 import { networkGraphOf } from "../../src/player/view.js";
 import { NBHD_KEYS } from "../../src/shared/keys.js";
-import { fromEdgeList } from "../../src/topology/index.js";
+import { fromEdgeList, type Radius } from "../../src/topology/index.js";
 import {
   batchConfig,
   createBatch,
@@ -78,7 +78,7 @@ const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
  * and `inspect()` reads memory.
  */
 function makeListeners(
-  radius: 1 | 1.5,
+  radius: Radius,
   capture: (net: NetworkHandle) => void,
   onGame?: (game: any) => void
 ) {
@@ -388,18 +388,141 @@ test("at the default radius nothing extra is sent, and the key is absent from th
   );
 });
 
-test("a radius the module cannot deliver is refused, not rounded", async () => {
-  assert.throws(
-    () =>
-      withNetwork({ on: () => {} } as any, {
-        topology: () => fromEdgeList(N, EDGES),
-        graph: { radius: 2 as 1.5 },
-      }),
-    /radius must be 1 or 1\.5/,
-    "silently rounding 2 down to 1.5 would show participants less than the design says"
-  );
+test("a radius between the steps is refused, not rounded", async () => {
+  const make = (radius: unknown) =>
+    withNetwork({ on: () => {} } as any, {
+      topology: () => fromEdgeList(N, EDGES),
+      graph: { radius: radius as 1.5 },
+    });
+
+  // 2 and 2.5 are now both legal and are DIFFERENT studies — 2.5 additionally
+  // delivers the ties between two people who are each two hops away. Anything
+  // between them is refused rather than rounded to either, for the reason the
+  // old refusal gave about 2: rounding shows participants something other than
+  // what the design asked for, and nothing anywhere would say so.
+  assert.throws(() => make(1.2), /multiple of 0\.5/);
+  assert.throws(() => make(2.7), /multiple of 0\.5/);
+  assert.throws(() => make(0.5), /at least 1/);
+  assert.throws(() => make(0), /at least 1/);
+  // "whole" is the one spelling for the entire network. Infinity would have to
+  // be translated on the wire anyway, and two spellings of one setting invites
+  // an author to think they differ.
+  assert.throws(() => make(Infinity), /"whole" is the one spelling/);
+  assert.throws(() => make("all"), /multiple of 0\.5/);
+
+  for (const ok of [1, 1.5, 2, 2.5, 3, "whole"]) {
+    assert.doesNotThrow(() => make(ok), `radius ${JSON.stringify(ok)} should be accepted`);
+  }
 });
 
+
+/**
+ * Radius 2: people in the picture who are not in the view that names them.
+ *
+ * The fixture earns its keep here without changing. From seat 3 the ball at
+ * radius 2 is {3} ∪ {0} ∪ {1, 2}: seat 0 is a neighbor and arrives in the view
+ * carrying its id, while 1 and 2 are two hops away, appear in the drawing, and
+ * have no entry in `neighbors` at all. They are exactly what the positional
+ * naming scheme cannot address, and what `far` exists for.
+ *
+ * THE HALF-STEP, AT THE WIRE. Seat 3 is two hops from both 1 and 2, and 1-2 is a
+ * real tie. At radius 2 it must NOT be delivered — a tie between two people who
+ * are each at the outer edge is what 2.5 adds. This is the one assertion that
+ * distinguishes the two settings from outside the server, and without it a build
+ * that induced the whole ball would look correct at every other check.
+ */
+for (const [radius, fringeTieDelivered] of [
+  [2, false],
+  [2.5, true],
+] as Array<[Radius, boolean]>) {
+  test(`radius ${radius}: distant people are named, and the fringe tie ${
+    fringeTieDelivered ? "arrives" : "does not"
+  }`, async () => {
+    await withScenario(
+      {
+        n: N,
+        kinds: networkKinds,
+        listeners: makeListeners(radius, () => {}),
+        modeFunc: EmpiricaNetwork,
+      },
+      async ({ admin, participants }) => {
+        const batch = await createBatch(admin, batchConfig(N, 1));
+        await batch.running();
+        await play(participants);
+
+        const bySeat = new Map<string, ReturnType<typeof modeOf>>();
+        for (const p of participants) {
+          const nbhd = modeOf(p).nbhd.getValue()!;
+          bySeat.set(nbhd.playerID!, modeOf(p));
+        }
+
+        let sawFar = false;
+        let checkedFringe = false;
+
+        for (const p of participants) {
+          const nbhd = modeOf(p).nbhd.getValue()!;
+          const me = nbhd.playerID!;
+          const neighbors = (nbhd.neighbors as { id: string }[]).map((n) => n.id);
+          const structure = networkGraphOf(nbhd);
+
+          // The isolate has nobody at any radius and draws nothing.
+          if (neighbors.length === 0) {
+            assert.ok(
+              !structure || structure.far === undefined,
+              `${me} is isolated and should have been given no distant people`
+            );
+            continue;
+          }
+
+          assert.ok(structure, `${me}'s structure is present and usable`);
+          const far = structure.far ?? [];
+          assert.equal(
+            structure.positions.length,
+            1 + neighbors.length + far.length,
+            `${me}: one position per node in the picture`
+          );
+
+          for (const f of far) {
+            sawFar = true;
+            assert.ok(f.d >= 2, `${me}: a "far" node at distance ${f.d} belongs in the view`);
+            assert.match(f.ref, /^[0-9abcdefghjkmnpqrstvwxyz]{8}$/, `${me}: malformed name`);
+            // The disclosure that must not happen: a name that is somebody's id,
+            // or a seat. Either would be a stable handle on a stranger.
+            assert.ok(!bySeat.has(f.ref), `${me} was handed a real player id as a name`);
+            assert.ok(Number.isNaN(Number(f.ref)) || f.ref.length === 8, `${me}: seat-like name`);
+          }
+          assert.equal(
+            new Set(far.map((f) => f.ref)).size,
+            far.length,
+            `${me}: two distant people share a name`
+          );
+
+          // Seat 3 in the fixture: one neighbor, two people at distance 2, and a
+          // real tie between those two.
+          if (neighbors.length === 1 && far.length === 2) {
+            checkedFringe = true;
+            const fringe = new Set(
+              far.map((f) => 1 + neighbors.length + far.indexOf(f))
+            );
+            const tieAmongFringe = structure.edges.some(
+              ([a, b]) => fringe.has(a) && fringe.has(b)
+            );
+            assert.equal(
+              tieAmongFringe,
+              fringeTieDelivered,
+              fringeTieDelivered
+                ? `${me}: radius 2.5 must deliver the tie between the two outermost people`
+                : `${me}: radius 2 must withhold it — that tie is what 2.5 adds`
+            );
+          }
+        }
+
+        assert.ok(sawFar, "nobody was shown anybody beyond their own neighbors");
+        assert.ok(checkedFringe, "the fringe-tie case never ran, so the half step is untested");
+      }
+    );
+  });
+}
 
 // ------------------------------------------------- the record a run leaves
 //
