@@ -56,12 +56,21 @@ interface Args {
   topology: string;
   /** Unvalidated as parsed, for the same reason. */
   radius: Radius;
+  projectFar: boolean;
   quiet: boolean;
   help: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { command: "", n: 4, topology: "ring", radius: 1, quiet: false, help: false };
+  const args: Args = {
+    command: "",
+    n: 4,
+    topology: "ring",
+    radius: 1,
+    projectFar: false,
+    quiet: false,
+    help: false,
+  };
   const rest: string[] = [];
 
   for (let i = 0; i < argv.length; i++) {
@@ -78,6 +87,7 @@ function parseArgs(argv: string[]): Args {
     else if (a.startsWith("--topology=")) args.topology = a.slice(11);
     // `"whole"` passes through as a word; everything else becomes a number so a
     // typo lands on the refusal below rather than on NaN.
+    else if (a === "--project-far") args.projectFar = true;
     else if (a === "--radius") args.radius = parseRadius(argv[++i]);
     else if (a.startsWith("--radius=")) args.radius = parseRadius(a.slice(9));
     else rest.push(a);
@@ -110,9 +120,16 @@ Options:
                          between a participant's neighbors are contained and
                          complete — arms the sentinel check cannot see, because
                          those bytes are integers rather than anybody's state.
-                         Refused on a triangle-free shape, where radius 1.5
-                         draws the same star radius 1 draws: try --topology
-                         wheel or --topology ringLattice.
+                         Refused wherever the setting would deliver nothing the
+                         step below already delivers: a triangle-free shape at
+                         1.5, a shape smaller than its own diameter at 2, and
+                         'whole' always, which leaves no non-neighbor at all.
+      --project-far      your study sets graph.projectFar, so participants learn
+                         something ABOUT people they are not connected to. It
+                         changes what the leak arm is about — without it the data
+                         rule is "neighbors only" at every radius — so it cannot
+                         be inferred, and verifying the wrong one would report
+                         cleanly on a study other than yours.
   -q, --quiet            only print the verdict
   -h, --help             show this
 
@@ -211,7 +228,8 @@ async function main(): Promise<number> {
     const result = await runLeakCheck({
       n: args.n,
       topology: args.topology,
-      radius: args.radius as 1 | 1.5,
+      radius: args.radius,
+      projectFar: args.projectFar,
       onProgress: args.quiet ? undefined : (m) => process.stdout.write(`  … ${m}\n`),
     });
     process.stdout.write(args.quiet ? `${result.pass ? "PASS" : "FAIL"}\n` : formatLeakResult(result));

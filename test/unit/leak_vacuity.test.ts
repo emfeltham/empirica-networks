@@ -72,6 +72,48 @@ test("the two denominators partition every ordered pair, for every generator", (
   }
 });
 
+/**
+ * The same identity, once a study projects at distance.
+ *
+ * The partition is over "may this participant learn about that one", and that
+ * question changes when `graph.projectFar` is set: the permitted set becomes the
+ * ball rather than the neighbors. If the two arms did not move together the
+ * accounting would be reporting against a rule the server is not following, and
+ * a clean run would mean nothing — which is the failure the identity above
+ * exists to catch, arriving one radius further out.
+ */
+test("the partition still holds at every radius when the study projects at distance", () => {
+  for (const [label, n, build] of EVERY_GENERATOR) {
+    const edges = build();
+    for (const radius of [1, 1.5, 2, 2.5, 3, "whole"] as const) {
+      const a = accountVacuity(n, edges, radius, true);
+      assert.equal(
+        a.candidatePairs + a.expectedDeliveries,
+        n * (n - 1),
+        `${label} at radius ${radius}: ${a.candidatePairs} + ${a.expectedDeliveries} != ${n * (n - 1)}`
+      );
+    }
+  }
+});
+
+/**
+ * And the denominators must actually MOVE, or the test above is satisfied by an
+ * accounting that ignores the flag entirely.
+ */
+test("projecting at distance widens what may be delivered and narrows what may leak", () => {
+  const n = 8;
+  const edges = ring(n);
+  const near = accountVacuity(n, edges, 2, false);
+  const far = accountVacuity(n, edges, 2, true);
+
+  assert.equal(near.expectedDeliveries, 16, "two neighbors each, whatever the radius");
+  assert.equal(far.expectedDeliveries, 32, "four people within two hops each");
+  assert.ok(
+    far.candidatePairs < near.candidatePairs,
+    "a wider data rule leaves fewer pairs for arm 1 to examine, and that must be said"
+  );
+});
+
 test("a complete graph is refused: there is no non-neighbor to leak to", () => {
   const a = accountVacuity(4, complete(4));
   assert.equal(a.candidatePairs, 0);
