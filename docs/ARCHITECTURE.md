@@ -59,7 +59,11 @@ src/
     view.ts           neighborsOf / networkSelfOf / networkToldOf, usable headless
     state.ts          networkStateOf — the write path for a participant's own private state
     chat.ts           neighborChatOf
+    graph.ts          the neighborhood as a drawable model: ring geometry, edge
+                      shortening, attribute filtering. Pure, zero imports
     react/index.ts    the hooks, which are thin wrappers over the above
+    react/NetworkGraph.tsx  the SVG. Decides nothing; see §8 of PLATFORM-NOTES
+    react/styles.tsx  the stylesheets, as strings for the reason monitor/ui.ts is
   bots/               artificial participants; a PARTICIPANT process, not a server-side object
     runner.ts         runBots: sessions, the poll loop, hook dispatch. Reuses harness/compat.ts
     lifecycle.ts      the six phases as a pure function, and the stall reasons. Zero imports

@@ -652,6 +652,52 @@ import { useNeighbors, useNetworkSelf, useNetworkState } from "empirica-networks
 | `useNetworkTold()` | `{ get }` — server-authored values. No `set` | before the channel is provisioned |
 | `useNeighborChat()` | `{ messages, send }` | chat off, or before provisioning |
 | `useNbhd()` | the raw `Nbhd` scope | before the channel is provisioned |
+| `useNetworkGraph(opts, self?)` | `{ nodes, edges, size }` — the neighborhood as a drawable node-link model | before the first publish |
+
+### Drawing the neighborhood
+
+```jsx
+import {
+  DARK2_CSS, NetworkGraph, NetworkGraphStyles, useNetworkGraph, useNetworkState,
+} from "empirica-networks/player/react";
+
+const state = useNetworkState();
+const mine = state?.get("color");
+const graph = useNetworkGraph(
+  {
+    nodeAttrs: (n) => ({ color: n.self ? mine : n.data?.color }),
+    edgeAttrs: (a, b) => ({ conflict: a.data?.color === b.data?.color }),
+  },
+  { color: mine }              // the viewer's own node is not in `neighbors`
+);
+
+<NetworkGraphStyles extra={DARK2_CSS} />
+<NetworkGraph model={graph} fallback={<p>Joining the network…</p>} />
+```
+
+The picture is a **star**: the viewer at the centre, one node per neighbor, one line to each. It
+cannot be anything else, because it is derived from `useNeighbors()` — a tie between two of your
+neighbors is not in that array, so it cannot be drawn. **Nothing extra crosses the wire to render
+it**, and no envelope or leak assertion changes. This is also what Breadboard drew, under the same
+limit enforced server-side.
+
+`nodeAttrs` and `edgeAttrs` put the server's values on the SVG elements as attributes, so an
+experiment is restyled in CSS (`circle[color="green"] { fill: #1b9e77 }`) without touching the
+component. Keys must be lowercase and values primitive; `id`, `class`, `style`, `r` and the
+geometry attributes are reserved and dropped — every projection in this repository carries `id`,
+and passing it through would put one DOM id on several elements.
+
+Three stylesheets ship as strings rather than `.css` files, because tsup does not copy assets and a
+missing stylesheet would appear only on a consumer's machine: `NETWORK_GRAPH_CSS` (the base, always
+included by `<NetworkGraphStyles>`), `DARK2_CSS` (ColorBrewer Dark2, plus the red conflict tie) and
+`COOPERATION_CSS` (Breadboard's orange/blue public-goods palette, plus the rewiring rules).
+
+Pass `describe` whenever state is carried by fill. The graph is a single `role="img"`, so without
+it a participant using a screen reader has been handed a picture with no content — and in a
+coloring game the fill is the task, not decoration.
+
+The pure functions behind all of this — `graphModelOf`, `egoRingLayout`, `svgAttrs` — are exported
+too, and are what the headless and bot paths use.
 
 ### Writing private state
 

@@ -116,6 +116,20 @@ async function degreeOf(tab: Tab): Promise<number> {
   return Number(text.match(/\((\d+)\)/)?.[1] ?? 0);
 }
 
+/**
+ * Wait until this screen has drawn as many nodes as its heading claims.
+ *
+ * The figure is a picture of a neighborhood, and a screenshot taken between the
+ * heading updating and the graph re-rendering would be a picture of a DIFFERENT
+ * neighborhood — correct-looking, and wrong, which is the failure mode the whole
+ * repository is written against. A fixed sleep cannot rule it out; this can.
+ */
+async function drawnSettled(tab: Tab): Promise<boolean> {
+  const degree = await degreeOf(tab);
+  const circles = await tab.page.locator(".nbhd-graph circle").count();
+  return degree > 0 && circles === degree + 1;
+}
+
 async function main(): Promise<void> {
   let dev: ChildProcess | undefined;
   let browser: Browser | undefined;
@@ -185,8 +199,12 @@ async function main(): Promise<void> {
     }
     console.log("  every window picked a color");
 
-    // Let every projection land before reading any screen.
-    await tabs[0]!.page.waitForTimeout(3_000);
+    // Let every projection land, and confirm each drawing agrees with its own
+    // heading, before reading any screen.
+    await waitFor(
+      async () => (await Promise.all(tabs.map(drawnSettled))).every(Boolean),
+      "every graph drawn to match its heading"
+    );
 
     // The most connected participant: the fullest neighborhood, and on a
     // Barabási-Albert graph the one a reader learns most from.
@@ -195,8 +213,10 @@ async function main(): Promise<void> {
     for (let i = 1; i < degrees.length; i++) if (degrees[i]! > degrees[pick]!) pick = i;
     console.log(`  degrees: ${degrees.join(",")} -> capturing ${tabs[pick]!.key} (degree ${degrees[pick]})`);
 
-    const target = tabs[pick]!.page.locator("div.max-w-prose").first();
-    await target.screenshot({ path: out });
+    // The whole screen, not one column: the figure's subject is the split the
+    // paper's SI screenshots show — the neighborhood on the left, the choice on
+    // the right — and cropping to either half would misrepresent it.
+    await tabs[pick]!.page.screenshot({ path: out });
     console.log(`  wrote ${out}`);
   } finally {
     for (const tab of tabs) await tab.page.context().close().catch(() => {});
