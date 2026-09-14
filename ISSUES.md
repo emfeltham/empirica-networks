@@ -279,27 +279,6 @@ the server, which is CPU rather than bytes and is not in the envelope at all.
 *Done when:* `npm run bench` accepts a radius and has at least one cell at 1.5 on a dense graph,
 and the figures in `docs/API.md` either come from it or say they do not.
 
-### O21. `auditViews` has no notion of structure, so `simulate` is silent about half a radius 1.5 delivery
-
-**Evidence:** `src/verify/audit.ts` `auditViews`, the C1 check.
-
-`auditViews` parses captured views and walks `record.view`, reporting any entry without a string
-`id`. It never looks at `record.graph`, which since this milestone carries the ties a participant
-was shown among their own neighbors.
-
-So `empirica-networks simulate`'s C1 leak check reads clean on a radius 1.5 run whether the
-structure was correct or named strangers throughout. This is the same hole the `verify` CLI had
-before its containment and structure arms were added, in a different tool, and it is worth stating
-that the two are now inconsistent: `verify` covers structure at the wire, `simulate` does not
-cover it in the file.
-
-The invariants are already written and tested — containment, completeness, and the
-beyond-the-star denominator — in `src/verify/leak_test.ts` and `src/verify/topologies.ts`
-(`countBeyondStar`). This is a matter of applying them to records rather than to a live wire.
-
-*Done when:* `auditViews` checks every tie in `record.graph` against the edge log for the same
-delivery, and reports a radius 1.5 run with no structure as a vacuous pass rather than a pass.
-
 ### O23. `wheel` is the only named CLI topology that can demonstrate radius 1.5
 
 **Evidence:** `src/verify/topologies.ts` `CLI_TOPOLOGIES`; `test/unit/leak_vacuity.test.ts`
