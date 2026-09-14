@@ -102,7 +102,22 @@ test("a participant cannot read the realized topology or its seed", async () => 
       // the GAME scope, and the reason is the same for all of them: the game
       // scope is delivered to everyone, so anything put there is published to
       // the whole study by accident rather than by decision.
-      for (const key of ["network", "networkSeed", "networkRadius", "nbhd", "topology"]) {
+      //
+      // `networkViewKey` is the one entry here that is a secret in the ordinary
+      // sense: it is what names distant people to each viewer above radius 1, so
+      // a participant holding it could compute what every OTHER participant
+      // calls everyone, and two of them could then line their screens up. It is
+      // checked at every radius, including the default where it is never
+      // written, because the assertion is that it cannot arrive here — not that
+      // this particular run had nothing to put.
+      for (const key of [
+        "network",
+        "networkSeed",
+        "networkRadius",
+        "networkViewKey",
+        "nbhd",
+        "topology",
+      ]) {
         const v = client.get(key);
         if (v !== undefined) visible.push(`${key}=${JSON.stringify(v)}`);
       }
