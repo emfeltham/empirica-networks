@@ -147,6 +147,23 @@ Note the asymmetry in cost. `two_windows.ts` is heavy because the guarantee need
 connection, so the whole endpoint runs against a synthetic source. In other words, a property of
 the design made this testing efficiency possible.
 
+### Manuscript figure
+
+`tools/shirado-figure.ts`, run by `npm run figure:shot -- <output.png>`. It reuses this tier's
+arrangement — a real `empirica` dev server, the real example, real Chromium — but it asserts
+nothing. It drives twenty browser contexts through `examples/shirado2017` at the paper's own n = 20
+with no agents, then screenshots the highest-degree participant's screen for Figure 2 of the
+manuscript.
+
+It lives in `tools/` rather than `test/browser/` on purpose: `npm run test:browser` runs every file
+in that directory, and twenty Chromium contexts driven through a five-minute-limit session have no
+business in the acceptance suite. Run it by hand when the figure needs regenerating.
+
+`examples/shirado2017` is not modified by it. The only thing written inside the example is
+`.empirica/local`, the throwaway datastore its own `.empirica/.gitignore` ignores, and which the
+script clears first for the reason `two_windows.ts` documents: a reused datastore carries
+participants from an earlier run who occupy seats the new browsers then cannot fill.
+
 ## 2. The `verify` command
 
 ```sh

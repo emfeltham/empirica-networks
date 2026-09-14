@@ -70,7 +70,8 @@
     "simulate": "node scripts/simulate.mjs",
     "soak": "node scripts/soak.mjs",
     "test:repeat": "node scripts/e2e-repeat.mjs",
-    "example:build": "node scripts/example-build.mjs"
+    "example:build": "node scripts/example-build.mjs",
+    "figure:shot": "node scripts/figure-shot.mjs"
   },
   "peerDependencies": {
     "@empirica/core": ">=1.12.0 <2",
