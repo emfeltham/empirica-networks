@@ -132,6 +132,17 @@ export interface GameSnapshot {
   /** Player id occupying each structural position. */
   order: string[];
   seed: number;
+  /**
+   * How much of the network this game shows its participants: 1 or 1.5.
+   *
+   * The graph above says what the study RAN on; this says what it let people see
+   * of it, and the two are independent. Read from the live configuration rather
+   * than from the batch record, so on a process restarted with a different
+   * `graph.radius` this reports what participants are being shown NOW while
+   * `readRadius` reports what the record says — which is the pair that makes the
+   * mismatch visible rather than a single number that quietly picks a side.
+   */
+  radius: number;
   /** Publish counter — how many times this game has published a view. */
   seq: number;
   nodes: NodeSnapshot[];

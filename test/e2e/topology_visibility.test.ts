@@ -96,7 +96,13 @@ test("a participant cannot read the realized topology or its seed", async () => 
       const client = modeOf(participants[0]!).game.getValue()!;
       const edgesJSON = JSON.stringify(ring(N));
       const visible: string[] = [];
-      for (const key of ["network", "networkSeed", "nbhd", "topology"]) {
+      // `networkRadius` joined this list when it joined the batch record. It is
+      // not obviously a secret — a participant can infer their own radius from
+      // what they were drawn — but the list is of keys that must never appear on
+      // the GAME scope, and the reason is the same for all of them: the game
+      // scope is delivered to everyone, so anything put there is published to
+      // the whole study by accident rather than by decision.
+      for (const key of ["network", "networkSeed", "networkRadius", "nbhd", "topology"]) {
         const v = client.get(key);
         if (v !== undefined) visible.push(`${key}=${JSON.stringify(v)}`);
       }

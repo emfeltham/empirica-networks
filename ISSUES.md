@@ -255,3 +255,144 @@ the first datum this entry has ever had that is not an inference.
 
 *Still done when:* the platform path is reproduced — the mechanism in §20 says where to look — or
 `lateProvisioned` is zero across a real deployment, which is the first thing to read off one.
+
+### O19. The radius 1.5 envelope figures are arithmetic, not measurement — **debt**
+
+**Evidence:** `docs/API.md` §"Showing the ties among a participant's neighbors"; `CHANGELOG.md`;
+`test/bench/envelope.ts`.
+
+The structure payload is documented as costing "about 1 KB at degree 16 against a 64 KiB
+`maxNeighborhoodBytes`". That number was computed, not observed: at most 120 neighbor-neighbor
+pairs at six bytes each plus seventeen positions. Nothing has ever weighed one.
+
+This is the same kind of gap §18 and §19 of `docs/PLATFORM-NOTES.md` were written to close for
+degree and view size, and it is worth naming for the same reason: the prose around it reads as
+measured, and a reader deciding whether radius 1.5 fits their deployment would be entitled to
+treat it that way. `npm run bench` has no radius flag and no cell at 1.5, so there is no sweep to
+point at either.
+
+Two things the arithmetic does not cover, and neither is small. Ties among neighbors scale with
+the SQUARE of degree while the neighbor views scale linearly, so the ratio the figure describes
+holds only at the degree it was computed at. And the layout runs per viewer per shape change on
+the server, which is CPU rather than bytes and is not in the envelope at all.
+
+*Done when:* `npm run bench` accepts a radius and has at least one cell at 1.5 on a dense graph,
+and the figures in `docs/API.md` either come from it or say they do not.
+
+### O20. Bots cannot see the structure, so at radius 1.5 they play a different game
+
+**Evidence:** `src/bots/policy.ts` `BotContext`; `src/player/react/index.ts`
+`useNetworkStructure`.
+
+`BotContext` offers `neighbors()`, `self()`, `state()` and `told()`. There is no accessor for the
+neighborhood structure, so at `graph: { radius: 1.5 }` a human sees which of their connections are
+tied to each other and a bot in the same seat does not.
+
+That is not a cosmetic difference. Bots exist here for designs where an artificial participant's
+behavior is the independent variable — Shirado & Christakis seat theirs centrally and vary their
+noise — and a bot that cannot see what the humans around it can see is not a control for those
+humans. A study could run the whole 3 x 3 agent design at radius 1.5 today and the asymmetry would
+appear nowhere in its data.
+
+No reproduction is needed and none is claimed: the accessor is absent from the interface, which is
+readable in eight lines of `policy.ts`. What is not yet decided is whether bots should receive the
+structure at all, or whether the answer is that radius 1.5 and bots are incompatible and the
+combination should be refused at config time the way an out-of-range radius is.
+
+*Done when:* `BotContext` exposes the structure, or `withNetwork` refuses `graph.radius > 1`
+together with a bot policy and says why.
+
+### O21. `auditViews` has no notion of structure, so `simulate` is silent about half a radius 1.5 delivery
+
+**Evidence:** `src/verify/audit.ts` `auditViews`, the C1 check.
+
+`auditViews` parses captured views and walks `record.view`, reporting any entry without a string
+`id`. It never looks at `record.graph`, which since this milestone carries the ties a participant
+was shown among their own neighbors.
+
+So `empirica-networks simulate`'s C1 leak check reads clean on a radius 1.5 run whether the
+structure was correct or named strangers throughout. This is the same hole the `verify` CLI had
+before its containment and structure arms were added, in a different tool, and it is worth stating
+that the two are now inconsistent: `verify` covers structure at the wire, `simulate` does not
+cover it in the file.
+
+The invariants are already written and tested — containment, completeness, and the
+beyond-the-star denominator — in `src/verify/leak_test.ts` and `src/verify/topologies.ts`
+(`countBeyondStar`). This is a matter of applying them to records rather than to a live wire.
+
+*Done when:* `auditViews` checks every tie in `record.graph` against the edge log for the same
+delivery, and reports a radius 1.5 run with no structure as a vacuous pass rather than a pass.
+
+### O22. The monitor does not report the radius, so an operator cannot see what participants are shown
+
+**Evidence:** `src/admin/monitor/ui.ts` metrics panel; `GameSnapshot.radius`.
+
+The monitor draws the complete graph and every participant's private state, and says nothing about
+how much of that graph the participants can see. An operator watching a study cannot tell from the
+screen whether the people in it are looking at a star or at their neighbors' ties.
+
+`GameSnapshot.radius` now carries the value and reaches the page in the payload, so what is
+missing is a line in the metrics panel and nothing else. It is listed here rather than fixed
+because the monitor is the one surface in this package where adding a field also means deciding
+what an operator should do with it, and because a mismatch between the recorded radius and the
+live one — which `tryRecover` now warns about on the server — arguably belongs on that panel too.
+
+*Done when:* the monitor states the radius, and shows the recorded value beside the live one when
+they differ.
+
+### O23. `wheel` is the only named CLI topology that can demonstrate radius 1.5
+
+**Evidence:** `src/verify/topologies.ts` `CLI_TOPOLOGIES`; `test/unit/leak_vacuity.test.ts`
+"triangle-free shapes are refused at radius 1.5".
+
+`verify --radius 1.5` needs a graph where somebody's two neighbors are connected to each other.
+Of the six shapes a flag can name, `ring`, `star`, `pairs` and `ladder` are triangle-free and are
+refused; `complete` is refused for the older reason that it has no non-neighbor. That leaves
+`wheel`.
+
+The refusal is correct and the message names `wheel`, so nobody is stuck. But a verification tool
+with one usable subject is thin: a user checking their own study is one shape away from having
+nothing to compare against, and every shape that would help — `ringLattice`, `wattsStrogatz`,
+`barabasiAlbert`, `geometricRandom` — takes a parameter a flag cannot carry. The escape hatch is
+real (`runLeakCheck()` accepts the generator a study hands `withNetwork`) and is documented, and
+it is also a code change rather than a command.
+
+*Done when:* `--topology` reaches at least one more triangle-rich shape, either by accepting a
+parameter or by naming a fixed-parameter variant and saying which parameter was fixed.
+
+### O25. The offline recovery path cannot rebuild a radius 1.5 study's screens
+
+**Evidence:** `examples/rand2011/recover.mjs:38`, `examples/shirado2017/recover.mjs:40`;
+`src/admin/export.ts` `structureRows` / `positionRows`.
+
+Both recovery scripts import `{ edgeRows, parseNdjson, snapshotRows, toCSV }` and neither calls
+`structureRows` or `positionRows`. A study run at radius 1.5 whose views were captured therefore
+has the structure on disk and no script that turns it into a table, while `docs/DATA-AND-ANALYSIS.md`
+documents both tables as part of the inventory.
+
+Nothing is lost today, and the reason is its own small finding: the only example that CAN run at
+radius 1.5 is `examples/minimal`, under `NBHD_RADIUS=1.5` — and `minimal` has no `recover.mjs` and
+never sets `views: { file }`, so it writes no `views.ndjson` to recover from. The two examples with
+recovery scripts both run at the default radius and always will. So the gap is that the shipped
+demonstration of the offline path and the shipped demonstration of radius 1.5 are in different
+directories and cannot meet.
+
+*Done when:* one example both runs at radius 1.5 and recovers its own structure to CSV, which is
+the only arrangement that would have caught this.
+
+### O26. `simulate` has no notion of radius
+
+**Evidence:** `src/simulate/simulate.ts` — no occurrence of `radius`; `USAGE` at :361-374 lists
+`--seeds --arms --n --out --check --inject`; the produced file set is fixed at `:568` and `:731` as
+`["edges.csv", "session.csv", "changes.csv"]`.
+
+The evaluation tool imports `examples/shirado2017`'s already-configured callbacks, which set no
+`graph` key, so every simulated session runs at radius 1 — correctly, but implicitly. Its
+`manifest.json` records `n`, `seedsPerArm`, `arms`, `vacuityRule` and a `notExercised` list, and
+does not record the radius or name the structure payload among the things it did not exercise.
+
+Related to O21, and separable from it: O21 is that `auditViews` cannot SEE structure, this is that
+`simulate` cannot PRODUCE it. Fixing O21 alone would leave a checker with nothing to check.
+
+*Done when:* `manifest.json` records the radius, and `notExercised` names the structure payload for
+as long as no arm delivers one.

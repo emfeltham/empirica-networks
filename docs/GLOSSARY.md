@@ -57,7 +57,21 @@ network hooks have something to read. Omit it and every hook throws
 
 **neighborhood** — the set of a participant's current neighbors and, by extension, the array of
 projected views delivered to that participant. `useNeighbors()` returns `undefined` before the
-first publication and `[]` for a genuinely isolated node.
+first publication and `[]` for a genuinely isolated node. The *closed* neighborhood is that set
+plus the participant themselves, and is what a radius 1.5 subgraph is induced on.
+
+**radius** — how much of the network a participant is shown, set by `graph: { radius }` and
+recorded per game on the batch scope. `1` (the default) sends nothing beyond the projected views:
+the client draws a star, which is what Breadboard's participants saw. `1.5` additionally sends the
+ties *between* a participant's own neighbors. Wider radii are refused rather than rounded down.
+A property of what participants are told, not of the graph — two studies on one topology at
+different radii leave identical edge lists. → [API, `NetworkConfig`](API.md#networkconfig)
+
+**structure** — the subgraph delivered at radius 1.5: the ties induced on a participant's closed
+neighborhood, as pairs of indices into the array that participant already holds, plus a position
+per node laid out on the server. Never seat indices; index `0` is the viewer.
+Read with `useNetworkStructure()`, recorded in `ViewRecord.graph`.
+→ [API](API.md#showing-the-ties-among-a-participants-neighbors)
 
 **placement** — deciding which seats particular participants occupy, usually bots. Expressed by
 relabeling the generated graph inside `topology({ players })` rather than by reordering people,

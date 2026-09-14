@@ -105,10 +105,14 @@ export const COOPERATION_CSS = `
 .nbhd circle[action="D"] { fill: #5C9CCC; }
 .nbhd-graph circle:not([action]) { fill: #999; fill-opacity: 0.5; }
 
-/* A rewiring decision: everything recedes except the tie under consideration. */
+/* A rewiring decision: everything recedes except the tie under consideration.
+   There is no rule for a tie being FORMED, and its absence is the honest half:
+   an offer to form one is about somebody the viewer is not connected to, so by
+   construction that person is not on the viewer's graph and there is no line to
+   style. Breadboard's own sheet carries such a rule; this component cannot
+   reach it, and shipping it anyway would claim a capability that is not here. */
 .nbhd line[focal="0"] { stroke-opacity: 0.3; }
 .nbhd line[breaking="1"] { stroke: #d62728; stroke-dasharray: 5 5; stroke-width: 5px; }
-.nbhd line[making="1"]   { stroke: #2ca02c; stroke-dasharray: 5 5; stroke-width: 5px; }
 `;
 
 /**

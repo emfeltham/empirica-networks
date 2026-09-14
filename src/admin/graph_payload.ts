@@ -24,17 +24,24 @@
  * That is the failure this module is shaped around.
  */
 import { layout, type Point } from "./layout.js";
-import { inducedEdges, type LocalEdge } from "./subgraph.js";
+import type { ViewGraph } from "../shared/keys.js";
+import { edgeKey, inducedEdges, type LocalEdge } from "./subgraph.js";
 
-/** The value written to a participant's channel at radius 1.5. */
-export interface GraphPayload {
-  /** Declared so the client can tell "radius 1" from "the subgraph is missing". */
-  radius: number;
-  /** Pairs of LOCAL indices: 0 is the viewer, 1..d are their neighbors in order. */
-  edges: LocalEdge[];
-  /** Index-aligned with those local indices. Integers; see `round`. */
-  positions: Point[];
-}
+/**
+ * The value written to a participant's channel at radius 1.5.
+ *
+ * The same shape `ViewRecord.graph` records, and deliberately one declaration
+ * rather than two: what is captured must be what was delivered, and two
+ * structurally-identical interfaces are two things that can drift. `ViewGraph`
+ * is declared in `shared/keys.ts` because the offline export subpath needs it
+ * and may not import this module — see the note there.
+ *
+ * `radius` is inside the payload so the client can tell "radius 1" from "the
+ * subgraph is missing"; `edges` are LOCAL indices (0 is the viewer, 1..d are
+ * their neighbors in order); `positions` is index-aligned with those and
+ * integral (see `round`).
+ */
+export type GraphPayload = ViewGraph;
 
 export interface BuildArgs {
   adj: number[][];
@@ -70,10 +77,10 @@ const MARGIN = 40; // alter radius 30 + padding 10, matching `player/graph.ts`
 export function buildGraphPayload(args: BuildArgs): BuildResult {
   const { adj, nodes, ids, radius, seed, cache } = args;
   const edges = inducedEdges(adj, nodes);
-  const key = `${nodes.length}:${edges
-    .map(([a, b]) => `${a}-${b}`)
-    .sort()
-    .join(" ")}`;
+  // The node count as well as the ties: a neighborhood can lose a node without
+  // losing an edge between the ones that remain, and that is still a different
+  // picture to lay out.
+  const key = `${nodes.length}:${edgeKey(edges)}`;
 
   // Remembered positions, in this publish's node order. `undefined` unless
   // EVERY node is remembered: a partial array cannot be index-aligned with the

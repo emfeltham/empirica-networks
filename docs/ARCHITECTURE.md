@@ -154,8 +154,10 @@ topology fails while the experiment is still abandonable rather than after parti
 committed to a game that will run badly.
 
 6. Record the realization on the batch scope. `batch.set(NETWORK_KEYS.seed(gameID), seed)` and
-`NETWORK_KEYS.network(gameID)`, plus a `start` event appended to `NETWORK_KEYS.history(gameID)`.
-These are suffixed by game id because one batch holds many games. A game with no batch throws,
+`NETWORK_KEYS.network(gameID)`, plus a `start` event appended to `NETWORK_KEYS.history(gameID)`,
+plus `NETWORK_KEYS.radius(gameID)` — what the study showed people, which is not a property of the
+graph and which nothing else in the record implies. These are suffixed by game id because one
+batch holds many games. A game with no batch throws,
 since without it the run is neither reproducible nor restart-survivable, and that is worth failing
 loudly for.
 
@@ -209,7 +211,9 @@ across sequential games while `games` stayed 0.
 
 9. Recovery, if a previous process networked this game. `tryRecover()` needs two durable things in
 two different places: the edge list from the batch scope, and each channel's `topologyIndex`.
-Both are required. The edge list alone is index pairs: it describes the shape without saying who
+Both are required. It also reads the recorded radius, not because recovery needs it — the live
+config supplies that — but to notice when the two disagree, which is the one thing a restart can
+change about what participants see without changing anything a later reader could detect. The edge list alone is index pairs: it describes the shape without saying who
 sits where, and reconstructing seats from anything else is exactly how a restart silently
 reassigns everyone to different nodes while looking like it worked (`test/e2e/restart.test.ts`).
 A missing seat makes recovery refuse rather than guess: guessing produces a plausible network in

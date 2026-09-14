@@ -185,6 +185,143 @@ export function viewRows(records: ViewRecord[]): ViewRow[] {
   return rows;
 }
 
+/**
+ * One row of `structure.csv`: one tie one viewer was shown, at one delivery.
+ *
+ * A `type`, not an `interface`, for the reason given at the top of this file:
+ * an interface gets no implicit index signature, so `toCSV(structureRows(…))`
+ * does not compile. These were interfaces when they were written, and that went
+ * unnoticed for precisely the reason the note up there predicts — nothing
+ * composed the two functions until a test did.
+ */
+export type StructureRow = {
+  game_id: string;
+  viewer: string;
+  seq: number;
+  t: number;
+  /**
+   * The radius this delivery was made at.
+   *
+   * Denormalized deliberately. The radius is also recorded per game on the batch
+   * scope (`readRadius`), and for most studies this is that number repeated on
+   * every row — but the two are not always the same fact. A game recovered
+   * across a restart keeps the radius the FIRST process recorded while being
+   * published at the second's, which the server warns about and which these rows
+   * are the only per-delivery evidence of. A table read on its own should say
+   * which study it describes rather than requiring a join, and the case where
+   * the join would give the wrong answer is the case worth catching.
+   */
+  radius: number;
+  /** Local index of each end: 0 is the viewer, 1..d index into that delivery's view. */
+  a_index: number;
+  b_index: number;
+  /** The projected `id` of each end, when there is one. Empty otherwise. */
+  a_id: string;
+  b_id: string;
+};
+
+/** One row of `positions.csv`: where one node sat in one viewer's drawing. See above re `type`. */
+export type PositionRow = {
+  game_id: string;
+  viewer: string;
+  seq: number;
+  t: number;
+  /** As `StructureRow.radius`. */
+  radius: number;
+  node_index: number;
+  node_id: string;
+  x: number;
+  y: number;
+};
+
+/**
+ * Resolve a delivered local index to a player id.
+ *
+ * `0` is the viewer themselves; `1..d` are positions in that delivery's view,
+ * read with the same rule `viewRows` uses for `neighbor_id` — a string `id`
+ * field, empty otherwise. Empty is a real answer for a projection that carries
+ * no id, and the index still identifies the node, which is why both are columns.
+ */
+function idAt(record: ViewRecord, local: number): string {
+  if (local === 0) return record.viewer;
+  const entry = (record.view ?? [])[local - 1];
+  if (entry === null || typeof entry !== "object" || Array.isArray(entry)) return "";
+  const id = (entry as Record<string, unknown>)["id"];
+  return typeof id === "string" ? id : "";
+}
+
+/**
+ * Flatten the ties each participant was shown among their own neighbors.
+ *
+ * Empty unless the study ran at `graph: { radius: 1.5 }`; at the default nothing
+ * is delivered and nothing is recorded.
+ *
+ * Long rather than wide, and separate from `viewRows` rather than folded into
+ * it, for the same reason `viewRows` is separate from `edgeRows`: the grain
+ * differs. A view row is one viewer's sight of one NEIGHBOR; this is one
+ * viewer's sight of one TIE, and a tie between two neighbors belongs to neither
+ * of their rows. Folding it in would also silently change the row count of
+ * `views.csv`, which `test/e2e/views.test.ts` pins.
+ *
+ * Both the local indices and the resolved ids are carried. The ids join to
+ * `edges.csv` and answer "was this tie real"; the indices join to `views.csv` on
+ * `(viewer, seq, neighbor_index = a_index - 1)` and survive a projection that
+ * carries no id at all.
+ */
+export function structureRows(records: ViewRecord[]): StructureRow[] {
+  const rows: StructureRow[] = [];
+  for (const r of records) {
+    for (const edge of r.graph?.edges ?? []) {
+      const [a, b] = edge;
+      rows.push({
+        game_id: r.gameID,
+        viewer: r.viewer,
+        seq: r.seq,
+        t: r.at,
+        radius: r.graph?.radius ?? 1,
+        a_index: a,
+        b_index: b,
+        a_id: idAt(r, a),
+        b_id: idAt(r, b),
+      });
+    }
+  }
+  return rows;
+}
+
+/**
+ * Flatten where every node sat in every drawing.
+ *
+ * Its own builder rather than columns on `structureRows`, because a viewer with
+ * no ties still has a position: their own. Denormalizing `x`/`y` onto edge rows
+ * would drop exactly the isolated participant, who in a rewiring design is the
+ * one worth looking at.
+ *
+ * This is the part of a delivery that is NOT recoverable from anything else
+ * stored — positions are warm-started, so they depend on the session's history
+ * rather than on its final graph. Without this the drawing a participant saw is
+ * gone.
+ */
+export function positionRows(records: ViewRecord[]): PositionRow[] {
+  const rows: PositionRow[] = [];
+  for (const r of records) {
+    for (const [index, p] of (r.graph?.positions ?? []).entries()) {
+      rows.push({
+        game_id: r.gameID,
+        viewer: r.viewer,
+        seq: r.seq,
+        t: r.at,
+        radius: r.graph?.radius ?? 1,
+        node_index: index,
+        node_id: idAt(r, index),
+        x: p.x,
+        y: p.y,
+      });
+    }
+  }
+  return rows;
+}
+
 /** What `parseNdjson` found: the records, and what it had to throw away. */
 export interface NdjsonParse<T> {
   records: T[];
