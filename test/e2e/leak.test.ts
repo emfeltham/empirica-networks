@@ -6,8 +6,9 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fromEdgeList } from "../../src/topology/index.js";
+import { fromEdgeList, ring } from "../../src/topology/index.js";
 import { runLeakCheck } from "../../src/verify/leak_test.js";
+import { accountVacuity, preflightCliTopology } from "../../src/verify/topologies.js";
 
 test("ring of 4: no participant ever receives a non-neighbor's state", async () => {
   const result = await runLeakCheck({ n: 4 });
@@ -87,4 +88,73 @@ test("a complete graph is refused rather than passed", async () => {
   assert.equal(result.candidatePairs, 0, "there is no non-neighbor to leak to");
   assert.equal(result.pass, false, "a check that examined nothing must not pass");
   assert.match(result.failures.join(" "), /VACUOUS/);
+});
+
+
+// ------------------------------------------- the structural arms (radius 1.5)
+//
+// `test/e2e/subgraph.test.ts` proves the FEATURE is correct. These prove the
+// TOOL can tell: a verification command that passes whatever it is shown is
+// worse than no command, and the structural arms are the ones most easily
+// written that way, because the payload they judge carries no sentinel and
+// every other arm stays clean however wrong it is.
+
+test("radius 1: the default sends no structure, and the run says so", async () => {
+  const result = await runLeakCheck({ n: 4 });
+
+  if (!result.pass) console.error(result.failures.join("\n"));
+  assert.equal(result.radius, 1, "the result reports the radius it ran at");
+  assert.equal(
+    result.structureFramesAtRadius1,
+    0,
+    "the default's cost is a checked claim, not a stated one"
+  );
+  assert.ok(result.pass, `leak check failed:\n${result.failures.join("\n")}`);
+});
+
+test("radius 1.5: every delivered tie is contained, real, and all of them arrive", async () => {
+  // A wheel because it is the only shipped shape with ties among anyone's
+  // neighbors. On a ring this run would be refused rather than passed, which is
+  // the case below.
+  const result = await runLeakCheck({ n: 6, topology: "wheel", radius: 1.5 });
+
+  if (!result.pass) console.error(result.failures.join("\n"));
+
+  assert.equal(result.radius, 1.5);
+  assert.equal(result.structureViolations, 0, "no tie may name somebody the viewer cannot see");
+  assert.ok(
+    result.structureTies > 0,
+    "no structure was examined at all, so the containment arm said nothing"
+  );
+
+  // Hub 0 plus a 5-cycle rim. The hub sees all five rim ties; each rim node sees
+  // its two ties to the hub and not the tie between its rim neighbors, who are
+  // two apart. Pinned as a number rather than compared to itself, because
+  // `delivered === expected` is satisfied by zero equalling zero.
+  assert.equal(result.expectedBeyondStar, 15);
+  assert.equal(
+    result.beyondStarDelivered,
+    result.expectedBeyondStar,
+    "participants must be shown everything radius 1.5 promises, not some of it"
+  );
+
+  // The state arms still hold, unchanged, at the wider radius.
+  assert.equal(result.crossParticipantLeaks, 0);
+  assert.equal(result.delivered, result.expectedDeliveries);
+  assert.ok(result.controlLeaks > 0);
+  assert.ok(result.pass, `leak check failed:\n${result.failures.join("\n")}`);
+});
+
+test("radius 1.5 on a triangle-free shape is refused, not passed", async () => {
+  // A ring is a fine subject at radius 1 and a useless one at 1.5: nobody's two
+  // neighbors are connected, so the extra structure is empty and a pass would
+  // mean the feature had done nothing. Refused from the accounting, before a
+  // server boots — the same path `--topology complete` takes.
+  const account = accountVacuity(6, ring(6), 1.5);
+  assert.equal(account.expectedBeyondStar, 0);
+  assert.match(account.failures.join(" "), /VACUOUS at radius 1\.5/);
+  assert.ok("refusal" in preflightCliTopology("ring", 6, 1.5));
+
+  // And the same shape is accepted at the radius it can speak to.
+  assert.ok(!("refusal" in preflightCliTopology("ring", 6, 1)));
 });

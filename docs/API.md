@@ -736,12 +736,28 @@ study runs at radius 1 and a star is correct; `null` means the structure arrived
 used, and `useNetworkGraph()` then returns `undefined` rather than falling back to a star — which
 would be a correct-looking picture of a different study.
 
-> **What `verify` covers.** The sentinel leak check is about **state**: no value belonging to a
-> non-neighbor reaches a browser, and that holds identically at either radius. It says nothing
-> about structure, because the extra bytes at 1.5 are integers rather than anybody's attribute.
-> The structural invariants — every delivered tie joins two people the viewer can see and really
-> exists, nothing inside the radius is missing — are asserted in this repository's own
-> `test/e2e/subgraph.test.ts`, against the wire.
+**Verifying it.** `verify` takes the radius your study runs at:
+
+```sh
+npx empirica-networks verify --n 6 --topology wheel --radius 1.5
+```
+
+The three sentinel arms are about **state** and hold identically at either radius. Two more arms
+cover the structure, because a sentinel cannot: the extra bytes are integers, so a payload naming
+ties to strangers — or ties that do not exist — carries no sentinel and the sentinel arms stay
+clean while a participant is shown a network nobody is in.
+
+```
+  ties outside the neighborhood  : 0/35 ties  (must be 0)
+  ties between neighbors shown   : 15/15  (non-vacuity)
+```
+
+At `--radius 1` the same arm asserts the opposite and prints `structure payloads sent : 0`, which
+is what makes the default's "costs nothing" a checked claim rather than a stated one.
+
+A triangle-free shape is **refused** at `--radius 1.5` rather than passed: a ring has no ties among
+anyone's neighbors, so the run would prove nothing. `wheel` is the shipped shape that works; for
+your own graph, hand `runLeakCheck()` the generator you hand `withNetwork`.
 
 The pure functions behind all of this — `graphModelOf`, `egoRingLayout`, `svgAttrs` — are exported
 too, and are what the headless and bot paths use.
@@ -927,6 +943,7 @@ node dist/verify/cli.cjs verify --n 4     # from a clone, after `npm run build`
 |---|---|---|
 | `-n`, `--n <count>` | 4 | Participants. Minimum 4, and refused below that: below it every named topology makes everyone everyone's neighbor, so there is no non-neighbor and a pass would prove nothing |
 | `--topology <name>` | `ring` | `ring`, `star`, `wheel`, `pairs`, `ladder`, `complete`. Refused when the shape could prove nothing — see below |
+| `--radius <1\|1.5>` | 1 | The radius your study runs at. Refused rather than rounded: verifying radius 1 for somebody running 1.5 reports on a different study |
 | `-q`, `--quiet` | off | Print `PASS` or `FAIL` and nothing else. The CI form |
 | `-h`, `--help` | | Usage |
 
@@ -948,16 +965,31 @@ report the study's own `@empirica/core`.
   … waiting for projections to be published
 
   empirica-networks verify — neighbor-limited visibility
-  topology: ring of 4
+  topology: ring of 4   ·   radius: 1
 
   non-neighbor sentinels received : 0/4 pairs  (must be 0)
   neighbor sentinels delivered    : 8/8  (non-vacuity)
   control values observed          : 12  (must be > 0, proves detection works)
+  structure payloads sent        : 0  (must be 0 at radius 1)
 
   note: ring of 4: degree 2-2, 4 non-neighbor pairs examined
 
   PASS
 ```
+
+At `--radius 1.5` the last line is replaced by the two arms that cover the extra structure:
+
+```
+  ties outside the neighborhood  : 0/35 ties  (must be 0)
+  ties between neighbors shown   : 15/15  (non-vacuity)
+```
+
+They are separate arms rather than an extension of the sentinel ones because the sentinels cannot
+see structure at all. A sentinel is somebody's attribute; the bytes radius 1.5 adds are integers,
+so a payload naming ties to strangers — or ties that do not exist — carries no sentinel, and arms
+1-3 stay perfectly clean while a participant is shown a network nobody is in. They read the **raw**
+wire rather than going through `networkGraphOf`, which drops out-of-range edges by design and would
+make the containment arm assert nothing.
 
 Every arm prints against what it was measured over, and arm 1's denominator is the one that took
 longest to earn: `0` alone reads the same whether four non-neighbor pairs were examined and none
@@ -972,6 +1004,11 @@ that excuse only some participants are run and reported: a star's hub is adjacen
 so the verdict says `not covered: 1 adjacent to everyone` and the check still establishes the
 guarantee for the spokes.
 
+`--radius 1.5` adds a third way to be refused, and it disqualifies most shapes: a graph where
+nobody has two neighbors who are connected to each other has no extra structure to send, so radius
+1.5 draws the same star radius 1 draws and the run would pass having demonstrated nothing. `ring`,
+`star`, `pairs` and `ladder` are all triangle-free. `wheel` is the shipped shape that works.
+
 The parameterised generators (`grid`, `ringLattice`, `wattsStrogatz`, `barabasiAlbert`,
 `erdosRenyi`, `geometricRandom`) take an argument a flag cannot carry. They are reachable by
 handing `runLeakCheck` the same generator function you hand `withNetwork`, which is also how to
@@ -981,10 +1018,12 @@ check a `fromEdgeList` graph:
 await runLeakCheck({
   n: 12,
   topology: ({ playerCount, rng }) => topology.wattsStrogatz(playerCount, 4, 0.1, { rng }),
+  radius: 1.5,   // if that is what your study runs at
 });
 ```
 
-There are three arms, all required. A clean result with a silent control means the check is
+There are five arms, all required — three about state, two about structure. A clean result with a
+silent control means the check is
 blind; a clean result with nothing delivered means the projection never ran. Most privacy tests
 are wrong in exactly one of those two ways, so both are reported as failures rather than as a
 pass.

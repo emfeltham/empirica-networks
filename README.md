@@ -152,14 +152,22 @@ The command starts Tajriba, Empirica's data service, connects four automated par
   non-neighbor sentinels received : 0/4 pairs  (must be 0)
   neighbor sentinels delivered    : 8/8  (non-vacuity)
   control values observed          : 12  (must be > 0, proves detection works)
+  structure payloads sent        : 0  (must be 0 at radius 1)
 
   PASS
 ```
 
-The verification has three required checks. The first detects information from non-neighbors, the
-second confirms delivery from neighbors, and the third confirms that the inspection mechanism can
-detect control values. Together, they distinguish genuine privacy from a failed projection or an
-insensitive test.
+The verification has four required checks at the default radius. The first detects information from
+non-neighbors, the second confirms delivery from neighbors, and the third confirms that the
+inspection mechanism can detect control values. Together, they distinguish genuine privacy from a
+failed projection or an insensitive test. The fourth confirms that no local structure is sent at
+all, which is what makes the default's cost a checked claim rather than a stated one.
+
+A study configured with `graph: { radius: 1.5 }` passes `--radius 1.5`, and two further checks
+replace the fourth: every tie delivered must join two people the viewer can see and must actually
+exist, and all of them must arrive. These are separate arms because the sentinels cannot see them —
+the bytes radius 1.5 adds are integers, so a payload full of ties to strangers carries no sentinel
+and the first three checks stay clean.
 
 Sentinels are random, server-side tokens injected into projected views for leak detection. They
 are kept outside Empirica scopes, and the verifier searches for them throughout the raw network

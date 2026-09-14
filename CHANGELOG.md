@@ -26,6 +26,16 @@ makes the entries below meaningful as a baseline rather than a moving target.
   Client-side, `useNetworkStructure()` distinguishes three states: absent (radius 1, draw a star),
   unusable (wait — a star here is a correct-looking picture of a different study), and usable.
 
+- `verify --radius <1|1.5>`, and two new arms behind it. The three sentinel arms are about state
+  and cannot see structure at all: the bytes radius 1.5 adds are integers, so a payload naming ties
+  to strangers or ties that do not exist carries no sentinel and every existing arm stays clean.
+  The new arms read the RAW wire — not `networkGraphOf`, which drops out-of-range edges by design
+  and would make the containment check assert nothing — and require that every delivered tie joins
+  two people the viewer can see and really exists, and that all of them arrive. At `--radius 1` the
+  same arm asserts no structure is sent at all, which turns the default's "costs nothing" into a
+  checked claim. `accountVacuity` gained `expectedBeyondStar` and takes the radius, so a
+  triangle-free shape is refused before a server boots rather than passing vacuously.
+
 - A participant-facing node-link view of the neighborhood: `useNetworkGraph()`, `<NetworkGraph>`,
   `<NetworkGraphStyles>` and the pure model behind them (`graphModelOf`, `egoRingLayout`,
   `svgAttrs`), all on the existing `empirica-networks/player/react` subpath. The picture is a
