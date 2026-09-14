@@ -3,7 +3,7 @@ import { networkKinds } from "../admin/kinds.js";
 import { resetChannels } from "../admin/provision.js";
 import { withNetwork, type NetworkConfig } from "../admin/with_network.js";
 import { EmpiricaNetwork } from "../player/mode.js";
-import { adjacency, type Edge } from "../topology/index.js";
+import { adjacency, ball, type Edge, type Radius } from "../topology/index.js";
 import { NBHD_KEYS } from "../shared/keys.js";
 import { CLI_TOPOLOGIES, accountVacuity } from "./topologies.js";
 import { batchConfig, createBatch, gameInit, waitFor, withScenario } from "../harness/harness.js";
@@ -88,7 +88,7 @@ export interface LeakCheckOptions {
    * wire at all — which is the claim that keeps the default free. At 1.5 they
    * assert the structure that IS sent is contained and complete.
    */
-  radius?: 1 | 1.5;
+  radius?: Radius;
   timeoutMs?: number;
   onProgress?: (message: string) => void;
 }
@@ -120,7 +120,7 @@ export interface LeakCheckResult {
   /** Participants adjacent to nobody, who arm 3 expects nothing from. */
   isolated: number;
   /** The radius this run was made at. */
-  radius: number;
+  radius: Radius;
   /**
    * Ties delivered that join two people the viewer cannot both see, or that do
    * not exist. Must be 0. The denominator is `structureTies`.
@@ -135,6 +135,27 @@ export interface LeakCheckResult {
    */
   beyondStarDelivered: number;
   expectedBeyondStar: number;
+  /**
+   * COMPLETENESS, at any radius: everything the ball says should have been
+   * delivered, against what was.
+   *
+   * The generalization of the beyond-star pair above, which only ever meant
+   * anything at 1.5. Equal is the only passing answer, and both directions are
+   * failures meaning opposite things — short is a participant shown less than
+   * the setting promises, over is somebody on a screen the graph does not put
+   * within reach.
+   */
+  farDelivered: number;
+  expectedFar: number;
+  expectedStructureTies: number;
+  /**
+   * NON-VACUITY, which is a different question and a property of the GRAPH.
+   *
+   * What this radius shows that the step below it would not. Zero means the run
+   * could pass without the setting having done anything, and is refused in the
+   * preflight rather than measured against a delivery.
+   */
+  expectedIncrement: { nodes: number; edges: number };
   /**
    * Structure payloads seen at radius 1, which must be zero.
    *
@@ -279,7 +300,11 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
   let structureViolations = 0;
   let structureTies = 0;
   let beyondStarDelivered = 0;
+  let farDelivered = 0;
   let expectedBeyondStar = 0;
+  let expectedFar = 0;
+  let expectedStructureTies = 0;
+  let expectedIncrement = { nodes: 0, edges: 0 };
   let structureFramesAtRadius1 = 0;
 
   await withScenario(
@@ -400,6 +425,9 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
       notes.push(...account.notes);
       expectedDeliveries = account.expectedDeliveries;
       expectedBeyondStar = account.expectedBeyondStar;
+      expectedFar = account.expectedFar;
+      expectedStructureTies = account.expectedStructureTies;
+      expectedIncrement = account.expectedIncrement;
       candidatePairs = account.candidatePairs;
       saturated = account.saturated.length;
       isolated = account.isolated.length;
@@ -456,12 +484,12 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
         }
 
         const latest = payloads[payloads.length - 1] as
-          | { edges?: unknown; positions?: unknown }
+          | { edges?: unknown; positions?: unknown; far?: unknown }
           | undefined;
         if (!latest || !Array.isArray(latest.edges)) {
           failures.push(
             `STRUCTURE MISSING: participant ${i} received no usable structure at radius ` +
-              `1.5, so nothing about them can be checked`
+              `${String(radius)}, so nothing about them can be checked`
           );
           continue;
         }
@@ -472,6 +500,41 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
         const localToPlayer = [playerID, ...(mode.nbhd.getValue()?.neighbors ?? []).map(
           (v: any) => v?.id as string | undefined
         )];
+        /**
+         * People in the picture with no entry in the view, above 1.5.
+         *
+         * Their local indices are DELIBERATELY unresolvable from the wire — that
+         * is the disclosure boundary working, not a gap in the check. What can
+         * still be established without resolving them is strong: how many there
+         * are, how far each says it is, and that the whole delivered shape has
+         * exactly the size the graph says it should.
+         */
+        const far = Array.isArray(latest.far) ? (latest.far as Array<{ d?: unknown }>) : [];
+        farDelivered += far.length;
+        const expected = ball(adj, i, radius);
+        const deliveredNodes = 1 + (localToPlayer.length - 1) + far.length;
+        if (deliveredNodes !== expected.nodes.length) {
+          structureViolations++;
+          failures.push(
+            `STRUCTURE SIZE: participant ${i} was drawn ${deliveredNodes} people and the ` +
+              `graph puts ${expected.nodes.length} within radius ${String(radius)} of them. ` +
+              (deliveredNodes > expected.nodes.length
+                ? `Somebody outside their radius is on their screen.`
+                : `Somebody inside it is missing.`)
+          );
+        }
+        for (const f of far) {
+          // A "far" node at distance 1 would be a neighbor delivered twice, once
+          // named and once anonymous, which double-counts them in every tally
+          // the analysis will run.
+          if (!Number.isInteger(f.d) || (f.d as number) < 2) {
+            structureViolations++;
+            failures.push(
+              `STRUCTURE: participant ${i} received a distant person claiming distance ` +
+                `${JSON.stringify(f.d)}, which is not a distance beyond their neighbors`
+            );
+          }
+        }
 
         for (const edge of latest.edges as unknown[]) {
           structureTies++;
@@ -481,14 +544,22 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
             continue;
           }
           const [a, b] = edge as [number, number];
-          const x = localToPlayer[a];
-          const y = localToPlayer[b];
-          if (!x || !y || a === b) {
+          const limit = localToPlayer.length + far.length;
+          if (a === b || a < 0 || b < 0 || a >= limit || b >= limit) {
             structureViolations++;
             failures.push(
               `STRUCTURE LEAK: participant ${i} received a tie naming local index ` +
                 `${a}/${b}, which is outside the neighborhood they were sent`
             );
+            continue;
+          }
+          const x = localToPlayer[a];
+          const y = localToPlayer[b];
+          // One or both ends is somebody the viewer is not connected to. Their
+          // identity is withheld by design, so the tie cannot be checked against
+          // the edge log — the size and increment checks are what cover these.
+          if (x === undefined || y === undefined) {
+            if (a !== 0 && b !== 0) beyondStarDelivered++;
             continue;
           }
           // The tie must be real. A drawn tie that does not exist is not a leak,
@@ -526,18 +597,31 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
             `study using the default is paying for a feature it did not ask for.`
         );
       }
-      if (radius > 1 && beyondStarDelivered !== expectedBeyondStar) {
-        // Both directions are failures and they mean opposite things: short is a
-        // participant not being shown something the design says they see; over
-        // is a tie delivered that the graph does not contain, which arm 4 has
-        // already named individually.
-        failures.push(
-          `STRUCTURE INCOMPLETE: ${beyondStarDelivered}/${expectedBeyondStar} ties between ` +
-            `neighbors were delivered. ` +
-            (beyondStarDelivered < expectedBeyondStar
-              ? `Participants are being shown less than radius 1.5 promises.`
-              : `More arrived than the graph contains.`)
-        );
+      // What this radius delivered that the step below it would not.
+      //
+      // Both directions are failures and they mean opposite things: short is a
+      // participant not being shown something the design says they see; over is
+      // a tie or a person delivered that the graph does not put within reach,
+      // which the size and reality checks above have already named individually.
+      //
+      // At 1.5 this reduces to the beyond-star pair it replaces — a half step
+      // adds ties and never people, and the ties it adds are exactly the ones
+      // not incident to the viewer — so the numbers pinned before this existed
+      // still hold.
+      if (radius !== 1) {
+        const say = (got: number, want: number, what: string) =>
+          `${got}/${want} ${what} — ` +
+          (got < want
+            ? `participants are being shown less than radius ${String(radius)} promises`
+            : `more arrived than the graph puts within reach`);
+        if (farDelivered !== expectedFar) {
+          failures.push(`STRUCTURE INCOMPLETE: ${say(farDelivered, expectedFar, "distant people")}`);
+        }
+        if (structureTies !== expectedStructureTies) {
+          failures.push(
+            `STRUCTURE INCOMPLETE: ${say(structureTies, expectedStructureTies, "ties")}`
+          );
+        }
       }
       // Degree range rather than node 0's degree, which was only ever
       // representative on a regular graph and silently wrong on a star.
@@ -565,6 +649,10 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
     structureTies,
     beyondStarDelivered,
     expectedBeyondStar,
+    farDelivered,
+    expectedFar,
+    expectedStructureTies,
+    expectedIncrement,
     structureFramesAtRadius1,
     failures,
     notes,
@@ -590,10 +678,28 @@ export function formatLeakResult(r: LeakCheckResult): string {
   // The structural arms, which the three above cannot see: the extra bytes at
   // radius 1.5 are integers rather than anybody's attribute, so a sentinel
   // check stays clean however wrong they are.
-  if (r.radius > 1) {
+  if (r.radius !== 1) {
     lines.push(
-      `  ties outside the neighborhood  : ${r.structureViolations}/${r.structureTies} ties  (must be 0)`,
-      `  ties between neighbors shown   : ${r.beyondStarDelivered}/${r.expectedBeyondStar}  (non-vacuity)`
+      `  ties outside the neighborhood  : ${r.structureViolations}/${r.structureTies} ties  (must be 0)`
+    );
+    // The people line only where people are what the step adds. A half step adds
+    // ties and never faces, so printing 0/0 there would put a permanently empty
+    // figure next to three that carry information — and a reader who learns to
+    // skip one line learns to skip lines.
+    // Completeness first, then what the setting is worth on this graph. The two
+    // answer different questions: the first is whether the delivery matches the
+    // ball, the second whether the ball is bigger than the one below it — and a
+    // run can be perfectly complete and still prove nothing, which is what the
+    // second line is there to say out loud.
+    if (r.expectedFar > 0 || r.farDelivered > 0) {
+      lines.push(
+        `  people beyond the neighbors    : ${r.farDelivered}/${r.expectedFar}  (completeness)`
+      );
+    }
+    lines.push(
+      `  ties in the structure          : ${r.structureTies}/${r.expectedStructureTies}  (completeness)`,
+      `  what this radius adds          : ${r.expectedIncrement.nodes} people, ` +
+        `${r.expectedIncrement.edges} ties over the step below  (non-vacuity)`
     );
   } else {
     lines.push(
