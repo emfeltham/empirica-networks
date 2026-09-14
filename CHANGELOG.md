@@ -9,8 +9,30 @@ Nothing has been released. The package is `private: true` at `0.0.0` while the p
 still unfrozen. This section will become `0.1.0` at the first publish, and that freeze is what
 makes the entries below meaningful as a baseline rather than a moving target.
 
+### Added
+
+- A participant-facing node-link view of the neighborhood: `useNetworkGraph()`, `<NetworkGraph>`,
+  `<NetworkGraphStyles>` and the pure model behind them (`graphModelOf`, `egoRingLayout`,
+  `svgAttrs`), all on the existing `empirica-networks/player/react` subpath. The picture is a
+  star — the viewer, their neighbors, and a line to each — because it is derived from
+  `useNeighbors()`, so **no new data crosses the wire and no envelope or leak assertion changes**.
+  Breadboard's participants saw the same ego-only diagram, enforced there server-side.
+
+  Nodes and edges carry the server's values as SVG attributes, so an experiment is restyled in CSS
+  rather than in the component. Breadboard's own two palettes ship with it (`DARK2_CSS`,
+  `COOPERATION_CSS`).
+
 ### Changed
 
+- The three examples now draw the neighborhood instead of listing it, and `docs/EXPERIMENTS.md`
+  records why the earlier "reconstructs a design, not an interface" position was reversed: the
+  interface is documented — eight screenshots in the Shirado & Christakis SI, plus the stylesheets
+  in Breadboard's distribution — so a list was the further departure from the published
+  description, not the safer one. The claim stays narrow, and what the screens withhold is
+  unchanged.
+- `tools/shirado-figure.ts` captures the whole screen rather than one column, and waits for each
+  drawing to agree with its own heading rather than sleeping — a screenshot taken between the two
+  would be a correct-looking picture of a different neighborhood.
 - Normalized spelling to American English throughout the package, including the public API:
   `envelope.maxNeighbourhoodBytes` → `maxNeighborhoodBytes`, `checkNeighbourhoodBytes` →
   `checkNeighborhoodBytes`, `ProjectContext.neighbourIndex` → `neighborIndex`, and the

@@ -18,6 +18,18 @@ Two related descriptions would also overstate the available evidence:
 
 A reconstruction is thus a tested implementation of a published design and a starting point for future data collection. Its presence alone provides no empirical evidence.
 
+## The participant interface
+
+The screens draw the participant's neighborhood as a node-link graph: the subject at the centre, larger, labelled "You", one circle per connection, a line to each, and the state of the experiment carried in the fill.
+
+This reverses an earlier decision, and the reversal is worth recording rather than quietly making. The screens were previously a list of connections, with a comment in each file saying they were "deliberately unstyled beyond the minimum: this reconstructs a design, not an interface, and polishing it would imply otherwise." That was the correct position while the interface was undocumented. It is not: the Shirado & Christakis supplementary information contains eight full-page screenshots of the live participant interface (§1.3, pp. 5–12), and the Breadboard distribution ships the experiments' own stylesheets, which give the palettes, the node radii, the stroke weights and the conditional rules by value. Reconstructing from those is the same exercise as reconstructing the design from the paper's text, conducted on the same evidence.
+
+A list is not a neutral simplification of that diagram. It withholds adjacency, which in both designs is what the subject is reasoning about, so the earlier screens were the further departure from the published description rather than the safer one. That is the argument for the change; the claim it supports remains narrow:
+
+> The interface is reconstructed from published figures and distributed stylesheets. No participant data has been collected, and no result has been compared with either paper's. The reconstruction is of what subjects were shown, not evidence about what they did.
+
+Two limits on the claim hold unchanged. The paragraph above about code lineage still applies — copying documented values out of published figures is not a port, and the Breadboard tree still contains no experiment to have ported. And what the interface withholds is unchanged and remains load-bearing: the graph is built from `useNeighbors()`, so it can only ever draw the subject and their own connections. A tie between two of a subject's neighbors is not in it, because that tie is not sent to their browser. Breadboard enforced the same limit server-side and stated it to its subjects in as many words: "You will NOT see the whole network in the game. You will only see your immediate neighbors as shown by the diagram to the left."
+
 ## Selecting the pair
 
 Three Human Nature Lab designs were considered. Each was checked against the paper rather than a summary; the numbers below are read off the papers.

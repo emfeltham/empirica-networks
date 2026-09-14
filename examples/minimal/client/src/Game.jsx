@@ -26,11 +26,11 @@ import React from "react";
 
 /** A five-slot palette, as CSS the graph's attribute selectors can match. */
 const GRAPH_CSS = `
-.nbhd-graph circle[color="red"]    { fill: #ef4444; }
-.nbhd-graph circle[color="amber"]  { fill: #f59e0b; }
-.nbhd-graph circle[color="green"]  { fill: #22c55e; }
-.nbhd-graph circle[color="blue"]   { fill: #3b82f6; }
-.nbhd-graph circle[color="violet"] { fill: #8b5cf6; }
+.nbhd circle[color="red"]    { fill: #ef4444; }
+.nbhd circle[color="amber"]  { fill: #f59e0b; }
+.nbhd circle[color="green"]  { fill: #22c55e; }
+.nbhd circle[color="blue"]   { fill: #3b82f6; }
+.nbhd circle[color="violet"] { fill: #8b5cf6; }
 `;
 
 const COLORS = ["red", "amber", "green", "blue", "violet"];

@@ -202,6 +202,37 @@ the whole intro/exit flow keep working.
 > entirely normal, and quietly corrupt the data. Branch on it the way you already branch on
 > `usePlayer()`.
 
+## 5b. Showing the neighborhood
+
+A list of connections works, and for many designs it is enough. If the subject is reasoning about
+who is connected to whom, draw it:
+
+```jsx
+import {
+  NetworkGraph, NetworkGraphStyles, useNetworkGraph,
+} from "empirica-networks/player/react";
+
+const mine = state?.get("choice");
+const graph = useNetworkGraph(
+  { nodeAttrs: (n) => ({ choice: n.self ? mine : n.data?.choice }) },
+  { choice: mine }
+);
+
+<NetworkGraphStyles extra={`.nbhd-graph circle[choice="A"] { fill: #DD6E00 }`} />
+<NetworkGraph model={graph} fallback={<p>Joining the network…</p>} />
+```
+
+What this draws is a **star**: the participant at the centre, one node per connection, one line to
+each. It cannot show more, because it is built from `useNeighbors()` and a tie between two of your
+neighbors is not in that array. So it costs nothing — no extra data is sent, and no guarantee
+moves. It is also what Breadboard drew, under the same limit.
+
+The same `undefined`-is-not-`[]` caution applies: `useNetworkGraph()` returns `undefined` until the
+first publish, which is what `fallback` is for. Do not substitute an empty graph.
+
+[API.md](API.md#drawing-the-neighborhood) has the attribute-styling rules, the shipped palettes,
+and `describe`, which you should pass whenever state is carried by color.
+
 ## 6. Custom listeners
 
 Two constraints apply here, and both fail silently.

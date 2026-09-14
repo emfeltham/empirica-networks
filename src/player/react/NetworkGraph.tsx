@@ -72,7 +72,7 @@ export function NetworkGraph({
   const { nodes, edges, size } = model;
 
   return (
-    <div className={className ? `nbhd-graph ${className}` : "nbhd-graph"}>
+    <div className={className ? `nbhd nbhd-graph ${className}` : "nbhd nbhd-graph"}>
       <svg
         viewBox={`0 0 ${size} ${size}`}
         preserveAspectRatio="xMidYMid meet"

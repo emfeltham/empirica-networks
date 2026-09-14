@@ -57,7 +57,12 @@ function ActionBadge({ action }) {
 /** One participant, drawn the way the graph draws them. Breadboard's idiom. */
 function MiniNode({ action }) {
   return (
-    <svg viewBox="0 0 80 80" className="w-16 h-16 shrink-0 nbhd-graph" aria-hidden="true">
+    <svg
+      viewBox="0 0 80 80"
+      className="nbhd"
+      style={{ width: 64, height: 64, flexShrink: 0 }}
+      aria-hidden="true"
+    >
       <circle cx="40" cy="40" r="30" {...(action ? { action } : {})} />
     </svg>
   );
@@ -99,8 +104,8 @@ function Decide({ graph, neighbors, state, told, player, action }) {
   const submitted = player.stage.get("submit");
 
   return (
-    <div className="h-full flex flex-col md:flex-row">
-      <div className="h-1/3 md:h-full md:w-1/2 bg-white p-4">
+    <div className="nbhd-split">
+      <div className="nbhd-pane-graph">
         <NetworkGraph
           model={graph}
           ariaLabel="You and the participants you are connected to."
@@ -108,7 +113,7 @@ function Decide({ graph, neighbors, state, told, player, action }) {
         />
       </div>
 
-      <div className="h-2/3 md:h-full md:w-1/2 overflow-auto bg-gray-100 border-l-2 border-gray-200 p-8 space-y-6">
+      <div className="nbhd-pane-side space-y-6">
         <Score score={told?.get("score")} />
         <Feedback feedback={told?.get("rewireFeedback")} />
 
@@ -197,8 +202,8 @@ function Rewire({ graph, state, told, player, action }) {
   };
 
   return (
-    <div className="h-full flex flex-col md:flex-row">
-      <div className="h-1/3 md:h-full md:w-1/2 bg-white p-4">
+    <div className="nbhd-split">
+      <div className="nbhd-pane-graph">
         <NetworkGraph
           model={graph}
           ariaLabel="You and the participants you are connected to."
@@ -206,7 +211,7 @@ function Rewire({ graph, state, told, player, action }) {
         />
       </div>
 
-      <div className="h-2/3 md:h-full md:w-1/2 overflow-auto bg-gray-100 border-l-2 border-gray-200 p-8 space-y-6">
+      <div className="nbhd-pane-side space-y-6">
         <h2 className="text-lg font-semibold">Connections</h2>
 
         {offers.length === 0 ? (
@@ -296,7 +301,11 @@ export function Game() {
         // Marked only once the participant has said to cut it, so the graph
         // reports a decision rather than pre-empting one.
         breaking: !!b.data?.id && answers[b.data.id] === true,
-        focal: !!b.data?.id && breaking.has(b.data.id) ? 1 : 0,
+        // Emitted ONLY while some tie is actually under consideration. Written
+        // unconditionally it is `focal="0"` on every tie whenever there is no
+        // offer, which dims the entire graph through the decide stage — a
+        // faded screen that still shows the right network and says nothing.
+        focal: breaking.size === 0 ? undefined : breaking.has(b.data?.id) ? 1 : 0,
       }),
     },
     { action }
@@ -314,9 +323,9 @@ export function Game() {
   const name = stage?.get("name");
 
   return (
-    <div className="h-full flex flex-col">
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <NetworkGraphStyles extra={COOPERATION_CSS} />
-      <div className="flex-1 min-h-0">
+      <div style={{ flex: 1, minHeight: 0 }}>
         {name === "rewire" ? (
           <Rewire graph={graph} state={state} told={told} player={player} action={action} />
         ) : (
@@ -330,7 +339,7 @@ export function Game() {
           />
         )}
       </div>
-      <p className="px-8 py-2 text-xs text-gray-400 border-t">
+      <p className="pl-48 pr-8 py-2 text-xs text-gray-400 border-t">
         You are node …{self?.playerID?.slice(-6)} with {self?.degree} connection(s).
         Nobody else&apos;s choices are sent to this browser.
       </p>

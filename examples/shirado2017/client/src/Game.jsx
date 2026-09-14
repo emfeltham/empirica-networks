@@ -97,13 +97,13 @@ export function Game() {
   const myConflicts = myColor ? neighborColors.filter((c) => c === myColor).length : 0;
 
   return (
-    <div className="h-full flex flex-col md:flex-row">
+    <div className="nbhd-split">
       <NetworkGraphStyles extra={DARK2_CSS} />
 
       {/* Breadboard's split: the graph on the left at half the width, white,
           and the instructions and choices on the right. Stacks below 800px,
           as its own stylesheet does. */}
-      <div className="h-1/3 md:h-full md:w-1/2 bg-white p-4">
+      <div className="nbhd-pane-graph">
         <NetworkGraph
           model={graph}
           ariaLabel="You and the participants you are connected to."
@@ -119,7 +119,7 @@ export function Game() {
         />
       </div>
 
-      <div className="h-2/3 md:h-full md:w-1/2 overflow-auto bg-gray-100 border-l-2 border-gray-200 p-8 space-y-6">
+      <div className="nbhd-pane-side space-y-6">
         <div>
           <h2 className="text-lg font-semibold">Your color</h2>
           <div className="flex gap-3 mt-2">
@@ -172,7 +172,7 @@ export function Game() {
           in the same millisecond share a long prefix and a truncated head makes
           distinct people look identical.
         */}
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-400 pb-12">
           You are node …{self?.playerID?.slice(-6)} with {self?.degree} connection(s).
           You are seeing your own connections and nothing beyond them.
           {player.get("exitStatus") ? " Session over." : ""}
