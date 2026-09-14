@@ -734,8 +734,16 @@ What is sent is integers, never names or seats. Edges are pairs of indices into 
 browser already holds — `0` the viewer, `1..d` their neighbors in order — so no seating plan
 reaches a participant ([PLATFORM-NOTES.md](PLATFORM-NOTES.md) §4b). The payload counts toward
 `envelope.maxNeighborhoodBytes` and not toward `maxViewBytes`, which detects an over-broad
-`project()` and this did not come from one. A degree-16 neighborhood costs about 1 KB against a
-64 KiB budget.
+`project()` and this did not come from one.
+
+**Measured**, not derived: at most 2.3 KiB at degree 19 and 13 KiB at degree 49, against a 64 KiB
+budget, with no latency cost distinguishable from zero at either size
+([PLATFORM-NOTES.md](PLATFORM-NOTES.md#the-radius-15-structure-measured);
+`npm run bench -- --structure`). This sentence previously quoted an arithmetic figure of "about
+1 KB at degree 16", which was roughly half the real bound — it omitted the star edges and used an
+optimistic per-edge width. The shape to remember is that ties among neighbors grow with the SQUARE
+of degree while the views grow linearly, so at the dense end of the supported regime the structure
+is several times the views it travels with.
 
 `useNetworkStructure()` returns three states, and the third is the point: `undefined` means the
 study runs at radius 1 and a star is correct; `null` means the structure arrived and cannot be

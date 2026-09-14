@@ -93,6 +93,14 @@ makes the entries below meaningful as a baseline rather than a moving target.
   true of the package, and it now states that neither reconstruction sets a radius and what turning
   one on would mean. `docs/TESTING.md` lists all four browser files rather than two, and its
   baseline counts are current. `docs/GLOSSARY.md` defines "radius" and "structure".
+- `npm run bench -- --structure` measures both radii on dense cells in one sweep, and
+  `docs/PLATFORM-NOTES.md` §19 records the result (`ISSUES.md` O19). Two findings: the latency cost
+  of radius 1.5 is not distinguishable from zero at n ≤ 50, and the SIZE was documented at roughly
+  half its real bound — `docs/API.md` said "about 1 KB at degree 16", which omitted the star edges
+  and used an optimistic per-edge width. It is 2.3 KiB at degree 19 and 13 KiB at degree 49, still
+  well inside the 64 KiB default. Ties among neighbors grow with the square of degree while the
+  views grow linearly, so a figure quoted from a sparse cell understates it badly. O1's caveat
+  applies to the latency numbers exactly as it does to the rest of §18 and §19.
 - `examples/minimal` captures views and ships a `recover.mjs` that rebuilds `structure.csv` and
   `positions.csv` from them (`ISSUES.md` O25). It is the only example that can run at radius 1.5,
   and it was the only one with no recovery script — so the shipped demonstration of the offline path

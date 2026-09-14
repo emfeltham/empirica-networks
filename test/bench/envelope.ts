@@ -13,6 +13,7 @@
  *   npm run bench -- --rounds 200
  *   npm run bench -- --repeats 3        # what SPIKE-REPORT §5-6 asks for
  *   npm run bench -- --dense --payload 1024   # degree x VIEW SIZE, not degree alone
+ *   npm run bench -- --structure               # both radii, paired, on dense cells
  *
  * And, for the absolute figure `ISSUES.md` O1 still wants, two machines:
  *   npm run bench -- --agent                          # on the client host
@@ -84,6 +85,14 @@ interface Cell {
    * that is only expressible if the payload rides on the cell.
    */
   payload?: number;
+  /**
+   * `graph.radius` for this cell. Defaults to 1, where nothing extra is sent.
+   *
+   * On the cell rather than global for the same reason `payload` is: a sweep
+   * carries a shared offset, so "what does the structure cost?" is only a
+   * question if both arms are measured inside one sweep.
+   */
+  radius?: 1 | 1.5;
 }
 
 const degreeOfCell = (c: Cell): number => (c.dense ? c.n - 1 : 2 * c.m);
@@ -138,6 +147,27 @@ const BYTES_CELLS: Cell[] = [
   { n: 20, m: 0, dense: true, payload: 1024 }, // d=19, ~21 KiB
   { n: 50, m: 0, dense: true, payload: 0 },    // d=49, ~3.7 KiB
   { n: 50, m: 0, dense: true, payload: 1024 }, // d=49, ~54 KiB — near the limit
+];
+
+/**
+ * The two radii, paired, on the two densest shapes this package supports.
+ *
+ * Paired inside ONE sweep for the reason `Cell.payload` documents: a sweep
+ * carries a shared offset, and the same cell has measured 7.3ms and 18.3ms an
+ * hour apart while repeats within a sweep agreed to under 10%. Comparing a
+ * radius 1.5 sweep against radius 1 numbers recorded earlier would mostly
+ * measure the two sweeps.
+ *
+ * Dense, because the structure is the only payload here that grows with the
+ * SQUARE of degree: a complete neighborhood of d+1 has every pair tied, so this
+ * is the worst case rather than a typical one, and a figure quoted from a
+ * sparse cell would understate it by a lot.
+ */
+const STRUCTURE_CELLS: Cell[] = [
+  { n: 20, m: 0, dense: true, radius: 1 },
+  { n: 20, m: 0, dense: true, radius: 1.5 },
+  { n: 50, m: 0, dense: true, radius: 1 },
+  { n: 50, m: 0, dense: true, radius: 1.5 },
 ];
 
 const DENSE_CELLS: Cell[] = [
@@ -205,6 +235,15 @@ const REPEATS = Math.max(1, flag("repeats", 1));
  * affected — `tick` is what changes between rounds, exactly as before.
  */
 const PAYLOAD = Math.max(0, flag("payload", 0));
+/**
+ * `--radius 1.5` puts every cell at the wider radius unless it names its own.
+ *
+ * The structure payload is not a neighbor view — it is one extra value per
+ * participant per publish, counted against `maxNeighborhoodBytes` and not
+ * against `maxViewBytes` — so it is the one cost in this file that `--payload`
+ * cannot express.
+ */
+const RADIUS: 1 | 1.5 = flag("radius", 1) === 1.5 ? 1.5 : 1;
 /**
  * `--assert`: exit non-zero on a CORRECTNESS regression. Never on a slow one.
  *
@@ -290,6 +329,7 @@ const SAMPLE_ID = "x".repeat(36);
 const SAMPLE_TICK = "999:1755300000000.123";
 
 const payloadOf = (c: Cell): number => c.payload ?? PAYLOAD;
+const radiusOf = (c: Cell): 1 | 1.5 => c.radius ?? RADIUS;
 
 /** What one view and one whole neighborhood weigh, at this payload and degree. */
 function viewSizes(d: number, payload: number): { view: number; nbhd: number } {
@@ -300,6 +340,24 @@ function viewSizes(d: number, payload: number): { view: number; nbhd: number } {
   );
   // The array the participant actually receives: d views, brackets and commas.
   return { view, nbhd: d * view + Math.max(0, d - 1) + 2 };
+}
+
+/**
+ * What the radius 1.5 structure payload weighs, at worst, for one participant.
+ *
+ * An upper bound rather than the real figure, because it is used to SIZE THE
+ * ENVELOPE and the envelope throws. The real number is what the run reports.
+ *
+ * The neighborhood is d+1 nodes. Its ties are at most every pair — that is the
+ * complete case, and `--dense` is the cell this matters on — so `(d+1)d/2`
+ * edges, each serialised as `[nn,nn]`, plus a position per node as
+ * `{"x":nnn,"y":nnn}`, plus the radius and the brackets.
+ */
+function structureBytes(d: number, radius: number): number {
+  if (radius <= 1) return 0;
+  const nodes = d + 1;
+  const edges = (nodes * (nodes - 1)) / 2;
+  return edges * 10 + nodes * 20 + 64;
 }
 
 const SHARD_ENTRY = process.env.BENCH_SHARD;
@@ -580,7 +638,11 @@ let clients: ClientHost = localHost();
 
 const describeCell = (c: Cell): string =>
   `  n=${String(c.n).padStart(3)}  d=${String(degreeOfCell(c)).padStart(2)}` +
-  `  pad=${String(payloadOf(c)).padStart(4)}B`;
+  `  pad=${String(payloadOf(c)).padStart(4)}B` +
+  // Printed always, not only at 1.5. A figure quoted from this output should
+  // carry what it was measured at, and a line that says nothing at radius 1 is
+  // a line a reader will assume is radius 1 — which is right until it is not.
+  `  r=${radiusOf(c)}`;
 
 /**
  * The repeat summary — the line a published number should be quoted from.
@@ -655,6 +717,12 @@ async function runCell(cell: Cell): Promise<CellResult> {
   const payload = payloadOf(cell);
   const pad = "p".repeat(payload);
   const sizes = viewSizes(d, payload);
+  const radius = radiusOf(cell);
+  // The structure rides on the same neighborhood budget as the views, so the
+  // limit has to cover both or the cell throws instead of measuring — which is
+  // the trap, because `onExceed: "throw"` makes that look like a defect rather
+  // than a bench that did not account for its own payload.
+  const structure = structureBytes(d, radius);
   // Never fewer than two: one shard means every participant is back in a single
   // event loop, which is the arrangement this rewrite exists to escape.
   const shardCount = Math.min(MAX_SHARDS, Math.max(2, Math.ceil(n / PER_SHARD)));
@@ -688,7 +756,7 @@ async function runCell(cell: Cell): Promise<CellResult> {
       envelope: {
         maxDegree: Math.max(16, d),
         maxViewBytes: Math.max(8192, sizes.view * 2),
-        maxNeighborhoodBytes: Math.max(65536, sizes.nbhd * 2),
+        maxNeighborhoodBytes: Math.max(65536, (sizes.nbhd + structure) * 2),
         onExceed: "throw",
       },
     });
@@ -844,6 +912,7 @@ async function runCell(cell: Cell): Promise<CellResult> {
               `first/last third ${early.toFixed(1)}/${late.toFixed(1)}ms  ` +
               `1st channel ${result.firstChannelMs === undefined ? "NEVER" : `${result.firstChannelMs}ms`}  ` +
               `view ${sizes.view}B  nbhd ${(sizes.nbhd / 1024).toFixed(1)}KiB  ` +
+              (structure > 0 ? `structure <=${(structure / 1024).toFixed(1)}KiB  ` : "") +
               `delivered ${sorted.length}/${expected} receipts` +
               `${silent > 0 ? `, ${silent} SILENT ROUNDS` : ""}` +
               `, clock spread ${clockSpread.toFixed(1)}ms`
@@ -940,7 +1009,9 @@ async function main(): Promise<void> {
       process.exit(2);
     }
   }
-  const cells = argv.includes("--bytes")
+  const cells = argv.includes("--structure")
+    ? STRUCTURE_CELLS
+    : argv.includes("--bytes")
     ? BYTES_CELLS
     : argv.includes("--dense")
       ? DENSE_CELLS

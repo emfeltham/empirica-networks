@@ -255,26 +255,3 @@ the first datum this entry has ever had that is not an inference.
 
 *Still done when:* the platform path is reproduced — the mechanism in §20 says where to look — or
 `lateProvisioned` is zero across a real deployment, which is the first thing to read off one.
-
-### O19. The radius 1.5 envelope figures are arithmetic, not measurement — **debt**
-
-**Evidence:** `docs/API.md` §"Showing the ties among a participant's neighbors"; `CHANGELOG.md`;
-`test/bench/envelope.ts`.
-
-The structure payload is documented as costing "about 1 KB at degree 16 against a 64 KiB
-`maxNeighborhoodBytes`". That number was computed, not observed: at most 120 neighbor-neighbor
-pairs at six bytes each plus seventeen positions. Nothing has ever weighed one.
-
-This is the same kind of gap §18 and §19 of `docs/PLATFORM-NOTES.md` were written to close for
-degree and view size, and it is worth naming for the same reason: the prose around it reads as
-measured, and a reader deciding whether radius 1.5 fits their deployment would be entitled to
-treat it that way. `npm run bench` has no radius flag and no cell at 1.5, so there is no sweep to
-point at either.
-
-Two things the arithmetic does not cover, and neither is small. Ties among neighbors scale with
-the SQUARE of degree while the neighbor views scale linearly, so the ratio the figure describes
-holds only at the degree it was computed at. And the layout runs per viewer per shape change on
-the server, which is CPU rather than bytes and is not in the envelope at all.
-
-*Done when:* `npm run bench` accepts a radius and has at least one cell at 1.5 on a dense graph,
-and the figures in `docs/API.md` either come from it or say they do not.

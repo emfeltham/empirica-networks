@@ -849,6 +849,44 @@ is a defensible place for a safeguard, and it is a measured statement rather tha
 one. One run showed a p99 of 258 ms against a 72 ms p95, so the tail at that size deserves more
 attention than the median.
 
+### The radius 1.5 structure, measured
+
+Measured 2026-09-14, `npm run bench -- --structure --rounds 30`, `@empirica/core@1.12.5`, macOS,
+loopback, one run per cell. Both radii in ONE sweep, because the offset below means a comparison
+across two sweeps mostly measures the sweeps.
+
+| cell | neighborhood / publish | structure, at most | p50 | p95 | receipts |
+|---|---|---|---|---|---|
+| n=20 d=19, radius 1 | 1.4 KiB | — | 12.1 ms | 14.7 ms | 475/475 |
+| n=20 d=19, radius 1.5 | 1.4 KiB | 2.3 KiB | 11.0 ms | 14.9 ms | 475/475 |
+| n=50 d=49, radius 1 | 3.7 KiB | — | 21.7 ms | 27.3 ms | 1225/1225 |
+| n=50 d=49, radius 1.5 | 3.7 KiB | 13.0 KiB | 21.5 ms | 27.0 ms | 1225/1225 |
+
+Two results, and the second is the one worth having.
+
+The latency cost is not distinguishable from zero at either size — 1.1 ms apart at d=19 and 0.2 ms
+at d=49, both inside the within-sweep spread §19 already documents, and with every receipt
+arriving at both radii. That is unsurprising once stated: the structure is one extra value per
+participant per publish, while the views are d of them, and the payload sweep above shows latency
+tracking total bytes rather than the number of writes.
+
+**The SIZE, however, was documented at roughly half its real bound.** `docs/API.md` said "a
+degree-16 neighborhood costs about 1 KB", computed as the neighbor-to-neighbor pairs and their
+positions. Two things were missing: the star edges, which are part of the same payload, and a
+realistic per-edge width. The bound is ~1.7 KiB at degree 16 and 13 KiB at degree 49 — which is
+the more important half, because ties among neighbors grow with the SQUARE of degree while the
+views grow linearly. At the dense end of this package's regime the structure is roughly three and
+a half times the views it accompanies, and a figure quoted from a sparse cell understates it badly.
+
+Still well inside the 64 KiB `maxNeighborhoodBytes` default, so nothing needs a new limit. What
+changes is the claim: this is now measured rather than derived, and the derivation was wrong in
+the direction that matters.
+
+`ISSUES.md` O1 applies to the latency figures here exactly as it does to §18 and the table above:
+macOS, one run per cell, clients sharing the host with the server. They are upper bounds and
+relative to each other, which is all the comparison above needs, and they are not absolute
+measurements.
+
 ### The sweep-level offset is caused by the machine's power management, and idle is the slow case
 
 Measured 2026-08-16. `ISSUES.md` O1 carried an unexplained offset of roughly fivefold: the
