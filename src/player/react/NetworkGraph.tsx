@@ -14,6 +14,12 @@ import type { GraphModel, GraphNode } from "../graph.js";
  * NO DRAG, NO ZOOM, NO PAN, NO TOOLTIPS. Not an omission: Breadboard's client
  * has none of them either, and each one is a way for a participant to spend the
  * session exploring an interface instead of playing the game being measured.
+ *
+ * Above radius 1.5 some nodes are people the viewer is NOT connected to. They
+ * get `.nbhd-node-far` so a stylesheet can say so, and they are the reason
+ * `label` may be called for a node carrying no data at all: a design that wants
+ * a distant person labelled has only the name the server gave this viewer for
+ * them (`GraphNode.ref`), which is deliberately not an id.
  */
 
 export interface NetworkGraphProps {
@@ -102,7 +108,13 @@ export function NetworkGraph({
             return (
               <g
                 key={n.index}
-                className={n.self ? "nbhd-node nbhd-node-self" : "nbhd-node"}
+                className={
+                  n.self
+                    ? "nbhd-node nbhd-node-self"
+                    : n.distance > 1
+                      ? "nbhd-node nbhd-node-far"
+                      : "nbhd-node"
+                }
                 transform={`translate(${n.at.x},${n.at.y})`}
               >
                 <circle r={n.r} {...n.attrs} />

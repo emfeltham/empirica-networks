@@ -25,7 +25,21 @@
  * Radii above 1 are a different thing and are NOT drawn from local data: they
  * need a subgraph the server computed and sent. See `subgraph` below, and note
  * `expectSubgraph` — the one place where getting this wrong would look right.
+ *
+ * Above 1.5 the picture also contains people the viewer is not connected to, and
+ * the node list therefore comes from the PAYLOAD rather than from `neighbors`.
+ * That distinction is the whole of it: built from `neighbors`, a radius 2 payload
+ * rendered as a complete, internally consistent radius 1.5 picture — outer ring
+ * gone, every edge touching it dropped by the guard in `graphModelOf`, and
+ * nothing anywhere saying so.
  */
+
+// `import type` and nothing else, so this module still contributes no runtime
+// import to a client bundle. Declared in `shared/keys.ts` and imported rather
+// than restated, because a structural copy of a wire type is what caused O21:
+// `graph` was added to the canonical one and not to the duplicate, and the
+// checker that should have caught it did not have the field in scope.
+import type { FarNode } from "../shared/keys.js";
 
 export interface Point {
   x: number;
@@ -49,6 +63,10 @@ export interface GraphNode {
   self: boolean;
   /** The projected view for this neighbor. `undefined` on the viewer's node. */
   data: unknown;
+  /** Hops from the viewer. `0`, `1`, or more. */
+  distance: number;
+  /** This viewer's private name for a person beyond distance 1. */
+  ref?: string;
   /** Center, in view units. */
   at: Point;
   r: number;
@@ -92,6 +110,13 @@ export interface GraphModel {
 export interface Subgraph {
   edges: Array<[number, number]>;
   positions?: Point[];
+  /**
+   * People in the picture with no entry in `neighbors`, above radius 1.5.
+   *
+   * Local indices `1 + neighbors.length` onward, in this array's order, so the
+   * three groups concatenate: viewer, neighbors, these.
+   */
+  far?: FarNode[];
 }
 
 /** One endpoint, as handed to the attribute callbacks. */
@@ -99,6 +124,23 @@ export interface NodeRef {
   index: number;
   self: boolean;
   data: unknown;
+  /**
+   * Hops from the viewer: `0` for the viewer, `1` for a neighbor, more beyond.
+   *
+   * Worth styling on. A design that draws the second ring like the first is
+   * telling a participant that somebody they cannot interact with is somebody
+   * they can.
+   */
+  distance: number;
+  /**
+   * What this viewer calls a person they are not connected to.
+   *
+   * Present only beyond distance 1. It is not an id and not a seat — it is a
+   * name that is this viewer's alone for that person, so two participants
+   * comparing screens cannot line them up. Stable for the session, which is what
+   * makes "the same stranger as last round" a question a design can ask.
+   */
+  ref?: string;
 }
 
 export interface GraphOptions {
@@ -108,6 +150,15 @@ export interface GraphOptions {
   egoRadius?: number;
   /** Default 30, Breadboard's `alterNodeR`. */
   alterRadius?: number;
+  /**
+   * Radius of a node beyond distance 1. Default 18.
+   *
+   * Smaller than an alter by default, and deliberately so: a participant can act
+   * on a neighbor and cannot act on anybody further out, so drawing the two the
+   * same size would invite them to try. Breadboard has no value for this because
+   * Breadboard never drew one.
+   */
+  farRadius?: number;
   /** Clearance between the outermost circle and the box. Default 10. */
   padding?: number;
   /**
@@ -159,6 +210,7 @@ const DEFAULTS = {
   size: 600,
   egoRadius: 50,
   alterRadius: 30,
+  farRadius: 18,
   padding: 10,
   rotation: -Math.PI / 2,
 };
@@ -215,28 +267,51 @@ export function graphModelOf(
   const size = opts.size ?? DEFAULTS.size;
   const egoRadius = opts.egoRadius ?? DEFAULTS.egoRadius;
   const alterRadius = opts.alterRadius ?? DEFAULTS.alterRadius;
+  const farRadius = opts.farRadius ?? DEFAULTS.farRadius;
   const center = size / 2;
 
   const positions = subgraph?.positions;
-  const ring = positions ? positions.slice(1) : egoRingLayout(neighbors.length, opts);
-  const egoAt = positions?.[0] ?? { x: center, y: center };
+  const ring = positions ? undefined : egoRingLayout(neighbors.length, opts);
 
+  /**
+   * The three groups, concatenated in the order the local indices name them.
+   *
+   * Built from the PAYLOAD and not from `neighbors` alone. That was the whole
+   * bug this had to lose: with the node list taken from `neighbors`, a radius 2
+   * payload produced a complete, internally consistent radius 1.5 picture, its
+   * outer ring dropped and every edge touching it discarded by the guard below —
+   * correct-looking, and about a study nobody was running.
+   */
   const refs: NodeRef[] = [
-    { index: 0, self: true, data: self },
-    ...neighbors.map((data, i) => ({ index: i + 1, self: false, data })),
+    { index: 0, self: true, data: self, distance: 0 },
+    ...neighbors.map((data, i) => ({ index: i + 1, self: false, data, distance: 1 })),
+    ...(subgraph?.far ?? []).map((f, i) => ({
+      index: 1 + neighbors.length + i,
+      self: false,
+      // `undefined` unless the study projected at distance, which is the
+      // default. A far node is a shape and a name, not a person's data.
+      data: f.view,
+      distance: f.d,
+      ref: f.ref,
+    })),
   ];
 
   const nodes: GraphNode[] = refs.map((ref, i) => ({
     index: ref.index,
     self: ref.self,
     data: ref.data,
+    distance: ref.distance,
+    ...(ref.ref === undefined ? {} : { ref: ref.ref }),
     // A projection longer than the layout cannot happen through the hooks, but
     // `graphModelOf` is also called with hand-built inputs in tests and by
     // headless clients, and a missing point would otherwise produce NaN
     // coordinates, which SVG renders as nothing at all — an empty picture that
     // looks like a study with no ties.
-    at: ref.self ? egoAt : (ring[i - 1] ?? { x: center, y: center }),
-    r: ref.self ? egoRadius : alterRadius,
+    at: positions?.[i] ?? (ref.self ? { x: center, y: center } : ring?.[i - 1]) ?? {
+      x: center,
+      y: center,
+    },
+    r: ref.self ? egoRadius : ref.distance > 1 ? farRadius : alterRadius,
     attrs: svgAttrs(opts.nodeAttrs?.(ref)),
   }));
 
