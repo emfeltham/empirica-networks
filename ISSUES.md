@@ -360,27 +360,6 @@ it is also a code change rather than a command.
 *Done when:* `--topology` reaches at least one more triangle-rich shape, either by accepting a
 parameter or by naming a fixed-parameter variant and saying which parameter was fixed.
 
-### O24. `line[making="1"]` ships and nothing can set it
-
-**Evidence:** `src/player/react/styles.tsx` `COOPERATION_CSS`;
-`examples/rand2011/client/src/Game.jsx` `edgeAttrs`.
-
-`COOPERATION_CSS` carries a rule for a tie being FORMED, alongside the one for a tie being cut.
-The cut rule is reachable and the examples use it. The form rule is not reachable at all: an offer
-to form a tie is about somebody the viewer is not connected to, so by construction that person is
-not on the viewer's graph and there is no line to style.
-
-Small, and worth an entry because it is a claim rather than dead code. The stylesheet is
-documented as the shipped Breadboard palette, so a reader would reasonably conclude that this
-package can draw a tie being formed, and it cannot.
-
-Two defensible fixes and they say different things. Remove the rule, and the stylesheet describes
-what the component does. Keep it and document it as being for designs that put a candidate on the
-graph as a provisional node — which is a feature nothing here implements and which would need the
-candidate's data to reach the browser, a disclosure decision rather than a styling one.
-
-*Done when:* the rule is removed, or something can set it.
-
 ### O25. The offline recovery path cannot rebuild a radius 1.5 study's screens
 
 **Evidence:** `examples/rand2011/recover.mjs:38`, `examples/shirado2017/recover.mjs:40`;

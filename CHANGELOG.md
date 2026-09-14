@@ -84,13 +84,8 @@ makes the entries below meaningful as a baseline rather than a moving target.
   in Breadboard's distribution — so a list was the further departure from the published
   description, not the safer one. The claim stays narrow, and what the screens withhold is
   unchanged.
-- `ISSUES.md` gains O19–O26, recording what radius 1.5 does not yet reach: its envelope figures are
-  arithmetic rather than measurement; bots cannot see the structure, so at that radius an artificial
-  participant plays a different game from the humans around it; `auditViews` ignores it, leaving
-  `simulate`'s leak check silent about half a delivery while `verify` covers it; the monitor does
-  not report the radius; `wheel` is the only named CLI topology that can demonstrate it;
-  `line[making="1"]` ships unreachable; the offline recovery scripts cannot rebuild a radius 1.5
-  study's screens; and `simulate` has no notion of radius.
+- `ISSUES.md` gained O19–O26, recording what radius 1.5 did not reach. Those closed since are
+  listed individually below; what remains open is named there.
 - Documentation caught up with the branch. `README.md` shows the graph display in its quick start
   and names it in the navigation table — it was mentioned nowhere outside the verifier's output.
   `docs/EXPERIMENTS.md` **corrects a claim that had become false**: it said the graph "can only ever
@@ -98,6 +93,15 @@ makes the entries below meaningful as a baseline rather than a moving target.
   true of the package, and it now states that neither reconstruction sets a radius and what turning
   one on would mean. `docs/TESTING.md` lists all four browser files rather than two, and its
   baseline counts are current. `docs/GLOSSARY.md` defines "radius" and "structure".
+- `line[making="1"]` is gone from `COOPERATION_CSS` (`ISSUES.md` O24). Nothing could set it: an
+  offer to form a tie is about somebody the viewer is not connected to, so that person is not on
+  the viewer's graph and there is no line to style. Its absence is now stated in the sheet, because
+  Breadboard's own carries such a rule and a reader would otherwise conclude this component can
+  draw one.
+- The comment on `provision.ts`'s channel index no longer claims restart recovery is unimplemented
+  and tracked as a known gap. It is implemented — `adoptChannel`, called from the OWNER listener,
+  is what lets `tryRecover` rebuild a live game — and it was tracked nowhere, so the comment sent a
+  reader looking for a register entry that never existed.
 - `edgeKey` has one implementation instead of three. `monitor/payload.ts` had a private copy and
   `graph_payload.ts` inlined a third, which is two too many for a function whose whole job is that
   two callers agree about when a graph has changed — and the inlined one skipped the `a < b`

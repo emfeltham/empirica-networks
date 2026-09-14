@@ -56,11 +56,18 @@ export type ChannelMap = Record<string, string>;
 /**
  * Server-side channel index, keyed by game id.
  *
- * Deliberately NOT persisted to any scope: see note 4 above. The cost is that a
- * server restart mid-game loses the index. Recovery is possible — the nbhd
- * scopes carry immutable owner/playerID attributes, so the map can be rebuilt by
- * scanning scopes of our kind — but that is not implemented yet and is tracked
- * as a known gap rather than silently assumed to work.
+ * Deliberately NOT persisted to any scope: see note 4 above. A server restart
+ * therefore starts with it empty, and it is REBUILT rather than lost: the nbhd
+ * scopes carry immutable owner and playerID attributes, so a restarted process
+ * repopulates this map from the channels themselves as the kind subscription
+ * replays them — `adoptChannel` below, called from the OWNER listener in
+ * `with_network.ts`. That is what lets `tryRecover` put a live game back
+ * together, and `test/e2e/restart.test.ts` holds it.
+ *
+ * What is NOT recovered is the seating gap: a channel that predates the seat
+ * attribute leaves a hole in the order, and recovery refuses rather than
+ * guessing who sits where. Guessing produces a plausible network in which the
+ * wrong people are neighbors, which looks normal for the rest of the run.
  */
 const channelStore = new Map<string, ChannelMap>();
 
