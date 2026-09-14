@@ -93,6 +93,15 @@ makes the entries below meaningful as a baseline rather than a moving target.
   true of the package, and it now states that neither reconstruction sets a radius and what turning
   one on would mean. `docs/TESTING.md` lists all four browser files rather than two, and its
   baseline counts are current. `docs/GLOSSARY.md` defines "radius" and "structure".
+- `auditViews` checks the structure (`ISSUES.md` O21), so `simulate`'s leak check is no longer
+  silent about half a radius 1.5 delivery. Every delivered tie must join two people the viewer could
+  see and must exist in the edge log, and a run that delivered structure without ever showing a tie
+  beyond a viewer's own star is reported as vacuous — that is what radius 1 already draws.
+
+  The root cause was a duplicate type: `audit.ts` restated `ViewRecord` structurally, under a
+  comment naming `src/shared/keys.ts` as its source, and did not follow it when `graph` was added.
+  It now imports the canonical one; `import type` is erased, so the module is still import-free at
+  runtime.
 - The monitor states the radius (`ISSUES.md` O22). It draws the complete network, so an operator
   could not tell whether the people in it were looking at a star or at the ties among their own
   connections. `GameSnapshot.recordedRadius` carries what the run's own data says alongside what is

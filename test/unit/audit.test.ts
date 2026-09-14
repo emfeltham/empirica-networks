@@ -277,3 +277,119 @@ test("only this game's connected rows are read", () => {
   ].join("\n");
   assert.equal(structuralEdges(csv, "g1", ["p0", "p1"]).length, 1);
 });
+
+// ------------------------------------------- the structure (radius 1.5)
+//
+// The arm that had to exist separately: everything above checks `view`, whose
+// entries are other people's ATTRIBUTES. What radius 1.5 adds is integers, so a
+// payload naming ties to strangers carries no attribute at all and every count
+// above stays clean however wrong it is.
+//
+// The graph for these is the same `a-b`, `a-c` path, so `a` sees both and `b`
+// and `c` see only `a`. `b` and `c` are NOT tied, which is what makes a claimed
+// tie between them a fabrication rather than a matter of visibility.
+
+/** One delivery to `a`, whose neighbors are `b` and `c` at local 1 and 2. */
+const deliveryToA = (edges: Array<[number, number]>, radius = 1.5) => ({
+  gameID: "g1",
+  viewer: "a",
+  seq: 1,
+  at: 1000,
+  view: [{ id: "b" }, { id: "c" }],
+  graph: { radius, edges, positions: [] },
+});
+
+test("a structure whose ties are all real and visible passes, and is counted", () => {
+  // `a` is tied to both, and this graph has no b-c tie, so the honest payload
+  // for `a` is its own star. That is a legitimate delivery and must not fail —
+  // but it is also not evidence that radius 1.5 did anything, which is what the
+  // vacuity arm below is for.
+  const r = auditViews({
+    views: ndjson(deliveryToA([[0, 1], [0, 2]])),
+    edges: edges(),
+  });
+  assert.equal(r.structureLeaks, 0);
+  assert.equal(r.tiesChecked, 2);
+  assert.equal(r.structuredRecords, 1);
+  assert.equal(r.beyondStar, 0, "a star carries nothing beyond itself");
+  assert.match(r.failures.join(" "), /VACUOUS/, "and a run of only stars proves nothing");
+});
+
+test("a tie between two neighbors is counted as the thing radius 1.5 adds", () => {
+  // A triangle this time, so b-c is real.
+  const triangle = parseEdgesCsv(
+    [
+      `"game_id","t","event","player_a","player_b"`,
+      `"g1","1000","connected","a","b"`,
+      `"g1","1000","connected","a","c"`,
+      `"g1","1000","connected","b","c"`,
+    ].join("\n")
+  );
+  const r = auditViews({
+    views: ndjson(deliveryToA([[0, 1], [0, 2], [1, 2]])),
+    edges: triangle,
+  });
+  assert.equal(r.structureLeaks, 0);
+  assert.equal(r.beyondStar, 1, "the b-c tie is the one not incident to the viewer");
+  assert.ok(r.pass, `should pass:\n${r.failures.join("\n")}`);
+});
+
+test("a fabricated tie fails, and the message names both people", () => {
+  // b and c are not connected in this graph. Claiming they are is not a leak of
+  // anybody's state — it is a drawing of a network that does not exist, and no
+  // check above this one can see it.
+  const r = auditViews({
+    views: ndjson(deliveryToA([[0, 1], [0, 2], [1, 2]])),
+    edges: edges(),
+  });
+  assert.equal(r.structureLeaks, 1);
+  assert.equal(r.pass, false);
+  assert.match(r.failures.join(" "), /are connected.*they are not|STRUCTURE/);
+  assert.match(r.failures.join(" "), /\bb\b/);
+  assert.match(r.failures.join(" "), /\bc\b/);
+});
+
+test("a tie naming an index nobody was sent fails rather than resolving to nothing", () => {
+  // Local 5 is outside a two-neighbor delivery. Left unchecked it would be
+  // drawn against whatever coordinate sat at that index — a line between two
+  // real people who are not tied.
+  const r = auditViews({
+    views: ndjson(deliveryToA([[0, 1], [0, 5]])),
+    edges: edges(),
+  });
+  assert.equal(r.structureLeaks, 1);
+  assert.match(r.failures.join(" "), /outside the neighborhood they were sent/);
+});
+
+test("a radius 1 run reports no structure at all, and is not asked to", () => {
+  // The default must stay silent here: no counters, no vacuity complaint, and
+  // no report lines that would read as "checked, found nothing".
+  const r = auditViews({ views: CLEAN, edges: edges() });
+  assert.equal(r.structuredRecords, 0);
+  assert.equal(r.tiesChecked, 0);
+  assert.equal(r.beyondStar, 0);
+  assert.ok(r.pass);
+  assert.doesNotMatch(formatAuditResult(r), /ties between neighbors/);
+});
+
+test("the structural counts survive a merge", () => {
+  // `mergeAuditResults` sums field by field, so a new counter it does not know
+  // about is silently dropped and an arm reports zero over real findings.
+  const triangle = parseEdgesCsv(
+    [
+      `"game_id","t","event","player_a","player_b"`,
+      `"g1","1000","connected","a","b"`,
+      `"g1","1000","connected","a","c"`,
+      `"g1","1000","connected","b","c"`,
+    ].join("\n")
+  );
+  const one = auditViews({
+    views: ndjson(deliveryToA([[0, 1], [0, 2], [1, 2]])),
+    edges: triangle,
+  });
+  const merged = mergeAuditResults([one, one]);
+  assert.equal(merged.tiesChecked, one.tiesChecked * 2);
+  assert.equal(merged.beyondStar, one.beyondStar * 2);
+  assert.equal(merged.structuredRecords, one.structuredRecords * 2);
+  assert.equal(merged.structureLeaks, 0);
+});

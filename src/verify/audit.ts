@@ -37,14 +37,21 @@ interface Parsed<T> {
   dropped: number;
 }
 
-/** One delivered view, as `src/shared/keys.ts` defines it. Structural, not imported. */
-interface ViewRecord {
-  gameID: string;
-  viewer: string;
-  seq: number;
-  at: number;
-  view: unknown[];
-}
+/**
+ * One delivered view.
+ *
+ * IMPORTED, not restated. This was a structural copy carrying a comment saying
+ * "as `src/shared/keys.ts` defines it" — and then `graph` was added to the
+ * canonical one and not to this, so `record.graph` was not even in scope here
+ * and half of every radius 1.5 delivery went unaudited without a line of code
+ * looking wrong. A duplicate that names its own source is a duplicate that will
+ * drift from it.
+ *
+ * `import type` is erased at compile time and `keys.ts` has no imports of its
+ * own, so the file is still import-free at runtime, which is what the note
+ * above about `parseNdjson` actually cares about.
+ */
+import type { ViewRecord } from "../shared/keys.js";
 
 /** A game's realized graph: player id to the set of player ids it may see. */
 export type NeighborMap = Map<string, Set<string>>;
@@ -71,6 +78,14 @@ export interface SessionAudit {
   deliveries: number;
   leaks: number;
   missing: number;
+  /** Ties examined in delivered structure. The denominator for `structureLeaks`. */
+  ties: number;
+  /** Ties that joined two people the viewer could not both see, or that did not exist. */
+  structureLeaks: number;
+  /** Ties delivered that were NOT incident to the viewer — what radius 1.5 adds. */
+  beyondStar: number;
+  /** Records that carried a structure at all. */
+  structured: number;
 }
 
 export interface AuditResult {
@@ -84,6 +99,25 @@ export interface AuditResult {
   leaks: number;
   /** Neighbors absent from a view that should have carried them. */
   missingDeliveries: number;
+  /**
+   * Ties examined across every delivered structure. The denominator for
+   * `structureLeaks`, and zero for a study at the default radius, where none is
+   * sent and none is expected.
+   */
+  tiesChecked: number;
+  /** Ties naming somebody the viewer could not see, or that never existed. Must be 0. */
+  structureLeaks: number;
+  /**
+   * Ties delivered beyond the viewer's own star, summed.
+   *
+   * The non-vacuity figure for radius 1.5, and the reason the arm is not
+   * satisfied by a structure payload full of nothing but the star: that is what
+   * radius 1 draws, and a run delivering it has published the extra channel and
+   * put nothing in it.
+   */
+  beyondStar: number;
+  /** Records carrying a structure. Zero at the default radius. */
+  structuredRecords: number;
   /** Games with a graph but no delivered view. Not a pass. */
   vacuousSessions: string[];
   /** Lines that would not parse — the expected cause is a hard kill. */
@@ -223,7 +257,10 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
 
   const perSession = new Map<string, SessionAudit>();
   for (const gameID of graphs.keys()) {
-    perSession.set(gameID, { gameID, records: 0, deliveries: 0, leaks: 0, missing: 0 });
+    perSession.set(gameID, {
+      gameID, records: 0, deliveries: 0, leaks: 0, missing: 0,
+      ties: 0, structureLeaks: 0, beyondStar: 0, structured: 0,
+    });
   }
 
   for (const gameID of rewired) {
@@ -289,6 +326,66 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
     for (const n of neighbors) {
       if (!seen.has(n)) session.missing++;
     }
+
+    // ---- the structure, at radius 1.5 ------------------------------------
+    //
+    // Everything above is about `view`, and what it checks are other people's
+    // ATTRIBUTES. The bytes radius 1.5 adds are integers, so a payload naming
+    // ties to strangers carries nothing the loop above could notice and every
+    // count it produces stays clean. These are the arms `verify` added at the
+    // wire, applied to the file.
+    const g = r.graph;
+    if (!g) continue;
+    session.structured++;
+
+    // Local index 0 is the viewer; 1..d index this record's own view, in
+    // delivery order. Resolved from the record rather than from the graph,
+    // because that is the mapping the participant was actually sent.
+    const localToPlayer: Array<unknown> = [
+      r.viewer,
+      ...(r.view ?? []).map((entry) =>
+        entry !== null && typeof entry === "object" && !Array.isArray(entry)
+          ? (entry as Record<string, unknown>)["id"]
+          : undefined
+      ),
+    ];
+
+    for (const edge of g.edges ?? []) {
+      session.ties++;
+      const a = Array.isArray(edge) ? edge[0] : undefined;
+      const b = Array.isArray(edge) ? edge[1] : undefined;
+      const x = typeof a === "number" ? localToPlayer[a] : undefined;
+      const y = typeof b === "number" ? localToPlayer[b] : undefined;
+      if (typeof x !== "string" || typeof y !== "string" || x === y) {
+        session.structureLeaks++;
+        complain(
+          `STRUCTURE: ${r.viewer} (game ${r.gameID}, seq ${r.seq}) was shown a tie naming ` +
+            `local index ${String(a)}/${String(b)}, which is outside the neighborhood they ` +
+            `were sent. Who was shown to whom cannot be established for it.`
+        );
+        continue;
+      }
+      // Both ends must be visible to this viewer, and the tie must be real. A
+      // drawn tie that does not exist is not a leak; it is a fabrication, and
+      // it fails here for the same reason.
+      if (!(x === r.viewer || neighbors.has(x)) || !(y === r.viewer || neighbors.has(y))) {
+        session.structureLeaks++;
+        complain(
+          `STRUCTURE LEAK: ${r.viewer} was shown a tie involving somebody outside their ` +
+            `neighborhood in game ${r.gameID} (seq ${r.seq}).`
+        );
+        continue;
+      }
+      if (!(graph.get(x)?.has(y) ?? false)) {
+        session.structureLeaks++;
+        complain(
+          `STRUCTURE: ${r.viewer} was told ${x} and ${y} are connected in game ` +
+            `${r.gameID} (seq ${r.seq}), and the edge log says they are not.`
+        );
+        continue;
+      }
+      if (a !== 0 && b !== 0) session.beyondStar++;
+    }
   }
 
   failures.unshift(...quoted);
@@ -305,6 +402,10 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
   const leaks = sessions.reduce((s, x) => s + x.leaks, 0);
   const missingDeliveries = sessions.reduce((s, x) => s + x.missing, 0);
   const vacuousSessions = sessions.filter((x) => x.records === 0).map((x) => x.gameID);
+  const tiesChecked = sessions.reduce((s, x) => s + x.ties, 0);
+  const structureLeaks = sessions.reduce((s, x) => s + x.structureLeaks, 0);
+  const beyondStar = sessions.reduce((s, x) => s + x.beyondStar, 0);
+  const structuredRecords = sessions.reduce((s, x) => s + x.structured, 0);
 
   // Vacuity, stated on the denominator rather than on the session count, for the
   // reason `topologies.ts` gives: `deliveriesChecked === 0` IS the statement "no
@@ -319,6 +420,25 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
     failures.push(
       `VACUOUS: session ${gameID} has a graph but delivered no view. Its guarantee ` +
         `is unestablished, not upheld.`
+    );
+  }
+
+  // Vacuity for the structural arm, on its own denominator like the two above.
+  // A study that delivered structure and never once showed a tie beyond a
+  // viewer's own star delivered what radius 1 delivers: the channel was opened
+  // and nothing was put in it, and every other count here stays clean.
+  if (structuredRecords > 0 && beyondStar === 0) {
+    failures.push(
+      `VACUOUS: ${structuredRecords} record(s) carried a structure and not one showed a tie ` +
+        `between two of a viewer's neighbors, which is what radius 1 already draws. The ` +
+        `extra channel was published empty.`
+    );
+  }
+
+  if (structuredRecords > 0) {
+    notes.push(
+      `${structuredRecords} of ${recordsChecked} record(s) carried structure; ${beyondStar} ` +
+        `tie(s) beyond a viewer's own star were delivered across ${tiesChecked} examined`
     );
   }
 
@@ -343,6 +463,10 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
     deliveriesChecked,
     leaks,
     missingDeliveries,
+    tiesChecked,
+    structureLeaks,
+    beyondStar,
+    structuredRecords,
     vacuousSessions,
     dropped,
     perSession: sessions,
@@ -368,8 +492,18 @@ export function formatAuditResult(r: AuditResult): string {
     `  views audited           : ${r.recordsChecked}  across ${r.sessions} session(s)`,
     `  missing deliveries      : ${r.missingDeliveries}  (under-delivery, not a leak)`,
     `  vacuous sessions        : ${r.vacuousSessions.length}/${r.sessions}  (must be 0)`,
-    "",
   ];
+
+  // Printed only when there is structure to report on, rather than as two zeroes
+  // on every run: at the default radius none is delivered and none is expected,
+  // and a line reading `0/0` would invite the reading that something was checked.
+  if (r.structuredRecords > 0) {
+    lines.push(
+      `  ties outside the view  : ${r.structureLeaks}/${r.tiesChecked} ties  (must be 0)`,
+      `  ties between neighbors  : ${r.beyondStar}  (non-vacuity, must be > 0)`
+    );
+  }
+  lines.push("");
   for (const s of r.perSession) {
     lines.push(
       `    ${s.gameID}: ${s.leaks}/${s.deliveries} leaked, ${s.records} views, ` +
@@ -400,6 +534,10 @@ export function mergeAuditResults(results: AuditResult[]): AuditResult {
     deliveriesChecked: 0,
     leaks: 0,
     missingDeliveries: 0,
+    tiesChecked: 0,
+    structureLeaks: 0,
+    beyondStar: 0,
+    structuredRecords: 0,
     vacuousSessions: [],
     dropped: 0,
     perSession: [],
@@ -412,6 +550,10 @@ export function mergeAuditResults(results: AuditResult[]): AuditResult {
     merged.deliveriesChecked += r.deliveriesChecked;
     merged.leaks += r.leaks;
     merged.missingDeliveries += r.missingDeliveries;
+    merged.tiesChecked += r.tiesChecked;
+    merged.structureLeaks += r.structureLeaks;
+    merged.beyondStar += r.beyondStar;
+    merged.structuredRecords += r.structuredRecords;
     merged.dropped += r.dropped;
     merged.vacuousSessions.push(...r.vacuousSessions);
     merged.perSession.push(...r.perSession);
