@@ -21,6 +21,7 @@ function snapshot(over: Partial<GameSnapshot> = {}): GameSnapshot {
     edges,
     order,
     seed: 42,
+    radius: 1,
     seq: 1,
     nodes: order.map((playerID, index) => ({
       index,

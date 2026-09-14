@@ -25,6 +25,7 @@ Decide whether to capture projected views before beginning data collection:
 | The realized network | batch scope, always | Yes | `network:<gameID>`, the edge list as it now stands |
 | The seed | batch scope, always | Yes | `networkSeed:<gameID>`, enough to re-derive the topology |
 | The edge history | batch scope, always | Yes | `networkHistory:<gameID>`, every tie change, including the initial graph as a `start` event |
+| The radius | batch scope, always | Yes | `networkRadius:<gameID>`, how much of the network participants were shown |
 | The run log | `log: { file }`, opt-in | Yes | Whatever your listeners wrote, as the study happened |
 | Captured views | `views: { file }`, opt-in | Yes | Exactly what each participant was delivered, per delivery |
 | The views themselves | — | No | Published `ephemeral`. Gone unless captured |
@@ -170,21 +171,35 @@ absent from record 1 would otherwise be dropped from the whole export without a 
 
 ## 4. Reproducing a finished run
 
-Everything needed is durable, and in two places:
+Everything needed is durable, and in one place:
 
 ```js
-import { readNetwork, readSeed } from "empirica-networks/admin";   // server-side
-const edges = readNetwork(game);   // batch: network:<gameID>
-const seed  = readSeed(game);      // batch: networkSeed:<gameID>
+import { readNetwork, readRadius, readSeed } from "empirica-networks/admin";   // server-side
+const edges  = readNetwork(game);   // batch: network:<gameID>
+const seed   = readSeed(game);      // batch: networkSeed:<gameID>
+const radius = readRadius(game);    // batch: networkRadius:<gameID>
 ```
 
-Offline, the same two values are attributes on the batch scope in `tajriba.json`, keyed
-`network:<gameID>` and `networkSeed:<gameID>`.
+Offline, the same three values are attributes on the batch scope in `tajriba.json`, keyed
+`network:<gameID>`, `networkSeed:<gameID>` and `networkRadius:<gameID>`.
 
 The realized edge list is recorded, not just the seed, so the graph a run actually used is read
 back rather than re-derived and hoped to match. To re-derive anyway (to check, or to generate a
 matched graph for a new condition), `makeRng(seed)` and the generator reproduce it exactly.
 Pinned by `test/e2e/reproducibility.test.ts`.
+
+The radius is recorded for a different reason: it is not a property of the graph at all, and
+nothing else in the record implies it. Two studies on one topology, one at each radius, leave
+identical edge lists, identical seeds and identical attribute exports — and showed their
+participants different things. It is written at every radius, including the default, so an absent
+value means "this record predates the key" and never "this study drew a star"; `readRadius`
+returns `undefined` rather than `1` for exactly that reason.
+
+> **A restart can make it ambiguous.** A game already under way is recovered rather than
+> re-recorded, so a process restarted with a different `graph.radius` leaves the original value in
+> place while showing participants the new one. The server says so loudly when it happens
+> (`test/e2e/restart.test.ts`), and a game that produced that warning should be treated as having
+> no single radius.
 
 The edge list does not tell you who sat where. It is index pairs. The seat mapping
 lives on each channel as `topologyIndex`, which is what makes a restart non-destructive and what

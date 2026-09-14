@@ -933,6 +933,11 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     }
     batch.set(NETWORK_KEYS.seed(game.id), seed);
     batch.set(NETWORK_KEYS.network(game.id), edges);
+    // What this study SHOWED people, recorded next to the graph it ran on
+    // because it is the other half of the same question and is not derivable
+    // from anything else here. Write-once, like the seed: unlike `network` and
+    // `history` it cannot change while a game runs.
+    batch.set(NETWORK_KEYS.radius(game.id), graphRadius);
 
 
     const order: string[] = players.map((p: any) => p.id);
@@ -1371,6 +1376,30 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     }
 
     const seed = readSeed(game);
+
+    // A game recovered from a previous process keeps the record that process
+    // wrote, because `onGameStartAttribute` diverts here before reaching the
+    // write. So if this process was started with a different `graph.radius`, the
+    // stored value now describes a study these participants are no longer in:
+    // they saw one thing before the restart and will see another after it, and
+    // nothing else in the system would say so.
+    //
+    // A warn rather than a throw, for the reason the edge-list warn below gives:
+    // the game is already live, and refusing to publish would strand the people
+    // inside it. The record is left alone — overwriting it would replace a true
+    // statement about the first half of the session with a true statement about
+    // the second, and lose the fact that they differ.
+    const recordedRadius = readRadius(game);
+    if (recordedRadius !== undefined && recordedRadius !== graphRadius) {
+      warn(
+        `empirica-networks: game ${game.id} was networked at graph.radius ` +
+          `${recordedRadius} and this process is configured for ${graphRadius}. Its ` +
+          `participants have been shown both. The recorded value is left as ` +
+          `${recordedRadius}; neither describes the whole session, and analysis of this ` +
+          `game should treat the radius as unknown from the restart onward.`
+      );
+    }
+
     networks.set(game.id, {
       edges,
       adj: adjacency(order.length, edges),
@@ -1943,6 +1972,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       edges: state.edges.map(([i, j]) => [i, j] as Edge),
       order: [...state.order],
       seed: state.seed,
+      radius: graphRadius,
       seq: seqByGame.get(gameID) ?? 0,
       nodes,
       metrics: graphMetrics(state.order.length, state.edges),
@@ -2107,5 +2137,20 @@ export function readNetwork(game: any): Edge[] | undefined {
 /** Read the seed the game's topology was generated from. */
 export function readSeed(game: any): number | undefined {
   const raw = game?.batch?.get(NETWORK_KEYS.seed(game.id));
+  return typeof raw === "number" ? raw : undefined;
+}
+
+/**
+ * Read how much of the network this game showed its participants.
+ *
+ * `undefined` means NOT RECORDED, and deliberately not `1`. A run from before
+ * this key existed and a run that deliberately drew a star are different facts
+ * about a dataset, and defaulting would silently assert the second about the
+ * first — the same conflation `readNetwork` avoids between "no record" and "an
+ * empty graph", which is documented there as having made a recovery guard
+ * unfireable.
+ */
+export function readRadius(game: any): number | undefined {
+  const raw = game?.batch?.get(NETWORK_KEYS.radius(game.id));
   return typeof raw === "number" ? raw : undefined;
 }

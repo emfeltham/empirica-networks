@@ -58,6 +58,7 @@ function fakeSource(initial: Partial<GameSnapshot> = {}) {
           edges,
           order: ORDER,
           seed: 7,
+          radius: 1,
           seq: 3,
           nodes: ORDER.map((playerID, index) => ({
             index,

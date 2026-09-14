@@ -504,7 +504,13 @@ the floor, deliberately as an environment-variable seam rather than a configurat
 |---|---|
 | `readNetwork(game): Edge[] \| undefined` | the recorded edge list, off the batch scope |
 | `readSeed(game): number \| undefined` | the recorded seed |
+| `readRadius(game): number \| undefined` | how much of the network this game showed its participants |
 | `gameIDOf(ref): string \| undefined` | the id out of a `GameRef` |
+
+`readRadius` returns `undefined` for "not recorded" and never `1`. A dataset from before the key
+existed and one from a study that deliberately drew a star are different facts, and defaulting
+would assert the second about the first. See [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md#4-reproducing-a-finished-run),
+including what a restart at a changed radius does to the record.
 
 `GameRef = string \| { id?: unknown }`. Every entry point that takes a game accepts either the
 scope object or its id. A listener holds `stage.currentGame`, while a test or an HTTP handler

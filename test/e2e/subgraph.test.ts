@@ -26,7 +26,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { networkKinds } from "../../src/admin/kinds.js";
 import { resetChannels } from "../../src/admin/provision.js";
-import { network, withNetwork, type NetworkHandle } from "../../src/admin/with_network.js";
+import {
+  network,
+  readRadius,
+  withNetwork,
+  type NetworkHandle,
+} from "../../src/admin/with_network.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
 import { networkGraphOf } from "../../src/player/view.js";
 import { NBHD_KEYS } from "../../src/shared/keys.js";
@@ -64,9 +69,23 @@ test.beforeEach(() => resetChannels());
 
 const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
 
-function makeListeners(radius: 1 | 1.5, capture: (net: NetworkHandle) => void) {
+/**
+ * `onGame` receives the game SCOPE, which is the only handle `readRadius` and
+ * its siblings accept — they read the batch the scope hangs off. Captured the
+ * same way `test/e2e/reproducibility.test.ts` captures it, rather than through
+ * `inspect()`, because the point of those accessors is that they read STORAGE
+ * and `inspect()` reads memory.
+ */
+function makeListeners(
+  radius: 1 | 1.5,
+  capture: (net: NetworkHandle) => void,
+  onGame?: (game: any) => void
+) {
   return (_: any) => {
     gameInit(1, 1, 3_600_000)(_);
+    if (onGame) _.on("game", "start", (_ctx: any, { game }: any) => {
+      if (game.get("start")) onGame(game);
+    });
     capture(
       withNetwork(_, {
         topology: () => fromEdgeList(N, EDGES),
@@ -350,4 +369,56 @@ test("a radius the module cannot deliver is refused, not rounded", async () => {
     /radius must be 1 or 1\.5/,
     "silently rounding 2 down to 1.5 would show participants less than the design says"
   );
+});
+
+
+// ------------------------------------------------- the record a run leaves
+//
+// The graph a study ran on is recorded so a finished run is reproducible from
+// its own data. What it SHOWED people is the other half of that, and it is not
+// derivable from anything else: two studies on one graph, one at each radius,
+// leave identical edge lists and identical attribute exports.
+
+test("the radius a game ran at is recorded, at both radii", async () => {
+  for (const radius of [1, 1.5] as const) {
+    let net!: NetworkHandle;
+    let gameRef: any;
+    await withScenario(
+      {
+        n: N,
+        kinds: networkKinds,
+        listeners: makeListeners(radius, (h) => (net = h), (g) => (gameRef = g)),
+        modeFunc: EmpiricaNetwork,
+      },
+      async ({ admin, participants }) => {
+        const batch = await createBatch(admin, batchConfig(N, 1));
+        await batch.running();
+        await play(participants);
+
+        const gameID = modeOf(participants[0]!).player.getValue()!.get("gameID") as string;
+
+        assert.equal(
+          readRadius(gameRef),
+          radius,
+          `a run at radius ${radius} must say so in its own data`
+        );
+        assert.equal(
+          net.inspect(gameID)!.radius,
+          radius,
+          "and the live snapshot must agree with the record"
+        );
+      }
+    );
+    resetChannels();
+  }
+});
+
+test("an unrecorded radius reads back as undefined, never as 1", async () => {
+  // The distinction the accessor exists to keep. A dataset from before this key
+  // existed and a dataset from a study that deliberately drew a star are
+  // different facts, and defaulting would assert the second about the first.
+  assert.equal(readRadius({ id: "g", batch: { get: () => undefined } }), undefined);
+  assert.equal(readRadius({ id: "g", batch: { get: () => "1.5" } }), undefined, "a string is not a record");
+  assert.equal(readRadius({ id: "g" }), undefined, "no batch at all is not a record");
+  assert.equal(readRadius({ id: "g", batch: { get: () => 1 } }), 1, "a recorded 1 is a real answer");
 });

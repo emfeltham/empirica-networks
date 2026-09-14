@@ -24,7 +24,14 @@ export {
 export type { NetworkKinds } from "./kinds.js";
 export { provisionChannels, readChannels, resetChannels } from "./provision.js";
 export type { ChannelMap, ProvisionResult } from "./provision.js";
-export { withNetwork, readNetwork, readSeed, network, gameIDOf } from "./with_network.js";
+export {
+  withNetwork,
+  readNetwork,
+  readRadius,
+  readSeed,
+  network,
+  gameIDOf,
+} from "./with_network.js";
 export type {
   GameNetwork,
   GameRef,

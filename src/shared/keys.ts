@@ -116,6 +116,22 @@ export const NETWORK_KEYS = {
    * to carry.
    */
   history: (gameID: string) => `networkHistory:${gameID}`,
+  /**
+   * How much of the network participants were SHOWN, per game.
+   *
+   * The edge list and seed record the graph a study ran on; this records what it
+   * let people see of it, which is a different fact and a manipulation in its
+   * own right. Without it a finished dataset cannot say whether participants
+   * were shown a star or the ties among their own connections, and those are two
+   * experiments (see `NetworkConfig.graph`).
+   *
+   * Written at EVERY radius, including the default. Recording only the non-default
+   * one would make an absent key mean either "this study drew a star" or "this
+   * record predates the key", and `readRadius` could not tell them apart — the
+   * same conflation `readNetwork` documents as having made a recovery guard
+   * unfireable.
+   */
+  radius: (gameID: string) => `networkRadius:${gameID}`,
 } as const;
 
 /**
