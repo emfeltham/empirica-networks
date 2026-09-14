@@ -255,3 +255,27 @@ test("the radius defaults to 1, so existing callers are unaffected", () => {
   const edges = CLI_TOPOLOGIES["ring"]!(6);
   assert.deepEqual(accountVacuity(6, edges).failures, accountVacuity(6, edges, 1).failures);
 });
+
+test("ringLattice is the second shape that can demonstrate radius 1.5", () => {
+  // The whole point of adding it: `wheel` was the only one, and a verification
+  // tool with one usable subject is one shape away from having none.
+  const edges = CLI_TOPOLOGIES["ringLattice"]!(6);
+  const account = accountVacuity(6, edges, 1.5);
+  assert.ok(account.expectedBeyondStar > 0, "every neighborhood holds a triangle");
+  assert.deepEqual(account.failures, [], "and it is a fine subject at 1.5");
+  assert.ok(!("refusal" in preflightCliTopology("ringLattice", 6, 1.5)));
+
+  // It is also a perfectly ordinary subject at radius 1 — degree 4 at n=6 still
+  // leaves each participant one non-neighbor.
+  assert.deepEqual(accountVacuity(6, edges, 1).failures, []);
+  assert.ok(account.candidatePairs > 0, "arm 1 has pairs to examine");
+});
+
+test("ringLattice below its minimum is refused by name, not by a stray throw", () => {
+  // `ringLattice(n, 2)` needs n >= 5. Below that the generator throws, and the
+  // preflight is what turns that into a sentence naming the count the user typed
+  // rather than a stack from inside a topology module.
+  const r = preflightCliTopology("ringLattice", 4, 1);
+  assert.ok("refusal" in r, "n=4 cannot build a ring lattice of m=2");
+  assert.match(r.refusal, /ringLattice cannot be built at n=4/);
+});

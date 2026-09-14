@@ -84,7 +84,8 @@ Usage:
 
 Options:
   -n, --n <count>        participants (default 4, minimum 4)
-      --topology <name>  ring (default), star, wheel, pairs, ladder, complete
+      --topology <name>  ring (default), star, wheel, pairs, ladder, complete,
+                         ringLattice (m fixed at 2, needs n >= 5)
                          Refused when the shape would prove nothing: a complete
                          graph has no non-neighbor to leak to, and a wheel of 4
                          is a complete graph. Parameterised generators (grid,
@@ -98,7 +99,7 @@ Options:
                          those bytes are integers rather than anybody's state.
                          Refused on a triangle-free shape, where radius 1.5
                          draws the same star radius 1 draws: try --topology
-                         wheel.
+                         wheel or --topology ringLattice.
   -q, --quiet            only print the verdict
   -h, --help             show this
 

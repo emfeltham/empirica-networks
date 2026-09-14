@@ -51,6 +51,7 @@ import {
   ladder,
   pairs,
   ring,
+  ringLattice,
   star,
   wheel,
   type Edge,
@@ -138,8 +139,8 @@ export function accountVacuity(n: number, edges: Edge[], radius = 1): VacuityAcc
       `VACUOUS at radius 1.5: no participant has two neighbors who are connected ` +
         `to each other, so the extra structure is empty and radius 1.5 draws the ` +
         `same star radius 1 draws. Whether this setting shows anything is a ` +
-        `property of the graph: try --topology wheel, or pass your study's own ` +
-        `generator to runLeakCheck().`
+        `property of the graph: try --topology wheel or --topology ringLattice, or ` +
+        `pass your study's own generator to runLeakCheck().`
     );
   }
 
@@ -198,11 +199,21 @@ export function countBeyondStar(adj: number[][]): number {
  *
  * Each entry is a function of the PARTICIPANT count, which is not the same as
  * the generator's own first argument: `ladder(n)` builds `2n` nodes, so its
- * entry halves. Only shapes that need no further parameter are here; `grid`,
- * `ringLattice`, `wattsStrogatz`, `barabasiAlbert`, `erdosRenyi` and
- * `geometricRandom` all take one, and a command line has nowhere to put it —
- * they are reachable by handing `runLeakCheck` the same generator function a
- * study hands `withNetwork`.
+ * entry halves. Shapes that need a further parameter are not here — `grid`,
+ * `wattsStrogatz`, `barabasiAlbert`, `erdosRenyi` and `geometricRandom` all take
+ * one and a command line has nowhere to put it; they are reachable by handing
+ * `runLeakCheck` the same generator function a study hands `withNetwork`.
+ *
+ * ONE EXCEPTION, AND THE PARAMETER IT FIXES IS NAMED. `ringLattice` is here at
+ * `m = 2`, because without it `--radius 1.5` had exactly one usable subject.
+ * Every other shape a flag can name is triangle-free — `ring`, `star`, `pairs`
+ * and `ladder` — or refused for having no non-neighbor, which leaves `wheel`
+ * alone, and a verification tool with one subject is one shape away from having
+ * none. The alternatives do not work: `barabasiAlbert` and `geometricRandom`
+ * both REFUSE to build without an rng, which the next paragraph explains this
+ * table cannot supply, and `wattsStrogatz(n, k, 0)` is a ring lattice under a
+ * longer name. `m = 2` is the smallest value that produces a triangle at all,
+ * and it needs n >= 5.
  *
  * NO `rng` IS FORWARDED, deliberately. Every generator here is deterministic in
  * structure; an rng would only permute which index sits where (`positions`, in
@@ -225,6 +236,11 @@ export const CLI_TOPOLOGIES: Record<string, (n: number) => Edge[]> = {
     }
     return ladder(n / 2);
   },
+  // Each node tied to its two nearest on each side, so every neighborhood holds
+  // a triangle. The `m` is fixed at 2 and said so above; `ringLattice(n, 2)`
+  // needs n >= 5 or the ring wraps onto itself, and the generator's own error
+  // says that.
+  ringLattice: (n) => ringLattice(n, 2),
 };
 
 export const CLI_TOPOLOGY_NAMES = Object.keys(CLI_TOPOLOGIES).sort();
@@ -248,9 +264,9 @@ export function preflightCliTopology(
     return {
       refusal:
         `unknown topology "${name}". Known: ${CLI_TOPOLOGY_NAMES.join(", ")}.\n` +
-        `  Parameterised generators (grid, ringLattice, wattsStrogatz, barabasiAlbert,\n` +
-        `  erdosRenyi, geometricRandom) take an argument a flag cannot carry — pass the\n` +
-        `  generator to runLeakCheck() instead.`,
+        `  Parameterised generators (grid, wattsStrogatz, barabasiAlbert, erdosRenyi,\n` +
+        `  geometricRandom) take an argument a flag cannot carry — pass the generator to\n` +
+        `  runLeakCheck() instead. \`ringLattice\` is named above with its m fixed at 2.`,
     };
   }
 

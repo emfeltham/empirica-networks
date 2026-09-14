@@ -164,7 +164,7 @@ node dist/verify/cli.cjs verify --n 4     # from a clone today, after `npm run b
 npx empirica-networks verify --n 4        # once published
 ```
 
-The command starts Tajriba, Empirica's data service, connects four automated participants in a ring by default, and inspects their network traffic. The `--topology` option also accepts `star`, `wheel`, `pairs`, `ladder`, and `complete` — though a complete graph is refused, because it leaves no non-neighbor for the check to examine. `--radius 1.5` checks a study configured to show participants the ties among their own connections.
+The command starts Tajriba, Empirica's data service, connects four automated participants in a ring by default, and inspects their network traffic. The `--topology` option also accepts `star`, `wheel`, `pairs`, `ladder`, `complete`, and `ringLattice` — though a complete graph is refused, because it leaves no non-neighbor for the check to examine. `--radius 1.5` checks a study configured to show participants the ties among their own connections.
 
 ```
   non-neighbor sentinels received : 0/4 pairs  (must be 0)
