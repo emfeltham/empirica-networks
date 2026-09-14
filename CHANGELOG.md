@@ -93,6 +93,12 @@ makes the entries below meaningful as a baseline rather than a moving target.
   true of the package, and it now states that neither reconstruction sets a radius and what turning
   one on would mean. `docs/TESTING.md` lists all four browser files rather than two, and its
   baseline counts are current. `docs/GLOSSARY.md` defines "radius" and "structure".
+- `examples/minimal` captures views and ships a `recover.mjs` that rebuilds `structure.csv` and
+  `positions.csv` from them (`ISSUES.md` O25). It is the only example that can run at radius 1.5,
+  and it was the only one with no recovery script — so the shipped demonstration of the offline path
+  and the shipped demonstration of radius 1.5 were in different directories and could not meet.
+  Capture is gated on `MINIMAL_OUT`, as the other two examples gate theirs, because this file is
+  imported unmodified by the test suite.
 - `verify --topology ringLattice` (`ISSUES.md` O23), with its `m` fixed at 2 and said so. Until now
   `wheel` was the only named shape that could demonstrate radius 1.5 — every other one a flag can
   name is triangle-free or refused for having no non-neighbor — and a verification tool with one

@@ -71,6 +71,27 @@ lattice, which is full of triangles, and needs `playerCount` of at least 5.
 Decide about it rather than switching it on. It tells a participant a fact about two *other*
 people, and on a coordination task it makes the problem easier — see `docs/API.md`.
 
+### Recovering what participants were shown
+
+Set `MINIMAL_OUT` and the run captures every delivery; `recover.mjs` turns it into two tables:
+
+```sh
+MINIMAL_OUT=data NBHD_RADIUS=1.5 empirica
+node recover.mjs data/views.ndjson
+# <gameID>: 250 tie row(s) (150 between neighbors), 125 position row(s) -> data/<gameID>
+```
+
+`structure.csv` is one row per tie a participant was shown, `positions.csv` one row per node in
+their drawing, and both carry the radius the delivery was made at. Capture is gated on the env var
+because these callbacks are imported unmodified by the test suite, which runs with the repository
+root as its working directory — an unconditional path would write NDJSON into the repo on every
+test run.
+
+The positions are the reason this is worth doing rather than deriving the tables from the edge log
+later. They are warm-started, so they follow the session's history rather than its final graph:
+unlike the ties, they are not a function of anything else stored, and a run whose views were not
+captured has lost the screens its participants actually saw.
+
 ### Two kinds of data
 
 The example carries one of each, because the difference is the whole point:
