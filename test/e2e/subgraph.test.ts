@@ -42,6 +42,7 @@ import {
   gameInit,
   waitFor,
   withScenario,
+  type AdminHandle,
 } from "../../src/harness/harness.js";
 
 const N = 5;
@@ -86,6 +87,13 @@ function makeListeners(
     if (onGame) _.on("game", "start", (_ctx: any, { game }: any) => {
       if (game.get("start")) onGame(game);
     });
+    // Stands in for a real experiment's onStageStart. See `addTie` below for why
+    // a mutation cannot be driven straight from test code.
+    _.on("game", ADD_TIE, (_ctx: any, { game }: any) => {
+      const cmd = game.get(ADD_TIE) as { a: string; b: string } | undefined;
+      if (!cmd) return;
+      network(game).addEdge(cmd.a, cmd.b);
+    });
     capture(
       withNetwork(_, {
         topology: () => fromEdgeList(N, EDGES),
@@ -94,6 +102,27 @@ function makeListeners(
       })
     );
   };
+}
+
+const ADD_TIE = "addTieCmd";
+
+/**
+ * Add a tie from inside the server's own callback.
+ *
+ * NOT `network(gameID).addEdge(...)` from here. The runloop flushes the `set()`
+ * calls made while it is processing a callback, so a mutation driven from test
+ * code updates server state correctly and then reaches nobody until something
+ * else happens to flush — which under load is never, and under no load is soon
+ * enough to look like it worked. `test/e2e/rewiring.test.ts` carries the same
+ * note, having been written the obvious way first; this test was too, and it
+ * passed alone and failed in a full run for exactly this reason.
+ */
+async function addTie(admin: AdminHandle, gameID: string, a: string, b: string): Promise<void> {
+  await admin.taj.setAttribute({
+    key: ADD_TIE,
+    val: JSON.stringify({ a, b }),
+    nodeID: gameID,
+  });
 }
 
 /** Every GRAPH payload that reached this participant, oldest first. */
@@ -291,7 +320,7 @@ test("a tie forming BETWEEN two of my connections reaches me, though my list nev
       const listBefore = JSON.stringify(modeOf(hub).nbhd.getValue()!.neighbors);
       assert.equal(before.edges.length, 4, "hub, three spokes, and the 1-2 tie");
 
-      network(gameID).addEdge(order[2]!, order[3]!);
+      await addTie(admin, gameID, order[2]!, order[3]!);
 
       await waitFor(
         () => (networkGraphOf(modeOf(hub).nbhd.getValue())?.edges.length ?? 0) === 5,
