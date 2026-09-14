@@ -279,29 +279,6 @@ the server, which is CPU rather than bytes and is not in the envelope at all.
 *Done when:* `npm run bench` accepts a radius and has at least one cell at 1.5 on a dense graph,
 and the figures in `docs/API.md` either come from it or say they do not.
 
-### O20. Bots cannot see the structure, so at radius 1.5 they play a different game
-
-**Evidence:** `src/bots/policy.ts` `BotContext`; `src/player/react/index.ts`
-`useNetworkStructure`.
-
-`BotContext` offers `neighbors()`, `self()`, `state()` and `told()`. There is no accessor for the
-neighborhood structure, so at `graph: { radius: 1.5 }` a human sees which of their connections are
-tied to each other and a bot in the same seat does not.
-
-That is not a cosmetic difference. Bots exist here for designs where an artificial participant's
-behavior is the independent variable — Shirado & Christakis seat theirs centrally and vary their
-noise — and a bot that cannot see what the humans around it can see is not a control for those
-humans. A study could run the whole 3 x 3 agent design at radius 1.5 today and the asymmetry would
-appear nowhere in its data.
-
-No reproduction is needed and none is claimed: the accessor is absent from the interface, which is
-readable in eight lines of `policy.ts`. What is not yet decided is whether bots should receive the
-structure at all, or whether the answer is that radius 1.5 and bots are incompatible and the
-combination should be refused at config time the way an out-of-range radius is.
-
-*Done when:* `BotContext` exposes the structure, or `withNetwork` refuses `graph.radius > 1`
-together with a bot policy and says why.
-
 ### O21. `auditViews` has no notion of structure, so `simulate` is silent about half a radius 1.5 delivery
 
 **Evidence:** `src/verify/audit.ts` `auditViews`, the C1 check.

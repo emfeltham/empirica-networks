@@ -21,7 +21,7 @@ import { TajribaConnection } from "@empirica/core/admin";
 import { hashSeed, makeRng, type Rng } from "../admin/seed.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../player/mode.js";
 import { networkStateOf } from "../player/state.js";
-import { networkSelfOf, networkToldOf } from "../player/view.js";
+import { networkGraphOf, networkSelfOf, networkToldOf } from "../player/view.js";
 import { makeSharedProvider, openParticipantSession } from "../harness/compat.js";
 import { waitForValue } from "../shared/wait.js";
 import { assertIdentifiers, botMarkerWarning } from "./identity.js";
@@ -226,6 +226,13 @@ export async function runBots<T = unknown>(opts: BotRunOptions<T>): Promise<BotR
       self: () => networkSelfOf(nbhd()),
       state: () => networkStateOf(nbhd()),
       told: () => networkToldOf(nbhd()),
+      // Read fresh like the rest, and through the SAME derivation a browser
+      // uses — `networkGraphOf` validates the payload and drops a tie naming a
+      // node outside the delivered neighborhood, so a bot cannot act on one a
+      // human would never have been shown. Nothing else here changes: the
+      // structure is written in the same publish as the view, so `_seq` moves
+      // and `onView` already fires for it.
+      structure: () => networkGraphOf(nbhd()),
       elapsedMs: () => (bot.publishedAt === undefined ? 0 : Date.now() - bot.publishedAt),
       rng: bot.rng,
       log: (record) => log(bot.identifier, { gameID: bot.gameID, ...record }),

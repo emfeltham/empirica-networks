@@ -93,6 +93,15 @@ makes the entries below meaningful as a baseline rather than a moving target.
   true of the package, and it now states that neither reconstruction sets a radius and what turning
   one on would mean. `docs/TESTING.md` lists all four browser files rather than two, and its
   baseline counts are current. `docs/GLOSSARY.md` defines "radius" and "structure".
+- `BotContext.structure()` (`ISSUES.md` O20). At radius 1.5 a browser was shown the ties among its
+  own neighbors and a bot in the same seat was not — an asymmetry that would have appeared nowhere
+  in a study's data, in exactly the designs artificial participants exist for. The bytes already
+  reached the bot: it runs the same participant mode, and the runner simply never exposed them. It
+  reads through the same `networkGraphOf` a browser does, so a malformed tie is dropped for both,
+  and needs no new wake mechanism because the structure is written in the publish that moves `_seq`.
+  `policy.ts` no longer says a bot has "no way to see the graph": that was written when no
+  participant could, and the rule it states — a bot must not exceed a human — now also means it must
+  not fall short of one.
 - `line[making="1"]` is gone from `COOPERATION_CSS` (`ISSUES.md` O24). Nothing could set it: an
   offer to form a tie is about somebody the viewer is not connected to, so that person is not on
   the viewer's graph and there is no line to style. Its absence is now stated in the sheet, because
