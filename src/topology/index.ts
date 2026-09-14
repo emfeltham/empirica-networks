@@ -477,3 +477,139 @@ export function isConnected(n: number, edges: Edge[]): boolean {
   if (n === 0) return true;
   return components(n, edges).length === 1;
 }
+
+/**
+ * How far a participant can see, as a setting rather than as a number.
+ *
+ * `"whole"` is spelled rather than written `Infinity` for two reasons. The wire
+ * carries a finite number — `networkGraphOf` rejects a non-finite radius as
+ * malformed (`src/player/view.ts`), and `test/mode/graph.test.ts` locks that —
+ * so a sentinel that has to be translated anyway may as well say what it means.
+ * And two spellings of one setting is the mistake this module's own header
+ * refuses for `smallWorld`/`wattsStrogatz`: `Infinity` is rejected by `ball`
+ * rather than quietly aliased, so there is one way to ask for it.
+ */
+export type Radius = number | "whole";
+
+export interface Ball {
+  /**
+   * The viewer first, then everyone else in BFS order.
+   *
+   * Deterministic: `adjacency` returns each row sorted, and a FIFO queue over
+   * sorted rows visits in a fixed order, so this is a pure function of its
+   * arguments. Nothing here takes an rng, for the reason `src/verify/topologies.ts`
+   * gives about not forwarding one.
+   */
+  nodes: number[];
+  /** Pairs of GLOBAL indices, `a < b`, sorted. Never local indices, never sent. */
+  edges: Edge[];
+  /** Distance from the source to every node. `Infinity` where unreachable. */
+  dist: number[];
+  /** The greatest distance in `nodes`. `0` for an isolated viewer. */
+  eccentricityWithin: number;
+}
+
+/**
+ * What one participant can see at radius `r`: the nodes, and the ties among them.
+ *
+ * THE HALF-STEP RULE, which is the contract the rest of the package is written
+ * against. `k = floor(r)` bounds the PEOPLE; the fraction decides the TIES:
+ *
+ *   r = 1     viewer + neighbors, ties incident to the viewer.      A star.
+ *   r = 1.5   the same people, plus every tie among them.
+ *   r = 2     everyone within two hops, plus every tie with an end
+ *             closer than two. NOT the ties between two people who
+ *             are both exactly two hops away — those are what 2.5 adds.
+ *   r = 2.5   the same people, plus every tie among them.
+ *
+ * So `k` and `k.5` always deliver the same PEOPLE and differ only in whether the
+ * outermost ring's internal ties come too. That makes 1.5 an instance of a rule
+ * rather than a special case, and it is why a study can ask for two hops without
+ * being handed half of a third.
+ *
+ * The distinction is worth enforcing rather than rounding, and it is checkable:
+ * at integer `r`, no delivered tie may have both ends at distance exactly `r`.
+ * Without the rule, `--radius 2` and `--radius 2.5` are indistinguishable at the
+ * wire and a study asking for 2 could be given 2.5 with nothing saying so.
+ *
+ * `"whole"` is every node and every tie, INCLUDING other components. That is the
+ * reading an author means by "no boundary" — and it keeps "the viewer's own
+ * component" expressible as a large finite radius, whereas the other way round
+ * there would be no spelling for "everybody".
+ *
+ * Takes an adjacency list rather than `(n, edges)` like its neighbours in this
+ * module, because the publish path calls it once per viewer per publish and
+ * already holds one. Build it with `adjacency(n, edges)`.
+ *
+ * NOT the delivered set. This is what a viewer is PERMITTED to see; a neighbor
+ * whose player has gone, or whose `project()` returned `undefined`, is dropped
+ * downstream. Local indices must therefore keep being resolved against what was
+ * actually sent, never against this — the off-by-one that draws a complete,
+ * well-formed graph connecting the wrong people.
+ */
+export function ball(adj: number[][], source: number, r: Radius): Ball {
+  const n = adj.length;
+  if (!Number.isInteger(source) || source < 0 || source >= n) {
+    throw new Error(`ball: source ${source} is outside [0, ${n})`);
+  }
+  const whole = r === "whole";
+  if (!whole) {
+    if (typeof r !== "number" || !Number.isFinite(r)) {
+      throw new Error(
+        `ball: radius must be a number or "whole", got ${JSON.stringify(r)}. ` +
+          `Infinity is not accepted — "whole" is the one spelling for that.`
+      );
+    }
+    if (r < 1 || r * 2 !== Math.floor(r * 2)) {
+      throw new Error(
+        `ball: radius must be at least 1 and a multiple of 0.5, got ${r}. ` +
+          `0.5 would deliver the viewer and nobody else.`
+      );
+    }
+  }
+  // `Infinity` rather than `n` so an unreachable node compares correctly against
+  // any radius, including a large finite one standing in for "my component".
+  const depth = whole ? Infinity : Math.floor(r as number);
+  const induced = whole || (r as number) > Math.floor(r as number);
+
+  const dist = new Array<number>(n).fill(Infinity);
+  dist[source] = 0;
+  const nodes: number[] = [source];
+  // FIFO with a read cursor rather than `shift()`: `shift` is O(n) on a JS array
+  // and this runs per viewer per publish.
+  for (let head = 0; head < nodes.length; head++) {
+    const v = nodes[head]!;
+    const d = dist[v]!;
+    if (d >= depth) continue;
+    for (const u of adj[v] ?? []) {
+      if (dist[u] !== Infinity) continue;
+      dist[u] = d + 1;
+      nodes.push(u);
+    }
+  }
+  if (whole) {
+    // Every node, not just the reachable ones — see the docstring. Appended in
+    // index order after the BFS so the reachable part keeps its distance order.
+    for (let v = 0; v < n; v++) if (dist[v] === Infinity) nodes.push(v);
+  }
+
+  const inside = new Set(nodes);
+  const edges: Edge[] = [];
+  for (const v of nodes) {
+    for (const u of adj[v] ?? []) {
+      // `u > v` emits each pair once; a self-loop fails it and is dropped, which
+      // `adjacency` has already done anyway.
+      if (u <= v || !inside.has(u)) continue;
+      if (!induced && Math.min(dist[v]!, dist[u]!) >= depth) continue;
+      edges.push([v, u]);
+    }
+  }
+  edges.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+
+  let ecc = 0;
+  for (const v of nodes) {
+    const d = dist[v]!;
+    if (d !== Infinity && d > ecc) ecc = d;
+  }
+  return { nodes, edges, dist, eccentricityWithin: ecc };
+}
