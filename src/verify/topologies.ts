@@ -55,6 +55,7 @@ import {
   star,
   wheel,
   type Edge,
+  type Radius,
 } from "../topology/index.js";
 
 export interface VacuityAccounting {
@@ -75,6 +76,32 @@ export interface VacuityAccounting {
    * demonstrating nothing.
    */
   expectedBeyondStar: number;
+  /**
+   * Ties the structure payload should carry in total, summed over participants.
+   *
+   * The completeness denominator at ANY radius, where `expectedBeyondStar` is
+   * only meaningful at 1.5. At 1.5 the two are related — this is that plus one
+   * per neighbor — and above it neither the star nor the beyond-star split says
+   * anything useful, because most ties are then incident to neither the viewer
+   * nor another neighbor.
+   */
+  expectedStructureTies: number;
+  /**
+   * People delivered who are NOT the viewer's own neighbors, summed over
+   * participants. Zero at radius 1 and 1.5, where the ball is exactly the
+   * viewer and their neighbors.
+   */
+  expectedFar: number;
+  /**
+   * What this radius delivers that the step below it does not.
+   *
+   * The non-vacuity denominator, generalized. `prev(1.5)` is 1 and `prev(2)` is
+   * 1.5, so at 1.5 the edge half of this IS `expectedBeyondStar` and the node
+   * half is zero — a half step adds ties, never people. Zero means the setting
+   * shows this particular graph nothing that the step below already showed it,
+   * which is a property of the graph rather than of the setting.
+   */
+  expectedIncrement: { nodes: number; edges: number };
   /** Indices with no non-neighbor. They contribute nothing to arm 1. */
   saturated: number[];
   /** Indices with no neighbor. They contribute nothing to arm 3. */
@@ -94,7 +121,84 @@ export interface VacuityAccounting {
  * vacuous, not what is measured: the counts are computed either way so the
  * report can state them, and only the failure is conditional.
  */
-export function accountVacuity(n: number, edges: Edge[], radius = 1): VacuityAccounting {
+/**
+ * What radius `r` should deliver to viewer `i`, computed WITHOUT `ball()`.
+ *
+ * Deliberately a second implementation, and that is the whole reason it exists.
+ * `ball()` is the function the server uses to decide what to send; using it here
+ * to decide what should have been sent makes the structural arms a check of the
+ * publish path against itself, and a bug inside `ball()` moves both sides
+ * together and passes. Measured: breaking `ball()`'s edge filter and running
+ * `verify --n 8 --topology ring --radius 2` reported 32/32 ties and PASS.
+ *
+ * So the two disagree by construction. `ball()` is a FIFO walk carrying a
+ * distance array; this grows shells by set union and never computes a distance
+ * at all — a node's shell index IS its distance, and the edge rule reads off
+ * shell membership. Same contract, different shape, so one being wrong shows up
+ * as the two disagreeing rather than as both agreeing about the wrong answer.
+ *
+ * This is not the duplicate-type mistake O21 records. That was one FACT written
+ * down twice, where the copies drifted apart silently and nothing compared them.
+ * This is one fact computed twice ON PURPOSE, by a tool whose entire job is to
+ * compare them, and the comparison is the product.
+ */
+function expectedFor(
+  adj: number[][],
+  i: number,
+  radius: Radius
+): { nodes: number; edges: number } {
+  const n = adj.length;
+  const depth = radius === "whole" ? n : Math.floor(radius as number);
+  const induced = radius === "whole" || (radius as number) > Math.floor(radius as number);
+
+  // Shell k is everyone first reached in k steps. Membership, not distance.
+  const shells: Array<Set<number>> = [new Set([i])];
+  const reached = new Set([i]);
+  while (shells.length - 1 < depth) {
+    const next = new Set<number>();
+    for (const v of shells[shells.length - 1]!) {
+      for (const u of adj[v] ?? []) if (!reached.has(u)) next.add(u);
+    }
+    if (next.size === 0) break;
+    for (const u of next) reached.add(u);
+    shells.push(next);
+  }
+  if (radius === "whole") for (let v = 0; v < n; v++) reached.add(v);
+
+  const shellOf = (v: number): number => {
+    for (let k = 0; k < shells.length; k++) if (shells[k]!.has(v)) return k;
+    return Infinity;
+  };
+
+  let edges = 0;
+  for (const v of reached) {
+    for (const u of adj[v] ?? []) {
+      if (u <= v || !reached.has(u)) continue;
+      // An edge is delivered when the half step includes everything induced, or
+      // when one of its ends sits in a shell nearer than the outermost one.
+      if (induced || shellOf(v) < depth || shellOf(u) < depth) edges++;
+    }
+  }
+  return { nodes: reached.size, edges };
+}
+
+/**
+ * The setting one step below this one: `k.5` sits on `k`, and `k` sits on
+ * `(k-1).5`. `1.5` sits on `1`, which is the floor.
+ *
+ * `"whole"` has no step below it that can be named — it is whatever the graph
+ * happens to be — so it is compared against the star, which makes the vacuity
+ * question "does anybody see anyone they are not connected to".
+ */
+function stepBelow(radius: Radius): Radius {
+  if (radius === "whole" || radius <= 1.5) return 1;
+  return Number.isInteger(radius) ? (radius as number) - 0.5 : Math.floor(radius as number);
+}
+
+/** `1.5` rather than `"1.5"`, and `whole` without quotes, in a sentence. */
+const fmt = (r: Radius): string => (r === "whole" ? "whole" : String(r));
+
+export function accountVacuity(n: number, edges: Edge[], radius: Radius = 1): VacuityAccounting {
   const adj = adjacency(n, edges);
   const saturated: number[] = [];
   const isolated: number[] = [];
@@ -111,6 +215,23 @@ export function accountVacuity(n: number, edges: Edge[], radius = 1): VacuityAcc
   }
 
   const expectedBeyondStar = countBeyondStar(adj);
+  let expectedStructureTies = 0;
+  let expectedFar = 0;
+  const expectedIncrement = { nodes: 0, edges: 0 };
+  if (radius !== 1) {
+    const below = stepBelow(radius);
+    for (let i = 0; i < n; i++) {
+      const at = expectedFor(adj, i, radius);
+      expectedStructureTies += at.edges;
+      expectedFar += at.nodes - 1 - (adj[i]?.length ?? 0);
+      // `below` is 1 for 1.5, where the star is drawn from the view array and
+      // no structure is sent at all — so the increment there is the whole
+      // payload, which is what makes `expectedBeyondStar` and this agree.
+      const under = expectedFor(adj, i, below);
+      expectedIncrement.nodes += at.nodes - under.nodes;
+      expectedIncrement.edges += at.edges - under.edges;
+    }
+  }
 
   const failures: string[] = [];
   const notes: string[] = [];
@@ -134,13 +255,20 @@ export function accountVacuity(n: number, edges: Edge[], radius = 1): VacuityAcc
   // graph is a perfectly good graph and a perfectly useless subject for this
   // arm: radius 1.5 on it delivers the same star radius 1 does, so the run
   // would pass without the feature having done anything.
-  if (radius > 1 && expectedBeyondStar === 0) {
+  if (radius !== 1 && expectedIncrement.nodes === 0 && expectedIncrement.edges === 0) {
+    const below = stepBelow(radius);
     failures.push(
-      `VACUOUS at radius 1.5: no participant has two neighbors who are connected ` +
-        `to each other, so the extra structure is empty and radius 1.5 draws the ` +
-        `same star radius 1 draws. Whether this setting shows anything is a ` +
-        `property of the graph: try --topology wheel or --topology ringLattice, or ` +
-        `pass your study's own generator to runLeakCheck().`
+      `VACUOUS at radius ${fmt(radius)}: it delivers nothing on this graph that ` +
+        `radius ${fmt(below)} does not, so the run would pass without the setting ` +
+        `having done anything. Whether it shows anything is a property of the ` +
+        `graph, not of the setting.\n` +
+        (Number.isInteger(radius as number)
+          ? `  At an integer radius the usual cause is that everybody is already ` +
+            `within reach: try more participants, or a shape with a larger diameter.\n`
+          : `  At a half step the usual cause is that nobody has two people at the ` +
+            `outer edge who are connected to each other: try --topology ringLattice, ` +
+            `or a shape with triangles at that depth.\n`) +
+        `  Or pass your study's own generator to runLeakCheck().`
     );
   }
 
@@ -166,6 +294,9 @@ export function accountVacuity(n: number, edges: Edge[], radius = 1): VacuityAcc
     candidatePairs,
     expectedDeliveries,
     expectedBeyondStar,
+    expectedStructureTies,
+    expectedFar,
+    expectedIncrement,
     failures,
     notes,
   };
@@ -257,7 +388,7 @@ export const CLI_TOPOLOGY_NAMES = Object.keys(CLI_TOPOLOGIES).sort();
 export function preflightCliTopology(
   name: string,
   n: number,
-  radius = 1
+  radius: Radius = 1
 ): { edges: Edge[] } | { refusal: string } {
   const build = CLI_TOPOLOGIES[name];
   if (!build) {
