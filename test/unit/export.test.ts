@@ -234,6 +234,11 @@ test("structureRows resolves local index 0 to the viewer, not to their first nei
     b_index: 2,
     a_id: "a",
     b_id: "b",
+    // Both ends are the viewer's own neighbors, which at this radius is the
+    // only thing they can be. The column earns its place above 1.5, where a row
+    // with `a_hop: 2` is a different relationship in the same table.
+    a_hop: 1,
+    b_hop: 1,
   });
 });
 
@@ -273,6 +278,10 @@ test("positionRows keeps the isolated viewer, whom an edge table would drop", ()
       radius: 1.5,
       node_index: 0,
       node_id: "me",
+      node_hop: 0,
+      // The viewer is named by their id, so they have no private name for
+      // themselves — and neither does anybody they are connected to.
+      node_ref: "",
       x: 300,
       y: 300,
     },

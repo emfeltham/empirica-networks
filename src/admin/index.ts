@@ -60,12 +60,14 @@ export {
   viewRows,
   structureRows,
   positionRows,
+  farRows,
   historyIsConsistent,
   parseNdjson,
   toCSV,
 } from "./export.js";
 export type {
   EdgeRow,
+  FarRow,
   NdjsonParse,
   PositionRow,
   SnapshotRow,

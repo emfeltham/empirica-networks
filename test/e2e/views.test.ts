@@ -376,13 +376,18 @@ test("a radius 1.5 run reaches structure.csv and positions.csv through the file"
     const positionsCsv = toCSV(positionRows(parsed.records));
     assert.match(
       structureCsv.split("\n")[0]!,
-      /^"game_id","viewer","seq","t","radius","a_index","b_index","a_id","b_id"$/,
+      /^"game_id","viewer","seq","t","radius","a_index","b_index","a_id","b_id","a_hop","b_hop"$/,
       "structure.csv leads with its canonical columns, in declaration order"
     );
     assert.match(
       positionsCsv.split("\n")[0]!,
-      /^"game_id","viewer","seq","t","radius","node_index","node_id","x","y"$/
+      /^"game_id","viewer","seq","t","radius","node_index","node_id","node_hop","node_ref","x","y"$/
     );
+    // Anchored at both ends on purpose, so a column added without a thought
+    // about the analysts reading these files fails here rather than arriving in
+    // somebody's dataset. `toCSV` derives its header from the union of the rows
+    // in first-seen order, so the order is a property of the row type's
+    // declaration and is worth pinning.
     assert.equal(
       structureCsv.split("\n").length,
       ties.length + 1,
