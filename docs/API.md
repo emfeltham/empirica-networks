@@ -949,7 +949,7 @@ node dist/verify/cli.cjs verify --n 4     # from a clone, after `npm run build`
 | Option | Default | |
 |---|---|---|
 | `-n`, `--n <count>` | 4 | Participants. Minimum 4, and refused below that: below it every named topology makes everyone everyone's neighbor, so there is no non-neighbor and a pass would prove nothing |
-| `--topology <name>` | `ring` | `ring`, `star`, `wheel`, `pairs`, `ladder`, `complete`. Refused when the shape could prove nothing — see below |
+| `--topology <name>` | `ring` | `ring`, `star`, `wheel`, `pairs`, `ladder`, `complete`, `ringLattice` (its `m` fixed at 2, so it needs n ≥ 5). Refused when the shape could prove nothing — see below |
 | `--radius <1\|1.5>` | 1 | The radius your study runs at. Refused rather than rounded: verifying radius 1 for somebody running 1.5 reports on a different study |
 | `-q`, `--quiet` | off | Print `PASS` or `FAIL` and nothing else. The CI form |
 | `-h`, `--help` | | Usage |

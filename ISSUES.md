@@ -279,26 +279,6 @@ the server, which is CPU rather than bytes and is not in the envelope at all.
 *Done when:* `npm run bench` accepts a radius and has at least one cell at 1.5 on a dense graph,
 and the figures in `docs/API.md` either come from it or say they do not.
 
-### O23. `wheel` is the only named CLI topology that can demonstrate radius 1.5
-
-**Evidence:** `src/verify/topologies.ts` `CLI_TOPOLOGIES`; `test/unit/leak_vacuity.test.ts`
-"triangle-free shapes are refused at radius 1.5".
-
-`verify --radius 1.5` needs a graph where somebody's two neighbors are connected to each other.
-Of the six shapes a flag can name, `ring`, `star`, `pairs` and `ladder` are triangle-free and are
-refused; `complete` is refused for the older reason that it has no non-neighbor. That leaves
-`wheel`.
-
-The refusal is correct and the message names `wheel`, so nobody is stuck. But a verification tool
-with one usable subject is thin: a user checking their own study is one shape away from having
-nothing to compare against, and every shape that would help — `ringLattice`, `wattsStrogatz`,
-`barabasiAlbert`, `geometricRandom` — takes a parameter a flag cannot carry. The escape hatch is
-real (`runLeakCheck()` accepts the generator a study hands `withNetwork`) and is documented, and
-it is also a code change rather than a command.
-
-*Done when:* `--topology` reaches at least one more triangle-rich shape, either by accepting a
-parameter or by naming a fixed-parameter variant and saying which parameter was fixed.
-
 ### O25. The offline recovery path cannot rebuild a radius 1.5 study's screens
 
 **Evidence:** `examples/rand2011/recover.mjs:38`, `examples/shirado2017/recover.mjs:40`;

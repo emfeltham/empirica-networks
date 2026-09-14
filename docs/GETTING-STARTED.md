@@ -306,7 +306,7 @@ node dist/verify/cli.cjs verify --n 4     # from a clone today
 
 It starts Tajriba, Empirica's data service, connects four automated participants in a ring by
 default, and inspects their raw network traffic. The `--topology` option also accepts `star`,
-`wheel`, `pairs`, and `ladder`.
+`wheel`, `pairs`, `ladder`, `complete` and `ringLattice`.
 
 ```
   non-neighbor sentinels received : 0/4 pairs  (must be 0)

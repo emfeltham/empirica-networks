@@ -93,6 +93,12 @@ makes the entries below meaningful as a baseline rather than a moving target.
   true of the package, and it now states that neither reconstruction sets a radius and what turning
   one on would mean. `docs/TESTING.md` lists all four browser files rather than two, and its
   baseline counts are current. `docs/GLOSSARY.md` defines "radius" and "structure".
+- `verify --topology ringLattice` (`ISSUES.md` O23), with its `m` fixed at 2 and said so. Until now
+  `wheel` was the only named shape that could demonstrate radius 1.5 — every other one a flag can
+  name is triangle-free or refused for having no non-neighbor — and a verification tool with one
+  usable subject is one shape away from having none. It is the only exception to "parameterised
+  generators are not here": `barabasiAlbert` and `geometricRandom` refuse to build without an rng
+  this table cannot supply, and `wattsStrogatz(n, k, 0)` is a ring lattice by a longer name.
 - `simulate`'s manifest records the radius its sessions ran at, and names the structure payload
   among what the rig does not exercise (`ISSUES.md` O26). It reads the value off the same snapshot
   it already takes the seed from, and for the same reason: the package writes it to the batch scope,
