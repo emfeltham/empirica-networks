@@ -143,6 +143,22 @@ export interface GameSnapshot {
    * mismatch visible rather than a single number that quietly picks a side.
    */
   radius: number;
+  /**
+   * The radius the batch record says this game ran at, or `undefined` if none
+   * was recorded.
+   *
+   * Optional, and `radius` above is not, because these answer different
+   * questions and only one of them always has an answer. A record predating the
+   * key is a real state, and defaulting it to `1` would assert that a study drew
+   * a star when nobody knows what it drew.
+   *
+   * Normally equal to `radius`. It differs in exactly one case, and that case is
+   * why both are here: a game already under way is recovered rather than
+   * re-recorded, so a process restarted at a different `graph.radius` publishes
+   * one number against a record holding the other. The server warns; an operator
+   * watching the monitor should be able to see it without reading the log.
+   */
+  recordedRadius?: number;
   /** Publish counter — how many times this game has published a view. */
   seq: number;
   nodes: NodeSnapshot[];

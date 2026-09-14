@@ -1978,6 +1978,10 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       order: [...state.order],
       seed: state.seed,
       radius: graphRadius,
+      // Read from storage rather than from config, which is the whole point of
+      // carrying both: this is what the run's own data says, while `radius`
+      // above is what participants are being shown now.
+      recordedRadius: readRadius(game),
       seq: seqByGame.get(gameID) ?? 0,
       nodes,
       metrics: graphMetrics(state.order.length, state.edges),

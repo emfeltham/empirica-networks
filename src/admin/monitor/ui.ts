@@ -410,6 +410,15 @@ export const PAGE = `<!doctype html>
     ops.innerHTML = "";
     row(ops, "publishes", String(snap.seq));
     row(ops, "seed", String(snap.seed));
+    // How much of this graph the people in it can see. The monitor draws the
+    // whole network, so without this line an operator is watching a study with
+    // no idea whether its participants are looking at a star or at the ties
+    // among their own connections.
+    row(ops, "radius", String(snap.radius),
+      snap.recordedRadius !== undefined && snap.recordedRadius !== snap.radius ? "alert" : "");
+    if (snap.recordedRadius !== undefined && snap.recordedRadius !== snap.radius) {
+      row(ops, "radius recorded", String(snap.recordedRadius), "alert");
+    }
     row(ops, "history events", String(snap.history.frames.length));
     row(ops, "channels pending", String(snap.pendingChannels.length),
       snap.pendingChannels.length ? "alert" : "");
@@ -427,6 +436,16 @@ export const PAGE = `<!doctype html>
     } else if (!snap.history.consistent) {
       banner("The edge history does not add up: the log's own counts disagree with replaying it. " +
         "Treat the scrubber and the exported snapshots with suspicion.");
+    } else if (snap.recordedRadius !== undefined && snap.recordedRadius !== snap.radius) {
+      // Third, and correctly outranked by both above: a stalled game and a
+      // broken history are wrong NOW, while this is a fact about how the data
+      // will read afterwards. It is here at all because the participants in
+      // this game have been shown both radii and no artifact of the run names
+      // more than one of them.
+      banner("This game was recorded at graph.radius " + snap.recordedRadius +
+        " and is publishing at " + snap.radius + ". Its participants have been shown both, " +
+        "and no single radius describes the session. The server logged this when it recovered " +
+        "the game after a restart.");
     } else {
       banner("");
     }
