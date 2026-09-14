@@ -1,6 +1,10 @@
 import { usePlayer, useStage } from "@empirica/core/player/classic/react";
 import {
+  COOPERATION_CSS,
+  NetworkGraph,
+  NetworkGraphStyles,
   useNeighbors,
+  useNetworkGraph,
   useNetworkSelf,
   useNetworkState,
   useNetworkTold,
@@ -24,18 +28,44 @@ import { Button } from "./components/Button";
  *                       rewiring offer is about someone you are NOT connected to,
  *                       which project() structurally cannot deliver.
  *
- * Deliberately unstyled beyond the minimum. This is a reconstruction of a design,
- * not a replication of an interface — the paper's screens are not reproduced, and
- * pretending otherwise by polishing these would be a claim about the wrong thing.
+ * THE GRAPH IS A STAR, AND THAT IS THE DESIGN. It is built from `useNeighbors()`
+ * alone, so it can only ever show you and the people you are tied to — never a
+ * tie between two of them, never anyone further out. Breadboard drew the same
+ * picture under the same limit, enforced server-side. The paper is explicit that
+ * the limit is part of the manipulation: "we do not inform subjects about the
+ * structure of the network or how many of their neighbors are connected to the
+ * player they are currently evaluating."
+ *
+ * A REWIRING OFFER IS NOT ON THE GRAPH WHEN IT IS AN OFFER TO FORM. It cannot be:
+ * that person is not your neighbor, so nothing about them is in the projection.
+ * They arrive through `tell()` and are shown in the panel as a single node in the
+ * same visual language — which is what Breadboard's own rewiring screen does.
+ *
+ * This is a RECONSTRUCTION. No participant data has been collected and no result
+ * here has been compared with the paper's. See docs/EXPERIMENTS.md.
  */
 
 const COOPERATE = "C";
 const DEFECT = "D";
 
 function ActionBadge({ action }) {
-  if (action === COOPERATE) return <span className="text-green-700 font-medium">cooperated</span>;
-  if (action === DEFECT) return <span className="text-red-700 font-medium">defected</span>;
+  if (action === COOPERATE) return <span className="text-orange-700 font-medium">cooperated</span>;
+  if (action === DEFECT) return <span className="text-sky-700 font-medium">defected</span>;
   return <span className="text-gray-400">has not chosen yet</span>;
+}
+
+/** One participant, drawn the way the graph draws them. Breadboard's idiom. */
+function MiniNode({ action }) {
+  return (
+    <svg
+      viewBox="0 0 80 80"
+      className="nbhd"
+      style={{ width: 64, height: 64, flexShrink: 0 }}
+      aria-hidden="true"
+    >
+      <circle cx="40" cy="40" r="30" {...(action ? { action } : {})} />
+    </svg>
+  );
 }
 
 /** Round 1 has no previous round, so there is nothing to have been told. */
@@ -63,81 +93,85 @@ function Feedback({ feedback }) {
   );
 }
 
+function describeNode(n, self) {
+  const label = { C: "cooperated", D: "defected" };
+  if (n.self) return `You: ${label[self] ?? "no choice yet"}.`;
+  return `A connection: last ${label[n.data?.action] ?? "no choice yet"}.`;
+}
+
 /** The cooperation decision. One choice, applied to every connection. */
-function Decide({ neighbors, state, told, player }) {
-  const action = state?.get("action");
+function Decide({ graph, neighbors, state, told, player, action }) {
   const submitted = player.stage.get("submit");
 
   return (
-    <div className="p-8 space-y-6 max-w-prose">
-      <Score score={told?.get("score")} />
-      <Feedback feedback={told?.get("rewireFeedback")} />
+    <div className="nbhd-split">
+      <div className="nbhd-pane-graph">
+        <NetworkGraph
+          model={graph}
+          ariaLabel="You and the participants you are connected to."
+          describe={(n) => describeNode(n, action)}
+        />
+      </div>
 
-      <div>
-        <h2 className="text-lg font-semibold">
-          Your connections ({neighbors.length})
-        </h2>
-        {neighbors.length === 0 ? (
-          <p className="mt-2 text-gray-500">
-            You have no connections at the moment, so this round you neither pay nor
-            receive anything.
+      <div className="nbhd-pane-side space-y-6">
+        <Score score={told?.get("score")} />
+        <Feedback feedback={told?.get("rewireFeedback")} />
+
+        <div>
+          <h2 className="text-lg font-semibold">Your connections ({neighbors.length})</h2>
+          {neighbors.length === 0 ? (
+            <p className="mt-2 text-gray-500">
+              You have no connections at the moment, so this round you neither pay nor
+              receive anything.
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-gray-500">
+              Orange cooperated last round; blue defected; faded has not chosen yet.
+            </p>
+          )}
+        </div>
+
+        <div>
+          <h2 className="text-lg font-semibold">Your choice this round</h2>
+          <p className="text-sm text-gray-500">
+            It applies to all {neighbors.length} of your connections at once.
           </p>
-        ) : (
-          <ul className="mt-2 space-y-1 text-sm">
-            {neighbors.map((n) => (
-              <li key={n.id}>
-                {/* The tail of the id, not the head: these are ULIDs, so
-                    participants created in the same millisecond share a long
-                    prefix and a truncated head makes distinct people look
-                    identical. */}
-                <span className="text-gray-500">…{n.id.slice(-6)}</span> last{" "}
-                <ActionBadge action={n.action} />
-              </li>
+          <div className="flex gap-3 mt-3">
+            {[
+              [COOPERATE, "Cooperate"],
+              [DEFECT, "Defect"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                /* PRIVATE. Written to this participant's own channel, so it reaches
+                   other participants only through the server's project() — and
+                   therefore only their connections. player.set("action", …) here
+                   would broadcast it to everyone and the network would stop being
+                   the manipulation. */
+                onClick={() => state?.set("action", value)}
+                className={`px-4 py-2 rounded border-2 ${
+                  action === value ? "border-black font-medium" : "border-gray-300"
+                }`}
+              >
+                {label}
+              </button>
             ))}
-          </ul>
+          </div>
+        </div>
+
+        <Button
+          handleClick={() => player.stage.set("submit", true)}
+          primary={!submitted}
+          disabled={submitted || !action}
+        >
+          <p>{submitted ? "Waiting for others…" : "Confirm"}</p>
+        </Button>
+        {!action && (
+          <p className="text-xs text-gray-400">
+            Choose cooperate or defect before confirming.
+          </p>
         )}
       </div>
-
-      <div>
-        <h2 className="text-lg font-semibold">Your choice this round</h2>
-        <p className="text-sm text-gray-500">
-          It applies to all {neighbors.length} of your connections at once.
-        </p>
-        <div className="flex gap-3 mt-3">
-          {[
-            [COOPERATE, "Cooperate"],
-            [DEFECT, "Defect"],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              /* PRIVATE. Written to this participant's own channel, so it reaches
-                 other participants only through the server's project() — and
-                 therefore only their connections. player.set("action", …) here
-                 would broadcast it to everyone and the network would stop being
-                 the manipulation. */
-              onClick={() => state?.set("action", value)}
-              className={`px-4 py-2 rounded border-2 ${
-                action === value ? "border-black font-medium" : "border-gray-300"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <Button
-        handleClick={() => player.stage.set("submit", true)}
-        primary={!submitted}
-        disabled={submitted || !action}
-      >
-        <p>{submitted ? "Waiting for others…" : "Confirm"}</p>
-      </Button>
-      {!action && (
-        <p className="text-xs text-gray-400">
-          Choose cooperate or defect before confirming.
-        </p>
-      )}
     </div>
   );
 }
@@ -155,7 +189,7 @@ function Decide({ neighbors, state, told, player }) {
  * the structure of the network or how many of their neighbors are connected to
  * the player they are currently evaluating."
  */
-function Rewire({ state, told, player }) {
+function Rewire({ graph, state, told, player, action }) {
   const offers = told?.get("offers") ?? [];
   const answers = state?.get("rewireAnswers") ?? {};
   const submitted = player.stage.get("submit");
@@ -168,62 +202,79 @@ function Rewire({ state, told, player }) {
   };
 
   return (
-    <div className="p-8 space-y-6 max-w-prose">
-      <h2 className="text-lg font-semibold">Connections</h2>
+    <div className="nbhd-split">
+      <div className="nbhd-pane-graph">
+        <NetworkGraph
+          model={graph}
+          ariaLabel="You and the participants you are connected to."
+          describe={(n) => describeNode(n, action)}
+        />
+      </div>
 
-      {offers.length === 0 ? (
-        <p className="text-sm text-gray-500">
-          You have no connection decisions this round.
+      <div className="nbhd-pane-side space-y-6">
+        <h2 className="text-lg font-semibold">Connections</h2>
+
+        {offers.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            You have no connection decisions this round.
+          </p>
+        ) : (
+          <ul className="space-y-4">
+            {offers.map((offer) => {
+              const chosen = answers[offer.with];
+              return (
+                <li key={offer.with} className="border rounded p-3 bg-white">
+                  <div className="flex gap-3 items-center">
+                    {/* The same visual language as the graph, so the person
+                        under consideration is recognisably one of its nodes —
+                        which for a "form" offer they are not yet, and cannot be. */}
+                    <MiniNode action={offer.theirLastAction} />
+                    <div className="space-y-1">
+                      <p className="text-sm">
+                        This participant last <ActionBadge action={offer.theirLastAction} />.
+                      </p>
+                      <p className="text-sm font-medium">
+                        {offer.exists
+                          ? "You are connected to them. Break the connection?"
+                          : "You are not connected to them. Form a connection?"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => answer(offer.with, true)}
+                      className={`px-3 py-1 rounded border-2 text-sm ${
+                        chosen === true ? "border-black font-medium" : "border-gray-300"
+                      }`}
+                    >
+                      {offer.exists ? "Break it" : "Form it"}
+                    </button>
+                    <button
+                      onClick={() => answer(offer.with, false)}
+                      className={`px-3 py-1 rounded border-2 text-sm ${
+                        chosen === false ? "border-black font-medium" : "border-gray-300"
+                      }`}
+                    >
+                      Leave it as it is
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <Button
+          handleClick={() => player.stage.set("submit", true)}
+          primary={!submitted}
+          disabled={submitted}
+        >
+          <p>{submitted ? "Waiting for others…" : "Done"}</p>
+        </Button>
+        <p className="text-xs text-gray-400">
+          Anything you leave undecided stays as it is.
         </p>
-      ) : (
-        <ul className="space-y-4">
-          {offers.map((offer) => {
-            const chosen = answers[offer.with];
-            return (
-              <li key={offer.with} className="border rounded p-3 space-y-2">
-                <p className="text-sm">
-                  Participant <span className="text-gray-500">…{offer.with.slice(-6)}</span>{" "}
-                  last <ActionBadge action={offer.theirLastAction} />.
-                </p>
-                <p className="text-sm font-medium">
-                  {offer.exists
-                    ? "You are connected to them. Break the connection?"
-                    : "You are not connected to them. Form a connection?"}
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => answer(offer.with, true)}
-                    className={`px-3 py-1 rounded border-2 text-sm ${
-                      chosen === true ? "border-black font-medium" : "border-gray-300"
-                    }`}
-                  >
-                    {offer.exists ? "Break it" : "Form it"}
-                  </button>
-                  <button
-                    onClick={() => answer(offer.with, false)}
-                    className={`px-3 py-1 rounded border-2 text-sm ${
-                      chosen === false ? "border-black font-medium" : "border-gray-300"
-                    }`}
-                  >
-                    Leave it as it is
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      <Button
-        handleClick={() => player.stage.set("submit", true)}
-        primary={!submitted}
-        disabled={submitted}
-      >
-        <p>{submitted ? "Waiting for others…" : "Done"}</p>
-      </Button>
-      <p className="text-xs text-gray-400">
-        Anything you leave undecided stays as it is.
-      </p>
+      </div>
     </div>
   );
 }
@@ -235,6 +286,30 @@ export function Game() {
   const told = useNetworkTold();
   const neighbors = useNeighbors();
   const self = useNetworkSelf();
+
+  const action = state?.get("action");
+  const offers = told?.get("offers") ?? [];
+  // Which of my ties is under a break offer this round. A "form" offer names
+  // somebody who is not in the graph at all, so it cannot be marked on it.
+  const breaking = new Set(offers.filter((o) => o.exists).map((o) => o.with));
+  const answers = state?.get("rewireAnswers") ?? {};
+
+  const graph = useNetworkGraph(
+    {
+      nodeAttrs: (n) => ({ action: n.self ? action : n.data?.action }),
+      edgeAttrs: (_, b) => ({
+        // Marked only once the participant has said to cut it, so the graph
+        // reports a decision rather than pre-empting one.
+        breaking: !!b.data?.id && answers[b.data.id] === true,
+        // Emitted ONLY while some tie is actually under consideration. Written
+        // unconditionally it is `focal="0"` on every tie whenever there is no
+        // offer, which dims the entire graph through the decide stage — a
+        // faded screen that still shows the right network and says nothing.
+        focal: breaking.size === 0 ? undefined : breaking.has(b.data?.id) ? 1 : 0,
+      }),
+    },
+    { action }
+  );
 
   // `undefined` means "not known yet" and is deliberately distinct from `[]`,
   // which means "genuinely has no connections". Rendering [] while loading would
@@ -248,13 +323,23 @@ export function Game() {
   const name = stage?.get("name");
 
   return (
-    <div>
-      {name === "rewire" ? (
-        <Rewire state={state} told={told} player={player} />
-      ) : (
-        <Decide neighbors={neighbors} state={state} told={told} player={player} />
-      )}
-      <p className="px-8 pb-8 text-xs text-gray-400">
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <NetworkGraphStyles extra={COOPERATION_CSS} />
+      <div style={{ flex: 1, minHeight: 0 }}>
+        {name === "rewire" ? (
+          <Rewire graph={graph} state={state} told={told} player={player} action={action} />
+        ) : (
+          <Decide
+            graph={graph}
+            neighbors={neighbors}
+            state={state}
+            told={told}
+            player={player}
+            action={action}
+          />
+        )}
+      </div>
+      <p className="pl-48 pr-8 py-2 text-xs text-gray-400 border-t">
         You are node …{self?.playerID?.slice(-6)} with {self?.degree} connection(s).
         Nobody else&apos;s choices are sent to this browser.
       </p>

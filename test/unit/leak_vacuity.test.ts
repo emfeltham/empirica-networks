@@ -13,11 +13,13 @@ import test from "node:test";
 import { makeRng } from "../../src/admin/seed.js";
 import {
   accountVacuity,
+  countBeyondStar,
   preflightCliTopology,
   CLI_TOPOLOGIES,
   CLI_TOPOLOGY_NAMES,
 } from "../../src/verify/topologies.js";
 import {
+  adjacency,
   barabasiAlbert,
   complete,
   empty,
@@ -169,4 +171,111 @@ test("every named topology builds a graph over exactly n participants", () => {
     const highest = edges.reduce((m, [a, b]) => Math.max(m, a, b), -1);
     assert.ok(highest < 6, `${name}(6) referenced index ${highest}, so it is not a graph over 6`);
   }
+});
+
+
+// ---------------------------------------- the structural arms (radius 1.5)
+//
+// A fourth denominator, and it behaves like the other two: the arm is vacuous
+// exactly when it is zero. What is different is that it is zero for MOST
+// shapes, which is why the radius has to be part of the accounting rather than
+// checked afterwards — a triangle-free graph is a perfectly good graph and a
+// useless subject for this arm.
+
+test("beyond-star deliveries are counted per viewer, not per tie", () => {
+  // A triangle. Every node sees the tie between its two neighbors, so one tie
+  // is three deliveries. Counting ties instead would under-report by the factor
+  // that matters: the quantity is how many participants are TOLD something.
+  const triangle = adjacency(3, [
+    [0, 1],
+    [1, 2],
+    [0, 2],
+  ]);
+  assert.equal(countBeyondStar(triangle), 3);
+
+  // A path 0-1-2: node 1 sees 0 and 2, who are not tied. Nobody is told
+  // anything beyond their own star.
+  assert.equal(countBeyondStar(adjacency(3, [[0, 1], [1, 2]])), 0);
+});
+
+test("triangle-free shapes are refused at radius 1.5 and fine at radius 1", () => {
+  // The whole point of threading the radius through: these are shapes a study
+  // may legitimately run, and they simply cannot demonstrate this feature.
+  for (const [name, n] of [
+    ["ring", 6],
+    ["star", 6],
+    ["pairs", 6],
+    ["ladder", 6],
+  ] as const) {
+    const edges = CLI_TOPOLOGIES[name]!(n);
+    assert.equal(
+      accountVacuity(n, edges, 1).failures.length,
+      0,
+      `${name} of ${n} is a fine subject at radius 1`
+    );
+    const at15 = accountVacuity(n, edges, 1.5);
+    assert.equal(at15.expectedBeyondStar, 0, `${name} of ${n} has no ties among neighbors`);
+    assert.match(
+      at15.failures.join(" "),
+      /VACUOUS at radius 1\.5/,
+      `${name} of ${n} would pass at radius 1.5 while demonstrating nothing`
+    );
+    assert.ok(
+      "refusal" in preflightCliTopology(name, n, 1.5),
+      `${name} of ${n} must be refused before a server boots`
+    );
+  }
+});
+
+test("a wheel is the shipped shape that can demonstrate radius 1.5", () => {
+  // Named in the refusal message above, so it had better work — and the count
+  // is worth pinning rather than trusting: hub 0 plus a 5-cycle rim. The hub
+  // sees all five rim ties; each rim node sees its two ties to the hub, and not
+  // the tie between its rim neighbors, who are two apart on a 5-cycle.
+  const edges = CLI_TOPOLOGIES["wheel"]!(6);
+  const account = accountVacuity(6, edges, 1.5);
+  assert.equal(account.expectedBeyondStar, 5 + 5 * 2);
+  assert.deepEqual(account.failures, []);
+  assert.ok(!("refusal" in preflightCliTopology("wheel", 6, 1.5)));
+});
+
+test("a shape refused at radius 1 stays refused at 1.5, for its own reason", () => {
+  // `complete` has plenty of ties among neighbors and still cannot show a leak,
+  // so the radius must not rescue it. Both failures are reported, not the first.
+  const account = accountVacuity(5, CLI_TOPOLOGIES["complete"]!(5), 1.5);
+  assert.ok(account.expectedBeyondStar > 0, "the structural arm alone would be satisfied");
+  assert.match(
+    account.failures.join(" "),
+    /VACUOUS: every participant is adjacent to every other/,
+    "the radius must not rescue a shape that cannot show a leak"
+  );
+});
+
+test("the radius defaults to 1, so existing callers are unaffected", () => {
+  const edges = CLI_TOPOLOGIES["ring"]!(6);
+  assert.deepEqual(accountVacuity(6, edges).failures, accountVacuity(6, edges, 1).failures);
+});
+
+test("ringLattice is the second shape that can demonstrate radius 1.5", () => {
+  // The whole point of adding it: `wheel` was the only one, and a verification
+  // tool with one usable subject is one shape away from having none.
+  const edges = CLI_TOPOLOGIES["ringLattice"]!(6);
+  const account = accountVacuity(6, edges, 1.5);
+  assert.ok(account.expectedBeyondStar > 0, "every neighborhood holds a triangle");
+  assert.deepEqual(account.failures, [], "and it is a fine subject at 1.5");
+  assert.ok(!("refusal" in preflightCliTopology("ringLattice", 6, 1.5)));
+
+  // It is also a perfectly ordinary subject at radius 1 — degree 4 at n=6 still
+  // leaves each participant one non-neighbor.
+  assert.deepEqual(accountVacuity(6, edges, 1).failures, []);
+  assert.ok(account.candidatePairs > 0, "arm 1 has pairs to examine");
+});
+
+test("ringLattice below its minimum is refused by name, not by a stray throw", () => {
+  // `ringLattice(n, 2)` needs n >= 5. Below that the generator throws, and the
+  // preflight is what turns that into a sentence naming the count the user typed
+  // rather than a stack from inside a topology module.
+  const r = preflightCliTopology("ringLattice", 4, 1);
+  assert.ok("refusal" in r, "n=4 cannot build a ring lattice of m=2");
+  assert.match(r.refusal, /ringLattice cannot be built at n=4/);
 });

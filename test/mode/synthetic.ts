@@ -69,13 +69,22 @@ export function provisionedChannel(participantID = "participant-1", playerID = "
   return h;
 }
 
-/** Publish a view to the channel created by `provisionedChannel`. */
+/**
+ * Publish a view to the channel created by `provisionedChannel`.
+ *
+ * `graph` is what radius 1.5 adds, and it is written in the SAME batch as the
+ * neighbor list here because that is what the server does — the two arriving
+ * apart would draw ties between the wrong people for as long as the skew lasted.
+ * Pass `undefined` for the default radius, where the key is absent entirely.
+ */
 export function publish(
   h: { changes: Subject<any> },
   neighbors: unknown[],
-  seq = 1
+  seq = 1,
+  graph?: unknown
 ): void {
   h.changes.next(attrChange("chan-1", NBHD_KEYS.SEQ, seq));
+  if (graph !== undefined) h.changes.next(attrChange("chan-1", NBHD_KEYS.GRAPH, graph));
   h.changes.next(attrChange("chan-1", NBHD_KEYS.NEIGHBORS, neighbors, true));
 }
 

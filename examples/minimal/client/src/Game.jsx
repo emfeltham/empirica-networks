@@ -1,10 +1,42 @@
 import { usePlayer, useStage } from "@empirica/core/player/classic/react";
 import {
+  NetworkGraph,
+  NetworkGraphStyles,
   useNeighbors,
+  useNetworkGraph,
   useNetworkSelf,
   useNetworkState,
+  useNetworkStructure,
 } from "empirica-networks/player/react";
 import React from "react";
+
+/**
+ * The same neighborhood, twice: once as a graph and once as a list.
+ *
+ * Both on purpose, and it is the point of this example rather than clutter. The
+ * graph is the interface a participant should usually get — it is what
+ * Breadboard drew, and it shows adjacency as adjacency. The list underneath is
+ * what the data actually is, and it is where the distinction this example exists
+ * to teach is visible: `name` is a PUBLIC player attribute and reaches every
+ * participant; `color` is private, written to this browser's own channel, and
+ * reaches only neighbors. Draw either from the same `useNeighbors()` array.
+ *
+ * At the default radius the graph is a STAR and can be nothing else: it is built
+ * from that array, which holds your neighbors and no tie between two of them.
+ * Started with `NBHD_RADIUS=1.5` the server additionally sends the ties among
+ * your neighbors, and the same component draws them with no change here — what
+ * changes is what the participant is being told, which is why the screen says so
+ * rather than leaving them to notice.
+ */
+
+/** A five-slot palette, as CSS the graph's attribute selectors can match. */
+const GRAPH_CSS = `
+.nbhd circle[color="red"]    { fill: #ef4444; }
+.nbhd circle[color="amber"]  { fill: #f59e0b; }
+.nbhd circle[color="green"]  { fill: #22c55e; }
+.nbhd circle[color="blue"]   { fill: #3b82f6; }
+.nbhd circle[color="violet"] { fill: #8b5cf6; }
+`;
 
 const COLORS = ["red", "amber", "green", "blue", "violet"];
 
@@ -37,6 +69,19 @@ export function Game() {
   const neighbors = useNeighbors();
   const self = useNetworkSelf();
 
+  const myColor = state?.get("color");
+  // `undefined` at the default radius; an object when the server is sending the
+  // local structure. Worth branching on in participant-visible text: at 1.5 they
+  // can see which of their neighbors know each other, and a screen that does not
+  // say so is showing them something they were not told to expect.
+  const structure = useNetworkStructure();
+  const graph = useNetworkGraph(
+    // The server's value becomes an SVG attribute and GRAPH_CSS selects on it,
+    // so the palette changes without the component changing.
+    { nodeAttrs: (n) => ({ color: n.self ? myColor : n.data?.color }) },
+    { color: myColor }
+  );
+
   // `undefined` means "not known yet", and is deliberately distinct from `[]`,
   // which means "genuinely has no neighbors". Rendering [] while loading would
   // show this participant as isolated and look entirely normal.
@@ -44,10 +89,22 @@ export function Game() {
     return <div className="p-8 text-gray-500">Joining the network…</div>;
   }
 
-  const myColor = state?.get("color");
-
   return (
     <div className="p-8 space-y-8">
+      <NetworkGraphStyles extra={GRAPH_CSS} />
+
+      <div className="h-64">
+        <NetworkGraph
+          model={graph}
+          ariaLabel="You and your neighbors."
+          describe={(n) =>
+            n.self
+              ? `You: ${myColor ?? "no color yet"}.`
+              : `${n.data?.name || "A neighbor"}: ${n.data?.color ?? "no color yet"}.`
+          }
+        />
+      </div>
+
       <div>
         <h2 className="text-lg font-semibold">Your color</h2>
         <div className="flex gap-2 mt-2">
@@ -107,6 +164,12 @@ export function Game() {
         <p className="mt-2 text-xs text-gray-500">
           Names are public player attributes. Colors are private — written to
           your own channel and shown only to your neighbors.
+        </p>
+
+        <p className="mt-2 text-xs text-gray-500">
+          {structure
+            ? "The diagram also shows which of your neighbors are connected to each other. You cannot see anything beyond them."
+            : "The diagram shows you and your neighbors. Whether they are connected to each other is not sent to this browser."}
         </p>
       </div>
 

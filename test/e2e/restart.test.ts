@@ -47,14 +47,17 @@ function viewOf(p: { mode: unknown }): Record<string, unknown> {
   return Object.fromEntries(neighbors.map((n) => [n.id, n.choice]));
 }
 
-const makeListeners = () => (_: any) => {
-  gameInit(1, 1, 3_600_000)(_);
-  withNetwork(_, {
-    topology: ({ playerCount }) => ring(playerCount),
-    project: (neighbor: any) => ({ id: neighbor.id, choice: neighbor.get("choice") }),
-    watch: ["choice"],
-  });
-};
+const makeListeners =
+  (radius: 1 | 1.5 = 1) =>
+  (_: any) => {
+    gameInit(1, 1, 3_600_000)(_);
+    withNetwork(_, {
+      topology: ({ playerCount }) => ring(playerCount),
+      project: (neighbor: any) => ({ id: neighbor.id, choice: neighbor.get("choice") }),
+      watch: ["choice"],
+      graph: { radius },
+    });
+  };
 
 test("the network keeps updating after the callbacks process restarts", async () => {
   await withScenario(
@@ -162,4 +165,90 @@ test("the network keeps updating after the callbacks process restarts", async ()
       }
     }
   );
+});
+
+
+/**
+ * A restart that changes what participants are shown.
+ *
+ * `onGameStartAttribute` diverts into recovery as soon as it sees a recorded
+ * seed, so the batch record is written once and never revisited. A process
+ * restarted with a different `graph.radius` therefore publishes the new radius
+ * against a record that still says the old one — the people in that game saw a
+ * star for the first half of their session and their neighbors' ties for the
+ * second, and every artifact the run leaves behind names only one of those.
+ *
+ * Worth a test rather than a comment because the failure is entirely silent: the
+ * study keeps running, every screen is correct for the moment it is drawn, and
+ * the dataset is wrong in a way no assertion in this repository was checking.
+ *
+ * A warn and not a throw. The game is live; refusing to publish would strand the
+ * participants inside it to protect the tidiness of a record that is already
+ * ambiguous. So the run continues, loudly.
+ */
+test("a restart that changes the radius says so, and keeps the game running", async () => {
+  const lines: string[] = [];
+  const originalLog = console.log;
+  console.log = (...args: unknown[]) => {
+    lines.push(args.map((a) => String(a)).join(" "));
+    originalLog(...args);
+  };
+
+  try {
+    await withScenario(
+      { n: N, kinds: networkKinds, listeners: makeListeners(1), modeFunc: EmpiricaNetwork },
+      async ({ server, admin, callbacks, participants }) => {
+        const batch = await createBatch(admin, batchConfig(N, 1));
+        await batch.running();
+        await waitFor(
+          () => participants.every((p) => modeOf(p).player.getValue()?.get("gameID")),
+          { label: "gameID assigned" }
+        );
+        for (const p of participants) modeOf(p).player.getValue()!.set("introDone", true);
+        await waitFor(() => participants.every((p) => modeOf(p).nbhd.getValue()?.published), {
+          label: "first publish",
+          timeoutMs: 30_000,
+        });
+
+        const actor = participants[0]!;
+        const actorID = modeOf(actor).player.getValue()!.id;
+        const neighborIDs = Object.keys(viewOf(actor));
+        const watcher = participants.find((p) =>
+          neighborIDs.includes(modeOf(p).player.getValue()!.id)
+        )!;
+
+        await callbacks.stop();
+        resetChannels();
+        lines.length = 0;
+        // The same study, restarted at the other radius. Nothing else changes.
+        const restarted = await startCallbacks(server, networkKinds, makeListeners(1.5));
+
+        try {
+          await waitFor(() => lines.some((l) => /graph\.radius/.test(l)), {
+            label: "the radius change is reported",
+            timeoutMs: 30_000,
+          });
+          const said = lines.find((l) => /graph\.radius/.test(l))!;
+          assert.match(said, /was networked at graph\.radius 1\b/, "it names what was recorded");
+          assert.match(said, /configured for 1\.5/, "and what is running now");
+          assert.match(
+            said,
+            /shown both/,
+            "and the consequence, which is the part an analyst needs"
+          );
+
+          // The game is still live: a warn must not have become a refusal.
+          modeOf(actor).player.getValue()!.set("choice", "AFTER");
+          await waitFor(() => viewOf(watcher)[actorID] === "AFTER", {
+            label: "the game kept running after the mismatch was reported",
+            timeoutMs: 30_000,
+          });
+        } finally {
+          await restarted.stop();
+        }
+      }
+    );
+  } finally {
+    console.log = originalLog;
+  }
 });

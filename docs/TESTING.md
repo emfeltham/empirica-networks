@@ -19,8 +19,11 @@ npm run check                                     # tsc --noEmit
 npm run check:links                               # documentation links
 ```
 
-Baseline, measured 2026-08-16 after M6 closed: 288 unit / 34 mode / 67 e2e, with `npm run check`
-clean. The tier was green on six consecutive runs, and the full `npm test` was green on two;
+Baseline, measured 2026-09-14 after the participant graph display and radius 1.5: 408 unit /
+40 mode / 85 e2e, with `npm run check` clean. (It stood at 288 / 34 / 67 on 2026-08-16, when M6
+closed; the figure is restated rather than replaced because the growth is the point — the new
+tiers are almost entirely pure functions, which is where this repository puts its decisions.)
+The tier was green on six consecutive runs, and the full `npm test` was green on two;
 `ISSUES.md` O8 stood at "1 green in 3" from M4 until its cause was found in the harness on
 2026-08-16. The e2e tier takes approximately 90 seconds.
 
@@ -126,19 +129,25 @@ behavior is described would have shipped all three.
 ### The browser tier — real Chromium, run deliberately
 
 `test/browser/*.ts`, bundled the same way and run outside `npm test`: each file needs a
-Chromium download, and one of them needs the Empirica CLI. `npm run test:browser` runs every
-file, one process at a time; a substring argument runs a subset.
+Chromium download, and three of the four need the Empirica CLI. `npm run test:browser` runs every
+file, one process at a time; a substring argument runs a subset. It sweeps orphaned processes
+between files — `empirica` starts the experiment's callbacks server through an npm wrapper chain
+that lands in its own process group, so a file that kills its dev server still leaves a live
+Tajriba client holding no port, which then answers for the NEXT file's game.
 
 | | Evidence provided | Requirements |
 |---|---|---|
 | `two_windows.ts` | the guarantee at the tab level: four real windows, and a non-neighbor's private value never arrives in the bytes, which cannot be checked by looking at the screen | CLI, ports 3000/8844, approximately 1 minute |
 | `monitor_page.ts` | the monitor's served script: the scrubber, the color scale, and the two banners | Chromium only, approximately 4 seconds |
+| `network_graph.ts` | the participant's own drawing: one circle per connection, every drawn tie incident to the viewer — the neighbor-limited claim restated as geometry — and that the picture still UPDATES when somebody else acts, which is PLATFORM-NOTES §8's residual risk and fails as a correct screen one publish behind | CLI, ports 3000/8844, approximately 40 seconds |
+| `radius_structure.ts` | that radius 1.5 is actually drawn. Every other assertion in the repository stays green if the payload arrives and the renderer ignores it — the screen would show a perfectly good star, which is a correct-looking picture of the other study | CLI, ports 3000/8844, approximately 40 seconds |
 
 Evidence provided: browser-specific behavior, including restoration of a session after reload,
-the bytes received by a tab, and execution of the monitor's browser script.
+the bytes received by a tab, execution of the monitor's browser script, and what is actually
+rendered on a participant's screen.
 
 This tier is reserved for browser-specific claims and therefore runs separately from `npm test`.
-Both files replace manual visual inspection with repeatable assertions. On its first run,
+All four files replace manual visual inspection with repeatable assertions. On its first run,
 `monitor_page.ts` identified a genuine defect: `gone()` left the complete seating plan visible
 while the badge reported that the game had ended (`ISSUES.md` O9).
 
@@ -202,7 +211,7 @@ wire frames, so a leak through a channel nobody enumerated is still caught.
 | `scripts/bench.mjs` | end-to-end publish latency, plus first-channel latency (`ISSUES.md` O15) reported even for runs that do not complete. `--dense` for the degree sweep, `--payload` for degree × view size, `--repeats` for a published figure, `--clients` to put the participants on another machine |
 | `scripts/soak.mjs` | long-run memory. Prints `net.stats()` alongside RSS |
 | `scripts/ceiling.mjs` | the scale-limit reproduction. `CEILING_PLAIN=1` runs it without this package |
-| `scripts/simulate.mjs` | the platform evaluation: the shipped Shirado reconstruction at its own n, across arms and seeds, keeping every output file, then auditing `views.ndjson` for C1. The one harness that does not throw its sessions away. `--seeds`, `--arms`, `--n`, `--out` |
+| `scripts/simulate.mjs` | the platform evaluation: the shipped Shirado reconstruction at its own n, across arms and seeds, keeping every output file, then auditing `views.ndjson` for C1 — which since radius 1.5 also checks the delivered structure, though no arm here delivers one and the manifest says so. The one harness that does not throw its sessions away. `--seeds`, `--arms`, `--n`, `--out`, `--check`, `--inject` |
 
 Everything that touches `@empirica/core/admin` is bundled to CJS first, for the same reason every
 time (`docs/PLATFORM-NOTES.md`, Section 3a).

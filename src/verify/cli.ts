@@ -46,12 +46,14 @@ interface Args {
   n: number;
   /** Unvalidated as parsed; `main` refuses an unknown or vacuous one. */
   topology: string;
+  /** Unvalidated as parsed, for the same reason. */
+  radius: number;
   quiet: boolean;
   help: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { command: "", n: 4, topology: "ring", quiet: false, help: false };
+  const args: Args = { command: "", n: 4, topology: "ring", radius: 1, quiet: false, help: false };
   const rest: string[] = [];
 
   for (let i = 0; i < argv.length; i++) {
@@ -66,6 +68,8 @@ function parseArgs(argv: string[]): Args {
     // shape it did not run is the one bug it must not have.
     else if (a === "--topology") args.topology = argv[++i] ?? "";
     else if (a.startsWith("--topology=")) args.topology = a.slice(11);
+    else if (a === "--radius") args.radius = Number(argv[++i]);
+    else if (a.startsWith("--radius=")) args.radius = Number(a.slice(9));
     else rest.push(a);
   }
   args.command = rest[0] ?? "";
@@ -80,12 +84,22 @@ Usage:
 
 Options:
   -n, --n <count>        participants (default 4, minimum 4)
-      --topology <name>  ring (default), star, wheel, pairs, ladder, complete
+      --topology <name>  ring (default), star, wheel, pairs, ladder, complete,
+                         ringLattice (m fixed at 2, needs n >= 5)
                          Refused when the shape would prove nothing: a complete
                          graph has no non-neighbor to leak to, and a wheel of 4
                          is a complete graph. Parameterised generators (grid,
                          wattsStrogatz, erdosRenyi, …) take an argument a flag
                          cannot carry — pass the generator to runLeakCheck().
+      --radius <1|1.5>   the radius your study runs at (default 1). At 1 this
+                         also checks that NO structure is sent, which is what
+                         makes the default free. At 1.5 it checks the ties
+                         between a participant's neighbors are contained and
+                         complete — arms the sentinel check cannot see, because
+                         those bytes are integers rather than anybody's state.
+                         Refused on a triangle-free shape, where radius 1.5
+                         draws the same star radius 1 draws: try --topology
+                         wheel or --topology ringLattice.
   -q, --quiet            only print the verdict
   -h, --help             show this
 
@@ -112,13 +126,25 @@ async function main(): Promise<number> {
     return 1;
   }
 
+  // Refused rather than rounded, and refused before the topology is judged,
+  // because the radius is one of the two things that decides whether a shape can
+  // prove anything. A tool that quietly verified radius 1 for somebody who typed
+  // 2 would be reporting on a study other than theirs.
+  if (args.radius !== 1 && args.radius !== 1.5) {
+    process.stderr.write(
+      `\n  --radius must be 1 or 1.5, got ${JSON.stringify(args.radius)}.\n` +
+        `  Wider radii are not implemented by the module either.\n\n`
+    );
+    return 1;
+  }
+
   // Refused before anything boots. Every named shape is pure over `n`, so whether
   // the run could establish the guarantee is knowable now rather than twenty
   // seconds from now — and the same accounting the run itself uses decides it, so
   // there is no list of known-bad names to keep in step. It catches `complete` at
   // any n and `wheel` at 4 (hub plus a three-node rim is K4) without naming
-  // either.
-  const preflight = preflightCliTopology(args.topology, args.n);
+  // either, and at `--radius 1.5` it also catches every triangle-free shape.
+  const preflight = preflightCliTopology(args.topology, args.n, args.radius);
   if ("refusal" in preflight) {
     process.stderr.write(`\n  ${preflight.refusal}\n\n`);
     return 1;
@@ -149,6 +175,7 @@ async function main(): Promise<number> {
     const result = await runLeakCheck({
       n: args.n,
       topology: args.topology,
+      radius: args.radius as 1 | 1.5,
       onProgress: args.quiet ? undefined : (m) => process.stdout.write(`  … ${m}\n`),
     });
     process.stdout.write(args.quiet ? `${result.pass ? "PASS" : "FAIL"}\n` : formatLeakResult(result));

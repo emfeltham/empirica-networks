@@ -8,7 +8,8 @@
  * be unit tested without a server — the same split ./layout.ts exists for.
  */
 import type { GameSnapshot } from "../inspect.js";
-import { layout, type LayoutOptions, type Point } from "./layout.js";
+import { layout, type LayoutOptions, type Point } from "../layout.js";
+import { edgeKey } from "../subgraph.js";
 
 export interface MonitorPayload {
   snapshot: GameSnapshot;
@@ -73,15 +74,6 @@ export function buildPayload(snapshot: GameSnapshot, opts: BuildOptions = {}): M
  */
 export function payloadChanged(a: MonitorPayload | undefined, b: MonitorPayload): boolean {
   return a?.digest !== b.digest;
-}
-
-function edgeKey(edges: Array<[number, number]>): string {
-  // Sorted, so a rewire that produces the same graph in a different order does
-  // not count as a shape change and does not re-run the layout.
-  return edges
-    .map(([i, j]) => (i < j ? `${i}-${j}` : `${j}-${i}`))
-    .sort()
-    .join(" ");
 }
 
 function digestOf(payload: Omit<MonitorPayload, "digest">): string {

@@ -159,9 +159,16 @@ async function joinExperiment(tab: Tab): Promise<void> {
   await page.getByRole("button", { name: /next/i }).click();
 }
 
-/** The names this tab can actually see, read from the rendered neighbor list. */
+/**
+ * The names this tab can actually see, read from the rendered neighbor list.
+ *
+ * `ul:not(.nbhd-summary)` rather than `ul`: `<NetworkGraph>` renders a second,
+ * visually hidden `<ul>` of the same neighborhood for screen readers, so a bare
+ * `ul li` now reads every name twice and this check would count the same people
+ * as extra neighbors.
+ */
 async function visibleNeighborNames(tab: Tab): Promise<string[]> {
-  const items = await tab.page.locator("ul li").allTextContents();
+  const items = await tab.page.locator("ul:not(.nbhd-summary) li").allTextContents();
   return items.map((t) => t.trim()).filter(Boolean);
 }
 
@@ -484,7 +491,7 @@ async function main(): Promise<void> {
 
     await waitFor(async () => {
       const titles = await reloaded.page
-        .locator("ul li div[title]")
+        .locator("ul:not(.nbhd-summary) li div[title]")
         .evaluateAll((els) => els.map((e) => e.getAttribute("title")));
       return titles.includes("violet");
     }, `${reloaded.key} sees a neighbor's NEW color after reloading`);

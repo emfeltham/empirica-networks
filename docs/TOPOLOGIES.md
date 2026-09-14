@@ -128,8 +128,18 @@ Either is fine in moderation: they are counted and reported. A graph where every
 in one of those states is refused, because a pass would mean nothing: that is `complete` at any
 `n`, `empty`, and `wheel(4)`, which is `complete(4)` wearing a different name.
 
+At `--radius 1.5` a third property decides what a pass is worth, and it disqualifies most shapes:
+
+- A graph where nobody has two neighbors who are connected to each other has no extra structure to
+  send, so radius 1.5 draws the same star radius 1 draws. `ring`, `star`, `pairs` and `ladder` are
+  all triangle-free and are refused at that radius rather than passed. `wheel` is the shipped shape
+  that works, and so is `ringLattice`; for anything else, hand `runLeakCheck()` the generator you
+  hand `withNetwork`.
+
 `--topology` takes the shapes that need no further argument: `ring`, `star`, `wheel`, `pairs`,
-`ladder`, `complete`. Everything else takes a parameter a flag cannot carry, so it is reached by
+`ladder`, `complete` — plus `ringLattice`, the one exception, whose `m` is fixed at 2 and which
+therefore needs n ≥ 5. It is there because without it `--radius 1.5` had `wheel` and nothing else.
+Everything else takes a parameter a flag cannot carry, so it is reached by
 handing `runLeakCheck` the same function you hand `withNetwork`, which is also the only way to
 check a `fromEdgeList` graph, and the reason to prefer it generally: it verifies the graph your
 study runs rather than a stand-in for it.

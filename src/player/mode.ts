@@ -49,6 +49,19 @@ export class Nbhd extends Scope<NetworkCtx, any> {
     return this.get(NBHD_KEYS.NEIGHBORS) !== undefined;
   }
 
+  /**
+   * The local structure of this neighborhood, or `undefined` at radius 1.
+   *
+   * `{ radius, edges, positions }` with edges as pairs of LOCAL indices into
+   * `neighbors` (0 being the viewer). Absent entirely unless the study opted
+   * into `graph: { radius: 1.5 }`, which is why the radius travels inside it:
+   * "this study shows a star" and "the structure has not arrived" are different
+   * answers and must not be one.
+   */
+  get graph(): unknown {
+    return this.get(NBHD_KEYS.GRAPH);
+  }
+
   get ownerParticipantID(): string | undefined {
     return this.get(NBHD_KEYS.OWNER) as string | undefined;
   }

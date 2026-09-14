@@ -504,7 +504,13 @@ the floor, deliberately as an environment-variable seam rather than a configurat
 |---|---|
 | `readNetwork(game): Edge[] \| undefined` | the recorded edge list, off the batch scope |
 | `readSeed(game): number \| undefined` | the recorded seed |
+| `readRadius(game): number \| undefined` | how much of the network this game showed its participants |
 | `gameIDOf(ref): string \| undefined` | the id out of a `GameRef` |
+
+`readRadius` returns `undefined` for "not recorded" and never `1`. A dataset from before the key
+existed and one from a study that deliberately drew a star are different facts, and defaulting
+would assert the second about the first. See [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md#4-reproducing-a-finished-run),
+including what a restart at a changed radius does to the record.
 
 `GameRef = string \| { id?: unknown }`. Every entry point that takes a game accepts either the
 scope object or its id. A listener holds `stage.currentGame`, while a test or an HTTP handler
@@ -551,7 +557,7 @@ Also exported: `resolveEnvelope`, `defaultMaxDegree`, `DEFAULT_ENVELOPE`, `MEASU
 | `provisionChannels`, `readChannels`, `resetChannels` | channel plumbing; `resetChannels` is a test seam |
 | `makeViewSink`, `makeLogSink`, `makeNdjsonSink` | the NDJSON writers |
 | `topology` | the whole [topology namespace](TOPOLOGIES.md) |
-| `edgeRows`, `snapshotRows`, `viewRows`, `parseNdjson`, `toCSV`, `historyIsConsistent` | re-exported from `/export`, but see the warning there |
+| `edgeRows`, `snapshotRows`, `viewRows`, `structureRows`, `positionRows`, `parseNdjson`, `toCSV`, `historyIsConsistent` | re-exported from `/export`, but see the warning there |
 
 ---
 
@@ -652,6 +658,123 @@ import { useNeighbors, useNetworkSelf, useNetworkState } from "empirica-networks
 | `useNetworkTold()` | `{ get }` — server-authored values. No `set` | before the channel is provisioned |
 | `useNeighborChat()` | `{ messages, send }` | chat off, or before provisioning |
 | `useNbhd()` | the raw `Nbhd` scope | before the channel is provisioned |
+| `useNetworkGraph(opts, self?)` | `{ nodes, edges, size }` — the neighborhood as a drawable node-link model | before the first publish |
+| `useNetworkStructure()` | `{ radius, edges, positions }` at radius 1.5 | `undefined` at radius 1; `null` if it arrived unusable |
+
+### Drawing the neighborhood
+
+```jsx
+import {
+  DARK2_CSS, NetworkGraph, NetworkGraphStyles, useNetworkGraph, useNetworkState,
+} from "empirica-networks/player/react";
+
+const state = useNetworkState();
+const mine = state?.get("color");
+const graph = useNetworkGraph(
+  {
+    nodeAttrs: (n) => ({ color: n.self ? mine : n.data?.color }),
+    edgeAttrs: (a, b) => ({ conflict: a.data?.color === b.data?.color }),
+  },
+  { color: mine }              // the viewer's own node is not in `neighbors`
+);
+
+<NetworkGraphStyles extra={DARK2_CSS} />
+<NetworkGraph model={graph} fallback={<p>Joining the network…</p>} />
+```
+
+The picture is a **star**: the viewer at the centre, one node per neighbor, one line to each. It
+cannot be anything else, because it is derived from `useNeighbors()` — a tie between two of your
+neighbors is not in that array, so it cannot be drawn. **Nothing extra crosses the wire to render
+it**, and no envelope or leak assertion changes. This is also what Breadboard drew, under the same
+limit enforced server-side.
+
+`nodeAttrs` and `edgeAttrs` put the server's values on the SVG elements as attributes, so an
+experiment is restyled in CSS (`circle[color="green"] { fill: #1b9e77 }`) without touching the
+component. Keys must be lowercase and values primitive; `id`, `class`, `style`, `r` and the
+geometry attributes are reserved and dropped — every projection in this repository carries `id`,
+and passing it through would put one DOM id on several elements.
+
+Three stylesheets ship as strings rather than `.css` files, because tsup does not copy assets and a
+missing stylesheet would appear only on a consumer's machine: `NETWORK_GRAPH_CSS` (the base, always
+included by `<NetworkGraphStyles>`), `DARK2_CSS` (ColorBrewer Dark2, plus the red conflict tie) and
+`COOPERATION_CSS` (Breadboard's orange/blue public-goods palette, plus the rewiring rules).
+
+Pass `describe` whenever state is carried by fill. The graph is a single `role="img"`, so without
+it a participant using a screen reader has been handed a picture with no content — and in a
+coloring game the fill is the task, not decoration.
+
+### Showing the ties among a participant's neighbors
+
+```js
+withNetwork(Empirica, { …, graph: { radius: 1.5 } });   // default: 1
+```
+
+`1` sends nothing extra: the star above is built from `useNeighbors()`, so the default costs
+nothing and no assertion in this repository moves.
+
+`1.5` additionally sends the subgraph induced on each participant's **closed neighborhood** — the
+ties between their own connections — with positions laid out server-side. The same component draws
+it with no client change. Radii above 1.5 are refused rather than rounded down.
+
+**This widens what a participant is told, and it is opt-in for that reason rather than because it
+is expensive.** Two consequences worth deciding about before turning it on:
+
+- It tells a participant which of their connections know each other — a fact about two *other*
+  people that neither of them disclosed.
+- It is more than the designs reconstructed here gave their subjects. For Shirado & Christakis it
+  makes the task easier: local structure is exactly what a coordinating participant lacks. Turning
+  it on there runs a different experiment, the same way projecting `wealth` into Rand 2011 runs
+  Nishi 2015 ([EXPERIMENTS.md](EXPERIMENTS.md)).
+
+Whether it shows anything at all is a property of the graph, not the setting: on a ring nobody's
+neighbors are tied to each other, so radius 1.5 draws the same star. `examples/minimal` switches to
+a ring lattice under `NBHD_RADIUS=1.5` for that reason.
+
+What is sent is integers, never names or seats. Edges are pairs of indices into the array the
+browser already holds — `0` the viewer, `1..d` their neighbors in order — so no seating plan
+reaches a participant ([PLATFORM-NOTES.md](PLATFORM-NOTES.md) §4b). The payload counts toward
+`envelope.maxNeighborhoodBytes` and not toward `maxViewBytes`, which detects an over-broad
+`project()` and this did not come from one.
+
+**Measured**, not derived: at most 2.3 KiB at degree 19 and 13 KiB at degree 49, against a 64 KiB
+budget, with no latency cost distinguishable from zero at either size
+([PLATFORM-NOTES.md](PLATFORM-NOTES.md#the-radius-15-structure-measured);
+`npm run bench -- --structure`). This sentence previously quoted an arithmetic figure of "about
+1 KB at degree 16", which was roughly half the real bound — it omitted the star edges and used an
+optimistic per-edge width. The shape to remember is that ties among neighbors grow with the SQUARE
+of degree while the views grow linearly, so at the dense end of the supported regime the structure
+is several times the views it travels with.
+
+`useNetworkStructure()` returns three states, and the third is the point: `undefined` means the
+study runs at radius 1 and a star is correct; `null` means the structure arrived and cannot be
+used, and `useNetworkGraph()` then returns `undefined` rather than falling back to a star — which
+would be a correct-looking picture of a different study.
+
+**Verifying it.** `verify` takes the radius your study runs at:
+
+```sh
+npx empirica-networks verify --n 6 --topology wheel --radius 1.5
+```
+
+The three sentinel arms are about **state** and hold identically at either radius. Two more arms
+cover the structure, because a sentinel cannot: the extra bytes are integers, so a payload naming
+ties to strangers — or ties that do not exist — carries no sentinel and the sentinel arms stay
+clean while a participant is shown a network nobody is in.
+
+```
+  ties outside the neighborhood  : 0/35 ties  (must be 0)
+  ties between neighbors shown   : 15/15  (non-vacuity)
+```
+
+At `--radius 1` the same arm asserts the opposite and prints `structure payloads sent : 0`, which
+is what makes the default's "costs nothing" a checked claim rather than a stated one.
+
+A triangle-free shape is **refused** at `--radius 1.5` rather than passed: a ring has no ties among
+anyone's neighbors, so the run would prove nothing. `wheel` is the shipped shape that works; for
+your own graph, hand `runLeakCheck()` the generator you hand `withNetwork`.
+
+The pure functions behind all of this — `graphModelOf`, `egoRingLayout`, `svgAttrs` — are exported
+too, and are what the headless and bot paths use.
 
 ### Writing private state
 
@@ -694,7 +817,8 @@ with the parameters, connectivity guarantees and envelope implications of each.
 
 ## `empirica-networks/export`
 
-The pure row builders: `edgeRows`, `snapshotRows`, `viewRows`, `parseNdjson`, `toCSV`,
+The pure row builders: `edgeRows`, `snapshotRows`, `viewRows`, `structureRows`, `positionRows`,
+`parseNdjson`, `toCSV`,
 `historyIsConsistent`. Schemas in [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md).
 
 > Import these from `/export`, not `/admin`, in anything run outside the Empirica CLI. The
@@ -833,7 +957,8 @@ node dist/verify/cli.cjs verify --n 4     # from a clone, after `npm run build`
 | Option | Default | |
 |---|---|---|
 | `-n`, `--n <count>` | 4 | Participants. Minimum 4, and refused below that: below it every named topology makes everyone everyone's neighbor, so there is no non-neighbor and a pass would prove nothing |
-| `--topology <name>` | `ring` | `ring`, `star`, `wheel`, `pairs`, `ladder`, `complete`. Refused when the shape could prove nothing — see below |
+| `--topology <name>` | `ring` | `ring`, `star`, `wheel`, `pairs`, `ladder`, `complete`, `ringLattice` (its `m` fixed at 2, so it needs n ≥ 5). Refused when the shape could prove nothing — see below |
+| `--radius <1\|1.5>` | 1 | The radius your study runs at. Refused rather than rounded: verifying radius 1 for somebody running 1.5 reports on a different study |
 | `-q`, `--quiet` | off | Print `PASS` or `FAIL` and nothing else. The CI form |
 | `-h`, `--help` | | Usage |
 
@@ -855,16 +980,31 @@ report the study's own `@empirica/core`.
   … waiting for projections to be published
 
   empirica-networks verify — neighbor-limited visibility
-  topology: ring of 4
+  topology: ring of 4   ·   radius: 1
 
   non-neighbor sentinels received : 0/4 pairs  (must be 0)
   neighbor sentinels delivered    : 8/8  (non-vacuity)
   control values observed          : 12  (must be > 0, proves detection works)
+  structure payloads sent        : 0  (must be 0 at radius 1)
 
   note: ring of 4: degree 2-2, 4 non-neighbor pairs examined
 
   PASS
 ```
+
+At `--radius 1.5` the last line is replaced by the two arms that cover the extra structure:
+
+```
+  ties outside the neighborhood  : 0/35 ties  (must be 0)
+  ties between neighbors shown   : 15/15  (non-vacuity)
+```
+
+They are separate arms rather than an extension of the sentinel ones because the sentinels cannot
+see structure at all. A sentinel is somebody's attribute; the bytes radius 1.5 adds are integers,
+so a payload naming ties to strangers — or ties that do not exist — carries no sentinel, and arms
+1-3 stay perfectly clean while a participant is shown a network nobody is in. They read the **raw**
+wire rather than going through `networkGraphOf`, which drops out-of-range edges by design and would
+make the containment arm assert nothing.
 
 Every arm prints against what it was measured over, and arm 1's denominator is the one that took
 longest to earn: `0` alone reads the same whether four non-neighbor pairs were examined and none
@@ -879,6 +1019,11 @@ that excuse only some participants are run and reported: a star's hub is adjacen
 so the verdict says `not covered: 1 adjacent to everyone` and the check still establishes the
 guarantee for the spokes.
 
+`--radius 1.5` adds a third way to be refused, and it disqualifies most shapes: a graph where
+nobody has two neighbors who are connected to each other has no extra structure to send, so radius
+1.5 draws the same star radius 1 draws and the run would pass having demonstrated nothing. `ring`,
+`star`, `pairs` and `ladder` are all triangle-free. `wheel` is the shipped shape that works.
+
 The parameterised generators (`grid`, `ringLattice`, `wattsStrogatz`, `barabasiAlbert`,
 `erdosRenyi`, `geometricRandom`) take an argument a flag cannot carry. They are reachable by
 handing `runLeakCheck` the same generator function you hand `withNetwork`, which is also how to
@@ -888,10 +1033,12 @@ check a `fromEdgeList` graph:
 await runLeakCheck({
   n: 12,
   topology: ({ playerCount, rng }) => topology.wattsStrogatz(playerCount, 4, 0.1, { rng }),
+  radius: 1.5,   // if that is what your study runs at
 });
 ```
 
-There are three arms, all required. A clean result with a silent control means the check is
+There are five arms, all required — three about state, two about structure. A clean result with a
+silent control means the check is
 blind; a clean result with nothing delivered means the projection never ran. Most privacy tests
 are wrong in exactly one of those two ways, so both are reported as failures rather than as a
 pass.

@@ -9,8 +9,181 @@ Nothing has been released. The package is `private: true` at `0.0.0` while the p
 still unfrozen. This section will become `0.1.0` at the first publish, and that freeze is what
 makes the entries below meaningful as a baseline rather than a moving target.
 
+### Added
+
+- The radius a game ran at is recorded on the batch scope (`networkRadius:<gameID>`) and read back
+  with `readRadius(game)`, alongside the edge list and the seed. Nothing else in a finished dataset
+  implies it: two studies on one topology, one at each radius, leave identical edge lists,
+  identical seeds and identical attribute exports, and showed their participants different things.
+  Written at every radius including the default, so an absent value means "predates the key" and
+  never "drew a star" — `readRadius` returns `undefined` rather than `1` for that reason.
+  `GameSnapshot.radius` carries the live value.
+
+  A game already under way is recovered rather than re-recorded, so a process restarted with a
+  different `graph.radius` would have left the old value in place while showing participants the
+  new one — a session with two radii and no artifact naming the second. That now warns loudly and
+  keeps the game running; refusing to publish would strand the participants inside it.
+
+- `ViewRecord.graph` — captured views record the structure delivered at radius 1.5, not just
+  `project()` output. Half of what a participant is given at that radius was going unrecorded by a
+  facility whose own doc calls itself "the only record of what a participant was told", and whose
+  file `docs/DATA-AND-ANALYSIS.md` calls "irreplaceable: this is the only copy". Positions are kept
+  as well as edges, because they are warm-started and therefore follow the session's history rather
+  than its final graph — they are not a function of anything else stored, which is the same
+  criterion that makes capture worth turning on at all. Absent at radius 1, where `JSON.stringify`
+  omits it and the NDJSON is byte-identical to before.
+
+- `structureRows()` and `positionRows()` on `empirica-networks/export`, flattening that structure
+  for analysis. Separate builders from `viewRows` rather than an extension of it: the grain differs
+  (one row per tie, one per node, one per neighbor), and a viewer with no ties still has a position.
+  Both carry local indices as well as resolved ids, so they join to `edges.csv` on the ids and to
+  `views.csv` on the indices — which still works for a projection carrying no `id` — and both carry
+  the `radius` the delivery was made at, so a table read on its own says which study it describes.
+
+- `NetworkConfig.graph: { radius: 1.5 }`: show each participant the ties BETWEEN their own
+  connections — the subgraph induced on their closed neighborhood — with positions laid out
+  server-side. Off by default, and opt-in because it widens what a participant is told rather than
+  because it is expensive: it discloses which of their connections know each other, and on a
+  coordination task it makes the problem easier. Radii above 1.5 are refused, not rounded down.
+
+  What travels is integers. Edges are pairs of indices into the array the browser already holds, so
+  no seating plan reaches a participant (`PLATFORM-NOTES` §4b), and the mapping is built from the
+  neighbors actually published rather than from the adjacency list — a dropped neighbor renumbers
+  everyone after them, and getting that wrong draws a well-formed graph connecting the wrong
+  people. Counts toward `envelope.maxNeighborhoodBytes`, not `maxViewBytes`.
+
+  Client-side, `useNetworkStructure()` distinguishes three states: absent (radius 1, draw a star),
+  unusable (wait — a star here is a correct-looking picture of a different study), and usable.
+
+- `verify --radius <1|1.5>`, and two new arms behind it. The three sentinel arms are about state
+  and cannot see structure at all: the bytes radius 1.5 adds are integers, so a payload naming ties
+  to strangers or ties that do not exist carries no sentinel and every existing arm stays clean.
+  The new arms read the RAW wire — not `networkGraphOf`, which drops out-of-range edges by design
+  and would make the containment check assert nothing — and require that every delivered tie joins
+  two people the viewer can see and really exists, and that all of them arrive. At `--radius 1` the
+  same arm asserts no structure is sent at all, which turns the default's "costs nothing" into a
+  checked claim. `accountVacuity` gained `expectedBeyondStar` and takes the radius, so a
+  triangle-free shape is refused before a server boots rather than passing vacuously.
+
+- A participant-facing node-link view of the neighborhood: `useNetworkGraph()`, `<NetworkGraph>`,
+  `<NetworkGraphStyles>` and the pure model behind them (`graphModelOf`, `egoRingLayout`,
+  `svgAttrs`), all on the existing `empirica-networks/player/react` subpath. The picture is a
+  star — the viewer, their neighbors, and a line to each — because it is derived from
+  `useNeighbors()`, so **no new data crosses the wire and no envelope or leak assertion changes**.
+  Breadboard's participants saw the same ego-only diagram, enforced there server-side.
+
+  Nodes and edges carry the server's values as SVG attributes, so an experiment is restyled in CSS
+  rather than in the component. Breadboard's own two palettes ship with it (`DARK2_CSS`,
+  `COOPERATION_CSS`).
+
 ### Changed
 
+- The three examples now draw the neighborhood instead of listing it, and `docs/EXPERIMENTS.md`
+  records why the earlier "reconstructs a design, not an interface" position was reversed: the
+  interface is documented — eight screenshots in the Shirado & Christakis SI, plus the stylesheets
+  in Breadboard's distribution — so a list was the further departure from the published
+  description, not the safer one. The claim stays narrow, and what the screens withhold is
+  unchanged.
+- `ISSUES.md` gained O19–O26, recording what radius 1.5 did not reach. Those closed since are
+  listed individually below; what remains open is named there.
+- Documentation caught up with the branch. `README.md` shows the graph display in its quick start
+  and names it in the navigation table — it was mentioned nowhere outside the verifier's output.
+  `docs/EXPERIMENTS.md` **corrects a claim that had become false**: it said the graph "can only ever
+  draw the subject and their own connections", which is true of both reconstructions and no longer
+  true of the package, and it now states that neither reconstruction sets a radius and what turning
+  one on would mean. `docs/TESTING.md` lists all four browser files rather than two, and its
+  baseline counts are current. `docs/GLOSSARY.md` defines "radius" and "structure".
+- `npm run bench -- --structure` measures both radii on dense cells in one sweep, and
+  `docs/PLATFORM-NOTES.md` §19 records the result (`ISSUES.md` O19). Two findings: the latency cost
+  of radius 1.5 is not distinguishable from zero at n ≤ 50, and the SIZE was documented at roughly
+  half its real bound — `docs/API.md` said "about 1 KB at degree 16", which omitted the star edges
+  and used an optimistic per-edge width. It is 2.3 KiB at degree 19 and 13 KiB at degree 49, still
+  well inside the 64 KiB default. Ties among neighbors grow with the square of degree while the
+  views grow linearly, so a figure quoted from a sparse cell understates it badly. O1's caveat
+  applies to the latency numbers exactly as it does to the rest of §18 and §19.
+- `examples/minimal` captures views and ships a `recover.mjs` that rebuilds `structure.csv` and
+  `positions.csv` from them (`ISSUES.md` O25). It is the only example that can run at radius 1.5,
+  and it was the only one with no recovery script — so the shipped demonstration of the offline path
+  and the shipped demonstration of radius 1.5 were in different directories and could not meet.
+  Capture is gated on `MINIMAL_OUT`, as the other two examples gate theirs, because this file is
+  imported unmodified by the test suite.
+- `verify --topology ringLattice` (`ISSUES.md` O23), with its `m` fixed at 2 and said so. Until now
+  `wheel` was the only named shape that could demonstrate radius 1.5 — every other one a flag can
+  name is triangle-free or refused for having no non-neighbor — and a verification tool with one
+  usable subject is one shape away from having none. It is the only exception to "parameterised
+  generators are not here": `barabasiAlbert` and `geometricRandom` refuse to build without an rng
+  this table cannot supply, and `wattsStrogatz(n, k, 0)` is a ring lattice by a longer name.
+- `simulate`'s manifest records the radius its sessions ran at, and names the structure payload
+  among what the rig does not exercise (`ISSUES.md` O26). It reads the value off the same snapshot
+  it already takes the seed from, and for the same reason: the package writes it to the batch scope,
+  the harness's store is in memory, and once the server stops this file is the only artifact that
+  could say what these sessions showed people. Every arm runs at the default radius — the example's
+  config is a literal fixed when its module loads, with no path from a flag to it — so "1 because
+  that is what ran" is now distinguishable from "1 because nobody wrote it down".
+- `auditViews` checks the structure (`ISSUES.md` O21), so `simulate`'s leak check is no longer
+  silent about half a radius 1.5 delivery. Every delivered tie must join two people the viewer could
+  see and must exist in the edge log, and a run that delivered structure without ever showing a tie
+  beyond a viewer's own star is reported as vacuous — that is what radius 1 already draws.
+
+  The root cause was a duplicate type: `audit.ts` restated `ViewRecord` structurally, under a
+  comment naming `src/shared/keys.ts` as its source, and did not follow it when `graph` was added.
+  It now imports the canonical one; `import type` is erased, so the module is still import-free at
+  runtime.
+- The monitor states the radius (`ISSUES.md` O22). It draws the complete network, so an operator
+  could not tell whether the people in it were looking at a star or at the ties among their own
+  connections. `GameSnapshot.recordedRadius` carries what the run's own data says alongside what is
+  being published now — optional, because a record predating the key is a real state and defaulting
+  it to `1` would assert a study drew a star when nobody knows what it drew. When the two disagree,
+  which happens when a game is recovered at a changed radius, both appear and a banner says the
+  session has no single radius. It is ranked below the stalled-game and broken-history banners,
+  which are wrong now rather than wrong in the record.
+- `BotContext.structure()` (`ISSUES.md` O20). At radius 1.5 a browser was shown the ties among its
+  own neighbors and a bot in the same seat was not — an asymmetry that would have appeared nowhere
+  in a study's data, in exactly the designs artificial participants exist for. The bytes already
+  reached the bot: it runs the same participant mode, and the runner simply never exposed them. It
+  reads through the same `networkGraphOf` a browser does, so a malformed tie is dropped for both,
+  and needs no new wake mechanism because the structure is written in the publish that moves `_seq`.
+  `policy.ts` no longer says a bot has "no way to see the graph": that was written when no
+  participant could, and the rule it states — a bot must not exceed a human — now also means it must
+  not fall short of one.
+- `line[making="1"]` is gone from `COOPERATION_CSS` (`ISSUES.md` O24). Nothing could set it: an
+  offer to form a tie is about somebody the viewer is not connected to, so that person is not on
+  the viewer's graph and there is no line to style. Its absence is now stated in the sheet, because
+  Breadboard's own carries such a rule and a reader would otherwise conclude this component can
+  draw one.
+- The comment on `provision.ts`'s channel index no longer claims restart recovery is unimplemented
+  and tracked as a known gap. It is implemented — `adoptChannel`, called from the OWNER listener,
+  is what lets `tryRecover` rebuild a live game — and it was tracked nowhere, so the comment sent a
+  reader looking for a register entry that never existed.
+- `edgeKey` has one implementation instead of three. `monitor/payload.ts` had a private copy and
+  `graph_payload.ts` inlined a third, which is two too many for a function whose whole job is that
+  two callers agree about when a graph has changed — and the inlined one skipped the `a < b`
+  normalization, relying on an invariant held in another file. `beyondStar` is gone: nothing in
+  `src/` called it, both places that count the quantity must tally it while validating each edge
+  rather than over a whole array, and its docstring claimed an e2e test depended on it that never
+  imported it.
+- `StructureRow` and `PositionRow` are `type` aliases rather than `interface`s, so
+  `toCSV(structureRows(…))` compiles. They were interfaces, which is the exact defect the note at
+  the top of `src/admin/export.ts` exists to prevent — and it went unnoticed for exactly the reason
+  that note predicts, that nothing composed the two functions until a test did.
+- `src/admin/monitor/layout.ts` moved to `src/admin/layout.ts`. Participants' own neighborhoods are
+  laid out with it at radius 1.5, and reaching for it through the monitor's subpath would undo the
+  property that subpath exists for — that a server never opting into the monitor never loads
+  `node:http` or the served page.
+- `envelope` gained `MeasuredPayload.aggregateOnly`, for bytes that travel on a participant's
+  connection without being a neighbor view.
+- `NetworkStats.cachedLayouts`, so the new per-scope map is covered by the exhaustive retention
+  assertions rather than leaking the way `lastOutbox` did (`ISSUES.md` O5).
+- `scripts/test-browser.mjs` sweeps orphaned processes between files, not only ports. `empirica`
+  starts the experiment's callbacks server through an npm wrapper chain that lands in its own
+  process group, so a browser test that kills its dev server's group still leaves that server
+  running. It holds no port, so a port check cannot see it — but it is a live Tajriba client, and
+  it reconnects to the NEXT file's server and registers the previous example's listeners beside the
+  new one's. Measured: two browser files failed three times with three different assertions,
+  including a reported leak, and passed every time either ran alone.
+- `tools/shirado-figure.ts` captures the whole screen rather than one column, and waits for each
+  drawing to agree with its own heading rather than sleeping — a screenshot taken between the two
+  would be a correct-looking picture of a different neighborhood.
 - Normalized spelling to American English throughout the package, including the public API:
   `envelope.maxNeighbourhoodBytes` → `maxNeighborhoodBytes`, `checkNeighbourhoodBytes` →
   `checkNeighborhoodBytes`, `ProjectContext.neighbourIndex` → `neighborIndex`, and the

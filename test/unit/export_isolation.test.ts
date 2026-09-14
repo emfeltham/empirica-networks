@@ -72,4 +72,10 @@ test("the built subpath exists and is free of @empirica, when a build is present
   assert.match(js, /export\s*\{[^}]*toCSV/s, "toCSV is exported from the subpath");
   assert.match(js, /edgeRows/, "edgeRows is in the subpath");
   assert.match(js, /viewRows/, "viewRows is in the subpath");
+  // Named here as well, because this test exists to catch a regression in the
+  // export map and a list that stops at the builders that happened to exist when
+  // it was written would not. These two are the reason an analyst can read a
+  // radius 1.5 run offline at all.
+  assert.match(js, /structureRows/, "structureRows is in the subpath");
+  assert.match(js, /positionRows/, "positionRows is in the subpath");
 });

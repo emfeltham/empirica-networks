@@ -58,6 +58,8 @@ function fakeSource(initial: Partial<GameSnapshot> = {}) {
           edges,
           order: ORDER,
           seed: 7,
+          radius: 1,
+          recordedRadius: 1,
           seq: 3,
           nodes: ORDER.map((playerID, index) => ({
             index,
@@ -244,6 +246,16 @@ test("/api/state serves the graph and its coordinates", async () => {
     assert.equal(body.snapshot.edges.length, 4);
     assert.equal(body.positions.length, 4);
     assert.equal(body.snapshot.seq, 3, "publish counts are part of the operational view");
+    // How much of the graph the people being watched can see. Serialized here
+    // and asserted by nothing until this line: the field was present in the
+    // fixture only because the type demands it, so a serializer that dropped it
+    // would have been caught by no test in this tier.
+    assert.equal(body.snapshot.radius, 1, "the radius survives serialization");
+    assert.equal(
+      body.snapshot.recordedRadius,
+      1,
+      "and so does the recorded one, which is the half an operator cannot get elsewhere"
+    );
   });
 });
 

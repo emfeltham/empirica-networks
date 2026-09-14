@@ -21,6 +21,7 @@ function snapshot(over: Partial<GameSnapshot> = {}): GameSnapshot {
     edges,
     order,
     seed: 42,
+    radius: 1,
     seq: 1,
     nodes: order.map((playerID, index) => ({
       index,
@@ -115,4 +116,38 @@ test("sub-pixel drift does not count as a change", () => {
 
 test("no previous payload always counts as a change", () => {
   assert.ok(payloadChanged(undefined, buildPayload(snapshot())));
+});
+
+test("the radius reaches the payload, and a change to it is a change", () => {
+  // `GameSnapshot.radius` was carried by three fixtures because TypeScript
+  // requires the field, and asserted by nothing — so `buildPayload` could have
+  // dropped it and every test in this file would still pass. An operator reading
+  // a monitor that silently lost the radius would be watching a study without
+  // knowing how much of it its participants can see.
+  const built = buildPayload(snapshot({ radius: 1.5 }));
+  assert.equal(built.snapshot.radius, 1.5, "the payload carries it");
+
+  assert.equal(
+    payloadChanged(buildPayload(snapshot({ radius: 1 })), buildPayload(snapshot({ radius: 1.5 }))),
+    true,
+    "a run at the other radius is a different picture and must push"
+  );
+});
+
+test("a recorded radius that disagrees with the live one reaches the payload", () => {
+  // The pair exists so the disagreement is visible. If the payload carried only
+  // one of them it would be picking a side, and the side it picked would look
+  // authoritative.
+  const built = buildPayload(snapshot({ radius: 1.5, recordedRadius: 1 }));
+  assert.equal(built.snapshot.radius, 1.5, "what participants are shown now");
+  assert.equal(built.snapshot.recordedRadius, 1, "what the run's own data says");
+
+  assert.equal(
+    payloadChanged(
+      buildPayload(snapshot({ radius: 1.5, recordedRadius: 1.5 })),
+      buildPayload(snapshot({ radius: 1.5, recordedRadius: 1 }))
+    ),
+    true,
+    "a game that starts disagreeing with its own record must push"
+  );
 });

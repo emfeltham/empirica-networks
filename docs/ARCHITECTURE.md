@@ -53,13 +53,20 @@ src/
     views.ts          view capture config on top of the sink
     export.ts         pure row builders: edgeRows, snapshotRows, viewRows, toCSV
     inspect.ts        GameSnapshot and the pure builders behind it
+    layout.ts         Fruchterman-Reingold, seeded and warm-startable. Pure.
+                      Shared by the monitor and by participants at radius 1.5
+    subgraph.ts       the closed neighborhood in LOCAL indices. Pure, zero imports
     monitor/          the live view. Separate subpath so opting out is structural
   player/             client side; imports @empirica/core/player* ONLY
     mode.ts           EmpiricaNetwork — EmpiricaClassic composed with an nbhd context
     view.ts           neighborsOf / networkSelfOf / networkToldOf, usable headless
     state.ts          networkStateOf — the write path for a participant's own private state
     chat.ts           neighborChatOf
+    graph.ts          the neighborhood as a drawable model: ring geometry, edge
+                      shortening, attribute filtering. Pure, zero imports
     react/index.ts    the hooks, which are thin wrappers over the above
+    react/NetworkGraph.tsx  the SVG. Decides nothing; see §8 of PLATFORM-NOTES
+    react/styles.tsx  the stylesheets, as strings for the reason monitor/ui.ts is
   bots/               artificial participants; a PARTICIPANT process, not a server-side object
     runner.ts         runBots: sessions, the poll loop, hook dispatch. Reuses harness/compat.ts
     lifecycle.ts      the six phases as a pure function, and the stall reasons. Zero imports
@@ -147,8 +154,10 @@ topology fails while the experiment is still abandonable rather than after parti
 committed to a game that will run badly.
 
 6. Record the realization on the batch scope. `batch.set(NETWORK_KEYS.seed(gameID), seed)` and
-`NETWORK_KEYS.network(gameID)`, plus a `start` event appended to `NETWORK_KEYS.history(gameID)`.
-These are suffixed by game id because one batch holds many games. A game with no batch throws,
+`NETWORK_KEYS.network(gameID)`, plus a `start` event appended to `NETWORK_KEYS.history(gameID)`,
+plus `NETWORK_KEYS.radius(gameID)` — what the study showed people, which is not a property of the
+graph and which nothing else in the record implies. These are suffixed by game id because one
+batch holds many games. A game with no batch throws,
 since without it the run is neither reproducible nor restart-survivable, and that is worth failing
 loudly for.
 
@@ -202,7 +211,9 @@ across sequential games while `games` stayed 0.
 
 9. Recovery, if a previous process networked this game. `tryRecover()` needs two durable things in
 two different places: the edge list from the batch scope, and each channel's `topologyIndex`.
-Both are required. The edge list alone is index pairs: it describes the shape without saying who
+Both are required. It also reads the recorded radius, not because recovery needs it — the live
+config supplies that — but to notice when the two disagree, which is the one thing a restart can
+change about what participants see without changing anything a later reader could detect. The edge list alone is index pairs: it describes the shape without saying who
 sits where, and reconstructing seats from anything else is exactly how a restart silently
 reassigns everyone to different nodes while looking like it worked (`test/e2e/restart.test.ts`).
 A missing seat makes recovery refuse rather than guess: guessing produces a plausible network in

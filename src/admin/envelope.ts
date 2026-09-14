@@ -248,16 +248,33 @@ export function checkDegrees(
  * n=100 with degree 16 a systematic mistake would otherwise emit 1600 identical
  * warnings per publish and bury everything else.
  */
+/**
+ * One measured payload on its way to a participant.
+ *
+ * `aggregateOnly` marks something that is NOT a neighbor view but still travels
+ * on that participant's connection — the radius 1.5 subgraph is the only one
+ * today. It counts toward what the participant actually receives and not toward
+ * the per-view limit, because `maxViewBytes` is a detector for "project()
+ * returned more than you meant" and a subgraph did not come from project().
+ */
+export interface MeasuredPayload {
+  bytes: number;
+  label: string;
+  viewer?: string;
+  aggregateOnly?: boolean;
+}
+
 export function checkViewBytes(
-  views: { bytes: number; label: string; viewer?: string }[],
+  views: MeasuredPayload[],
   limits: EnvelopeLimits = {},
   warn: WarnFn = console.warn
 ): void {
   const env = resolveEnvelope(limits);
-  let worst: { bytes: number; label: string } | undefined;
+  let worst: MeasuredPayload | undefined;
   let over = 0;
 
   for (const v of views) {
+    if (v.aggregateOnly) continue;
     if (v.bytes > env.maxViewBytes) {
       over++;
       if (!worst || v.bytes > worst.bytes) worst = v;
@@ -302,7 +319,7 @@ export function checkViewBytes(
  * participant's, and reporting the wrong one would be worse than reporting none.
  */
 export function checkNeighborhoodBytes(
-  views: { bytes: number; label: string; viewer?: string }[],
+  views: MeasuredPayload[],
   limits: EnvelopeLimits = {},
   warn: WarnFn = console.warn
 ): void {
