@@ -57,6 +57,28 @@ export const NBHD_KEYS = {
    * already delivered simply stays where it is, and nothing new arrives.
    */
   CHAT: "chat",
+  /**
+   * The local structure of this participant's own neighborhood, at radius 1.5.
+   *
+   * `{ radius, edges, positions }`, where the edges are pairs of LOCAL indices
+   * into the array under NEIGHBORS: 0 is the viewer, 1..d are their neighbors in
+   * order. Server-side indices are a seating plan and never appear here
+   * (docs/PLATFORM-NOTES.md §4b).
+   *
+   * ABSENT ENTIRELY at the default radius, where the client draws a star from
+   * NEIGHBORS alone and no extra byte is sent. Present means a study opted into
+   * showing participants the ties among their own neighbors, which is a genuine
+   * widening of what they are told — so `radius` is carried inside it rather
+   * than inferred, and the client can tell "this study is radius 1" from "the
+   * structure has not arrived".
+   *
+   * Written in the SAME batched publish as NEIGHBORS, and the byte-identical
+   * suppression covers both together. It has to: a tie forming between two of
+   * your neighbors changes this and leaves your neighbor list untouched, so a
+   * suppression keyed on NEIGHBORS alone would freeze the structure while every
+   * other part of the screen kept updating.
+   */
+  GRAPH: "graph",
   /** Monotonic publish counter. Drives the dones-wiring self-check. */
   SEQ: "_seq",
 } as const;

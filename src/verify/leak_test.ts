@@ -4,6 +4,7 @@ import { resetChannels } from "../admin/provision.js";
 import { withNetwork, type NetworkConfig } from "../admin/with_network.js";
 import { EmpiricaNetwork } from "../player/mode.js";
 import { adjacency, type Edge } from "../topology/index.js";
+import { NBHD_KEYS } from "../shared/keys.js";
 import { CLI_TOPOLOGIES, accountVacuity } from "./topologies.js";
 import { batchConfig, createBatch, gameInit, waitFor, withScenario } from "../harness/harness.js";
 
@@ -22,14 +23,27 @@ import { batchConfig, createBatch, gameInit, waitFor, withScenario } from "../ha
  *    projection path. Substring matching over raw frames also catches leaks via
  *    channels nobody thought to enumerate.
  *
- * 3. THREE ARMS, ALL REQUIRED:
+ * 3. FIVE ARMS, ALL REQUIRED:
  *      candidate    - non-neighbor sentinels must NOT appear
  *      control      - a player-scope value MUST appear on everyone's wire,
  *                     proving the detector can see a leak at all
  *      non-vacuity  - neighbor sentinels MUST appear, proving the projection
  *                     actually ran rather than sending nothing
+ *      containment  - every tie in the structure payload must join two people
+ *                     the viewer can see, and must actually exist
+ *      structure    - at radius 1.5 the ties between a participant's neighbors
+ *                     must all arrive; at radius 1 NONE of them may, which is
+ *                     the claim that keeps the default free
  *    A "pass" with a silent control, or with nothing delivered, is a FAILED run.
  *    Most privacy tests are wrong in exactly one of those two ways.
+ *
+ *    THE LAST TWO EXIST BECAUSE THE FIRST THREE CANNOT SEE STRUCTURE. A sentinel
+ *    is somebody's attribute; the bytes radius 1.5 adds are integers. A payload
+ *    naming ties to strangers, or naming ties that do not exist, carries no
+ *    sentinel at all, so arms 1-3 stay perfectly clean while the participant is
+ *    shown a network nobody is in. They are read from the RAW wire rather than
+ *    through `networkGraphOf`, which drops out-of-range edges by design and
+ *    would make the containment arm assert nothing.
  *
  * WHICH TOPOLOGY, AND WHAT IT COSTS THE CHECK. Any graph can be checked, either by
  * name or by handing over the same generator function a study gives `withNetwork`
@@ -67,6 +81,14 @@ export interface LeakCheckOptions {
   n?: number;
   /** A name from `CLI_TOPOLOGIES`, or a generator. Defaults to `"ring"`. */
   topology?: LeakTopology;
+  /**
+   * The radius the study under check runs at. Defaults to 1.
+   *
+   * At 1 the structural arms assert an ABSENCE — that no structure is on the
+   * wire at all — which is the claim that keeps the default free. At 1.5 they
+   * assert the structure that IS sent is contained and complete.
+   */
+  radius?: 1 | 1.5;
   timeoutMs?: number;
   onProgress?: (message: string) => void;
 }
@@ -97,12 +119,67 @@ export interface LeakCheckResult {
   saturated: number;
   /** Participants adjacent to nobody, who arm 3 expects nothing from. */
   isolated: number;
+  /** The radius this run was made at. */
+  radius: number;
+  /**
+   * Ties delivered that join two people the viewer cannot both see, or that do
+   * not exist. Must be 0. The denominator is `structureTies`.
+   */
+  structureViolations: number;
+  /** Ties delivered in the structure payloads, across participants. */
+  structureTies: number;
+  /**
+   * Delivered ties NOT incident to the viewer, against what the graph says to
+   * expect. This is the pair that makes a radius 1.5 run mean something: equal
+   * and non-zero is the only passing answer.
+   */
+  beyondStarDelivered: number;
+  expectedBeyondStar: number;
+  /**
+   * Structure payloads seen at radius 1, which must be zero.
+   *
+   * The default's whole claim is that it costs nothing, and an absence is only
+   * worth asserting where its presence is also demonstrable — which the radius
+   * 1.5 run does.
+   */
+  structureFramesAtRadius1: number;
   failures: string[];
   notes: string[];
 }
 
+/**
+ * Every structure payload that reached one participant, oldest first, RAW.
+ *
+ * Deliberately parsed off the wire rather than read through
+ * `networkGraphOf`, and that is not a stylistic preference: the client-side
+ * reader DROPS edges that name a node outside the delivered neighborhood, which
+ * is right for a renderer and would make the containment arm below assert
+ * nothing at all. The claim is about the bytes the server sent.
+ */
+function structureFrames(frames: string[]): unknown[] {
+  const out: unknown[] = [];
+  for (const raw of frames) {
+    if (!raw.includes(NBHD_KEYS.GRAPH)) continue;
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    const change = parsed?.change ?? parsed?.data?.change ?? parsed;
+    if (change?.key !== NBHD_KEYS.GRAPH || typeof change?.val !== "string") continue;
+    try {
+      out.push(JSON.parse(change.val));
+    } catch {
+      out.push(change.val);
+    }
+  }
+  return out;
+}
+
 export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakCheckResult> {
   const n = opts.n ?? 4;
+  const radius = opts.radius ?? 1;
   const spec = opts.topology ?? "ring";
   const say = opts.onProgress ?? (() => {});
 
@@ -185,6 +262,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
         // The sentinel reaches a client ONLY through this projection.
         secret: sentinelFor(neighbor.id),
       }),
+      graph: { radius },
     });
   };
 
@@ -198,6 +276,11 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
   let candidatePairs = 0;
   let saturated = 0;
   let isolated = 0;
+  let structureViolations = 0;
+  let structureTies = 0;
+  let beyondStarDelivered = 0;
+  let expectedBeyondStar = 0;
+  let structureFramesAtRadius1 = 0;
 
   await withScenario(
     {
@@ -312,10 +395,11 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
       // itself rather than from `n`. Saturated and isolated participants are
       // counted and excused; a run where NO participant had a non-neighbor, or
       // where nothing was expected to arrive, is a failure.
-      const account = accountVacuity(playerIDs.length, edges);
+      const account = accountVacuity(playerIDs.length, edges, radius);
       failures.push(...account.failures);
       notes.push(...account.notes);
       expectedDeliveries = account.expectedDeliveries;
+      expectedBeyondStar = account.expectedBeyondStar;
       candidatePairs = account.candidatePairs;
       saturated = account.saturated.length;
       isolated = account.isolated.length;
@@ -357,6 +441,70 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
         for (const [otherPlayerID, control] of controls) {
           if (otherPlayerID !== playerID && wire.includes(control)) controlLeaks++;
         }
+
+        // ARMS 4 and 5 — the structure, which the sentinel arms cannot see.
+        //
+        // Nothing above would notice if radius 1.5 were wrong in any way: the
+        // extra bytes are integers, not anybody's attribute, so a payload full
+        // of ties to strangers carries no sentinel and arm 1 stays clean.
+        const payloads = structureFrames(wires[i]!);
+
+        if (radius === 1) {
+          // The default's whole claim is that it costs nothing.
+          structureFramesAtRadius1 += payloads.length;
+          continue;
+        }
+
+        const latest = payloads[payloads.length - 1] as
+          | { edges?: unknown; positions?: unknown }
+          | undefined;
+        if (!latest || !Array.isArray(latest.edges)) {
+          failures.push(
+            `STRUCTURE MISSING: participant ${i} received no usable structure at radius ` +
+              `1.5, so nothing about them can be checked`
+          );
+          continue;
+        }
+
+        // Local 0 is the viewer; 1..d are the neighbor views IN ORDER. Resolving
+        // through the delivered list is the whole identity scheme, and an index
+        // it cannot resolve is a violation rather than something to skip.
+        const localToPlayer = [playerID, ...(mode.nbhd.getValue()?.neighbors ?? []).map(
+          (v: any) => v?.id as string | undefined
+        )];
+
+        for (const edge of latest.edges as unknown[]) {
+          structureTies++;
+          if (!Array.isArray(edge) || edge.length !== 2) {
+            structureViolations++;
+            failures.push(`STRUCTURE: participant ${i} received a malformed tie`);
+            continue;
+          }
+          const [a, b] = edge as [number, number];
+          const x = localToPlayer[a];
+          const y = localToPlayer[b];
+          if (!x || !y || a === b) {
+            structureViolations++;
+            failures.push(
+              `STRUCTURE LEAK: participant ${i} received a tie naming local index ` +
+                `${a}/${b}, which is outside the neighborhood they were sent`
+            );
+            continue;
+          }
+          // The tie must be real. A drawn tie that does not exist is not a leak,
+          // it is a fabrication, and it fails this tool for the same reason.
+          const xi = playerIDs.indexOf(x);
+          const yi = playerIDs.indexOf(y);
+          if (xi === -1 || yi === -1 || !(adj[xi] ?? []).includes(yi)) {
+            structureViolations++;
+            failures.push(
+              `STRUCTURE: participant ${i} was told ${x} and ${y} are connected, and ` +
+                `they are not`
+            );
+            continue;
+          }
+          if (a !== 0 && b !== 0) beyondStarDelivered++;
+        }
       }
 
       if (delivered < expectedDeliveries) {
@@ -369,6 +517,26 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
         failures.push(
           `CONTROL FAILED: no player-scope value crossed between participants, so this ` +
             `check cannot detect a leak at all. Treat the candidate result as unproven.`
+        );
+      }
+      if (radius === 1 && structureFramesAtRadius1 > 0) {
+        failures.push(
+          `DEFAULT NOT FREE: ${structureFramesAtRadius1} structure payload(s) were sent at ` +
+            `radius 1, where the client draws a star from the neighbor views alone. Every ` +
+            `study using the default is paying for a feature it did not ask for.`
+        );
+      }
+      if (radius > 1 && beyondStarDelivered !== expectedBeyondStar) {
+        // Both directions are failures and they mean opposite things: short is a
+        // participant not being shown something the design says they see; over
+        // is a tie delivered that the graph does not contain, which arm 4 has
+        // already named individually.
+        failures.push(
+          `STRUCTURE INCOMPLETE: ${beyondStarDelivered}/${expectedBeyondStar} ties between ` +
+            `neighbors were delivered. ` +
+            (beyondStarDelivered < expectedBeyondStar
+              ? `Participants are being shown less than radius 1.5 promises.`
+              : `More arrived than the graph contains.`)
         );
       }
       // Degree range rather than node 0's degree, which was only ever
@@ -392,6 +560,12 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
     candidatePairs,
     saturated,
     isolated,
+    radius,
+    structureViolations,
+    structureTies,
+    beyondStarDelivered,
+    expectedBeyondStar,
+    structureFramesAtRadius1,
     failures,
     notes,
   };
@@ -401,7 +575,7 @@ export function formatLeakResult(r: LeakCheckResult): string {
   const lines = [
     "",
     `  empirica-networks verify — neighbor-limited visibility`,
-    `  topology: ${r.topology} of ${r.n}`,
+    `  topology: ${r.topology} of ${r.n}   ·   radius: ${r.radius}`,
     "",
     // Every arm is printed as a figure against what it was measured over. Arm 1
     // used to print a bare `0`, which reads identically whether six non-neighbor
@@ -411,8 +585,22 @@ export function formatLeakResult(r: LeakCheckResult): string {
     `  non-neighbor sentinels received : ${r.crossParticipantLeaks}/${r.candidatePairs} pairs  (must be 0)`,
     `  neighbor sentinels delivered    : ${r.delivered}/${r.expectedDeliveries}  (non-vacuity)`,
     `  control values observed          : ${r.controlLeaks}  (must be > 0, proves detection works)`,
-    "",
   ];
+
+  // The structural arms, which the three above cannot see: the extra bytes at
+  // radius 1.5 are integers rather than anybody's attribute, so a sentinel
+  // check stays clean however wrong they are.
+  if (r.radius > 1) {
+    lines.push(
+      `  ties outside the neighborhood  : ${r.structureViolations}/${r.structureTies} ties  (must be 0)`,
+      `  ties between neighbors shown   : ${r.beyondStarDelivered}/${r.expectedBeyondStar}  (non-vacuity)`
+    );
+  } else {
+    lines.push(
+      `  structure payloads sent        : ${r.structureFramesAtRadius1}  (must be 0 at radius 1)`
+    );
+  }
+  lines.push("");
   if (r.saturated > 0 || r.isolated > 0) {
     lines.push(
       `  not covered: ${r.saturated} adjacent to everyone, ${r.isolated} adjacent to nobody`,

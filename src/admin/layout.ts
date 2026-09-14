@@ -1,8 +1,14 @@
 /**
  * Force-directed layout, computed on the SERVER.
  *
- * Putting the layout here rather than in the browser looks backwards for about
- * a second. It is the direct consequence of PLATFORM-NOTES §8: this codebase
+ * Used by the operator's monitor and, since radius 1.5, by the participants'
+ * own view of their neighborhood. It lives here rather than under `monitor/`
+ * for that reason: that subpath exists to be separable, so a server that never
+ * opts into the monitor never loads `node:http` or the served page, and a
+ * non-monitor feature reaching through it would quietly undo that.
+ *
+ * Putting the layout on the server rather than in the browser looks backwards
+ * for about a second. It is the direct consequence of PLATFORM-NOTES §8: this codebase
  * cannot test anything that only exists once a component is mounted, so the
  * established response is to move every decision into a pure function and leave
  * the rendering surface with nothing to get wrong. A layout is the only real
@@ -21,8 +27,8 @@
  * rather than tolerances — and means two people watching the same study see the
  * same picture.
  */
-import { adjacency, type Edge } from "../../topology/index.js";
-import { makeRng, type Rng } from "../seed.js";
+import { adjacency, type Edge } from "../topology/index.js";
+import { makeRng, type Rng } from "./seed.js";
 
 export interface Point {
   x: number;

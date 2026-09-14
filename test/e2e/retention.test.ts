@@ -106,6 +106,12 @@ test("a finished game releases everything it was holding", async () => {
           channels: 0,
           channelScopes: 0,
           cachedViews: 0,
+          // Zero for two reasons at once. This scenario runs at the default
+          // radius, where no layout is ever computed; and the map is keyed by
+          // SCOPE id, so had one been computed, none of the game-keyed deletes
+          // would have reached it — `ISSUES.md` O5's shape exactly.
+          // `test/e2e/subgraph.test.ts` is where it is non-zero.
+          cachedLayouts: 0,
           // The single exception, and the reason it is asserted as a value
           // rather than omitted: the id of a finished game is kept on purpose,
           // to stop its channels being re-adopted when the kind subscription

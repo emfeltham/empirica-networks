@@ -53,6 +53,9 @@ src/
     views.ts          view capture config on top of the sink
     export.ts         pure row builders: edgeRows, snapshotRows, viewRows, toCSV
     inspect.ts        GameSnapshot and the pure builders behind it
+    layout.ts         Fruchterman-Reingold, seeded and warm-startable. Pure.
+                      Shared by the monitor and by participants at radius 1.5
+    subgraph.ts       the closed neighborhood in LOCAL indices. Pure, zero imports
     monitor/          the live view. Separate subpath so opting out is structural
   player/             client side; imports @empirica/core/player* ONLY
     mode.ts           EmpiricaNetwork — EmpiricaClassic composed with an nbhd context

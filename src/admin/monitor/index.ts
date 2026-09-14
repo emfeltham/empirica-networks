@@ -24,8 +24,8 @@ import { serveMonitor, type MonitorOptions, type MonitorServer } from "./http.js
 
 export { serveMonitor } from "./http.js";
 export type { MonitorOptions, MonitorServer, MonitorSource } from "./http.js";
-export { layout } from "./layout.js";
-export type { LayoutOptions, Point } from "./layout.js";
+export { layout } from "../layout.js";
+export type { LayoutOptions, Point } from "../layout.js";
 export { buildPayload, payloadChanged } from "./payload.js";
 export type { BuildOptions, MonitorPayload } from "./payload.js";
 

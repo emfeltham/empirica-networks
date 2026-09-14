@@ -6,6 +6,7 @@ import {
   useNetworkGraph,
   useNetworkSelf,
   useNetworkState,
+  useNetworkStructure,
 } from "empirica-networks/player/react";
 import React from "react";
 
@@ -20,8 +21,12 @@ import React from "react";
  * participant; `color` is private, written to this browser's own channel, and
  * reaches only neighbors. Draw either from the same `useNeighbors()` array.
  *
- * The graph is a STAR and can be nothing else: it is built from that array, which
- * holds your neighbors and no tie between two of them.
+ * At the default radius the graph is a STAR and can be nothing else: it is built
+ * from that array, which holds your neighbors and no tie between two of them.
+ * Started with `NBHD_RADIUS=1.5` the server additionally sends the ties among
+ * your neighbors, and the same component draws them with no change here — what
+ * changes is what the participant is being told, which is why the screen says so
+ * rather than leaving them to notice.
  */
 
 /** A five-slot palette, as CSS the graph's attribute selectors can match. */
@@ -65,6 +70,11 @@ export function Game() {
   const self = useNetworkSelf();
 
   const myColor = state?.get("color");
+  // `undefined` at the default radius; an object when the server is sending the
+  // local structure. Worth branching on in participant-visible text: at 1.5 they
+  // can see which of their neighbors know each other, and a screen that does not
+  // say so is showing them something they were not told to expect.
+  const structure = useNetworkStructure();
   const graph = useNetworkGraph(
     // The server's value becomes an SVG attribute and GRAPH_CSS selects on it,
     // so the palette changes without the component changing.
@@ -154,6 +164,12 @@ export function Game() {
         <p className="mt-2 text-xs text-gray-500">
           Names are public player attributes. Colors are private — written to
           your own channel and shown only to your neighbors.
+        </p>
+
+        <p className="mt-2 text-xs text-gray-500">
+          {structure
+            ? "The diagram also shows which of your neighbors are connected to each other. You cannot see anything beyond them."
+            : "The diagram shows you and your neighbors. Whether they are connected to each other is not sent to this browser."}
         </p>
       </div>
 

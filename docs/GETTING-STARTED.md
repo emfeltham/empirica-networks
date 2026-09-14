@@ -230,8 +230,19 @@ moves. It is also what Breadboard drew, under the same limit.
 The same `undefined`-is-not-`[]` caution applies: `useNetworkGraph()` returns `undefined` until the
 first publish, which is what `fallback` is for. Do not substitute an empty graph.
 
+If your participants should also see which of their connections know each other, the server opts
+in and the component needs no change:
+
+```js
+withNetwork(Empirica, { …, graph: { radius: 1.5 } });
+```
+
+Decide about it rather than switching it on: it tells a participant a fact about two *other*
+people, and on a coordination task it makes the problem easier. Try it with
+`NBHD_RADIUS=1.5 empirica` in `examples/minimal`.
+
 [API.md](API.md#drawing-the-neighborhood) has the attribute-styling rules, the shipped palettes,
-and `describe`, which you should pass whenever state is carried by color.
+`describe`, which you should pass whenever state is carried by color, and what radius 1.5 costs.
 
 ## 6. Custom listeners
 

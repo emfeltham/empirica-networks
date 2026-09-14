@@ -92,6 +92,80 @@ export function networkToldOf(nbhd: Nbhd | undefined): NetworkTold | undefined {
   };
 }
 
+/**
+ * The server-sent structure of this neighborhood, at radius 1.5.
+ *
+ * THREE ANSWERS, NOT TWO, and the third is the reason this is a function rather
+ * than a getter:
+ *
+ *   undefined  the key is absent. This study runs at the default radius; the
+ *              client draws a star and that is correct.
+ *   null       the key is present and unusable. Something is wrong, and the one
+ *              thing that must NOT happen is falling back to a star — that is a
+ *              correct-looking picture of a DIFFERENT study, with nothing
+ *              anywhere saying so. Callers wait instead.
+ *   object     usable.
+ *
+ * The same distinction `neighborsOf` draws between `undefined` and `[]`, for the
+ * same reason: the failure mode of this whole package is a plausible picture of
+ * a graph nobody has.
+ *
+ * Validated rather than trusted, and not out of suspicion of the server. The
+ * value is ephemeral and arrives on the ordinary attribute path, so a stale or
+ * partial shape is representable — and an edge naming a node outside the
+ * delivered neighborhood would be drawn to whatever coordinate happened to sit
+ * at that index, which is a line between two real people who are not tied.
+ *
+ * A malformed POSITION rejects the whole payload rather than being dropped.
+ * Dropping one would compact the array, and the array is index-aligned with the
+ * neighbor list — so every node after the gap would take the place of the next
+ * one along, which is the same off-by-one the server side is shaped to avoid.
+ * A malformed EDGE is dropped, because an edge is not positional: losing one
+ * loses a tie, which is visible, rather than moving everybody, which is not.
+ */
+export function networkGraphOf(nbhd: Nbhd | undefined): NetworkGraphInfo | null | undefined {
+  const raw = nbhd?.graph;
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== "object") return null;
+  const g = raw as { radius?: unknown; edges?: unknown; positions?: unknown };
+
+  if (typeof g.radius !== "number" || !Number.isFinite(g.radius)) return null;
+  if (!Array.isArray(g.positions) || !Array.isArray(g.edges)) return null;
+
+  const positions: Array<{ x: number; y: number }> = [];
+  for (const p of g.positions) {
+    const q = p as { x?: unknown; y?: unknown } | null;
+    if (!q || typeof q !== "object") return null;
+    if (!Number.isFinite(q.x) || !Number.isFinite(q.y)) return null;
+    positions.push({ x: q.x as number, y: q.y as number });
+  }
+
+  const n = positions.length;
+  const edges = (g.edges as unknown[]).filter(
+    (e): e is [number, number] =>
+      Array.isArray(e) &&
+      e.length === 2 &&
+      Number.isInteger(e[0]) &&
+      Number.isInteger(e[1]) &&
+      e[0] !== e[1] &&
+      (e[0] as number) >= 0 &&
+      (e[1] as number) >= 0 &&
+      (e[0] as number) < n &&
+      (e[1] as number) < n
+  );
+
+  return { radius: g.radius, edges, positions };
+}
+
+export interface NetworkGraphInfo {
+  /** What the study is configured to show. `1.5` is the only value sent today. */
+  radius: number;
+  /** Pairs of indices into `neighbors`, offset by one; 0 is the viewer. */
+  edges: Array<[number, number]>;
+  /** Index-aligned with those indices. */
+  positions: Array<{ x: number; y: number }>;
+}
+
 export class NetworkModeNotInstalledError extends Error {
   constructor() {
     super(

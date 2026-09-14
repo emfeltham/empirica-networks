@@ -7,7 +7,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { layout, type Point } from "../../src/admin/monitor/layout.js";
+import { layout, type Point } from "../../src/admin/layout.js";
 import { complete, ring } from "../../src/topology/index.js";
 
 const SIZE = 1000;
