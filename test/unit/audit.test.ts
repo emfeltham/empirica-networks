@@ -393,3 +393,136 @@ test("the structural counts survive a merge", () => {
   assert.equal(merged.structuredRecords, one.structuredRecords * 2);
   assert.equal(merged.structureLeaks, 0);
 });
+
+// ---------------------------------------------- above radius 1.5, offline
+//
+// `a-b`, `a-c`, `b-d`, `c-e`, `d-e`. From `a`: b and c are neighbors, d and e
+// are two hops away, and d-e joins two people who are BOTH at the outer edge —
+// so it is what radius 2.5 adds and radius 2 withholds. That one tie is the
+// only thing separating the two settings in a record, which is why the fixture
+// is built around it.
+const WIDE_CSV = [
+  `"game_id","t","event","player_a","player_b"`,
+  `"g1","1","connected","a","b"`,
+  `"g1","1","connected","a","c"`,
+  `"g1","1","connected","b","d"`,
+  `"g1","1","connected","c","e"`,
+  `"g1","1","connected","d","e"`,
+].join("\n");
+
+/**
+ * One delivery to `a` at a wider radius.
+ *
+ * Local indices: `0` a, `1` b, `2` c, then `3` and `4` are the two people `a`
+ * cannot reach directly. `far` is the server's record of who those were — the
+ * payload itself carries only a per-viewer name, so without it nothing offline
+ * can say who was shown to whom.
+ */
+const wideDelivery = (opts: {
+  radius?: number;
+  edges?: Array<[number, number]>;
+  far?: Array<{ ref: string; id: string; hop: number }>;
+  omitRecord?: boolean;
+}) => {
+  const far = opts.far ?? [
+    { ref: "k3m9x2pq", id: "d", hop: 2 },
+    { ref: "b7t4wz01", id: "e", hop: 2 },
+  ];
+  return {
+    gameID: "g1",
+    viewer: "a",
+    seq: 1,
+    at: 1000,
+    view: [{ id: "b" }, { id: "c" }],
+    graph: {
+      radius: opts.radius ?? 2,
+      edges: opts.edges ?? [[0, 1], [0, 2], [1, 3], [2, 4]],
+      positions: [],
+      far: far.map((f) => ({ ref: f.ref, d: f.hop })),
+    },
+    ...(opts.omitRecord ? {} : { far }),
+  };
+};
+
+const wide = () => parseEdgesCsv(WIDE_CSV);
+
+test("radius 2: a correct delivery of distant people passes, and is counted", () => {
+  const r = auditViews({ views: ndjson(wideDelivery({})), edges: wide() });
+  assert.equal(r.structureLeaks, 0, r.failures.join("\n"));
+  assert.equal(r.farShown, 2, "both people two hops out were audited");
+  assert.equal(r.farTies, 2, "the two ties reaching them");
+  assert.equal(r.tiesChecked, 4);
+  assert.ok(r.pass, r.failures.join("\n"));
+});
+
+test("radius 2 withholds the tie between two people at the outer edge; 2.5 delivers it", () => {
+  const withFringe: Array<[number, number]> = [[0, 1], [0, 2], [1, 3], [2, 4], [3, 4]];
+
+  const at2 = auditViews({
+    views: ndjson(wideDelivery({ radius: 2, edges: withFringe })),
+    edges: wide(),
+  });
+  assert.equal(at2.structureLeaks, 1, "d-e is not radius 2's to deliver");
+  assert.match(at2.failures.join(" "), /it is what radius 2\.5 adds/);
+
+  const at25 = auditViews({
+    views: ndjson(wideDelivery({ radius: 2.5, edges: withFringe })),
+    edges: wide(),
+  });
+  assert.equal(at25.structureLeaks, 0, at25.failures.join("\n"));
+  assert.ok(at25.pass);
+});
+
+test("a distant person claimed to be nearer than they are is caught", () => {
+  const r = auditViews({
+    views: ndjson(
+      wideDelivery({ far: [{ ref: "k3m9x2pq", id: "d", hop: 1 }] })
+    ),
+    edges: wide(),
+  });
+  assert.ok(r.structureLeaks > 0);
+  assert.match(r.failures.join(" "), /1 hop\(s\) away and the edge log puts them 2 away/);
+});
+
+test("somebody outside the radius on a viewer's screen is a leak, not a rounding", () => {
+  // `e` is two hops from `a`. At radius 1.5 nobody beyond the neighbors may
+  // appear at all, so a payload naming one is the disclosure this file exists
+  // to find in a finished dataset.
+  const r = auditViews({
+    views: ndjson(
+      wideDelivery({
+        radius: 1.5,
+        edges: [[0, 1], [0, 2], [1, 3]],
+        far: [{ ref: "k3m9x2pq", id: "d", hop: 2 }],
+      })
+    ),
+    edges: wide(),
+  });
+  assert.ok(r.structureLeaks > 0);
+  assert.match(r.failures.join(" "), /shown somebody 2 hops away at radius 1\.5/);
+});
+
+/**
+ * The capture that cannot be audited at all.
+ *
+ * A payload names distant people by a per-viewer name and nothing else, so a
+ * record without `ViewRecord.far` has no way back to who they were. Every other
+ * arm would pass — the ties resolve to nothing and are reported once — and a
+ * reader would take that for a clean result.
+ */
+test("a capture that lost who the distant people were is refused, not half-audited", () => {
+  const r = auditViews({
+    views: ndjson(wideDelivery({ omitRecord: true })),
+    edges: wide(),
+  });
+  assert.ok(!r.pass);
+  assert.match(r.failures.join(" "), /REFUSED/);
+  assert.match(r.failures.join(" "), /Who was shown to whom cannot be established/);
+});
+
+test("the new counters survive a merge", () => {
+  const one = auditViews({ views: ndjson(wideDelivery({})), edges: wide() });
+  const merged = mergeAuditResults([one, one]);
+  assert.equal(merged.farShown, one.farShown * 2);
+  assert.equal(merged.farTies, one.farTies * 2);
+});
