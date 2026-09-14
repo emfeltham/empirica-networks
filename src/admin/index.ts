@@ -58,11 +58,20 @@ export {
   edgeRows,
   snapshotRows,
   viewRows,
+  structureRows,
+  positionRows,
   historyIsConsistent,
   parseNdjson,
   toCSV,
 } from "./export.js";
-export type { EdgeRow, NdjsonParse, SnapshotRow, ViewRow } from "./export.js";
+export type {
+  EdgeRow,
+  NdjsonParse,
+  PositionRow,
+  SnapshotRow,
+  StructureRow,
+  ViewRow,
+} from "./export.js";
 export { makeViewSink } from "./views.js";
 export type { ViewsConfig, ViewSink } from "./views.js";
 // The shared writer behind both `views: { file }` and `log: { file }`. Exported

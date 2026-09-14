@@ -15,12 +15,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { viewRows } from "../../src/admin/export.js";
+import { positionRows, structureRows, viewRows } from "../../src/admin/export.js";
 import { networkKinds } from "../../src/admin/kinds.js";
 import { resetChannels } from "../../src/admin/provision.js";
 import { withNetwork } from "../../src/admin/with_network.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
-import { ring } from "../../src/topology/index.js";
+import { ring, wheel } from "../../src/topology/index.js";
 import type { ViewRecord } from "../../src/shared/keys.js";
 import {
   batchConfig,
@@ -46,20 +46,29 @@ const seenBy = (p: { mode: unknown }) =>
  * setting `choice` to the value it already holds may not dispatch at all, and a
  * test that passes because nothing happened proves nothing.
  */
-function makeListeners(views: { onView?: (r: ViewRecord) => void; file?: string; batch?: number }) {
+function makeListeners(
+  views: { onView?: (r: ViewRecord) => void; file?: string; batch?: number },
+  opts: { radius?: 1 | 1.5; topology?: (n: number) => any } = {}
+) {
   return (_: any) => {
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
-      topology: ({ playerCount }: any) => ring(playerCount),
+      topology: ({ playerCount }: any) =>
+        opts.topology ? opts.topology(playerCount) : ring(playerCount),
       project: (neighbor: any) => ({ id: neighbor.id, choice: neighbor.get("choice") }),
       watch: ["choice", "ping"],
+      graph: { radius: opts.radius ?? 1 },
       views,
     });
   };
 }
 
-async function running(admin: AdminHandle, participants: { mode: unknown }[]): Promise<void> {
-  const batch = await createBatch(admin, batchConfig(N, 1));
+async function running(
+  admin: AdminHandle,
+  participants: { mode: unknown }[],
+  n = N
+): Promise<void> {
+  const batch = await createBatch(admin, batchConfig(n, 1));
   await batch.running();
   await waitFor(() => participants.every((p) => modeOf(p).player.getValue()?.get("gameID")), {
     label: "gameID assigned",
@@ -212,4 +221,90 @@ test("the file sink produces NDJSON that converts to view rows", async () => {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+
+/**
+ * At radius 1.5 the record has to carry the structure too.
+ *
+ * Half of what a participant is delivered at that radius is the subgraph, and it
+ * is the half that cannot be reconstructed from the edge log afterwards:
+ * positions are warm-started, so they follow the session's history rather than
+ * its final graph. A capture that recorded only `project()` output would leave
+ * `views.ndjson` describing a study nobody ran — a star, in a session that drew
+ * triangles.
+ *
+ * A WHEEL, not the ring the rest of this file uses: on a ring nobody's two
+ * neighbors are tied to each other, so radius 1.5 delivers the same star and
+ * this test would pass on an empty structure.
+ */
+test("at radius 1.5 the record carries the structure the client resolved", async () => {
+  const records: ViewRecord[] = [];
+  await withScenario(
+    {
+      n: 6,
+      kinds: networkKinds,
+      listeners: makeListeners(
+        { onView: (r) => records.push(r) },
+        { radius: 1.5, topology: (n: number) => wheel(n) }
+      ),
+      modeFunc: EmpiricaNetwork,
+    },
+    async ({ admin, participants }) => {
+      await running(admin, participants, 6);
+      await new Promise((r) => setTimeout(r, 1_000));
+
+      // The hub sees every rim tie, so it is the participant with something to
+      // record. Picking by degree rather than by index: seating does not follow
+      // connection order.
+      const hub = participants
+        .slice()
+        .sort(
+          (a, b) =>
+            (modeOf(b).nbhd.getValue()?.neighbors.length ?? 0) -
+            (modeOf(a).nbhd.getValue()?.neighbors.length ?? 0)
+        )[0]!;
+      const hubID = modeOf(hub).player.getValue()!.id;
+
+      const mine = records.filter((r) => r.viewer === hubID);
+      assert.ok(mine.length > 0, "the hub was recorded at all");
+      const last = mine[mine.length - 1]!;
+
+      assert.ok(last.graph, "a radius 1.5 delivery must record its structure");
+      assert.deepEqual(
+        JSON.parse(JSON.stringify(last.graph)),
+        JSON.parse(JSON.stringify(modeOf(hub).nbhd.getValue()!.graph)),
+        "the recorded structure is what the client resolved, field for field"
+      );
+
+      // Non-vacuity, twice over: the structure must be present AND must contain
+      // the thing radius 1.5 exists to deliver. Without the second, a payload of
+      // nothing but the star would pass.
+      assert.ok(
+        last.graph.edges.some(([a, b]) => a !== 0 && b !== 0),
+        "the record must contain a tie between two of the hub's neighbors"
+      );
+      assert.equal(
+        last.graph.positions.length,
+        last.view.length + 1,
+        "one position per delivered node, plus the viewer's own"
+      );
+
+      // And the flatteners agree with the record they came from.
+      const ties = structureRows(mine);
+      assert.equal(
+        ties.length,
+        mine.reduce((n, r) => n + (r.graph?.edges.length ?? 0), 0),
+        "one row per delivered tie"
+      );
+      assert.ok(
+        ties.every((t) => t.a_id !== "" && t.b_id !== ""),
+        "every end resolves to a participant, because this projection carries ids"
+      );
+      assert.equal(
+        positionRows(mine).length,
+        mine.reduce((n, r) => n + (r.graph?.positions.length ?? 0), 0)
+      );
+    }
+  );
 });

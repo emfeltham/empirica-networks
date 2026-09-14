@@ -557,7 +557,7 @@ Also exported: `resolveEnvelope`, `defaultMaxDegree`, `DEFAULT_ENVELOPE`, `MEASU
 | `provisionChannels`, `readChannels`, `resetChannels` | channel plumbing; `resetChannels` is a test seam |
 | `makeViewSink`, `makeLogSink`, `makeNdjsonSink` | the NDJSON writers |
 | `topology` | the whole [topology namespace](TOPOLOGIES.md) |
-| `edgeRows`, `snapshotRows`, `viewRows`, `parseNdjson`, `toCSV`, `historyIsConsistent` | re-exported from `/export`, but see the warning there |
+| `edgeRows`, `snapshotRows`, `viewRows`, `structureRows`, `positionRows`, `parseNdjson`, `toCSV`, `historyIsConsistent` | re-exported from `/export`, but see the warning there |
 
 ---
 
@@ -809,7 +809,8 @@ with the parameters, connectivity guarantees and envelope implications of each.
 
 ## `empirica-networks/export`
 
-The pure row builders: `edgeRows`, `snapshotRows`, `viewRows`, `parseNdjson`, `toCSV`,
+The pure row builders: `edgeRows`, `snapshotRows`, `viewRows`, `structureRows`, `positionRows`,
+`parseNdjson`, `toCSV`,
 `historyIsConsistent`. Schemas in [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md).
 
 > Import these from `/export`, not `/admin`, in anything run outside the Empirica CLI. The

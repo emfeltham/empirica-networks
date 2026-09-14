@@ -251,6 +251,24 @@ export const OUTBOX_KEY = "_outbox";
  * also the difference between this and a reconstruction from the edge log and
  * the attribute export: those give what someone COULD have known.
  */
+/**
+ * The local structure delivered alongside a view, at radius 1.5.
+ *
+ * Declared here rather than imported from `src/admin/graph_payload.ts` because
+ * `src/admin/export.ts` may hold type-only imports and no value imports at all
+ * (`test/unit/export_isolation.test.ts`), and `keys.ts` is already its single
+ * one. Reaching for the admin module would drag a force-directed layout onto
+ * the offline analysis subpath.
+ *
+ * `edges` are pairs of LOCAL indices into the delivered view: `0` is the viewer,
+ * `1..d` are `view[0..d-1]` in order. `positions` is index-aligned with those.
+ */
+export interface ViewGraph {
+  radius: number;
+  edges: Array<[number, number]>;
+  positions: Array<{ x: number; y: number }>;
+}
+
 export interface ViewRecord {
   gameID: string;
   /** Player id of the viewer — the participant this was delivered to. */
@@ -260,6 +278,27 @@ export interface ViewRecord {
   at: number;
   /** Exactly what `project()` produced, in the order the topology gave it. */
   view: unknown[];
+  /**
+   * The ties among this viewer's own neighbors, and where everything was drawn.
+   *
+   * Absent at the default radius, where none is sent — so a radius 1 run writes
+   * byte-identical NDJSON to one written before this field existed.
+   *
+   * POSITIONS ARE KEPT, not just the edge set, and that is the less obvious
+   * half. The edges are the disclosure and could be argued to be the whole
+   * audit; the positions are what makes the record satisfy the criterion
+   * `NetworkConfig.views` states for capture being worth it at all — that the
+   * delivered view "is not recoverable from the edge log afterwards". They are
+   * warm-started, so they depend on the history of the session rather than on
+   * the final graph, and are therefore not a function of anything else stored.
+   * Drop them and the screen a participant saw is gone for good.
+   *
+   * A SIBLING of `view`, never an entry inside it. `auditViews` in
+   * `src/verify/audit.ts` walks `view` and reports any entry without a string
+   * `id` as a leak, so folding the structure in would make every radius 1.5 run
+   * fail its own audit.
+   */
+  graph?: ViewGraph;
 }
 
 /** One chat message as delivered to a recipient. */

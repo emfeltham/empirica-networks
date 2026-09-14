@@ -12,9 +12,13 @@ import {
   edgeRows,
   historyIsConsistent,
   parseNdjson,
+  positionRows,
   snapshotRows,
+  structureRows,
   toCSV,
+  viewRows,
 } from "../../src/admin/export.js";
+import type { ViewRecord } from "../../src/shared/keys.js";
 import type { EdgeEvent } from "../../src/shared/keys.js";
 
 /** A ring of three, then one tie dropped and another added. */
@@ -171,4 +175,117 @@ test("a hole in the middle does not cost the records after it", () => {
 
 test("an empty log parses to nothing rather than throwing", () => {
   assert.deepEqual(parseNdjson(""), { records: [], dropped: 0 });
+});
+
+// ------------------------------------------ the radius 1.5 structure builders
+//
+// The join these two exist to make possible is the only thing worth testing
+// here, and it is entirely about INDICES: the payload names nodes by position
+// in the delivery, and a builder that resolved those positions off by one would
+// produce a well-formed table describing ties between the wrong people.
+
+const DELIVERY: ViewRecord = {
+  gameID: "g1",
+  viewer: "me",
+  seq: 3,
+  at: 1000,
+  view: [{ id: "a" }, { id: "b" }, { id: "c" }],
+  graph: {
+    radius: 1.5,
+    edges: [
+      [0, 1],
+      [0, 2],
+      [0, 3],
+      [1, 2],
+    ],
+    positions: [
+      { x: 300, y: 300 },
+      { x: 100, y: 120 },
+      { x: 500, y: 140 },
+      { x: 300, y: 560 },
+    ],
+  },
+};
+
+test("structureRows resolves local index 0 to the viewer, not to their first neighbor", () => {
+  // The off-by-one that would look completely normal. Local 0 is the VIEWER;
+  // `view[0]` is their first neighbor. Confusing the two renames every node in
+  // the table by one position and leaves the shape intact.
+  const rows = structureRows([DELIVERY]);
+  assert.equal(rows.length, 4);
+  assert.deepEqual(
+    rows.map((r) => [r.a_id, r.b_id]),
+    [
+      ["me", "a"],
+      ["me", "b"],
+      ["me", "c"],
+      ["a", "b"],
+    ]
+  );
+  // Indices are carried as well as ids, so the row still identifies its nodes
+  // when the projection has none — and so it joins back to views.csv.
+  assert.deepEqual(rows.at(-1), {
+    game_id: "g1",
+    viewer: "me",
+    seq: 3,
+    t: 1000,
+    a_index: 1,
+    b_index: 2,
+    a_id: "a",
+    b_id: "b",
+  });
+});
+
+test("the indices join back to viewRows on neighbor_index = index - 1", () => {
+  // The documented join. If it ever stops holding, the two tables describe
+  // different neighborhoods and nothing says so.
+  const views = viewRows([DELIVERY]);
+  for (const s of structureRows([DELIVERY])) {
+    for (const [index, id] of [
+      [s.a_index, s.a_id],
+      [s.b_index, s.b_id],
+    ] as const) {
+      if (index === 0) continue;
+      const row = views.find((v) => v.viewer === s.viewer && v.seq === s.seq && v.neighbor_index === index - 1);
+      assert.ok(row, `no view row for local index ${index}`);
+      assert.equal(row.neighbor_id, id, "the two tables must name the same person");
+    }
+  }
+});
+
+test("positionRows keeps the isolated viewer, whom an edge table would drop", () => {
+  // Why this is a second builder rather than x/y columns on the first: a
+  // participant with no ties still has a position, and in a rewiring design
+  // they are the one worth looking at.
+  const alone: ViewRecord = {
+    ...DELIVERY,
+    view: [],
+    graph: { radius: 1.5, edges: [], positions: [{ x: 300, y: 300 }] },
+  };
+  assert.deepEqual(structureRows([alone]), []);
+  assert.deepEqual(positionRows([alone]), [
+    { game_id: "g1", viewer: "me", seq: 3, t: 1000, node_index: 0, node_id: "me", x: 300, y: 300 },
+  ]);
+});
+
+test("a projection with no id still produces usable rows", () => {
+  // `viewRows` leaves `neighbor_id` empty for these; so do we, and the indices
+  // carry the identity instead. Dropping the rows would silently export nothing
+  // for a legal projection.
+  const anonymous: ViewRecord = {
+    ...DELIVERY,
+    view: [{ choice: "A" }, { choice: "B" }, { choice: "C" }],
+  };
+  const rows = structureRows([anonymous]);
+  assert.equal(rows.length, 4, "every tie is still a row");
+  assert.equal(rows.at(-1)!.a_id, "", "with no id to resolve");
+  assert.deepEqual(rows.at(-1)!.a_index, 1, "and the index doing the work");
+  assert.equal(positionRows([anonymous])[1]!.node_id, "");
+});
+
+test("a radius 1 delivery produces no structure rows at all", () => {
+  const plain: ViewRecord = { gameID: "g1", viewer: "me", seq: 1, at: 1, view: [{ id: "a" }] };
+  assert.deepEqual(structureRows([plain]), []);
+  assert.deepEqual(positionRows([plain]), []);
+  assert.equal(viewRows([plain]).length, 1, "and the existing table is untouched");
 });

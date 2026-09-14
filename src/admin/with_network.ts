@@ -1323,7 +1323,12 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       // or fall together — with the caveat that a failure of that RPC would
       // leave records for views nobody received. There is no callback to hang
       // the confirmation off, so this is stated rather than handled.
-      viewSink?.record({ gameID: game.id, viewer, seq, at, view } satisfies ViewRecord);
+      // `graph` alongside `view`, not inside it: at radius 1.5 the structure is
+      // half of what this participant was delivered, and it is the half that
+      // cannot be reconstructed afterwards. `undefined` at the default radius,
+      // where `JSON.stringify` omits it entirely and the file is byte-identical
+      // to one written before this field existed.
+      viewSink?.record({ gameID: game.id, viewer, seq, at, view, graph } satisfies ViewRecord);
     }
     return true;
   }

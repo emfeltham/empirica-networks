@@ -24,17 +24,24 @@
  * That is the failure this module is shaped around.
  */
 import { layout, type Point } from "./layout.js";
+import type { ViewGraph } from "../shared/keys.js";
 import { inducedEdges, type LocalEdge } from "./subgraph.js";
 
-/** The value written to a participant's channel at radius 1.5. */
-export interface GraphPayload {
-  /** Declared so the client can tell "radius 1" from "the subgraph is missing". */
-  radius: number;
-  /** Pairs of LOCAL indices: 0 is the viewer, 1..d are their neighbors in order. */
-  edges: LocalEdge[];
-  /** Index-aligned with those local indices. Integers; see `round`. */
-  positions: Point[];
-}
+/**
+ * The value written to a participant's channel at radius 1.5.
+ *
+ * The same shape `ViewRecord.graph` records, and deliberately one declaration
+ * rather than two: what is captured must be what was delivered, and two
+ * structurally-identical interfaces are two things that can drift. `ViewGraph`
+ * is declared in `shared/keys.ts` because the offline export subpath needs it
+ * and may not import this module — see the note there.
+ *
+ * `radius` is inside the payload so the client can tell "radius 1" from "the
+ * subgraph is missing"; `edges` are LOCAL indices (0 is the viewer, 1..d are
+ * their neighbors in order); `positions` is index-aligned with those and
+ * integral (see `round`).
+ */
+export type GraphPayload = ViewGraph;
 
 export interface BuildArgs {
   adj: number[][];

@@ -27,7 +27,7 @@ Decide whether to capture projected views before beginning data collection:
 | The edge history | batch scope, always | Yes | `networkHistory:<gameID>`, every tie change, including the initial graph as a `start` event |
 | The radius | batch scope, always | Yes | `networkRadius:<gameID>`, how much of the network participants were shown |
 | The run log | `log: { file }`, opt-in | Yes | Whatever your listeners wrote, as the study happened |
-| Captured views | `views: { file }`, opt-in | Yes | Exactly what each participant was delivered, per delivery |
+| Captured views | `views: { file }`, opt-in | Yes | Exactly what each participant was delivered, per delivery — at radius 1.5 including the ties among their neighbors and where everything was drawn |
 | The views themselves | — | No | Published `ephemeral`. Gone unless captured |
 
 Two properties of these outputs deserve particular attention.
@@ -123,6 +123,39 @@ restart.
 | `neighbor_index` | number | Position within the view. Stable, and defined even for a projection with no `id` |
 | `neighbor_id` | string | The projected `id` when there is one, empty otherwise |
 | …your fields | string \| number | One column per field `project()` returned |
+
+### `structureRows()` → one row per tie one viewer was shown, per delivery
+
+Empty unless the study ran at `graph: { radius: 1.5 }`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `game_id`, `viewer`, `seq`, `t` | | As above |
+| `a_index`, `b_index` | number | Local index of each end: `0` is the viewer, `1..d` index into that delivery's view |
+| `a_id`, `b_id` | string | The projected `id` of each end when there is one, empty otherwise |
+
+### `positionRows()` → one row per node in one viewer's drawing, per delivery
+
+| Column | Type | Notes |
+|---|---|---|
+| `game_id`, `viewer`, `seq`, `t` | | As above |
+| `node_index` | number | `0` is the viewer; `1..d` index into that delivery's view |
+| `node_id` | string | As `a_id` above |
+| `x`, `y` | number | Integers in a 600×600 box |
+
+Both carry the local indices as well as the resolved ids, which is what makes them join two ways:
+on the ids to `edges.csv`, answering "was this tie real"; and on
+`(viewer, seq, neighbor_index = a_index - 1)` to `views.csv`, which still works for a projection
+that carries no `id` at all.
+
+Two builders rather than one because a viewer with no ties still has a position — their own — and
+denormalizing `x`/`y` onto edge rows would drop exactly the isolated participant, who in a
+rewiring design is the one worth looking at.
+
+Positions are captured rather than recomputed because they cannot be recomputed. They are
+warm-started, so they follow the session's history rather than its final graph, and are not a
+function of anything else stored. This is the same criterion that makes capture worth turning on
+at all: the delivered view is not recoverable from the edge log afterwards.
 
 The table is long, not wide (one row per neighbor rather than one row per view with the neighbors
 packed into a cell), so the table joins directly against `edges.csv` on `(viewer, neighbor_id, t)`.
