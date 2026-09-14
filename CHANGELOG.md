@@ -30,6 +30,13 @@ makes the entries below meaningful as a baseline rather than a moving target.
   in Breadboard's distribution — so a list was the further departure from the published
   description, not the safer one. The claim stays narrow, and what the screens withhold is
   unchanged.
+- `scripts/test-browser.mjs` sweeps orphaned processes between files, not only ports. `empirica`
+  starts the experiment's callbacks server through an npm wrapper chain that lands in its own
+  process group, so a browser test that kills its dev server's group still leaves that server
+  running. It holds no port, so a port check cannot see it — but it is a live Tajriba client, and
+  it reconnects to the NEXT file's server and registers the previous example's listeners beside the
+  new one's. Measured: two browser files failed three times with three different assertions,
+  including a reported leak, and passed every time either ran alone.
 - `tools/shirado-figure.ts` captures the whole screen rather than one column, and waits for each
   drawing to agree with its own heading rather than sleeping — a screenshot taken between the two
   would be a correct-looking picture of a different neighborhood.

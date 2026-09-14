@@ -127,7 +127,7 @@ export function NetworkGraph({
       </svg>
 
       {describe ? (
-        <ul style={VISUALLY_HIDDEN}>
+        <ul className="nbhd-summary" style={VISUALLY_HIDDEN}>
           {nodes.map((n) => (
             <li key={n.index}>{describe(n)}</li>
           ))}
