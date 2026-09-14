@@ -9,7 +9,54 @@ Nothing has been released. The package is `private: true` at `0.0.0` while the p
 still unfrozen. This section will become `0.1.0` at the first publish, and that freeze is what
 makes the entries below meaningful as a baseline rather than a moving target.
 
+### Changed
+
+- **The central guarantee is now parameterized, and the README says so.** It read "projected state
+  never reaches non-neighbors", which was true of every version of this package until
+  `graph.projectFar` existed. It now reads: projected state reaches a participant only if its
+  subject is inside that participant's configured radius. At the default — still the default, still
+  sending no extra byte — the two sentences say the same thing, and the reconstructions in
+  `examples/` are byte-identical. Two opt-in settings widen it, and they widen different things: a
+  radius above 1 discloses TOPOLOGY, which carries nobody's attributes, while `projectFar` is the
+  second decision and the one that moves the sentence. The old wording is the kind a researcher
+  quotes in a methods section, so leaving it standing was not an option.
+
 ### Added
+
+- **`graph: { radius }` accepts any half step and `"whole"`**, where it took `1 | 1.5`. The rule
+  generalizes what 1.5 already meant: `floor(radius)` bounds the PEOPLE and the fraction decides
+  the TIES, so `k` and `k.5` show the same faces and differ only in whether the ties between the
+  outermost of them come too. A value between the steps is refused rather than rounded, because 2
+  and 2.5 are different studies. `ball()` in `src/topology/index.ts` is the first BFS in the
+  package; everything else is written against its half-step rule.
+
+- **Per-viewer names for people a participant is not connected to.** From radius 2 a visible node
+  has no entry in `useNeighbors()`, so the positional scheme that names everything at 1.5 has
+  nothing to say about it — and a seat cannot stand in, because a topology index is a stable name
+  for everybody in the study. Each distant person gets a `ref`: HMAC-SHA256 under a per-game key on
+  the batch scope, with the viewer inside the message so one secret gives every viewer a disjoint
+  name space. Stable for the session, uncorrelated between viewers, never an id and never a seat.
+  Deliberately not built on `hashSeed`, which says of itself that it is not cryptographic and takes
+  a 32-bit salt: a participant who learned one `(ref, id)` pair could have recovered it.
+
+- **`graph: { projectFar }`** — what a participant learns ABOUT somebody further away. A separate
+  callback rather than `project()` receiving a distance, because every `project()` written against
+  this package ignores its context argument and routing distant people through it would have made a
+  wider radius a full attribute disclosure by accident. Omit it and distant people are a shape and
+  a name. The returned value may not contain a player id, and that is refused at publish time.
+
+- **`verify --radius <r>` and `--project-far`.** The structural arms are generalized to any radius,
+  and — the part that matters — the expectation is computed by a second implementation. Using
+  `ball()`, the function the publish path uses to decide what to SEND, to decide what should have
+  been sent makes the check a comparison of the code with itself: with its edge filter broken,
+  `verify` reported PASS. `--radius whole` is refused rather than reported, since every participant
+  is then inside every other's radius and there is no non-neighbor left to leak to.
+
+- **`farRows()`, plus `a_hop`/`b_hop` on `structure.csv` and `node_hop`/`node_ref` on
+  `positions.csv`.** Its own builder rather than rows in `views.csv`, because `NEIGHBORS` carries
+  distance 1 and only distance 1, so every view row is hop 1 by construction. `node_ref` is the
+  only name a participant ever saw for a stranger, and therefore the join key for anything a study
+  collected about one.
 
 - The radius a game ran at is recorded on the batch scope (`networkRadius:<gameID>`) and read back
   with `readRadius(game)`, alongside the edge list and the seed. Nothing else in a finished dataset
@@ -335,6 +382,17 @@ makes the entries below meaningful as a baseline rather than a moving target.
   documented `empirica-networks` import, resolved against the built package).
 
 ### Fixed
+
+- **A correct radius-2 run failed its own audit** (2026-09-14). `auditViews` resolved every local
+  index through the delivered view array, so an edge touching somebody the viewer is not connected
+  to resolved to nothing and was reported as a tie "outside the neighborhood they were sent". It
+  had good unit coverage and every fixture in it was written against the same assumption the code
+  made, so the fixtures agreed with the bug. `ViewRecord.far` — the server's own record of who each
+  ref was, written beside the payload and never delivered — had been written for exactly this and
+  nothing read it. The audit now walks the graph itself rather than importing `ball()`: it could
+  not import it anyway, but the stronger reason is that asking the publish path's own function what
+  should have been sent is the same self-comparison `verify` had just been caught making. There is
+  now an e2e that audits a real session, which nothing did before.
 
 - The Shirado agent arm failed 60% of the time, and the placement it doubted was correct
   (2026-09-14). `test/e2e/shirado2017.test.ts` compared the agents against the top three nodes

@@ -255,3 +255,50 @@ the first datum this entry has ever had that is not an inference.
 
 *Still done when:* the platform path is reproduced — the mechanism in §20 says where to look — or
 `lateProvisioned` is zero across a real deployment, which is the first thing to read off one.
+
+### O27. Whole-network vision discloses the seating plan to two cooperating participants — **ours, by construction**
+
+**Evidence:** `src/admin/pseudonym.ts`; `docs/API.md` ("`"whole"` deserves a paragraph of its own");
+`src/verify/cli.ts` refuses `--radius whole`.
+
+The per-viewer naming scheme stops two participants joining their views **by name**. It cannot stop
+them joining **by structure**. At `graph: { radius: "whole" }` each participant holds the entire
+graph under their own labels, and aligning two labelings of one small graph — with the degree
+sequence as a hint — is a graph-isomorphism instance that is easy at the sizes this package
+targets. Two participants who compare screens can therefore reconstruct who sits where.
+
+No naming scheme fixes this, because the disclosure is the graph itself rather than anything
+attached to its nodes. It is recorded here rather than solved: the setting exists because a
+global-vision arm is a legitimate design, and it ships with the property written down in
+`docs/API.md` instead of being implied not to hold.
+
+`verify --radius whole` refuses for a related but different reason — every participant is inside
+every other's radius, so the confinement arm has an empty denominator and a PASS would mean
+nothing. That refusal is not a mitigation and should not be read as one.
+
+*Done when:* either a study wants this property and it is documented well enough to defend, which
+is where it stands; or somebody produces a defence against structural joining, which would have to
+withhold part of the graph and would therefore not be whole-network vision.
+
+### O28. Half the CLI's shapes are unusable as verify subjects above radius 1.5 — **debt**
+
+**Evidence:** `src/verify/topologies.ts` (`CLI_TOPOLOGIES`, `accountVacuity`); the refusal table in
+`docs/TOPOLOGIES.md`.
+
+Whether a shape can demonstrate anything is **not monotone in the radius**, which is why the
+refusal is computed per radius rather than kept as a list. The consequence is a thin bench:
+
+- `wheel` and `star` have diameter 2, so every radius-2 ball is the whole graph and there is no
+  non-neighbor left. Refused at 2 and beyond **at every n** — including `wheel`, which the radius
+  1.5 refusal message recommends.
+- `ring` and `ladder` are triangle-free and refused at 1.5, and become usable at 2.
+- At 2.5 and above, `ringLattice` is the only shipped shape that works at any practical n.
+
+That last line is the same condition that justified adding `ringLattice` in the first place: one
+shape away from having none. A study can always pass its own generator to `runLeakCheck()`, which
+is the better path anyway since it verifies the graph the study runs — so this is a sharp edge on
+the CLI rather than a hole in the guarantee.
+
+*Done when:* a shape with triangles at depth ships as a named `--topology`, so half-radii above 1.5
+have a second subject. A ring of triangles or a fixed-parameter `grid` would both do; the choice
+needs someone to decide which is worth explaining.
