@@ -255,6 +255,15 @@ async function main(): Promise<void> {
     assert.equal(await panel(page, "metrics", "ties"), String(LIVE_EDGES.length));
     assert.equal(await panel(page, "ops", "history events"), String(EVENTS.length));
     assert.equal(await panel(page, "ops", "publishes"), "12");
+    // What the people being watched can see. The monitor draws the whole
+    // network, so without this an operator cannot tell a study drawing stars
+    // from one drawing its participants' local structure.
+    assert.equal(await panel(page, "ops", "radius"), "1");
+    assert.equal(
+      await panel(page, "ops", "radius recorded"),
+      "(no such row)",
+      "no second row while the live and recorded radii agree"
+    );
     assert.equal(await textOf(page, "#mode"), "live");
     console.log(`    live: ${d.nodes} nodes, ${d.edges} ties, ${d.labels.length} labels`);
 

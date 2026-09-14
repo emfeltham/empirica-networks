@@ -93,6 +93,14 @@ makes the entries below meaningful as a baseline rather than a moving target.
   true of the package, and it now states that neither reconstruction sets a radius and what turning
   one on would mean. `docs/TESTING.md` lists all four browser files rather than two, and its
   baseline counts are current. `docs/GLOSSARY.md` defines "radius" and "structure".
+- The monitor states the radius (`ISSUES.md` O22). It draws the complete network, so an operator
+  could not tell whether the people in it were looking at a star or at the ties among their own
+  connections. `GameSnapshot.recordedRadius` carries what the run's own data says alongside what is
+  being published now — optional, because a record predating the key is a real state and defaulting
+  it to `1` would assert a study drew a star when nobody knows what it drew. When the two disagree,
+  which happens when a game is recovered at a changed radius, both appear and a banner says the
+  session has no single radius. It is ranked below the stalled-game and broken-history banners,
+  which are wrong now rather than wrong in the record.
 - `BotContext.structure()` (`ISSUES.md` O20). At radius 1.5 a browser was shown the ties among its
   own neighbors and a bot in the same seat was not — an asymmetry that would have appeared nowhere
   in a study's data, in exactly the designs artificial participants exist for. The bytes already

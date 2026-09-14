@@ -300,23 +300,6 @@ beyond-the-star denominator — in `src/verify/leak_test.ts` and `src/verify/top
 *Done when:* `auditViews` checks every tie in `record.graph` against the edge log for the same
 delivery, and reports a radius 1.5 run with no structure as a vacuous pass rather than a pass.
 
-### O22. The monitor does not report the radius, so an operator cannot see what participants are shown
-
-**Evidence:** `src/admin/monitor/ui.ts` metrics panel; `GameSnapshot.radius`.
-
-The monitor draws the complete graph and every participant's private state, and says nothing about
-how much of that graph the participants can see. An operator watching a study cannot tell from the
-screen whether the people in it are looking at a star or at their neighbors' ties.
-
-`GameSnapshot.radius` now carries the value and reaches the page in the payload, so what is
-missing is a line in the metrics panel and nothing else. It is listed here rather than fixed
-because the monitor is the one surface in this package where adding a field also means deciding
-what an operator should do with it, and because a mismatch between the recorded radius and the
-live one — which `tryRecover` now warns about on the server — arguably belongs on that panel too.
-
-*Done when:* the monitor states the radius, and shows the recorded value beside the live one when
-they differ.
-
 ### O23. `wheel` is the only named CLI topology that can demonstrate radius 1.5
 
 **Evidence:** `src/verify/topologies.ts` `CLI_TOPOLOGIES`; `test/unit/leak_vacuity.test.ts`
