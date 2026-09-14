@@ -269,7 +269,7 @@ export function graphModelOf(
  *
  * Coincident centers have no direction to shorten along, so the segment is left
  * as the degenerate point rather than producing NaN — same reasoning as the
- * nudge in `admin/monitor/layout.ts`, and the case is reachable whenever a
+ * nudge in `admin/layout.ts`, and the case is reachable whenever a
  * server-sent layout has not separated two nodes yet.
  */
 function shorten(

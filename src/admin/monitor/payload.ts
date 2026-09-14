@@ -8,7 +8,7 @@
  * be unit tested without a server — the same split ./layout.ts exists for.
  */
 import type { GameSnapshot } from "../inspect.js";
-import { layout, type LayoutOptions, type Point } from "./layout.js";
+import { layout, type LayoutOptions, type Point } from "../layout.js";
 
 export interface MonitorPayload {
   snapshot: GameSnapshot;

@@ -7,9 +7,11 @@ import { neighborChatOf, type NeighborChat } from "../chat.js";
 import {
   assertNetworkMode,
   neighborsOf,
+  networkGraphOf,
   networkSelfOf,
   networkToldOf,
   NetworkModeNotInstalledError,
+  type NetworkGraphInfo,
   type NetworkSelf,
   type NetworkTold,
 } from "../view.js";
@@ -149,10 +151,42 @@ export function useNetworkTold(): NetworkTold | undefined {
  */
 export function useNetworkGraph(
   opts: GraphOptions = {},
-  self?: unknown,
-  subgraph?: Subgraph
+  self?: unknown
 ): GraphModel | undefined {
-  return graphModelOf({ neighbors: useNeighbors(), self, subgraph }, opts);
+  const neighbors = useNeighbors();
+  const structure = useNetworkStructure();
+  return graphModelOf(
+    {
+      neighbors,
+      self,
+      subgraph: structure ? { edges: structure.edges, positions: structure.positions } : undefined,
+    },
+    {
+      ...opts,
+      // Not the author's to declare: the server says which study this is.
+      // `null` means the structure arrived and is unusable, and the one thing
+      // that must not happen then is a star — a correct-looking picture of a
+      // different study. `undefined` means the key is absent, which at radius 1
+      // is the ordinary case.
+      expectSubgraph: opts.expectSubgraph ?? structure === null,
+    }
+  );
+}
+
+/**
+ * The server-sent structure of this neighborhood, or `undefined` at radius 1.
+ *
+ * Rarely needed directly — `useNetworkGraph()` already folds it in. Reach for it
+ * to branch on the radius a study is actually running at, which is worth doing
+ * in instructions text: at 1.5 a participant can see which of their connections
+ * know each other, and a screen that does not say so is showing them something
+ * they were not told to expect.
+ *
+ * `undefined` is radius 1; `null` is "arrived and unusable" — see
+ * `networkGraphOf`.
+ */
+export function useNetworkStructure(): NetworkGraphInfo | null | undefined {
+  return networkGraphOf(useNbhd());
 }
 
 export { NetworkGraph, type NetworkGraphProps } from "./NetworkGraph.js";
@@ -162,6 +196,7 @@ export {
   DARK2_CSS,
   COOPERATION_CSS,
 } from "./styles.js";
+export type { NetworkGraphInfo };
 export {
   egoRingLayout,
   graphModelOf,

@@ -1,0 +1,155 @@
+/**
+ * The radius 1.5 payload: what is sent, and where the nodes are put.
+ *
+ * Two properties here would fail SILENTLY if they broke, and both are about
+ * warm starting rather than about drawing:
+ *
+ *   - positions follow PEOPLE, not array slots. A neighborhood renumbers when a
+ *     tie is dropped, so an index-keyed cache hands every survivor the
+ *     coordinates of whoever used to sit there. The picture stays beautifully
+ *     still while the identities under it slide by one.
+ *   - the same SHAPE can hold different people. One rewire that swaps two ties
+ *     leaves the edge set identical, so reusing on the shape alone places each
+ *     newcomer exactly where the person they replaced had been.
+ */
+import assert from "node:assert/strict";
+import test from "node:test";
+import { adjacency } from "../../src/topology/index.js";
+import { buildGraphPayload } from "../../src/admin/graph_payload.js";
+
+const SIZE = 600;
+const CENTER = SIZE / 2;
+const near = (a: number, b: number, tol = 1.5) =>
+  assert.ok(Math.abs(a - b) <= tol, `${a} !~= ${b}`);
+
+/** 0 is tied to 1, 2, 3; and 1-2 are tied to each other. */
+const TRIANGLE_PLUS = adjacency(4, [
+  [0, 1],
+  [0, 2],
+  [0, 3],
+  [1, 2],
+]);
+
+const build = (nodes: number[], ids: string[], cache?: any) =>
+  buildGraphPayload({ adj: TRIANGLE_PLUS, nodes, ids, radius: 1.5, seed: 7, cache });
+
+test("the payload carries the ties among the viewer's neighbors, and its own radius", () => {
+  const { payload } = build([0, 1, 2, 3], ["me", "a", "b", "c"]);
+  assert.equal(payload.radius, 1.5, "the client must tell radius 1 from a missing subgraph");
+  assert.ok(
+    payload.edges.some(([a, b]) => a !== 0 && b !== 0),
+    "the 1-2 tie is the whole reason this payload exists"
+  );
+  assert.equal(payload.positions.length, 4, "index-aligned with the delivered neighborhood");
+});
+
+test("the viewer is at the centre, and nothing leaves the box", () => {
+  const { payload } = build([0, 1, 2, 3], ["me", "a", "b", "c"]);
+  near(payload.positions[0]!.x, CENTER);
+  near(payload.positions[0]!.y, CENTER);
+  for (const p of payload.positions) {
+    assert.ok(p.x >= 0 && p.x <= SIZE && p.y >= 0 && p.y <= SIZE, `${p.x},${p.y} is outside`);
+    // The node itself has a radius; a centre right on the edge is clipped.
+    assert.ok(Math.hypot(p.x - CENTER, p.y - CENTER) <= CENTER - 40 + 1);
+  }
+});
+
+test("coordinates are integers", () => {
+  // Not tidiness: a warm-started layout lands on different float tails for the
+  // same graph, so unrounded coordinates defeat the byte-identical suppression
+  // and republish the whole neighborhood on every tick.
+  for (const p of build([0, 1, 2, 3], ["me", "a", "b", "c"]).payload.positions) {
+    assert.ok(Number.isInteger(p.x) && Number.isInteger(p.y), `${p.x},${p.y} is not integral`);
+  }
+});
+
+test("an unchanged neighborhood produces an identical picture", () => {
+  // A neighbor changing a watched attribute republishes. If that moved anybody,
+  // the change a participant is watching for would be invisible under everything
+  // rearranging around it.
+  const first = build([0, 1, 2, 3], ["me", "a", "b", "c"]);
+  const again = build([0, 1, 2, 3], ["me", "a", "b", "c"], first.cache);
+  assert.deepEqual(again.payload.positions, first.payload.positions);
+});
+
+test("positions follow people when a neighbor is dropped", () => {
+  const first = build([0, 1, 2, 3], ["me", "a", "b", "c"]);
+  const wasA = first.cache.positions.get("a")!;
+  const wasB = first.cache.positions.get("b")!;
+  const wasC = first.cache.positions.get("c")!;
+
+  // "a" goes, so "b" and "c" each shift down a slot. The shape genuinely
+  // changed, so the layout re-runs and everybody is expected to MOVE — warm
+  // starting means "begin from where you were", not "stay". What must not
+  // happen is each survivor beginning from the coordinates of whoever used to
+  // hold their new slot, which is what an index-keyed cache does and which
+  // produces an almost-still picture of a neighborhood that changed.
+  const after = build([0, 2, 3], ["me", "b", "c"], first.cache);
+  const dist = (p: { x: number; y: number }, q: { x: number; y: number }) =>
+    Math.hypot(p.x - q.x, p.y - q.y);
+
+  const nowB = after.cache.positions.get("b")!;
+  const nowC = after.cache.positions.get("c")!;
+  assert.ok(
+    dist(nowB, wasB) < dist(nowB, wasA),
+    `b ended nearer a's old place (${dist(nowB, wasA).toFixed(0)}) than its own ` +
+      `(${dist(nowB, wasB).toFixed(0)}) — the identities have slid by one`
+  );
+  assert.ok(
+    dist(nowC, wasC) < dist(nowC, wasB),
+    "c ended nearer b's old place than its own — the identities have slid by one"
+  );
+  assert.ok(
+    !after.cache.positions.has("a"),
+    "a departed and must not be carried forward to be seeded onto somebody else"
+  );
+});
+
+test("an identical SHAPE holding different people is laid out afresh", () => {
+  // The shape key alone would match here: a star of three, before and after.
+  // Reusing on it would put the newcomer exactly where the person they replaced
+  // had been — a still picture of a neighborhood that changed.
+  const star = adjacency(5, [
+    [0, 1],
+    [0, 2],
+    [0, 3],
+    [0, 4],
+  ]);
+  const args = { adj: star, radius: 1.5 as const, seed: 7 };
+  const first = buildGraphPayload({ ...args, nodes: [0, 1, 2], ids: ["me", "a", "b"] });
+  const swapped = buildGraphPayload({
+    ...args,
+    nodes: [0, 1, 3],
+    ids: ["me", "a", "z"],
+    cache: first.cache,
+  });
+  assert.equal(first.cache.key, swapped.cache.key, "the shapes really are identical");
+  assert.ok(
+    !swapped.cache.positions.has("b"),
+    "the departed neighbor is not carried into the new cache"
+  );
+  assert.ok(swapped.cache.positions.has("z"), "the newcomer was laid out");
+});
+
+test("a viewer with no neighbors, and one with a single neighbor", () => {
+  const alone = build([0], ["me"]).payload;
+  assert.deepEqual(alone.edges, []);
+  assert.equal(alone.positions.length, 1);
+  near(alone.positions[0]!.x, CENTER);
+  near(alone.positions[0]!.y, CENTER);
+
+  const pair = build([0, 3], ["me", "c"]).payload;
+  assert.equal(pair.positions.length, 2);
+  for (const p of pair.positions) {
+    assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y), "no NaN from a degenerate layout");
+  }
+});
+
+test("same inputs, same picture, in any process", () => {
+  // The seed is the game's own, so two people watching one study see one thing,
+  // and a stored run can be redrawn from its data.
+  assert.deepEqual(
+    build([0, 1, 2, 3], ["me", "a", "b", "c"]).payload,
+    build([0, 1, 2, 3], ["me", "a", "b", "c"]).payload
+  );
+});

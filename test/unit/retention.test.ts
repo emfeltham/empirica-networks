@@ -155,6 +155,12 @@ test("a game's chat dedupe state is released with the game", async () => {
       channels: 0,
       channelScopes: 0,
       cachedViews: 0,
+      // Zero here for two reasons at once, which is why it is worth a line: this
+      // game ran at the default radius and never laid anything out, and the map
+      // is keyed by SCOPE id so none of the game-keyed deletes would have
+      // reached it if it had. `test/e2e/subgraph.test.ts` is where it is
+      // non-zero first.
+      cachedLayouts: 0,
       endedGames: 1,
       chatSeqs: 0,
       firstChannelMs: undefined,
