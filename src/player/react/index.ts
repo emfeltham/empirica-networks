@@ -1,5 +1,6 @@
 import { usePartModeCtx, usePartModeCtxKey } from "@empirica/core/player/classic/react";
 import { useMemo } from "react";
+import { graphModelOf, type GraphModel, type GraphOptions, type Subgraph } from "../graph.js";
 import type { EmpiricaNetworkContext, Nbhd } from "../mode.js";
 import { networkStateOf, type NetworkState } from "../state.js";
 import { neighborChatOf, type NeighborChat } from "../chat.js";
@@ -115,6 +116,64 @@ export function useNeighborChat(): NeighborChat | undefined {
 export function useNetworkTold(): NetworkTold | undefined {
   return networkToldOf(useNbhd());
 }
+
+/**
+ * The participant's neighborhood as a drawable node-link model.
+ *
+ *     const graph = useNetworkGraph({ nodeAttrs: (n) => ({ color: n.data?.color }) });
+ *     return <NetworkGraph model={graph} fallback={<p>Joining the network…</p>} />;
+ *
+ * At the default radius this draws a STAR — the viewer at the center, one node
+ * per neighbor, one line to each — and it is built entirely from data this
+ * browser already has. Nothing extra crosses the wire to render it, which is
+ * what makes a Breadboard-style display cost the neighbor-limited guarantee
+ * nothing: Breadboard's own client is also ego-only, sending no tie between two
+ * of your neighbors.
+ *
+ * `undefined` until the first publish, for the same reason `useNeighbors()` is:
+ * drawing an isolated node during startup looks entirely normal and is a data
+ * validity bug. Branch on it.
+ *
+ * `self` is the viewer's own projected data — normally `useNetworkState()` reads
+ * — and is passed in rather than read here because only the study knows which
+ * of its private keys belongs on the screen.
+ *
+ * NOT memoised, and that is a decision rather than an oversight. The obvious
+ * memo keys are `seq` and the neighbor count, and both are wrong: `seq` is
+ * written server-side alongside `neighbors` but nothing guarantees this browser
+ * applies the two in one batch, so a model rebuilt on `seq` can close over the
+ * previous publish's neighbors — a correct-looking picture that is one state
+ * behind, which is the exact class of failure this package is written against.
+ * The work being skipped is O(degree) over at most a few dozen numbers, bounded
+ * by `envelope.maxDegree`. Correctness is worth more than that.
+ */
+export function useNetworkGraph(
+  opts: GraphOptions = {},
+  self?: unknown,
+  subgraph?: Subgraph
+): GraphModel | undefined {
+  return graphModelOf({ neighbors: useNeighbors(), self, subgraph }, opts);
+}
+
+export { NetworkGraph, type NetworkGraphProps } from "./NetworkGraph.js";
+export {
+  NetworkGraphStyles,
+  NETWORK_GRAPH_CSS,
+  DARK2_CSS,
+  COOPERATION_CSS,
+} from "./styles.js";
+export {
+  egoRingLayout,
+  graphModelOf,
+  svgAttrs,
+  type GraphEdge,
+  type GraphModel,
+  type GraphNode,
+  type GraphOptions,
+  type NodeRef,
+  type Point,
+  type Subgraph,
+} from "../graph.js";
 
 export { NetworkModeNotInstalledError };
 export type { NeighborChat, NetworkSelf, NetworkState, NetworkTold };
