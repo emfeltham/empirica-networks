@@ -283,7 +283,19 @@ export const OUTBOX_KEY = "_outbox";
  * `1..d` are `view[0..d-1]` in order. `positions` is index-aligned with those.
  */
 export interface ViewGraph {
+  /**
+   * How far this viewer was actually shown, as a finite number.
+   *
+   * Finite even when the study asked for `"whole"`, because `networkGraphOf`
+   * rejects a non-finite radius as malformed and a sentinel on the wire would
+   * have to be translated by every consumer anyway. For `"whole"` this is the
+   * depth the viewer's own component actually reached, which is the honest
+   * answer to "how far did I see" — and `whole` below carries the intent that
+   * produced it, which no number can.
+   */
   radius: number;
+  /** Set only when the study asked for the entire network. */
+  whole?: true;
   edges: Array<[number, number]>;
   positions: Array<{ x: number; y: number }>;
   /**
