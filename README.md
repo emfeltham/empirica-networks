@@ -134,9 +134,26 @@ common failure mode at each step. [`docs/API.md`](docs/API.md) documents the com
 
 ## The guarantee and its limit
 
-The package guarantees that projected state—the subset of a neighbor's data selected by
-`project()`—never reaches non-neighbors. Each participant has a private channel scope, and the
-server writes that participant's projections exclusively to this channel.
+The package guarantees that projected state—the subset of a participant's data selected by
+`project()`—reaches another participant only if that participant is inside the configured radius.
+Each participant has a private channel scope, and the server writes their projections exclusively
+to this channel.
+
+At the default radius that reads as it always has: **projected state never reaches non-neighbors**,
+and `project()` is the only path by which one participant's data reaches another. Two settings
+widen it, both opt-in and both recorded:
+
+- `graph: { radius }` above 1 also sends the *shape* of the neighborhood — ties, and from 2 upward
+  people the viewer is not connected to. Topology carries nobody's attributes, so this widens what
+  a participant knows about the network without widening what they know about anyone in it.
+- `graph: { projectFar }` is the second decision, and the one that moves the sentence above. With
+  it, a study chooses what a participant learns *about* somebody further away — typically less than
+  a neighbor reveals. Without it, distant people are a shape and a name.
+
+What does not change at any setting: nothing outside the radius arrives, the radius is the study's
+to set and never the participant's, and a person beyond distance 1 is named per viewer so two
+participants cannot compare screens and identify them. `verify --radius <r> [--project-far]` checks
+the version of the claim your study actually makes.
 
 The write location determines whether a value remains private. Empirica links every participant to
 every player node, so `player.set(key, value)` broadcasts the value to the entire game regardless

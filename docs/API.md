@@ -714,10 +714,40 @@ nothing and no assertion in this repository moves.
 
 `1.5` additionally sends the subgraph induced on each participant's **closed neighborhood** — the
 ties between their own connections — with positions laid out server-side. The same component draws
-it with no client change. Radii above 1.5 are refused rather than rounded down.
+it with no client change.
+
+`2`, `2.5`, `3`, … and `"whole"` reach further. The rule is that **`floor(radius)` bounds the
+people and the fraction decides the ties**: `k` and `k.5` show the same faces and differ only in
+whether the ties *between* the outermost of them come too. So 2 shows your connections' connections
+and how they hang off your own; 2.5 adds the ties among those outer people. A value between the
+steps is refused rather than rounded, because 2 and 2.5 are different studies.
+
+From radius 2 a participant sees people with no entry in `useNeighbors()`. They arrive in
+`structure.far` as `{ ref, d }` — a name and a hop count — and carry no attributes at all unless
+the study sets `projectFar` below. The name is derived per viewer under a secret on the batch
+scope: stable for the session, so a design can ask "the same person as last round", and
+uncorrelated between viewers, so two participants comparing screens cannot line their pictures up.
+
+```js
+graph: {
+  radius: 2,
+  // Omit this and distant people are a shape and a name. With it, you choose
+  // what they reveal — usually less than a neighbor does.
+  projectFar: (person, viewer, ctx) =>
+    ctx.distance === 2 ? { mood: ctx.stateOf(person).get("mood") } : undefined,
+}
+```
+
+`projectFar` is a separate callback rather than `project()` receiving a distance, and the default
+is why: every `project()` written against this package ignores its context argument, so routing
+distant people through it would turn raising the radius into a full attribute disclosure about
+strangers. Returning `undefined` for someone still shows them — the radius has already disclosed
+that they are there, and hiding them would draw a network with holes in it. The returned value
+**may not contain a player id**, and that is refused at publish time: an id is comparable between
+participants and a ref deliberately is not.
 
 **This widens what a participant is told, and it is opt-in for that reason rather than because it
-is expensive.** Two consequences worth deciding about before turning it on:
+is expensive.** Consequences worth deciding about before turning it on:
 
 - It tells a participant which of their connections know each other — a fact about two *other*
   people that neither of them disclosed.
@@ -728,7 +758,17 @@ is expensive.** Two consequences worth deciding about before turning it on:
 
 Whether it shows anything at all is a property of the graph, not the setting: on a ring nobody's
 neighbors are tied to each other, so radius 1.5 draws the same star. `examples/minimal` switches to
-a ring lattice under `NBHD_RADIUS=1.5` for that reason.
+a ring lattice under `NBHD_RADIUS=1.5` for that reason. The same is true further out and it is not
+monotone — a ring is vacuous at 1.5, informative at 2, and vacuous again at 2.5 — so `verify`
+computes the refusal per radius rather than keeping a list.
+
+`"whole"` deserves a paragraph of its own, because a naming scheme cannot save it. Refs stop two
+participants joining their views *by name*; they do not stop them joining *by structure*. At whole-
+network vision each holds the entire graph under different labels, and aligning two labelings of
+one small graph — with degree sequences as a hint — is straightforward. **Whole-network vision
+effectively discloses the seating plan to any two participants who cooperate.** `verify` refuses
+`--radius whole` for a related reason: every participant is inside every other's radius, so there
+is no non-neighbor left and a PASS would mean nothing.
 
 What is sent is integers, never names or seats. Edges are pairs of indices into the array the
 browser already holds — `0` the viewer, `1..d` their neighbors in order — so no seating plan
@@ -958,7 +998,8 @@ node dist/verify/cli.cjs verify --n 4     # from a clone, after `npm run build`
 |---|---|---|
 | `-n`, `--n <count>` | 4 | Participants. Minimum 4, and refused below that: below it every named topology makes everyone everyone's neighbor, so there is no non-neighbor and a pass would prove nothing |
 | `--topology <name>` | `ring` | `ring`, `star`, `wheel`, `pairs`, `ladder`, `complete`, `ringLattice` (its `m` fixed at 2, so it needs n ≥ 5). Refused when the shape could prove nothing — see below |
-| `--radius <1\|1.5>` | 1 | The radius your study runs at. Refused rather than rounded: verifying radius 1 for somebody running 1.5 reports on a different study |
+| `--radius <r>` | 1 | The radius your study runs at: `1`, `1.5`, `2`, `2.5`, … Refused rather than rounded, since 2 and 2.5 are different studies, and refused entirely for `whole`, which leaves no non-neighbor to leak to |
+| `--project-far` | off | Your study sets `graph.projectFar`. It changes what the leak arm is *about* — without it the data rule is "neighbors only" at every radius — so it cannot be inferred, and verifying the wrong one reports cleanly on a study other than yours |
 | `-q`, `--quiet` | off | Print `PASS` or `FAIL` and nothing else. The CI form |
 | `-h`, `--help` | | Usage |
 

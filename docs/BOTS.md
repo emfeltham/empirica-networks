@@ -118,11 +118,17 @@ than `[]` before the first publish, for the reason `neighborsOf` does: an empty 
 legitimate result, and conflating it with "not loaded" would have a bot act on an imagined
 isolation.
 
-`ctx.structure()` is the ties among this bot's own neighbors, and is `undefined` unless the study
-runs at `graph: { radius: 1.5 }`. It exists because the rule above cuts both ways: a bot must not
-see more than a human, and at that radius it must not see less either. A study can seat bots at
-1.5 and have them reason only locally — that is a design choice — but it should be a choice, not
-an asymmetry nobody noticed. Its third state, `null`, means the payload arrived and cannot be used;
+`ctx.structure()` is what this bot can see of the network, and is `undefined` unless the study runs
+above `graph: { radius: 1 }`. It exists because the rule above cuts both ways: a bot must not see
+more than a human, and above the default it must not see less either. A study can seat bots at a
+wider radius and have them reason only locally — that is a design choice — but it should be a
+choice, not an asymmetry nobody noticed.
+
+From radius 2 the payload also carries `far`: people the bot can see and is not connected to, each
+with the per-viewer name the server gave *this bot* for them. A policy indexing `structure().edges`
+by `neighbors()` must mind that boundary — `neighbors()` is distance 1 only — and the boundary is
+the point rather than an inconsistency to work around: it is exactly the one a human in that seat
+sees. Its third state, `null`, means the payload arrived and cannot be used;
 treating it as `undefined` would have a policy reason about a star in a study that is not drawing
 one.
 
