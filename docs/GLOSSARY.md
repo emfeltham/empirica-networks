@@ -10,8 +10,10 @@ live there. → [ARCHITECTURE §5](ARCHITECTURE.md#5-where-every-value-lives-and
 
 **bot / agent** — an artificial participant: a headless Node process that opens a real Tajriba
 session, runs the real participant mode, and reads and writes through the same private channel a
-browser does. There is deliberately no server-side path, so a bot cannot see the graph or a
-non-neighbor. Empirica v2 ships no such facility; this one is `empirica-networks/bots`.
+browser does. There is deliberately no server-side path, so a bot cannot read a non-neighbor or see
+the whole graph — and, at radius 1.5, cannot see *less* than a human either: `ctx.structure()`
+gives it the same ties among its own neighbors a browser in that seat is shown.
+Empirica v2 ships no such facility; this one is `empirica-networks/bots`.
 → [BOTS.md](BOTS.md)
 
 **channel** — the private `nbhd` scope belonging to one participant. Created at game start, one
@@ -63,7 +65,17 @@ plus the participant themselves, and is what a radius 1.5 subgraph is induced on
 **radius** — how much of the network a participant is shown, set by `graph: { radius }` and
 recorded per game on the batch scope. `1` (the default) sends nothing beyond the projected views:
 the client draws a star, which is what Breadboard's participants saw. `1.5` additionally sends the
-ties *between* a participant's own neighbors. Wider radii are refused rather than rounded down.
+ties *between* a participant's own neighbors.
+
+The fraction is the convention from egocentric network analysis, where personal networks are
+routinely described as 1.5-degree, and it counts steps out from the viewer: radius 1 is the
+participant, their neighbors, and the ties to them; 1.5 keeps that same set of people and adds the
+ties *among* them; 2 would add the neighbors' own neighbors. So 1.5 is half a step because it adds
+edges and no nodes — the viewer learns something a two-step walk would have shown them without
+meeting anyone two steps away. Wider radii are refused rather than rounded down for that reason:
+the next legal value is not 1.6 but 2, and at 2 a participant is shown somebody they have no
+connection to, which is the guarantee itself rather than a setting.
+
 A property of what participants are told, not of the graph — two studies on one topology at
 different radii leave identical edge lists. → [API, `NetworkConfig`](API.md#networkconfig)
 
