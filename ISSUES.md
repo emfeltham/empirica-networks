@@ -318,20 +318,3 @@ directories and cannot meet.
 
 *Done when:* one example both runs at radius 1.5 and recovers its own structure to CSV, which is
 the only arrangement that would have caught this.
-
-### O26. `simulate` has no notion of radius
-
-**Evidence:** `src/simulate/simulate.ts` — no occurrence of `radius`; `USAGE` at :361-374 lists
-`--seeds --arms --n --out --check --inject`; the produced file set is fixed at `:568` and `:731` as
-`["edges.csv", "session.csv", "changes.csv"]`.
-
-The evaluation tool imports `examples/shirado2017`'s already-configured callbacks, which set no
-`graph` key, so every simulated session runs at radius 1 — correctly, but implicitly. Its
-`manifest.json` records `n`, `seedsPerArm`, `arms`, `vacuityRule` and a `notExercised` list, and
-does not record the radius or name the structure payload among the things it did not exercise.
-
-Related to O21, and separable from it: O21 is that `auditViews` cannot SEE structure, this is that
-`simulate` cannot PRODUCE it. Fixing O21 alone would leave a checker with nothing to check.
-
-*Done when:* `manifest.json` records the radius, and `notExercised` names the structure payload for
-as long as no arm delivers one.

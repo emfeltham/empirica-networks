@@ -115,6 +115,20 @@ export interface SessionOutcome {
    */
   recordedSeed?: number;
   order?: string[];
+  /**
+   * How much of the network this session showed its participants.
+   *
+   * Captured for the same reason the seed is: nothing else here keeps it. The
+   * package records it on the batch scope and the harness's store is in memory,
+   * so once the server stops the only artifact that could say whether these
+   * sessions drew a star or their participants' local structure is this file.
+   *
+   * It is 1 in every run this rig can currently produce — the example's config
+   * is a literal, fixed when its module loads, and there is no path from a flag
+   * to it. Recorded anyway, because "1 because that is what ran" and "1 because
+   * nobody wrote it down" are different statements about a dataset.
+   */
+  radius?: number;
   outDir: string;
   elapsedMs: number;
   /** Which C5 failure was injected, if any. */
@@ -176,12 +190,16 @@ function colorPolicy(seen: { gameID?: string }): BotPolicy<ColorView> {
 function captureGraph(gameID: string | undefined, outcome: SessionOutcome): void {
   if (!gameID) return;
   try {
-    const snap = (net as { inspect: (id: string) => { seed?: number; order?: string[] } | undefined })
-      .inspect(gameID);
+    const snap = (
+      net as {
+        inspect: (id: string) => { seed?: number; order?: string[]; radius?: number } | undefined;
+      }
+    ).inspect(gameID);
     if (!snap) return;
     outcome.gameID = gameID;
     if (typeof snap.seed === "number") outcome.recordedSeed = snap.seed;
     if (Array.isArray(snap.order)) outcome.order = snap.order;
+    if (typeof snap.radius === "number") outcome.radius = snap.radius;
   } catch {
     /* a session that died before its network was built has nothing to capture */
   }
@@ -512,11 +530,22 @@ async function sweep(args: SweepArgs): Promise<number> {
           "node executes the agent policy, and simulated humans act on noise=0 where the " +
           "server told them nothing. System properties are reported PER ARM. No cross-arm " +
           "outcome comparison is valid from this data, t_solution_ms included.",
+        // Every session's radius, so the manifest says what these runs showed
+        // people rather than leaving it to be inferred from a config file that
+        // may have changed since. One value in practice; a set, because a run
+        // spanning a restart at a changed radius is exactly the case worth
+        // seeing here rather than discovering later.
+        radii: [...new Set(outcomes.map((o) => o.radius).filter((r) => r !== undefined))],
         notExercised: [
           "the React client",
           "the browser WebSocket",
           "Lobby()",
           "examples/shirado2017/server/src/index.js",
+          // Named for as long as no arm delivers one. The example's `withNetwork`
+          // config is a literal fixed at module load and there is no path from a
+          // flag to it, so every session here runs at the default radius and the
+          // structure payload — and `auditViews`' arms over it — go unexercised.
+          "the radius 1.5 structure payload (every arm runs at the default radius)",
         ],
         halted: halted === "" ? null : halted,
         sessions: outcomes,
@@ -842,6 +871,7 @@ async function runInjections(args: SweepArgs): Promise<number> {
         at: new Date().toISOString(),
         n: args.n,
         arms: ["control"],
+        radii: [...new Set(outcomes.map((o) => o.radius).filter((r) => r !== undefined))],
         criterion:
           "Not that the session survives — some do not. That the data for what did " +
           "happen is intact and says what happened, and that a session which never " +
