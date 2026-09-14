@@ -33,6 +33,7 @@ import {
   type NetworkHandle,
 } from "../../src/admin/with_network.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
+import { networkStateOf } from "../../src/player/state.js";
 import { networkGraphOf } from "../../src/player/view.js";
 import { NBHD_KEYS } from "../../src/shared/keys.js";
 import { fromEdgeList, type Radius } from "../../src/topology/index.js";
@@ -523,6 +524,133 @@ for (const [radius, fringeTieDelivered] of [
     );
   });
 }
+
+/**
+ * `graph.projectFar` — what a participant learns ABOUT somebody distant.
+ *
+ * Structure-only is the default and the previous tests cover it. These cover the
+ * opt-in, and the thing that makes it an opt-in rather than a consequence: the
+ * naming scheme has to survive it. A distant person is known to this viewer by a
+ * name that is theirs alone, so a payload that also carried the person's id would
+ * hand back the stable cross-viewer handle the whole scheme exists to withhold.
+ */
+test("a study can reveal something about distant people, and the default reveals nothing", async () => {
+  const seen: Array<{ withFar: boolean; views: number }> = [];
+  for (const withFar of [false, true]) {
+    await withScenario(
+      {
+        n: N,
+        kinds: networkKinds,
+        listeners: (_: any) => {
+          gameInit(1, 1, 3_600_000)(_);
+          withNetwork(_, {
+            topology: () => fromEdgeList(N, EDGES),
+            project: (neighbor: any) => ({ id: neighbor.id }),
+            watch: ["mood"],
+            graph: {
+              radius: 2,
+              ...(withFar
+                ? {
+                    projectFar: (person: any, _v: any, ctx: any) => ({
+                      hop: ctx.distance,
+                      mood: ctx.stateOf(person).get("mood"),
+                    }),
+                  }
+                : {}),
+            },
+          });
+        },
+        modeFunc: EmpiricaNetwork,
+      },
+      async ({ admin, participants }) => {
+        const batch = await createBatch(admin, batchConfig(N, 1));
+        await batch.running();
+        await play(participants);
+
+        let views = 0;
+        for (const p of participants) {
+          const structure = networkGraphOf(modeOf(p).nbhd.getValue()!);
+          for (const f of structure?.far ?? []) {
+            if (f.view !== undefined) {
+              views++;
+              assert.equal(
+                (f.view as { hop: number }).hop,
+                f.d,
+                "the callback's distance and the payload's must be the same fact"
+              );
+            }
+          }
+        }
+        seen.push({ withFar, views });
+      }
+    );
+  }
+
+  const off = seen.find((r) => !r.withFar)!;
+  const on = seen.find((r) => r.withFar)!;
+  assert.equal(off.views, 0, "without projectFar a distant person is a shape and a name");
+  assert.ok(on.views > 0, "with it, they carry what the study chose to reveal");
+});
+
+/**
+ * The invalidation this feature needs, and the reason it is conditional.
+ *
+ * A watched value changing on somebody TWO hops away must reach the viewer, and
+ * the one-hop dirty set that is exactly right without `projectFar` is silently
+ * short with it: the viewer's own list never changes, so nothing would republish
+ * and their screen would hold a stale value while the rest of it updated. That
+ * is the same failure the suppression test above covers at 1.5, one ring out.
+ */
+test("a change two hops away reaches the viewer when the study projects that far", async () => {
+  await withScenario(
+    {
+      n: N,
+      kinds: networkKinds,
+      listeners: (_: any) => {
+        gameInit(1, 1, 3_600_000)(_);
+        withNetwork(_, {
+          topology: () => fromEdgeList(N, EDGES),
+          project: (neighbor: any) => ({ id: neighbor.id }),
+          watch: ["mood"],
+          graph: {
+            radius: 2,
+            projectFar: (person: any, _v: any, ctx: any) => ({
+              mood: ctx.stateOf(person).get("mood"),
+            }),
+          },
+        });
+      },
+      modeFunc: EmpiricaNetwork,
+    },
+    async ({ admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+      await play(participants);
+
+      // Seat 3 has one neighbor (seat 0) and two people at distance 2 (1 and 2).
+      const viewer = participants.find(
+        (p) => (modeOf(p).nbhd.getValue()!.neighbors as unknown[]).length === 1
+      );
+      assert.ok(viewer, "the fixture should give exactly one participant a single neighbor");
+      const distant = participants.filter((p) => {
+        const id = modeOf(p).nbhd.getValue()!.playerID!;
+        const mine = modeOf(viewer).nbhd.getValue()!;
+        const neighbors = (mine.neighbors as { id: string }[]).map((n) => n.id);
+        return id !== mine.playerID && !neighbors.includes(id);
+      });
+      const actor = distant[0]!;
+      networkStateOf(modeOf(actor).nbhd.getValue())!.set("mood", "thunderous");
+
+      await waitFor(
+        () =>
+          (networkGraphOf(modeOf(viewer).nbhd.getValue()!)?.far ?? []).some(
+            (f) => (f.view as { mood?: string } | undefined)?.mood === "thunderous"
+          ),
+        { label: "a value from two hops away", timeoutMs: 20_000 }
+      );
+    }
+  );
+});
 
 // ------------------------------------------------- the record a run leaves
 //

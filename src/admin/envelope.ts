@@ -262,6 +262,19 @@ export interface MeasuredPayload {
   label: string;
   viewer?: string;
   aggregateOnly?: boolean;
+  /**
+   * Checked against `maxViewBytes`, but NOT counted toward the participant's
+   * total.
+   *
+   * The complement of `aggregateOnly`, and it exists for one case: a value an
+   * author's `graph.projectFar` returned, which travels INSIDE the structure
+   * payload. That payload is already charged to the participant in full, so
+   * counting the piece again would bill the same bytes twice — but the piece
+   * still came from an author's callback, which is precisely what the per-view
+   * limit is a detector for.
+   */
+  perViewOnly?: boolean;
+
 }
 
 export function checkViewBytes(
@@ -328,6 +341,9 @@ export function checkNeighborhoodBytes(
   const totals = new Map<string, { bytes: number; count: number }>();
   for (const v of views) {
     if (v.viewer === undefined) continue;
+    // Already inside an aggregate entry; counting it here would bill the same
+    // bytes twice and make a study look over its envelope while it is not.
+    if (v.perViewOnly) continue;
     const t = totals.get(v.viewer) ?? { bytes: 0, count: 0 };
     t.bytes += v.bytes;
     t.count++;
