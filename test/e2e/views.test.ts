@@ -16,17 +16,19 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  edgeRows,
   parseNdjson,
   positionRows,
   structureRows,
   toCSV,
   viewRows,
 } from "../../src/admin/export.js";
+import { auditViews, parseEdgesCsv } from "../../src/verify/audit.js";
 import { networkKinds } from "../../src/admin/kinds.js";
 import { resetChannels } from "../../src/admin/provision.js";
-import { withNetwork } from "../../src/admin/with_network.js";
+import { withNetwork, type NetworkHandle } from "../../src/admin/with_network.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
-import { ring, wheel } from "../../src/topology/index.js";
+import { ring, wheel, type Radius } from "../../src/topology/index.js";
 import type { ViewRecord } from "../../src/shared/keys.js";
 import {
   batchConfig,
@@ -54,7 +56,7 @@ const seenBy = (p: { mode: unknown }) =>
  */
 function makeListeners(
   views: { onView?: (r: ViewRecord) => void; file?: string; batch?: number },
-  opts: { radius?: 1 | 1.5; topology?: (n: number) => any } = {}
+  opts: { radius?: Radius; topology?: (n: number) => any } = {}
 ) {
   return (_: any) => {
     gameInit(1, 1, 3_600_000)(_);
@@ -410,4 +412,96 @@ test("a radius 1.5 run reaches structure.csv and positions.csv through the file"
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+/**
+ * The audit, against a real session rather than a fixture.
+ *
+ * `auditViews` has only ever been exercised on hand-built records in
+ * `test/unit/audit.test.ts` — which is where the arms belong, because a
+ * fabricated tie has to be injected deliberately and a real run will not produce
+ * one. But nothing ever checked that a CORRECT run passes it, and that gap hid a
+ * real defect: the audit resolved every local index through the delivered view
+ * array, so above radius 1.5 a delivery naming somebody the viewer is not
+ * connected to failed its own audit. Every unit fixture agreed with the bug,
+ * because every unit fixture was written against the same assumption.
+ *
+ * So this runs the real publish path at a real radius and requires a PASS, then
+ * fabricates a tie into the captured NDJSON and requires a FAIL — the second half
+ * being what stops the first from passing vacuously.
+ */
+test("a real radius 2 session passes its own audit, and a doctored one does not", async () => {
+  const records: ViewRecord[] = [];
+  let net!: NetworkHandle;
+  await withScenario(
+    {
+      n: 6,
+      kinds: networkKinds,
+      listeners: (_: any) => {
+        gameInit(1, 1, 3_600_000)(_);
+        net = withNetwork(_, {
+          // A ring: at radius 2 everybody has two people two hops away, which is
+          // exactly the case the old audit could not resolve. A ring is also
+          // vacuous at 1.5 and ideal at 2, which is the non-monotonicity the
+          // refusal rules compute rather than list.
+          topology: ({ playerCount }: any) => ring(playerCount),
+          project: (neighbor: any) => ({ id: neighbor.id }),
+          graph: { radius: 2 },
+          views: { onView: (r: ViewRecord) => records.push(r) },
+        });
+      },
+      modeFunc: EmpiricaNetwork,
+    },
+    async ({ admin, participants }) => {
+      await running(admin, participants, 6);
+
+      const gameID = modeOf(participants[0]!).player.getValue()!.get("gameID") as string;
+      // `edges.csv` as an analyst would hold it. Built from the realized graph
+      // rather than from a hand-written fixture, so the audit is checked against
+      // the network these participants were actually seated in — which is the
+      // whole point of running this at the e2e tier.
+      const snap = net.inspect(gameID)!;
+      const csv = toCSV(
+        edgeRows(gameID, [
+          {
+            op: "start",
+            added: snap.edges.map(
+              ([i, j]) => [snap.order[i]!, snap.order[j]!] as [string, string]
+            ),
+            removed: [],
+            size: snap.edges.length,
+            at: Date.now(),
+          },
+        ])
+      );
+
+      const clean = auditViews({
+        views: records.map((r) => JSON.stringify(r)).join("\n"),
+        edges: parseEdgesCsv(csv),
+      });
+      assert.ok(clean.pass, `a correct session must pass:\n${clean.failures.join("\n")}`);
+      assert.ok(clean.farShown > 0, "nobody was shown anybody beyond their neighbors");
+      assert.ok(clean.tiesChecked > 0, "no tie was examined, so containment proved nothing");
+
+      // Now break it, in the one way the arms above exist to catch: claim a tie
+      // between two people who are each two hops from the viewer. Both ends are
+      // legitimately visible at radius 2, so only the half-step rule separates
+      // this from an honest delivery.
+      const doctored = records.map((r) => {
+        const copy = JSON.parse(JSON.stringify(r)) as ViewRecord;
+        const view = (copy.view ?? []).length;
+        const far = copy.graph?.far ?? [];
+        if (copy.graph && far.length >= 2) {
+          copy.graph.edges = [...copy.graph.edges, [1 + view, 2 + view]];
+        }
+        return JSON.stringify(copy);
+      });
+      const caught = auditViews({
+        views: doctored.join("\n"),
+        edges: parseEdgesCsv(csv),
+      });
+      assert.ok(!caught.pass, "a fabricated fringe tie must not audit clean");
+      assert.ok(caught.structureLeaks > 0);
+    }
+  );
 });
