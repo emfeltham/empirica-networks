@@ -653,6 +653,7 @@ import { useNeighbors, useNetworkSelf, useNetworkState } from "empirica-networks
 | `useNeighborChat()` | `{ messages, send }` | chat off, or before provisioning |
 | `useNbhd()` | the raw `Nbhd` scope | before the channel is provisioned |
 | `useNetworkGraph(opts, self?)` | `{ nodes, edges, size }` — the neighborhood as a drawable node-link model | before the first publish |
+| `useNetworkStructure()` | `{ radius, edges, positions }` at radius 1.5 | `undefined` at radius 1; `null` if it arrived unusable |
 
 ### Drawing the neighborhood
 
@@ -695,6 +696,52 @@ included by `<NetworkGraphStyles>`), `DARK2_CSS` (ColorBrewer Dark2, plus the re
 Pass `describe` whenever state is carried by fill. The graph is a single `role="img"`, so without
 it a participant using a screen reader has been handed a picture with no content — and in a
 coloring game the fill is the task, not decoration.
+
+### Showing the ties among a participant's neighbors
+
+```js
+withNetwork(Empirica, { …, graph: { radius: 1.5 } });   // default: 1
+```
+
+`1` sends nothing extra: the star above is built from `useNeighbors()`, so the default costs
+nothing and no assertion in this repository moves.
+
+`1.5` additionally sends the subgraph induced on each participant's **closed neighborhood** — the
+ties between their own connections — with positions laid out server-side. The same component draws
+it with no client change. Radii above 1.5 are refused rather than rounded down.
+
+**This widens what a participant is told, and it is opt-in for that reason rather than because it
+is expensive.** Two consequences worth deciding about before turning it on:
+
+- It tells a participant which of their connections know each other — a fact about two *other*
+  people that neither of them disclosed.
+- It is more than the designs reconstructed here gave their subjects. For Shirado & Christakis it
+  makes the task easier: local structure is exactly what a coordinating participant lacks. Turning
+  it on there runs a different experiment, the same way projecting `wealth` into Rand 2011 runs
+  Nishi 2015 ([EXPERIMENTS.md](EXPERIMENTS.md)).
+
+Whether it shows anything at all is a property of the graph, not the setting: on a ring nobody's
+neighbors are tied to each other, so radius 1.5 draws the same star. `examples/minimal` switches to
+a ring lattice under `NBHD_RADIUS=1.5` for that reason.
+
+What is sent is integers, never names or seats. Edges are pairs of indices into the array the
+browser already holds — `0` the viewer, `1..d` their neighbors in order — so no seating plan
+reaches a participant ([PLATFORM-NOTES.md](PLATFORM-NOTES.md) §4b). The payload counts toward
+`envelope.maxNeighborhoodBytes` and not toward `maxViewBytes`, which detects an over-broad
+`project()` and this did not come from one. A degree-16 neighborhood costs about 1 KB against a
+64 KiB budget.
+
+`useNetworkStructure()` returns three states, and the third is the point: `undefined` means the
+study runs at radius 1 and a star is correct; `null` means the structure arrived and cannot be
+used, and `useNetworkGraph()` then returns `undefined` rather than falling back to a star — which
+would be a correct-looking picture of a different study.
+
+> **What `verify` covers.** The sentinel leak check is about **state**: no value belonging to a
+> non-neighbor reaches a browser, and that holds identically at either radius. It says nothing
+> about structure, because the extra bytes at 1.5 are integers rather than anybody's attribute.
+> The structural invariants — every delivered tie joins two people the viewer can see and really
+> exists, nothing inside the radius is missing — are asserted in this repository's own
+> `test/e2e/subgraph.test.ts`, against the wire.
 
 The pure functions behind all of this — `graphModelOf`, `egoRingLayout`, `svgAttrs` — are exported
 too, and are what the headless and bot paths use.

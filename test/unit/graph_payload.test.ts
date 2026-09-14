@@ -43,15 +43,53 @@ test("the payload carries the ties among the viewer's neighbors, and its own rad
   assert.equal(payload.positions.length, 4, "index-aligned with the delivered neighborhood");
 });
 
-test("the viewer is at the centre, and nothing leaves the box", () => {
+test("the drawing fills the canvas and nothing leaves it", () => {
   const { payload } = build([0, 1, 2, 3], ["me", "a", "b", "c"]);
-  near(payload.positions[0]!.x, CENTER);
-  near(payload.positions[0]!.y, CENTER);
+  const xs = payload.positions.map((p) => p.x);
+  const ys = payload.positions.map((p) => p.y);
+
   for (const p of payload.positions) {
-    assert.ok(p.x >= 0 && p.x <= SIZE && p.y >= 0 && p.y <= SIZE, `${p.x},${p.y} is outside`);
-    // The node itself has a radius; a centre right on the edge is clipped.
-    assert.ok(Math.hypot(p.x - CENTER, p.y - CENTER) <= CENTER - 40 + 1);
+    // Every node centre is inside the box with room for the node's own radius;
+    // a centre on the edge is a circle half off the canvas.
+    assert.ok(p.x >= 40 - 1 && p.x <= SIZE - 40 + 1, `${p.x} is clipped`);
+    assert.ok(p.y >= 40 - 1 && p.y <= SIZE - 40 + 1, `${p.y} is clipped`);
   }
+
+  // And it USES the box. Centring on the viewer instead of on the bounding box
+  // shrinks a densely connected neighborhood into a corner at roughly a third
+  // of the available size, which is what this replaced.
+  const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  assert.ok(
+    span > SIZE * 0.6,
+    `the drawing spans only ${span.toFixed(0)} of ${SIZE} and is wasting the canvas`
+  );
+
+  // The bounding box is centred, so the picture is not shoved to one side.
+  near((Math.min(...xs) + Math.max(...xs)) / 2, CENTER);
+  near((Math.min(...ys) + Math.max(...ys)) / 2, CENTER);
+});
+
+test("a star neighborhood still puts the viewer in the middle", () => {
+  // The common case, and the one where Breadboard's pinned ego and a bounding
+  // box agree: in a star the viewer IS the centre, so nothing is given up.
+  const star = adjacency(5, [
+    [0, 1],
+    [0, 2],
+    [0, 3],
+    [0, 4],
+  ]);
+  const { payload } = buildGraphPayload({
+    adj: star,
+    nodes: [0, 1, 2, 3, 4],
+    ids: ["me", "a", "b", "c", "d"],
+    radius: 1.5,
+    seed: 7,
+  });
+  const me = payload.positions[0]!;
+  assert.ok(
+    Math.hypot(me.x - CENTER, me.y - CENTER) < SIZE * 0.12,
+    `the viewer sits at ${me.x},${me.y}, which is not near the middle of a star`
+  );
 });
 
 test("coordinates are integers", () => {

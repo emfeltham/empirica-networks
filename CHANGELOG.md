@@ -11,6 +11,21 @@ makes the entries below meaningful as a baseline rather than a moving target.
 
 ### Added
 
+- `NetworkConfig.graph: { radius: 1.5 }`: show each participant the ties BETWEEN their own
+  connections — the subgraph induced on their closed neighborhood — with positions laid out
+  server-side. Off by default, and opt-in because it widens what a participant is told rather than
+  because it is expensive: it discloses which of their connections know each other, and on a
+  coordination task it makes the problem easier. Radii above 1.5 are refused, not rounded down.
+
+  What travels is integers. Edges are pairs of indices into the array the browser already holds, so
+  no seating plan reaches a participant (`PLATFORM-NOTES` §4b), and the mapping is built from the
+  neighbors actually published rather than from the adjacency list — a dropped neighbor renumbers
+  everyone after them, and getting that wrong draws a well-formed graph connecting the wrong
+  people. Counts toward `envelope.maxNeighborhoodBytes`, not `maxViewBytes`.
+
+  Client-side, `useNetworkStructure()` distinguishes three states: absent (radius 1, draw a star),
+  unusable (wait — a star here is a correct-looking picture of a different study), and usable.
+
 - A participant-facing node-link view of the neighborhood: `useNetworkGraph()`, `<NetworkGraph>`,
   `<NetworkGraphStyles>` and the pure model behind them (`graphModelOf`, `egoRingLayout`,
   `svgAttrs`), all on the existing `empirica-networks/player/react` subpath. The picture is a
@@ -30,6 +45,14 @@ makes the entries below meaningful as a baseline rather than a moving target.
   in Breadboard's distribution — so a list was the further departure from the published
   description, not the safer one. The claim stays narrow, and what the screens withhold is
   unchanged.
+- `src/admin/monitor/layout.ts` moved to `src/admin/layout.ts`. Participants' own neighborhoods are
+  laid out with it at radius 1.5, and reaching for it through the monitor's subpath would undo the
+  property that subpath exists for — that a server never opting into the monitor never loads
+  `node:http` or the served page.
+- `envelope` gained `MeasuredPayload.aggregateOnly`, for bytes that travel on a participant's
+  connection without being a neighbor view.
+- `NetworkStats.cachedLayouts`, so the new per-scope map is covered by the exhaustive retention
+  assertions rather than leaking the way `lastOutbox` did (`ISSUES.md` O5).
 - `scripts/test-browser.mjs` sweeps orphaned processes between files, not only ports. `empirica`
   starts the experiment's callbacks server through an npm wrapper chain that lands in its own
   process group, so a browser test that kills its dev server's group still leaves that server

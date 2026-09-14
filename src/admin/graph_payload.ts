@@ -93,7 +93,7 @@ export function buildGraphPayload(args: BuildArgs): BuildResult {
   // holding different people, and reusing on the shape alone would then place
   // each newcomer where the person they replaced had been.
   if (cache && cache.key === key && known) {
-    return { payload: { radius, edges, positions: round(centerOnEgo(known)) }, cache };
+    return { payload: { radius, edges, positions: round(fitToBox(known)) }, cache };
   }
 
   const raw =
@@ -108,36 +108,63 @@ export function buildGraphPayload(args: BuildArgs): BuildResult {
   }
 
   return {
-    payload: { radius, edges, positions: round(centerOnEgo(raw)) },
+    payload: { radius, edges, positions: round(fitToBox(raw)) },
     cache: { key, positions: carried },
   };
 }
 
 /**
- * Put the viewer in the middle and use the whole box.
+ * Fit the neighborhood to the canvas.
  *
- * A similarity transform — translate, then one uniform scale — so it moves the
- * picture without changing its shape. The viewer at the centre is Breadboard's
- * arrangement and it is worth keeping for a plain reason: it is the one node
- * whose position carries no information, so pinning it spends nothing, and it
- * makes "which of these is me" answerable at a glance rather than by reading.
+ * A similarity transform — translate, then one uniform scale — so it moves and
+ * resizes the picture without changing its shape.
  *
- * Applied on the way out, never to the positions carried forward. Transforming
- * the remembered ones too would re-centre and re-scale a layout that had already
- * been re-centred and re-scaled, compounding on every publish.
+ * This CENTRES ON THE BOUNDING BOX, not on the viewer, and the difference is
+ * not cosmetic. Centring on the viewer and scaling by the distance to the
+ * farthest node is the obvious thing and it is what this did first: it works
+ * beautifully for a star, where the viewer really is in the middle, and wastes
+ * most of the canvas as soon as they are not. A closed neighborhood that is
+ * densely connected lays out as a ring with the VIEWER ON IT — in the limit,
+ * five mutual connections lay out as a regular pentagon — so the drawing ends
+ * up shoved into one corner at about a third of the size it could be. Measured
+ * by looking at it.
+ *
+ * What is given up is Breadboard's "you are always dead centre", which is worth
+ * something: a participant should not have to hunt for themselves. Breadboard
+ * buys it by pinning the ego and adding a radial force that pushes everyone
+ * else onto a ring around it — deliberately distorting the layout to make the
+ * centre meaningful. That is a bigger change than it looks, and it is not
+ * needed here: the viewer's node is drawn larger than the others and carries
+ * their own label, so "which one is me" is answered without spending the
+ * geometry on it. For a star, where the ego IS the centre, the two agree
+ * anyway.
  */
-function centerOnEgo(points: Point[]): Point[] {
+function fitToBox(points: Point[]): Point[] {
   const center = SIZE / 2;
-  const ego = points[0];
-  if (!ego) return [];
+  if (points.length === 0) return [];
 
-  const shifted = points.map((p) => ({ x: p.x - ego.x, y: p.y - ego.y }));
-  let far = 0;
-  for (const p of shifted) far = Math.max(far, Math.hypot(p.x, p.y));
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const p of points) {
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  }
 
-  // A lone viewer, or a degenerate layout: nothing to scale against.
-  const scale = far < 1e-6 ? 1 : (center - MARGIN) / far;
-  return shifted.map((p) => ({ x: center + p.x * scale, y: center + p.y * scale }));
+  const midX = (minX + maxX) / 2;
+  const midY = (minY + maxY) / 2;
+  const half = Math.max((maxX - minX) / 2, (maxY - minY) / 2);
+  // A single node, or every node on one point: nothing to scale against, and
+  // the answer is the middle of the canvas.
+  const scale = half < 1e-6 ? 1 : (center - MARGIN) / half;
+
+  return points.map((p) => ({
+    x: center + (p.x - midX) * scale,
+    y: center + (p.y - midY) * scale,
+  }));
 }
 
 /**

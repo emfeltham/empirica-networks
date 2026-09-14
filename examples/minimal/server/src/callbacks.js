@@ -22,10 +22,37 @@ Empirica.onGameStart(({ game }) => {
  * callbacks are imported directly by `test/e2e/example.test.ts`, and an import
  * that opened a socket would be a surprise in a test run.
  */
+/**
+ * Try radius 1.5 without editing this file:
+ *
+ *     NBHD_RADIUS=1.5 empirica
+ *
+ * At the default, each participant sees themselves and their connections — a
+ * star, which is what Breadboard drew. At 1.5 they additionally see which of
+ * their connections are connected to EACH OTHER.
+ *
+ * It switches the topology too, and that is not a convenience. A ring has no
+ * ties among anyone's neighbors at all: your two neighbors sit on opposite
+ * sides of you and are not tied to each other, so radius 1.5 on a ring draws
+ * exactly the same star and demonstrates nothing. A ring LATTICE (each node
+ * tied to its two nearest on each side) is full of triangles, so the difference
+ * is visible. Whether a design has anything to show at this radius is a
+ * property of its graph, not of the setting.
+ *
+ * Needs playerCount >= 5: `ringLattice(n, 2)` requires n >= 2m+1, or the ring
+ * wraps onto itself.
+ */
+const RADIUS = process.env.NBHD_RADIUS === "1.5" ? 1.5 : 1;
+
 export const net = withNetwork(Empirica, {
+  graph: { radius: RADIUS },
+
   // Seeded from the game id unless you pass `seed`, and recorded on the game
   // scope, so the realized graph is reconstructible from stored data.
-  topology: ({ playerCount, rng }) => topology.ring(playerCount, { rng }),
+  topology: ({ playerCount, rng }) =>
+    RADIUS > 1 && playerCount >= 5
+      ? topology.ringLattice(playerCount, 2, { rng })
+      : topology.ring(playerCount, { rng }),
 
   // The ONLY path from server to client. Return plain data — returning the
   // scope itself is refused, because it carries the global attribute store.

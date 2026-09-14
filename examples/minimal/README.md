@@ -51,6 +51,26 @@ It starts this project, drives four real Chromium windows through consent, ident
            charlie's name present (public player attribute)
 ```
 
+### Seeing the ties among your own neighbors
+
+By default each participant sees themselves and their connections — a star. Start the server with
+
+```sh
+NBHD_RADIUS=1.5 empirica
+```
+
+and they additionally see which of their connections are connected to **each other**. Nothing in
+the client changes; the same component draws whatever the server sends.
+
+The flag switches the topology too, and that is the instructive part rather than a convenience. A
+ring has no ties among anyone's neighbors at all — your two neighbors sit on opposite sides of you
+— so radius 1.5 on a ring draws exactly the same star. Whether a design has anything to show at
+this radius is a property of its graph, not of the setting. Under the flag this example uses a ring
+lattice, which is full of triangles, and needs `playerCount` of at least 5.
+
+Decide about it rather than switching it on. It tells a participant a fact about two *other*
+people, and on a coordination task it makes the problem easier — see `docs/API.md`.
+
 ### Two kinds of data
 
 The example carries one of each, because the difference is the whole point:
