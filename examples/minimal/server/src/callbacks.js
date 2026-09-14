@@ -1,3 +1,4 @@
+import path from "node:path";
 import { ClassicListenersCollector } from "@empirica/core/admin/classic";
 import { topology, withNetwork } from "empirica-networks/admin";
 
@@ -44,8 +45,42 @@ Empirica.onGameStart(({ game }) => {
  */
 const RADIUS = process.env.NBHD_RADIUS === "1.5" ? 1.5 : 1;
 
+/**
+ * Where the run log and the captured views go, when they are wanted at all.
+ *
+ * Unset by default and unset in every test run, which is the point: this file is
+ * imported UNMODIFIED by `test/e2e/example.test.ts`, with the repository root as
+ * the working directory, so an unconditional path would write NDJSON into the
+ * repo on every test. `rand2011` and `shirado2017` gate theirs the same way, on
+ * `RAND2011_OUT` and `SHIRADO2017_OUT`.
+ *
+ * Set it to recover a run offline:
+ *
+ *     MINIMAL_OUT=data NBHD_RADIUS=1.5 empirica
+ *     node recover.mjs data/views.ndjson
+ */
+const OUT_DIR = process.env.MINIMAL_OUT;
+
 export const net = withNetwork(Empirica, {
   graph: { radius: RADIUS },
+
+  /**
+   * Capture what each participant was shown.
+   *
+   * Worth turning on here specifically because of the radius switch above. At
+   * 1.5 the delivery includes the ties among a participant's neighbors and
+   * where each node was drawn, and the positions are warm-started — they follow
+   * the session's history rather than its final graph, so they are the one part
+   * of a screen that cannot be reconstructed from the edge log afterwards. This
+   * is the only example that can run at 1.5, and without capture it would be the
+   * only one whose interesting half is unrecoverable.
+   */
+  ...(OUT_DIR
+    ? {
+        views: { file: path.join(OUT_DIR, "views.ndjson") },
+        log: { file: path.join(OUT_DIR, "run.ndjson") },
+      }
+    : {}),
 
   // Seeded from the game id unless you pass `seed`, and recorded on the game
   // scope, so the realized graph is reconstructible from stored data.

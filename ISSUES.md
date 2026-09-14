@@ -278,23 +278,3 @@ the server, which is CPU rather than bytes and is not in the envelope at all.
 
 *Done when:* `npm run bench` accepts a radius and has at least one cell at 1.5 on a dense graph,
 and the figures in `docs/API.md` either come from it or say they do not.
-
-### O25. The offline recovery path cannot rebuild a radius 1.5 study's screens
-
-**Evidence:** `examples/rand2011/recover.mjs:38`, `examples/shirado2017/recover.mjs:40`;
-`src/admin/export.ts` `structureRows` / `positionRows`.
-
-Both recovery scripts import `{ edgeRows, parseNdjson, snapshotRows, toCSV }` and neither calls
-`structureRows` or `positionRows`. A study run at radius 1.5 whose views were captured therefore
-has the structure on disk and no script that turns it into a table, while `docs/DATA-AND-ANALYSIS.md`
-documents both tables as part of the inventory.
-
-Nothing is lost today, and the reason is its own small finding: the only example that CAN run at
-radius 1.5 is `examples/minimal`, under `NBHD_RADIUS=1.5` — and `minimal` has no `recover.mjs` and
-never sets `views: { file }`, so it writes no `views.ndjson` to recover from. The two examples with
-recovery scripts both run at the default radius and always will. So the gap is that the shipped
-demonstration of the offline path and the shipped demonstration of radius 1.5 are in different
-directories and cannot meet.
-
-*Done when:* one example both runs at radius 1.5 and recovers its own structure to CSV, which is
-the only arrangement that would have caught this.
