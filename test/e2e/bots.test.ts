@@ -38,6 +38,8 @@ import { withNetwork } from "../../src/admin/with_network.js";
 import { runBots, type BotPolicy, type BotRun } from "../../src/bots/index.js";
 import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
 import { networkStateOf } from "../../src/player/state.js";
+import { networkGraphOf, type NetworkGraphInfo } from "../../src/player/view.js";
+import { wheel } from "../../src/topology/index.js";
 import {
   batchConfig,
   createBatch,
@@ -391,6 +393,94 @@ test("a bot follows its game ending: onEnd fires once and the phase settles", as
         assert.deepEqual([...ticks], [...after], "no tick fired after the game ended");
 
         assert.equal(logs.filter((r) => r["type"] === "gameEnd").length, BOTS);
+      } finally {
+        await run.stop();
+      }
+    }
+  );
+});
+
+/**
+ * A bot at radius 1.5 sees what the humans around it see.
+ *
+ * The asymmetry `ISSUES.md` O20 named: `BotContext` had four accessors and a
+ * browser had five, so at that radius a human could tell which of their
+ * connections knew each other and an artificial participant in the same seat
+ * could not. That is not cosmetic in the designs bots exist for — Shirado &
+ * Christakis seat theirs centrally and vary their noise, and a bot that cannot
+ * see what surrounds it is not a control for the people who can.
+ *
+ * `wheel` at n=4 is the complete graph, so every participant's neighborhood
+ * contains a triangle and both halves of the comparison have something to show.
+ * That also means this says nothing about neighbor-limiting — `leak.test.ts`
+ * and `subgraph.test.ts` make that claim on graphs that have a non-neighbor to
+ * withhold. What is asserted here is symmetry between the two kinds of
+ * participant, which is the thing that was missing.
+ */
+test("a bot at radius 1.5 is shown the same structure a human is", async () => {
+  const Empirica = new ClassicListenersCollector();
+  Empirica.onGameStart(({ game }) => {
+    const round = game.addRound({ name: "r" });
+    round.addStage({ name: "s", duration: 600 });
+  });
+  withNetwork(Empirica, {
+    topology: ({ playerCount }: any) => wheel(playerCount),
+    project: (neighbor: any) => ({ id: neighbor.id }),
+    graph: { radius: 1.5 },
+  });
+
+  /** What each bot's own `ctx.structure()` reported, most recent wins. */
+  const botStructure = new Map<string, NetworkGraphInfo | null | undefined>();
+  const policy: BotPolicy<{ id: string }> = {
+    onStart(ctx) {
+      botStructure.set(ctx.identifier, ctx.structure());
+    },
+    onView(ctx) {
+      botStructure.set(ctx.identifier, ctx.structure());
+    },
+  };
+
+  await withScenario(
+    { n: HUMANS, kinds: networkKinds, listeners: Empirica, modeFunc: EmpiricaNetwork },
+    async ({ server, admin, participants }) => {
+      const run = await runBots({
+        url: server.url,
+        identifiers: BOT_KEYS,
+        policy,
+      });
+      try {
+        await seatEveryone(admin, participants, run);
+        await waitFor(() => [...botStructure.values()].filter(Boolean).length === BOTS, {
+          label: "every bot reported a structure",
+          timeoutMs: 30_000,
+        });
+
+        const beyondStar = (g: NetworkGraphInfo) =>
+          g.edges.filter(([a, b]) => a !== 0 && b !== 0).length;
+
+        for (const [identifier, g] of botStructure) {
+          assert.ok(g, `${identifier}: a bot at radius 1.5 must be shown a structure`);
+          assert.equal(g.radius, 1.5, `${identifier}: and it must say which radius it is`);
+          assert.ok(
+            beyondStar(g) > 0,
+            `${identifier}: was shown only its own star, which is what radius 1 draws`
+          );
+        }
+
+        // The other half of the comparison. Without it this passes on a run
+        // where the humans were shown nothing either, which would be a
+        // different bug wearing the same green.
+        for (const p of participants) {
+          const human = networkGraphOf(modeOf(p).nbhd.getValue());
+          assert.ok(human, "a human in the same game must be shown one too");
+          assert.equal(human.radius, 1.5);
+          assert.ok(beyondStar(human) > 0, "including ties beyond their own star");
+          assert.equal(
+            human.positions.length,
+            (modeOf(p).nbhd.getValue()?.neighbors.length ?? 0) + 1,
+            "one position per delivered node, plus their own"
+          );
+        }
       } finally {
         await run.stop();
       }

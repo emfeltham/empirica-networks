@@ -9,10 +9,17 @@
  * one design rule this whole entry point rests on. A bot reads its neighbors
  * through the same projection, writes through the same private channel, and is
  * subject to the same envelope. There is no server-side back door — no way to
- * read a non-neighbor, no way to see the graph, no way to learn the global
+ * read a non-neighbor, no way to see the WHOLE graph, no way to learn the global
  * state — because a bot that could do those things would be a different kind of
  * object from the participants it is mixed in with, and any comparison between
  * them would be measuring the difference in access.
+ *
+ * That rule cuts both ways, which is why `structure()` exists. It once read "no
+ * way to see the graph", written when no participant could see one either; at
+ * `graph: { radius: 1.5 }` a browser is shown the ties among its own neighbors,
+ * and a bot that could not see them would be exactly the different kind of
+ * object this paragraph refuses — seated among humans who can, in the designs
+ * where the artificial participant's behavior IS the independent variable.
  *
  * That is also why a bot is a headless PARTICIPANT PROCESS rather than a
  * server-side object (`docs/PLATFORM-NOTES.md` §17): at the wire it is
@@ -21,7 +28,7 @@
  */
 import type { Rng } from "../admin/seed.js";
 import type { NetworkState } from "../player/state.js";
-import type { NetworkSelf, NetworkTold } from "../player/view.js";
+import type { NetworkGraphInfo, NetworkSelf, NetworkTold } from "../player/view.js";
 
 /**
  * What one bot can see and do at the moment a hook is called.
@@ -62,6 +69,21 @@ export interface BotContext<T = unknown> {
   state(): NetworkState | undefined;
   /** Read what the server told this bot privately. */
   told(): NetworkTold | undefined;
+  /**
+   * The ties among this bot's own neighbors, at `graph: { radius: 1.5 }`.
+   *
+   * Three answers, the same three `useNetworkStructure()` gives a browser, and
+   * the third is the one worth handling: `undefined` is "this study runs at the
+   * default radius", `null` is "it arrived and cannot be used", and only the
+   * second means a policy is missing something it was meant to have. A policy
+   * that treats `null` as `undefined` reasons about a star in a study that is
+   * not drawing one.
+   *
+   * `edges` are pairs of indices into `neighbors()`, offset by one: `0` is this
+   * bot, `1..d` are `neighbors()[0..d-1]` in order. No seat index appears here,
+   * for the same reason none appears in a browser.
+   */
+  structure(): NetworkGraphInfo | null | undefined;
 
   /**
    * Milliseconds since this bot's first published view.

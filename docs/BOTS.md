@@ -112,10 +112,19 @@ twenty-person session, one policy failing must not leave the study one player sh
 
 ### What a policy can see
 
-`ctx.neighbors()`, `ctx.self()`, `ctx.state()`, `ctx.told()`: exactly the four a browser has, and
-`undefined` before the channel exists. `ctx.neighbors()` returns `undefined` rather than `[]` before
-the first publish, for the reason `neighborsOf` does: an empty array is a legitimate result, and
-conflating it with "not loaded" would have a bot act on an imagined isolation.
+`ctx.neighbors()`, `ctx.self()`, `ctx.state()`, `ctx.told()`, `ctx.structure()`: exactly the five a
+browser has, and `undefined` before the channel exists. `ctx.neighbors()` returns `undefined` rather
+than `[]` before the first publish, for the reason `neighborsOf` does: an empty array is a
+legitimate result, and conflating it with "not loaded" would have a bot act on an imagined
+isolation.
+
+`ctx.structure()` is the ties among this bot's own neighbors, and is `undefined` unless the study
+runs at `graph: { radius: 1.5 }`. It exists because the rule above cuts both ways: a bot must not
+see more than a human, and at that radius it must not see less either. A study can seat bots at
+1.5 and have them reason only locally — that is a design choice — but it should be a choice, not
+an asymmetry nobody noticed. Its third state, `null`, means the payload arrived and cannot be used;
+treating it as `undefined` would have a policy reason about a star in a study that is not drawing
+one.
 
 `ctx.rng` is a deterministic stream seeded from `(seed, identifier)`. Use it instead of
 `Math.random()`. If the bots' randomness is part of your manipulation (it is the whole
