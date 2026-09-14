@@ -93,6 +93,13 @@ makes the entries below meaningful as a baseline rather than a moving target.
   true of the package, and it now states that neither reconstruction sets a radius and what turning
   one on would mean. `docs/TESTING.md` lists all four browser files rather than two, and its
   baseline counts are current. `docs/GLOSSARY.md` defines "radius" and "structure".
+- `simulate`'s manifest records the radius its sessions ran at, and names the structure payload
+  among what the rig does not exercise (`ISSUES.md` O26). It reads the value off the same snapshot
+  it already takes the seed from, and for the same reason: the package writes it to the batch scope,
+  the harness's store is in memory, and once the server stops this file is the only artifact that
+  could say what these sessions showed people. Every arm runs at the default radius — the example's
+  config is a literal fixed when its module loads, with no path from a flag to it — so "1 because
+  that is what ran" is now distinguishable from "1 because nobody wrote it down".
 - `auditViews` checks the structure (`ISSUES.md` O21), so `simulate`'s leak check is no longer
   silent about half a radius 1.5 delivery. Every delivered tie must join two people the viewer could
   see and must exist in the edge log, and a run that delivered structure without ever showing a tie
