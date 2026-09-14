@@ -336,6 +336,19 @@ makes the entries below meaningful as a baseline rather than a moving target.
 
 ### Fixed
 
+- The Shirado agent arm failed 60% of the time, and the placement it doubted was correct
+  (2026-09-14). `test/e2e/shirado2017.test.ts` compared the agents against the top three nodes
+  by degree, taken with `slice(0, 3)` off a sorted copy. At n=6 with m=2 the third and fourth
+  degrees are equal on most draws, so the slice boundary fell inside a tie and a stable sort
+  handed the third slot to whichever equal-degree node happened to be seated first — a human, as
+  often as not. Measured before the fix at 6/10 run alone, and at the same 6/10 on the commit
+  before the graph-view branch, so it was neither new nor a symptom of whole-run weight
+  (`docs/TESTING.md` "Whole-run weight"); a run marking which nodes were agents showed them
+  holding degrees 4, 4 and 3 against the humans' 3, 2 and 2, which is the claim the test exists
+  to make. Now asserts dominance — every agent at least as central as every human — which is
+  well-defined under ties. 0/10 after, and 3/3 red under `botPlacement: "random"`, so the weaker
+  form is not a vacuous one.
+
 - The leak check did not retain its wire history, and could have failed spuriously
   (2026-09-11). `runLeakCheck` subscribes to each participant's wire after the scenario has
   started, but did not pass `recordWire: true`, so `wireStream()` was a plain `share()` and the

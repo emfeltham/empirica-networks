@@ -461,12 +461,26 @@ test("the agent arm: three agents seated centrally, told their noise, and playin
         const botIDs = new Set(run.playerIDs().filter(Boolean) as string[]);
         assert.equal(botIDs.size, BOT_KEYS.length);
         const byDegree = [...snapshot.nodes].sort((a, b) => b.degree - a.degree);
-        const topThree = byDegree.slice(0, 3).map((node) => node.playerID);
-        assert.deepEqual(
-          [...topThree].sort(),
-          [...botIDs].sort(),
+        // DOMINANCE, not set equality against `slice(0, 3)`. The obvious form of
+        // this assertion — take the top three by degree, compare to the agents —
+        // is ill-defined whenever the third and fourth degrees are equal, which
+        // at n=6 with m=2 is most draws: a stable sort then decides the tie by
+        // seating order, and the human sitting on the other degree-3 node takes
+        // the slot. Measured 2026-09-14, 6/10 failures run alone, identically on
+        // both sides of the graph-view branch, and a marked run showed the agents
+        // holding 4, 4 and 3 with the humans on 3, 2 and 2 — the placement was
+        // right every time and the comparison was wrong.
+        const degreeOf = new Map(snapshot.nodes.map((node) => [node.playerID, node.degree]));
+        const agentDegrees = [...botIDs].map((id) => degreeOf.get(id) ?? -1);
+        const humanDegrees = snapshot.nodes
+          .filter((node) => !botIDs.has(node.playerID!))
+          .map((node) => node.degree);
+        assert.ok(
+          Math.min(...agentDegrees) >= Math.max(...humanDegrees),
           `the "central" treatment did not seat the agents on the hubs. Degrees were ` +
-            byDegree.map((node) => `${node.playerID}:${node.degree}`).join(" ")
+            byDegree
+              .map((node) => `${node.playerID}:${node.degree}${botIDs.has(node.playerID!) ? "[agent]" : ""}`)
+              .join(" ")
         );
         // Non-vacuity: at n=6 a near-regular draw would make "central" mean
         // nothing, and this assertion would pass by accident.
