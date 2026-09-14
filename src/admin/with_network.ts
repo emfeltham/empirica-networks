@@ -21,7 +21,11 @@ import {
 } from "./envelope.js";
 import { graphMetrics, historyFrames, type GameSnapshot, type NodeSnapshot } from "./inspect.js";
 import { calibrate, duplicateLifecycleListeners, duplicateListenersMessage } from "./listeners.js";
-import { projectionBytes, validateProjection } from "./projection.js";
+import {
+  projectionBytes,
+  validateNoIdentifiers,
+  validateProjection,
+} from "./projection.js";
 import {
   buildGraphPayload,
   type GraphPayload,
@@ -128,6 +132,47 @@ export interface GraphConfig {
    * `"whole"`. See `NetworkConfig.graph`.
    */
   radius?: Radius;
+  /**
+   * What a participant learns ABOUT somebody they are not connected to.
+   *
+   *     graph: {
+   *       radius: 2,
+   *       projectFar: (person, viewer, ctx) =>
+   *         ctx.distance === 2 ? { color: ctx.stateOf(person).get("color") } : undefined,
+   *     }
+   *
+   * Omit it — the default — and a wider radius discloses TOPOLOGY ONLY: distant
+   * people appear as a shape with a name and nothing else. That default is the
+   * whole reason this is a separate callback rather than `project()` receiving a
+   * distance. Every `project()` written against this package ignores its context
+   * argument, so routing distant people through it would turn raising the radius
+   * into a full attribute disclosure about strangers — a second decision arriving
+   * as a side effect of a larger number.
+   *
+   * Return `undefined` for a person and they still APPEAR: the shape of the
+   * network is already disclosed by the radius, and vanishing them would draw a
+   * network with holes in it. That differs from `project()`, where `undefined`
+   * drops a neighbor entirely, and the difference is deliberate — at distance 1
+   * the node and the data are the same disclosure, and beyond it they are not.
+   *
+   * `ctx.distance` is how many hops away they are, always 2 or more.
+   * `ctx.ref` is the name this viewer sees for them. The returned value may not
+   * CONTAIN a player id: that would hand over a stable, cross-viewer handle on a
+   * stranger and undo the naming scheme, so it is refused at publish time rather
+   * than trusted.
+   *
+   * Reads through `ctx.stateOf(person)` and the recording proxy exactly as
+   * `project()` does, so `watch` keeps the value live.
+   */
+  projectFar?: (target: any, viewer: any, ctx: FarContext) => unknown;
+}
+
+/** The context a `projectFar` receives. `ProjectContext` plus the two facts it needs. */
+export interface FarContext extends ProjectContext {
+  /** Hops from viewer to target. Always >= 2. */
+  distance: number;
+  /** The name this viewer sees for this person. Never an id, never a seat. */
+  ref: string;
 }
 
 export interface NetworkConfig {
@@ -649,6 +694,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * visible node has no entry in `NEIGHBORS` and needs a name of its own.
    */
   const needsRefs = graphRadius === "whole" || graphRadius >= 2;
+  const projectFar = config.graph?.projectFar;
   /**
    * nbhd scope id -> where each of that viewer's nodes was last laid out, BY
    * PLAYER ID, together with the shape those positions belong to.
@@ -1344,7 +1390,53 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
             );
           }
           for (const r of rows) {
-            far.push({ ref: r.ref, d: r.hop });
+            let farView: unknown;
+            if (projectFar) {
+              const target = byID.get(r.id);
+              const label = `${playerID}'s view of ${r.id} at distance ${r.hop}`;
+              if (target) {
+                try {
+                  farView = projectFar(
+                    recordReads(target, readKeys),
+                    recordReads(viewer, readKeys),
+                    {
+                      game,
+                      viewerIndex: i,
+                      neighborIndex: r.k,
+                      distance: r.hop,
+                      ref: r.ref,
+                      stateOf: (player: any) => makeStateReader(player, channels, readKeys),
+                    }
+                  );
+                } catch (e) {
+                  const err = new Error(
+                    `empirica-networks: graph.projectFar() threw while building ${label}: ` +
+                      `${e instanceof Error ? e.message : String(e)}`
+                  );
+                  (err as Error & { cause?: unknown }).cause = e;
+                  throw err;
+                }
+              }
+              if (farView !== undefined) {
+                validateProjection(farView, label);
+                // The one rule `project()` does not have. See `validateNoIdentifiers`.
+                validateNoIdentifiers(farView, (v) => byID.has(v), label);
+                sizes.push({
+                  bytes: projectionBytes(farView),
+                  label,
+                  viewer: playerID,
+                  // Measured against the per-view limit — it came from an
+                  // author's callback, which is exactly what that limit detects —
+                  // but NOT summed, because these bytes are already inside the
+                  // structure payload charged below.
+                  perViewOnly: true,
+                });
+              }
+            }
+            // Present even with no data. The radius has already disclosed that
+            // this person is there; dropping them would draw a network with
+            // holes in it, which is a different and wronger picture.
+            far.push(farView === undefined ? { ref: r.ref, d: r.hop } : { ref: r.ref, d: r.hop, view: farView });
             farNodes.push(r.k);
           }
           farRecord = rows.map((r) => ({ ref: r.ref, id: r.id, hop: r.hop }));
@@ -1843,8 +1935,25 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       const i = state.order.indexOf(playerID);
       if (i === -1) continue;
 
+      /**
+       * Whose screen can this person's value appear on?
+       *
+       * Their neighbors, and — once a study projects at distance — everyone
+       * within the radius. Distance is symmetric, so the set of viewers who can
+       * see p is the ball AROUND p, and one walk answers it for all of them.
+       *
+       * Without `projectFar` nothing beyond distance 1 carries anybody's
+       * attributes, so the old one-hop set is still exactly right and is kept:
+       * widening it unconditionally would walk the graph on every attribute
+       * change in every study, including the overwhelming majority that run at
+       * the default.
+       */
+      const reach =
+        projectFar && needsRefs
+          ? ball(state.adj, i, graphRadius).nodes
+          : [i, ...(state.adj[i] ?? [])];
       const dirty = new Set<string>([playerID]);
-      for (const j of state.adj[i] ?? []) {
+      for (const j of reach) {
         const id = state.order[j];
         if (id) dirty.add(id);
       }

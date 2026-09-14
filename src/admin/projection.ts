@@ -157,3 +157,59 @@ export function projectionBytes(value: unknown): number {
   const s = JSON.stringify(value ?? null);
   return s === undefined ? 0 : Buffer.byteLength(s, "utf8");
 }
+
+/**
+ * Refuse a projection that names somebody.
+ *
+ * Used only for `graph.projectFar`, where the people being described are ones
+ * the viewer is NOT connected to and are deliberately known to them only by a
+ * per-viewer name (`src/admin/pseudonym.ts`). A player id in that payload would
+ * be a stable handle on a stranger that every viewer sees identically — which is
+ * exactly what the naming scheme exists to withhold, and two participants
+ * comparing screens could then line their pictures up.
+ *
+ * Checked rather than documented because the mistake is so easy to make: the
+ * obvious first `projectFar` an author writes is the one they already wrote for
+ * `project()`, and that one usually starts `{ id: neighbor.id }`.
+ *
+ * Walks strings only. A player id is a string in this platform, and widening the
+ * check to numbers would refuse a legitimate score that happened to match.
+ */
+export function validateNoIdentifiers(
+  value: unknown,
+  isIdentifier: (s: string) => boolean,
+  label = ""
+): void {
+  walkIds(value, label, isIdentifier, new Set(), 0);
+}
+
+function walkIds(
+  value: unknown,
+  path: string,
+  isIdentifier: (s: string) => boolean,
+  seen: Set<object>,
+  depth: number
+): void {
+  if (value === null || value === undefined || depth > 12) return;
+  if (typeof value === "string") {
+    if (isIdentifier(value)) {
+      throw new Error(
+        `empirica-networks: ${path} returned a player id ("${value}") for somebody the ` +
+          `viewer is not connected to. Distant people are known to a participant only by ` +
+          `the per-viewer name in ctx.ref, which is not comparable between participants; ` +
+          `an id is. Return ctx.ref, or a value that is not an identity.`
+      );
+    }
+    return;
+  }
+  if (typeof value !== "object") return;
+  if (seen.has(value as object)) return;
+  seen.add(value as object);
+  if (Array.isArray(value)) {
+    for (const [i, v] of value.entries()) walkIds(v, `${path}[${i}]`, isIdentifier, seen, depth + 1);
+    return;
+  }
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    walkIds(v, path ? `${path}.${k}` : k, isIdentifier, seen, depth + 1);
+  }
+}

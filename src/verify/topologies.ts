@@ -102,9 +102,9 @@ export interface VacuityAccounting {
    * which is a property of the graph rather than of the setting.
    */
   expectedIncrement: { nodes: number; edges: number };
-  /** Indices with no non-neighbor. They contribute nothing to arm 1. */
+  /** Indices who may learn about everybody. They contribute nothing to arm 1. */
   saturated: number[];
-  /** Indices with no neighbor. They contribute nothing to arm 3. */
+  /** Indices who may learn about nobody. They contribute nothing to arm 3. */
   isolated: number[];
   /** Ordered non-neighbor pairs arm 1 will examine. Zero means arm 1 is vacuous. */
   candidatePairs: number;
@@ -142,11 +142,22 @@ export interface VacuityAccounting {
  * This is one fact computed twice ON PURPOSE, by a tool whose entire job is to
  * compare them, and the comparison is the product.
  */
-function expectedFor(
+/**
+ * Everyone within `radius` of `i`, by the same shell walk and for the same
+ * reason. Exported because `leak_test.ts` needs the SET where the accounting
+ * needs the count, and a third implementation would be one more thing to keep
+ * honest without buying any more independence — both are already independent of
+ * the function under test, which is the property that matters.
+ */
+export function reachableWithin(adj: number[][], i: number, radius: Radius): number[] {
+  return [...shellsOf(adj, i, radius).reached].filter((v) => v !== i);
+}
+
+function shellsOf(
   adj: number[][],
   i: number,
   radius: Radius
-): { nodes: number; edges: number } {
+): { reached: Set<number>; shells: Array<Set<number>>; depth: number; induced: boolean } {
   const n = adj.length;
   const depth = radius === "whole" ? n : Math.floor(radius as number);
   const induced = radius === "whole" || (radius as number) > Math.floor(radius as number);
@@ -165,6 +176,15 @@ function expectedFor(
   }
   if (radius === "whole") for (let v = 0; v < n; v++) reached.add(v);
 
+  return { reached, shells, depth, induced };
+}
+
+function expectedFor(
+  adj: number[][],
+  i: number,
+  radius: Radius
+): { nodes: number; edges: number } {
+  const { reached, shells, depth, induced } = shellsOf(adj, i, radius);
   const shellOf = (v: number): number => {
     for (let k = 0; k < shells.length; k++) if (shells[k]!.has(v)) return k;
     return Infinity;
@@ -198,7 +218,22 @@ function stepBelow(radius: Radius): Radius {
 /** `1.5` rather than `"1.5"`, and `whole` without quotes, in a sentence. */
 const fmt = (r: Radius): string => (r === "whole" ? "whole" : String(r));
 
-export function accountVacuity(n: number, edges: Edge[], radius: Radius = 1): VacuityAccounting {
+export function accountVacuity(
+  n: number,
+  edges: Edge[],
+  radius: Radius = 1,
+  /**
+   * Does the run project at distance?
+   *
+   * It changes who arm 1 and arm 3 are about, and nothing else. Without it the
+   * data rule is still "neighbors only" however wide the radius is — a wider
+   * radius discloses topology, and topology carries nobody's attributes — so the
+   * denominators stay degree-based and every number this function returned
+   * before `projectFar` existed is unchanged. With it, the permitted set for
+   * DATA becomes the ball, and the two arms have to be about that instead.
+   */
+  projectsFar = false
+): VacuityAccounting {
   const adj = adjacency(n, edges);
   const saturated: number[] = [];
   const isolated: number[] = [];
@@ -206,12 +241,16 @@ export function accountVacuity(n: number, edges: Edge[], radius: Radius = 1): Va
   let expectedDeliveries = 0;
 
   for (let i = 0; i < n; i++) {
-    const degree = adj[i]?.length ?? 0;
-    const nonNeighbors = n - 1 - degree;
-    candidatePairs += nonNeighbors;
-    expectedDeliveries += degree;
-    if (nonNeighbors === 0) saturated.push(i);
-    if (degree === 0) isolated.push(i);
+    // Who may this participant learn something ABOUT? Their neighbors, unless
+    // the study projects at distance, in which case everyone in their ball.
+    const reach = projectsFar
+      ? expectedFor(adj, i, radius).nodes - 1
+      : adj[i]?.length ?? 0;
+    const beyond = n - 1 - reach;
+    candidatePairs += beyond;
+    expectedDeliveries += reach;
+    if (beyond === 0) saturated.push(i);
+    if (reach === 0) isolated.push(i);
   }
 
   const expectedBeyondStar = countBeyondStar(adj);

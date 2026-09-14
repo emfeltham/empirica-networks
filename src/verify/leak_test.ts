@@ -5,7 +5,7 @@ import { withNetwork, type NetworkConfig } from "../admin/with_network.js";
 import { EmpiricaNetwork } from "../player/mode.js";
 import { adjacency, ball, type Edge, type Radius } from "../topology/index.js";
 import { NBHD_KEYS } from "../shared/keys.js";
-import { CLI_TOPOLOGIES, accountVacuity } from "./topologies.js";
+import { CLI_TOPOLOGIES, accountVacuity, reachableWithin } from "./topologies.js";
 import { batchConfig, createBatch, gameInit, waitFor, withScenario } from "../harness/harness.js";
 
 /**
@@ -89,6 +89,15 @@ export interface LeakCheckOptions {
    * assert the structure that IS sent is contained and complete.
    */
   radius?: Radius;
+  /**
+   * Verify a study that sets `graph.projectFar`.
+   *
+   * It changes what arm 1 is ABOUT, so it cannot be inferred: without it the
+   * data rule is "neighbors only" at every radius, and with it the permitted set
+   * becomes the ball. Verifying the wrong one of those would report on a study
+   * other than the caller's — clean, and about nothing.
+   */
+  projectFar?: boolean;
   timeoutMs?: number;
   onProgress?: (message: string) => void;
 }
@@ -121,6 +130,8 @@ export interface LeakCheckResult {
   isolated: number;
   /** The radius this run was made at. */
   radius: Radius;
+  /** Whether the run projected at distance, which decides what arm 1 is about. */
+  projectsFar: boolean;
   /**
    * Ties delivered that join two people the viewer cannot both see, or that do
    * not exist. Must be 0. The denominator is `structureTies`.
@@ -201,6 +212,7 @@ function structureFrames(frames: string[]): unknown[] {
 export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakCheckResult> {
   const n = opts.n ?? 4;
   const radius = opts.radius ?? 1;
+  const projectsFar = opts.projectFar === true;
   const spec = opts.topology ?? "ring";
   const say = opts.onProgress ?? (() => {});
 
@@ -283,7 +295,15 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
         // The sentinel reaches a client ONLY through this projection.
         secret: sentinelFor(neighbor.id),
       }),
-      graph: { radius },
+      graph: {
+        radius,
+        // The same sentinel, carried the other way. No `id`: a far projection
+        // may not contain one, and this run has to be a study the module would
+        // actually accept.
+        ...(projectsFar
+          ? { projectFar: (person: any) => ({ secret: sentinelFor(person.id) }) }
+          : {}),
+      },
     });
   };
 
@@ -420,7 +440,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
       // itself rather than from `n`. Saturated and isolated participants are
       // counted and excused; a run where NO participant had a non-neighbor, or
       // where nothing was expected to arrive, is a failure.
-      const account = accountVacuity(playerIDs.length, edges, radius);
+      const account = accountVacuity(playerIDs.length, edges, radius, projectsFar);
       failures.push(...account.failures);
       notes.push(...account.notes);
       expectedDeliveries = account.expectedDeliveries;
@@ -441,7 +461,19 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
         const idx = playerIDs.indexOf(playerID);
         const wire = wires[i]!.join("\n");
 
-        const neighborIDs = (adj[idx] ?? []).map((j) => playerIDs[j]!);
+        /**
+         * Who this participant is PERMITTED to learn something about.
+         *
+         * Their neighbors, unless the study projects at distance, in which case
+         * everybody in their ball. Computed here rather than taken from `ball()`
+         * for the reason `expectedFor` gives in `topologies.ts`: this file
+         * checks the publish path, and asking the publish path's own function
+         * what it should have done makes the answer agree with itself.
+         */
+        const permitted = projectsFar
+          ? reachableWithin(adj, idx, radius).map((j: number) => playerIDs[j]!)
+          : (adj[idx] ?? []).map((j) => playerIDs[j]!);
+        const neighborIDs = permitted;
         const nonNeighborIDs = playerIDs.filter(
           (id) => id !== playerID && !neighborIDs.includes(id)
         );
@@ -452,7 +484,10 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
           if (secret && wire.includes(secret)) {
             crossParticipantLeaks++;
             failures.push(
-              `LEAK: participant ${i} received the sentinel of non-neighbor ${otherID}`
+              `LEAK: participant ${i} received the sentinel of ${otherID}, who is ` +
+                (projectsFar
+                  ? `outside their radius of ${String(radius)}`
+                  : `not one of their neighbors`)
             );
           }
         }
@@ -511,14 +546,25 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
          */
         const far = Array.isArray(latest.far) ? (latest.far as Array<{ d?: unknown }>) : [];
         farDelivered += far.length;
-        const expected = ball(adj, i, radius);
+        // `idx` — the SEAT — and not `i`, the position in the participants array.
+        // The two agree often enough to look right and diverge whenever Classic
+        // seats people in a different order than it connected them, which is
+        // most runs: the first version of this check read `i` and reported that
+        // two participants had each other's neighborhoods, in a wheel where one
+        // of them is the hub.
+        //
+        // Counted with `reachableWithin` rather than `ball()` for the reason
+        // `expectedFor` gives: `ball()` is what the publish path used to decide
+        // what to send, so asking it what should have been sent compares the
+        // code with itself.
+        const expectedNodes = 1 + reachableWithin(adj, idx, radius).length;
         const deliveredNodes = 1 + (localToPlayer.length - 1) + far.length;
-        if (deliveredNodes !== expected.nodes.length) {
+        if (deliveredNodes !== expectedNodes) {
           structureViolations++;
           failures.push(
             `STRUCTURE SIZE: participant ${i} was drawn ${deliveredNodes} people and the ` +
-              `graph puts ${expected.nodes.length} within radius ${String(radius)} of them. ` +
-              (deliveredNodes > expected.nodes.length
+              `graph puts ${expectedNodes} within radius ${String(radius)} of them. ` +
+              (deliveredNodes > expectedNodes
                 ? `Somebody outside their radius is on their screen.`
                 : `Somebody inside it is missing.`)
           );
@@ -645,6 +691,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
     saturated,
     isolated,
     radius,
+    projectsFar,
     structureViolations,
     structureTies,
     beyondStarDelivered,
@@ -663,7 +710,8 @@ export function formatLeakResult(r: LeakCheckResult): string {
   const lines = [
     "",
     `  empirica-networks verify — neighbor-limited visibility`,
-    `  topology: ${r.topology} of ${r.n}   ·   radius: ${r.radius}`,
+    `  topology: ${r.topology} of ${r.n}   ·   radius: ${r.radius}` +
+      (r.projectsFar ? `   ·   projecting at distance` : ``),
     "",
     // Every arm is printed as a figure against what it was measured over. Arm 1
     // used to print a bare `0`, which reads identically whether six non-neighbor

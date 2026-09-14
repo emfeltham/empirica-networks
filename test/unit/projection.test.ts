@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  ProjectionError,
-  projectionBytes,
-  validateProjection,
-} from "../../src/admin/projection.js";
+import { ProjectionError, projectionBytes, validateNoIdentifiers, validateProjection } from "../../src/admin/projection.js";
 
 test("accepts the shapes a real projection actually has", () => {
   for (const ok of [
@@ -109,4 +105,63 @@ test("projectionBytes measures the wire size", () => {
   // wire, and a projection of names could easily be non-ASCII.
   assert.equal(projectionBytes("é"), Buffer.byteLength('"é"'));
   assert.equal(projectionBytes(() => 1), 0, "unserialisable, but does not throw");
+});
+
+/**
+ * `validateNoIdentifiers` — the one rule `projectFar` has that `project()` does not.
+ *
+ * A neighbor's id is fine: the viewer is connected to them, every other viewer
+ * sees the same id, and that is the identity model the package has always had.
+ * Somebody two hops away is different — they are known to this viewer by a name
+ * that is theirs alone, precisely so two participants comparing screens cannot
+ * line their pictures up. An id in that payload hands back the stable
+ * cross-viewer handle the naming scheme exists to withhold.
+ *
+ * Checked rather than documented because of what the mistake looks like: the
+ * first `projectFar` an author writes is the `project()` they already have, and
+ * that one almost always starts `{ id: neighbor.id }`.
+ */
+const IDS = new Set(["01M2GTA40YK4PZVC7B9EKHXV5S", "01M2GTA48DH0M90P2P2HFQA223"]);
+const isID = (v: string) => IDS.has(v);
+
+test("validateNoIdentifiers: a player id anywhere in the value is refused", () => {
+  for (const bad of [
+    { id: "01M2GTA40YK4PZVC7B9EKHXV5S" },
+    { who: { nested: "01M2GTA48DH0M90P2P2HFQA223" } },
+    { list: ["fine", "01M2GTA40YK4PZVC7B9EKHXV5S"] },
+    "01M2GTA40YK4PZVC7B9EKHXV5S",
+  ]) {
+    assert.throws(
+      () => validateNoIdentifiers(bad, isID, "v"),
+      /returned a player id/,
+      `${JSON.stringify(bad)} should have been refused`
+    );
+  }
+});
+
+test("validateNoIdentifiers: everything that is not an id passes", () => {
+  for (const ok of [
+    { ref: "k3m9x2pq", hop: 2 },
+    { color: "green", score: 4, alive: true },
+    { nested: { list: [1, 2, { deep: "fine" }] } },
+    undefined,
+    null,
+    // A ref is eight characters of base32 and an id is a ULID; nothing in the
+    // name space this package generates can collide with an identity.
+    "k3m9x2pq",
+  ]) {
+    assert.doesNotThrow(() => validateNoIdentifiers(ok, isID, "v"));
+  }
+});
+
+test("validateNoIdentifiers: a cycle terminates rather than hanging", () => {
+  const loop: Record<string, unknown> = { a: 1 };
+  loop["self"] = loop;
+  assert.doesNotThrow(() => validateNoIdentifiers(loop, isID, "v"));
+});
+
+test("validateNoIdentifiers: numbers are left alone", () => {
+  // Widening the check past strings would refuse a legitimate score that
+  // happened to match, and ids in this platform are strings.
+  assert.doesNotThrow(() => validateNoIdentifiers({ score: 1234 }, (v) => v === "1234", "v"));
 });

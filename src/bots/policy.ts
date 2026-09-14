@@ -70,7 +70,7 @@ export interface BotContext<T = unknown> {
   /** Read what the server told this bot privately. */
   told(): NetworkTold | undefined;
   /**
-   * The ties among this bot's own neighbors, at `graph: { radius: 1.5 }`.
+   * What this bot can see of the network, above `graph: { radius: 1 }`.
    *
    * Three answers, the same three `useNetworkStructure()` gives a browser, and
    * the third is the one worth handling: `undefined` is "this study runs at the
@@ -79,9 +79,16 @@ export interface BotContext<T = unknown> {
    * that treats `null` as `undefined` reasons about a star in a study that is
    * not drawing one.
    *
-   * `edges` are pairs of indices into `neighbors()`, offset by one: `0` is this
-   * bot, `1..d` are `neighbors()[0..d-1]` in order. No seat index appears here,
-   * for the same reason none appears in a browser.
+   * `edges` are pairs of local indices: `0` is this bot, `1..d` are
+   * `neighbors()[0..d-1]` in order, and anything beyond that indexes `far` —
+   * people the bot can see and is not connected to, which appear from radius 2.
+   * No seat index appears here, for the same reason none appears in a browser.
+   *
+   * A policy that indexes one accessor by the other must mind the boundary:
+   * `neighbors()` is distance 1 only, and a far node has no entry in it. That is
+   * not an inconsistency to work around — it is the same boundary a human sees,
+   * and a bot that erased it would be the different kind of object this file
+   * refuses to build.
    */
   structure(): NetworkGraphInfo | null | undefined;
 
