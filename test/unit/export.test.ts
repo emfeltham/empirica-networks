@@ -229,6 +229,7 @@ test("structureRows resolves local index 0 to the viewer, not to their first nei
     viewer: "me",
     seq: 3,
     t: 1000,
+    radius: 1.5,
     a_index: 1,
     b_index: 2,
     a_id: "a",
@@ -264,7 +265,17 @@ test("positionRows keeps the isolated viewer, whom an edge table would drop", ()
   };
   assert.deepEqual(structureRows([alone]), []);
   assert.deepEqual(positionRows([alone]), [
-    { game_id: "g1", viewer: "me", seq: 3, t: 1000, node_index: 0, node_id: "me", x: 300, y: 300 },
+    {
+      game_id: "g1",
+      viewer: "me",
+      seq: 3,
+      t: 1000,
+      radius: 1.5,
+      node_index: 0,
+      node_id: "me",
+      x: 300,
+      y: 300,
+    },
   ]);
 });
 

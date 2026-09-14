@@ -117,3 +117,19 @@ test("sub-pixel drift does not count as a change", () => {
 test("no previous payload always counts as a change", () => {
   assert.ok(payloadChanged(undefined, buildPayload(snapshot())));
 });
+
+test("the radius reaches the payload, and a change to it is a change", () => {
+  // `GameSnapshot.radius` was carried by three fixtures because TypeScript
+  // requires the field, and asserted by nothing — so `buildPayload` could have
+  // dropped it and every test in this file would still pass. An operator reading
+  // a monitor that silently lost the radius would be watching a study without
+  // knowing how much of it its participants can see.
+  const built = buildPayload(snapshot({ radius: 1.5 }));
+  assert.equal(built.snapshot.radius, 1.5, "the payload carries it");
+
+  assert.equal(
+    payloadChanged(buildPayload(snapshot({ radius: 1 })), buildPayload(snapshot({ radius: 1.5 }))),
+    true,
+    "a run at the other radius is a different picture and must push"
+  );
+});

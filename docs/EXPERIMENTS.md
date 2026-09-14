@@ -28,7 +28,19 @@ A list is not a neutral simplification of that diagram. It withholds adjacency, 
 
 > The interface is reconstructed from published figures and distributed stylesheets. No participant data has been collected, and no result has been compared with either paper's. The reconstruction is of what subjects were shown, not evidence about what they did.
 
-Two limits on the claim hold unchanged. The paragraph above about code lineage still applies — copying documented values out of published figures is not a port, and the Breadboard tree still contains no experiment to have ported. And what the interface withholds is unchanged and remains load-bearing: the graph is built from `useNeighbors()`, so it can only ever draw the subject and their own connections. A tie between two of a subject's neighbors is not in it, because that tie is not sent to their browser. Breadboard enforced the same limit server-side and stated it to its subjects in as many words: "You will NOT see the whole network in the game. You will only see your immediate neighbors as shown by the diagram to the left."
+Two limits on the claim hold unchanged. The paragraph above about code lineage still applies — copying documented values out of published figures is not a port, and the Breadboard tree still contains no experiment to have ported. And what these reconstructions withhold is unchanged and remains load-bearing: both run at the default radius, where the graph is built from `useNeighbors()` and can only draw the subject and their own connections. A tie between two of a subject's neighbors is not in it, because at that radius the tie is not sent to their browser. Breadboard enforced the same limit server-side and stated it to its subjects in as many words: "You will NOT see the whole network in the game. You will only see your immediate neighbors as shown by the diagram to the left."
+
+That is a property of these two designs, not of the package, and the distinction is the same one the `wealth` field draws above. `graph: { radius: 1.5 }` makes the package send each participant the ties among their own neighbors, and **neither reconstruction sets it**. Turning it on here would not be a presentational choice:
+
+```js
+// Shirado & Christakis 2017, as reconstructed
+withNetwork(Empirica, { …, /* no graph config: radius 1 */ })
+
+// The same file at radius 1.5
+withNetwork(Empirica, { …, graph: { radius: 1.5 } })   // <- a different experiment
+```
+
+Local structure is exactly what a coordinating subject lacks, and it is what the paper's task is hard *because of*: a participant who can see which of their neighbors are connected to each other can reason about the colouring beyond their own conflicts. A run of this directory at radius 1.5 has therefore not made an interface adjustment; it has run a study the paper did not run, the same way projecting `wealth` into Rand 2011 runs Nishi 2015. `test/e2e/shirado2017.test.ts` asserts the absence of the projected field; the radius is a configuration rather than a projection, so it is recorded instead — `readRadius(game)` reads back what any given run actually used ([DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md#4-reproducing-a-finished-run)).
 
 ## Selecting the pair
 

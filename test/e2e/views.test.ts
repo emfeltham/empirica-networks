@@ -15,7 +15,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { positionRows, structureRows, viewRows } from "../../src/admin/export.js";
+import {
+  parseNdjson,
+  positionRows,
+  structureRows,
+  toCSV,
+  viewRows,
+} from "../../src/admin/export.js";
 import { networkKinds } from "../../src/admin/kinds.js";
 import { resetChannels } from "../../src/admin/provision.js";
 import { withNetwork } from "../../src/admin/with_network.js";
@@ -307,4 +313,96 @@ test("at radius 1.5 the record carries the structure the client resolved", async
       );
     }
   );
+});
+
+/**
+ * The whole path a radius 1.5 study's structure takes to a table.
+ *
+ * Every link in this chain was covered and the chain was not: the builders were
+ * tested over hand-built records, the record was tested in memory through the
+ * `onView` callback, and the only test that read from disk ran at radius 1 and
+ * called `viewRows`. So `structure.csv` and `positions.csv` — two tables
+ * `docs/DATA-AND-ANALYSIS.md` documents — were produced by nothing, and
+ * `toCSV` had never been applied to either builder anywhere in the repository.
+ *
+ * `parseNdjson` rather than a hand-rolled `split("\n").map(JSON.parse)`, because
+ * that is what an analyst is told to use and what the recovery scripts use.
+ */
+test("a radius 1.5 run reaches structure.csv and positions.csv through the file", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "structure-e2e-"));
+  const file = path.join(dir, "views.ndjson");
+  try {
+    await withScenario(
+      {
+        n: 6,
+        kinds: networkKinds,
+        listeners: makeListeners(
+          { file, batch: 1 },
+          { radius: 1.5, topology: (n: number) => wheel(n) }
+        ),
+        modeFunc: EmpiricaNetwork,
+      },
+      async ({ admin, participants }) => {
+        await running(admin, participants, 6);
+        modeOf(participants[0]!).player.getValue()!.set("choice", "cooperate");
+        await waitFor(() => fs.readFileSync(file, "utf8").includes("cooperate"), {
+          label: "the change reached the file",
+          timeoutMs: 30_000,
+        });
+      }
+    );
+
+    const parsed = parseNdjson<ViewRecord>(fs.readFileSync(file, "utf8"));
+    assert.equal(parsed.dropped, 0, "the file is intact");
+    assert.ok(parsed.records.length >= 6, "every participant's first view is on disk");
+    assert.ok(
+      parsed.records.some((r) => r.graph),
+      "the structure survived the round trip through the file"
+    );
+
+    const ties = structureRows(parsed.records);
+    assert.ok(ties.length > 0, "the structure flattened to rows");
+    assert.ok(
+      ties.some((t) => t.a_index !== 0 && t.b_index !== 0),
+      "including at least one tie between two neighbors, which is the point of 1.5"
+    );
+    assert.ok(
+      ties.every((t) => t.radius === 1.5),
+      "every row says which radius produced it, without a join"
+    );
+
+    // The tables themselves. Nothing produced these before this test existed.
+    const structureCsv = toCSV(structureRows(parsed.records));
+    const positionsCsv = toCSV(positionRows(parsed.records));
+    assert.match(
+      structureCsv.split("\n")[0]!,
+      /^"game_id","viewer","seq","t","radius","a_index","b_index","a_id","b_id"$/,
+      "structure.csv leads with its canonical columns, in declaration order"
+    );
+    assert.match(
+      positionsCsv.split("\n")[0]!,
+      /^"game_id","viewer","seq","t","radius","node_index","node_id","x","y"$/
+    );
+    assert.equal(
+      structureCsv.split("\n").length,
+      ties.length + 1,
+      "one line per tie, plus the header"
+    );
+
+    // The join the schema documents: a structure row's non-zero index addresses
+    // a view row for the same viewer and delivery.
+    const views = viewRows(parsed.records);
+    const sample = ties.find((t) => t.b_index !== 0)!;
+    assert.ok(
+      views.some(
+        (v) =>
+          v.viewer === sample.viewer &&
+          v.seq === sample.seq &&
+          v.neighbor_index === sample.b_index - 1
+      ),
+      "structure.csv joins to views.csv on neighbor_index = index - 1"
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

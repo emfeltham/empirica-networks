@@ -13,6 +13,7 @@ This project is neither affiliated with nor endorsed by the Empirica project.
 | Troubleshooting | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) — organized by observable symptom |
 | Internal design | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the lifecycle, publication path, and location of each value |
 | Choosing a structure | [`docs/TOPOLOGIES.md`](docs/TOPOLOGIES.md) — 14 generators, with their limits |
+| Showing the network | [`docs/API.md`](docs/API.md#drawing-the-neighborhood) — drawing a participant's own neighborhood, and what each radius discloses |
 | Planning a study | [`docs/DEPLOYING.md`](docs/DEPLOYING.md) — a preflight checklist and the current limits of the deployment guidance |
 | Exporting data | [`docs/DATA-AND-ANALYSIS.md`](docs/DATA-AND-ANALYSIS.md) — the schema for every exported table |
 | Study examples | [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md) — two experiments reconstructed from published papers |
@@ -111,6 +112,23 @@ const state = useNetworkState();
 state.set("choice", "A");                  // private. player.set() would broadcast
 ```
 
+A list of connections is often enough. Where the subject is reasoning about who is connected to
+whom, draw it instead:
+
+```jsx
+import { NetworkGraph, NetworkGraphStyles, useNetworkGraph } from "empirica-networks/player/react";
+
+const graph = useNetworkGraph({ nodeAttrs: (n) => ({ choice: n.data?.choice }) });
+<NetworkGraphStyles />
+<NetworkGraph model={graph} fallback={<p>Joining the network…</p>} />
+```
+
+What that draws is a star: the participant at the centre, one node per connection, one line to
+each. It cannot show more, because it is built from `useNeighbors()` and a tie between two of your
+connections is not in that array — so it costs nothing, sends nothing extra, and moves no guarantee
+below. `graph: { radius: 1.5 }` on the server additionally sends the ties among a participant's own
+connections, which is a real widening of what they are told and is opt-in for that reason.
+
 [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md) presents the same procedure and explains the
 common failure mode at each step. [`docs/API.md`](docs/API.md) documents the complete public API.
 
@@ -146,7 +164,7 @@ node dist/verify/cli.cjs verify --n 4     # from a clone today, after `npm run b
 npx empirica-networks verify --n 4        # once published
 ```
 
-The command starts Tajriba, Empirica's data service, connects four automated participants in a ring by default, and inspects their network traffic. The `--topology` option also accepts `star`, `wheel`, `pairs`, and `ladder`.
+The command starts Tajriba, Empirica's data service, connects four automated participants in a ring by default, and inspects their network traffic. The `--topology` option also accepts `star`, `wheel`, `pairs`, `ladder`, and `complete` — though a complete graph is refused, because it leaves no non-neighbor for the check to examine. `--radius 1.5` checks a study configured to show participants the ties among their own connections.
 
 ```
   non-neighbor sentinels received : 0/4 pairs  (must be 0)

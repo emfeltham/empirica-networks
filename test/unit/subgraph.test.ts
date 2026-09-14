@@ -9,7 +9,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { adjacency } from "../../src/topology/index.js";
-import { beyondStar, edgeKey, inducedEdges } from "../../src/admin/subgraph.js";
+import { edgeKey, inducedEdges } from "../../src/admin/subgraph.js";
+
+/**
+ * Ties not incident to the viewer — what radius 1.5 adds over a star.
+ *
+ * Spelled out here rather than imported. `subgraph.ts` used to export this and
+ * nothing in `src/` ever called it: both places that need the count —
+ * `src/verify/leak_test.ts` and `test/e2e/subgraph.test.ts` — tally it while
+ * validating each edge, so they must count the ones that survived validation
+ * rather than the whole array. An exported helper neither could use, whose
+ * docstring claimed the e2e test failed on it, was worse than three lines.
+ */
+const beyondStar = (edges: Array<[number, number]>) =>
+  edges.filter(([a, b]) => a !== 0 && b !== 0).length;
 
 test("a triangle: the tie between the two neighbors is the thing radius 1.5 adds", () => {
   // 0-1, 1-2, 0-2. Viewer 0 sees 1 and 2, and at radius 1.5 also 1-2.

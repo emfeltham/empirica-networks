@@ -185,31 +185,54 @@ export function viewRows(records: ViewRecord[]): ViewRow[] {
   return rows;
 }
 
-/** One row of `structure.csv`: one tie one viewer was shown, at one delivery. */
-export interface StructureRow {
+/**
+ * One row of `structure.csv`: one tie one viewer was shown, at one delivery.
+ *
+ * A `type`, not an `interface`, for the reason given at the top of this file:
+ * an interface gets no implicit index signature, so `toCSV(structureRows(…))`
+ * does not compile. These were interfaces when they were written, and that went
+ * unnoticed for precisely the reason the note up there predicts — nothing
+ * composed the two functions until a test did.
+ */
+export type StructureRow = {
   game_id: string;
   viewer: string;
   seq: number;
   t: number;
+  /**
+   * The radius this delivery was made at.
+   *
+   * Denormalized deliberately. The radius is also recorded per game on the batch
+   * scope (`readRadius`), and for most studies this is that number repeated on
+   * every row — but the two are not always the same fact. A game recovered
+   * across a restart keeps the radius the FIRST process recorded while being
+   * published at the second's, which the server warns about and which these rows
+   * are the only per-delivery evidence of. A table read on its own should say
+   * which study it describes rather than requiring a join, and the case where
+   * the join would give the wrong answer is the case worth catching.
+   */
+  radius: number;
   /** Local index of each end: 0 is the viewer, 1..d index into that delivery's view. */
   a_index: number;
   b_index: number;
   /** The projected `id` of each end, when there is one. Empty otherwise. */
   a_id: string;
   b_id: string;
-}
+};
 
-/** One row of `positions.csv`: where one node sat in one viewer's drawing. */
-export interface PositionRow {
+/** One row of `positions.csv`: where one node sat in one viewer's drawing. See above re `type`. */
+export type PositionRow = {
   game_id: string;
   viewer: string;
   seq: number;
   t: number;
+  /** As `StructureRow.radius`. */
+  radius: number;
   node_index: number;
   node_id: string;
   x: number;
   y: number;
-}
+};
 
 /**
  * Resolve a delivered local index to a player id.
@@ -255,6 +278,7 @@ export function structureRows(records: ViewRecord[]): StructureRow[] {
         viewer: r.viewer,
         seq: r.seq,
         t: r.at,
+        radius: r.graph?.radius ?? 1,
         a_index: a,
         b_index: b,
         a_id: idAt(r, a),
@@ -287,6 +311,7 @@ export function positionRows(records: ViewRecord[]): PositionRow[] {
         viewer: r.viewer,
         seq: r.seq,
         t: r.at,
+        radius: r.graph?.radius ?? 1,
         node_index: index,
         node_id: idAt(r, index),
         x: p.x,

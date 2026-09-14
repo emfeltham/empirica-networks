@@ -25,7 +25,7 @@
  */
 import { layout, type Point } from "./layout.js";
 import type { ViewGraph } from "../shared/keys.js";
-import { inducedEdges, type LocalEdge } from "./subgraph.js";
+import { edgeKey, inducedEdges, type LocalEdge } from "./subgraph.js";
 
 /**
  * The value written to a participant's channel at radius 1.5.
@@ -77,10 +77,10 @@ const MARGIN = 40; // alter radius 30 + padding 10, matching `player/graph.ts`
 export function buildGraphPayload(args: BuildArgs): BuildResult {
   const { adj, nodes, ids, radius, seed, cache } = args;
   const edges = inducedEdges(adj, nodes);
-  const key = `${nodes.length}:${edges
-    .map(([a, b]) => `${a}-${b}`)
-    .sort()
-    .join(" ")}`;
+  // The node count as well as the ties: a neighborhood can lose a node without
+  // losing an edge between the ones that remain, and that is still a different
+  // picture to lay out.
+  const key = `${nodes.length}:${edgeKey(edges)}`;
 
   // Remembered positions, in this publish's node order. `undefined` unless
   // EVERY node is remembered: a partial array cannot be index-aligned with the

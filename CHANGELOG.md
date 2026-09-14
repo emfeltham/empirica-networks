@@ -11,6 +11,35 @@ makes the entries below meaningful as a baseline rather than a moving target.
 
 ### Added
 
+- The radius a game ran at is recorded on the batch scope (`networkRadius:<gameID>`) and read back
+  with `readRadius(game)`, alongside the edge list and the seed. Nothing else in a finished dataset
+  implies it: two studies on one topology, one at each radius, leave identical edge lists,
+  identical seeds and identical attribute exports, and showed their participants different things.
+  Written at every radius including the default, so an absent value means "predates the key" and
+  never "drew a star" — `readRadius` returns `undefined` rather than `1` for that reason.
+  `GameSnapshot.radius` carries the live value.
+
+  A game already under way is recovered rather than re-recorded, so a process restarted with a
+  different `graph.radius` would have left the old value in place while showing participants the
+  new one — a session with two radii and no artifact naming the second. That now warns loudly and
+  keeps the game running; refusing to publish would strand the participants inside it.
+
+- `ViewRecord.graph` — captured views record the structure delivered at radius 1.5, not just
+  `project()` output. Half of what a participant is given at that radius was going unrecorded by a
+  facility whose own doc calls itself "the only record of what a participant was told", and whose
+  file `docs/DATA-AND-ANALYSIS.md` calls "irreplaceable: this is the only copy". Positions are kept
+  as well as edges, because they are warm-started and therefore follow the session's history rather
+  than its final graph — they are not a function of anything else stored, which is the same
+  criterion that makes capture worth turning on at all. Absent at radius 1, where `JSON.stringify`
+  omits it and the NDJSON is byte-identical to before.
+
+- `structureRows()` and `positionRows()` on `empirica-networks/export`, flattening that structure
+  for analysis. Separate builders from `viewRows` rather than an extension of it: the grain differs
+  (one row per tie, one per node, one per neighbor), and a viewer with no ties still has a position.
+  Both carry local indices as well as resolved ids, so they join to `edges.csv` on the ids and to
+  `views.csv` on the indices — which still works for a projection carrying no `id` — and both carry
+  the `radius` the delivery was made at, so a table read on its own says which study it describes.
+
 - `NetworkConfig.graph: { radius: 1.5 }`: show each participant the ties BETWEEN their own
   connections — the subgraph induced on their closed neighborhood — with positions laid out
   server-side. Off by default, and opt-in because it widens what a participant is told rather than
@@ -55,6 +84,31 @@ makes the entries below meaningful as a baseline rather than a moving target.
   in Breadboard's distribution — so a list was the further departure from the published
   description, not the safer one. The claim stays narrow, and what the screens withhold is
   unchanged.
+- `ISSUES.md` gains O19–O26, recording what radius 1.5 does not yet reach: its envelope figures are
+  arithmetic rather than measurement; bots cannot see the structure, so at that radius an artificial
+  participant plays a different game from the humans around it; `auditViews` ignores it, leaving
+  `simulate`'s leak check silent about half a delivery while `verify` covers it; the monitor does
+  not report the radius; `wheel` is the only named CLI topology that can demonstrate it;
+  `line[making="1"]` ships unreachable; the offline recovery scripts cannot rebuild a radius 1.5
+  study's screens; and `simulate` has no notion of radius.
+- Documentation caught up with the branch. `README.md` shows the graph display in its quick start
+  and names it in the navigation table — it was mentioned nowhere outside the verifier's output.
+  `docs/EXPERIMENTS.md` **corrects a claim that had become false**: it said the graph "can only ever
+  draw the subject and their own connections", which is true of both reconstructions and no longer
+  true of the package, and it now states that neither reconstruction sets a radius and what turning
+  one on would mean. `docs/TESTING.md` lists all four browser files rather than two, and its
+  baseline counts are current. `docs/GLOSSARY.md` defines "radius" and "structure".
+- `edgeKey` has one implementation instead of three. `monitor/payload.ts` had a private copy and
+  `graph_payload.ts` inlined a third, which is two too many for a function whose whole job is that
+  two callers agree about when a graph has changed — and the inlined one skipped the `a < b`
+  normalization, relying on an invariant held in another file. `beyondStar` is gone: nothing in
+  `src/` called it, both places that count the quantity must tally it while validating each edge
+  rather than over a whole array, and its docstring claimed an e2e test depended on it that never
+  imported it.
+- `StructureRow` and `PositionRow` are `type` aliases rather than `interface`s, so
+  `toCSV(structureRows(…))` compiles. They were interfaces, which is the exact defect the note at
+  the top of `src/admin/export.ts` exists to prevent — and it went unnoticed for exactly the reason
+  that note predicts, that nothing composed the two functions until a test did.
 - `src/admin/monitor/layout.ts` moved to `src/admin/layout.ts`. Participants' own neighborhoods are
   laid out with it at radius 1.5, and reaching for it through the monitor's subpath would undo the
   property that subpath exists for — that a server never opting into the monitor never loads

@@ -131,6 +131,7 @@ Empty unless the study ran at `graph: { radius: 1.5 }`.
 | Column | Type | Notes |
 |---|---|---|
 | `game_id`, `viewer`, `seq`, `t` | | As above |
+| `radius` | number | The radius this delivery was made at |
 | `a_index`, `b_index` | number | Local index of each end: `0` is the viewer, `1..d` index into that delivery's view |
 | `a_id`, `b_id` | string | The projected `id` of each end when there is one, empty otherwise |
 
@@ -139,6 +140,7 @@ Empty unless the study ran at `graph: { radius: 1.5 }`.
 | Column | Type | Notes |
 |---|---|---|
 | `game_id`, `viewer`, `seq`, `t` | | As above |
+| `radius` | number | The radius this delivery was made at |
 | `node_index` | number | `0` is the viewer; `1..d` index into that delivery's view |
 | `node_id` | string | As `a_id` above |
 | `x`, `y` | number | Integers in a 600×600 box |
@@ -147,6 +149,11 @@ Both carry the local indices as well as the resolved ids, which is what makes th
 on the ids to `edges.csv`, answering "was this tie real"; and on
 `(viewer, seq, neighbor_index = a_index - 1)` to `views.csv`, which still works for a projection
 that carries no `id` at all.
+
+`radius` is on every row rather than left to a join against the batch record, because the two are
+not always the same fact: a game recovered across a restart keeps the radius the *first* process
+recorded while being published at the second's. The server warns when that happens, and these rows
+are the only per-delivery evidence of it.
 
 Two builders rather than one because a viewer with no ties still has a position — their own — and
 denormalizing `x`/`y` onto edge rows would drop exactly the isolated participant, who in a

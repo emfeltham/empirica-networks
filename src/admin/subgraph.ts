@@ -64,27 +64,22 @@ export function inducedEdges(adj: number[][], nodes: number[]): LocalEdge[] {
 /**
  * A stable key for "is this the same picture".
  *
- * Sorted, so an edge list that arrives in a different order after a rewire does
- * not count as a shape change — the same reason `monitor/payload.ts` sorts
- * before comparing. Recomputing a layout on a graph that did not change moves
- * every node for no reason, and a participant watching their neighborhood for a
- * change would see one that is not there.
+ * Normalized and sorted, so an edge list that arrives in a different order after
+ * a rewire does not count as a shape change. Recomputing a layout on a graph
+ * that did not change moves every node for no reason, and a participant watching
+ * their neighborhood for a change would see one that is not there.
+ *
+ * The one implementation. It had three — this, a private copy in
+ * `monitor/payload.ts`, and a third inlined in `graph_payload.ts` — which is
+ * two too many for a function whose whole job is that two callers agree about
+ * when a graph has changed. The inlined one also skipped the `a < b`
+ * normalization, relying on `inducedEdges` having already emitted pairs that
+ * way: true, and an invariant held in a different file from the one depending
+ * on it.
  */
-export function edgeKey(edges: LocalEdge[]): string {
+export function edgeKey(edges: Array<[number, number]>): string {
   return edges
     .map(([a, b]) => (a < b ? `${a}-${b}` : `${b}-${a}`))
     .sort()
     .join(" ");
-}
-
-/**
- * How many ties this subgraph carries BEYOND the star.
- *
- * The quantity that says whether radius 1.5 is delivering anything. A run where
- * it is zero everywhere is not a pass — it is a study that published the extra
- * channel and put nothing in it, which looks identical to a working one from
- * every screen. `test/e2e/subgraph.test.ts` fails on it.
- */
-export function beyondStar(edges: LocalEdge[]): number {
-  return edges.filter(([a, b]) => a !== 0 && b !== 0).length;
 }
