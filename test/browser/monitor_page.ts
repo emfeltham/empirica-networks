@@ -132,6 +132,7 @@ function fakeSource() {
           order: ORDER,
           seed: 7,
           radius: 1,
+          radii: [],
           seq: 12,
           nodes: ORDER.map((playerID, index) => ({
             index,

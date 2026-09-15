@@ -414,9 +414,22 @@ export const PAGE = `<!doctype html>
     // whole network, so without this line an operator is watching a study with
     // no idea whether its participants are looking at a star or at the ties
     // among their own connections.
-    row(ops, "radius", String(snap.radius),
-      snap.recordedRadius !== undefined && snap.recordedRadius !== snap.radius ? "alert" : "");
-    if (snap.recordedRadius !== undefined && snap.recordedRadius !== snap.radius) {
+    // One value when there is one, a spread when there is not. A study may seat
+    // some participants wider than others, and under that setting "no single
+    // radius" is the ORDINARY state rather than an alarm — so it is reported as
+    // a fact here and the banner below keeps its own, narrower subject.
+    const seatRadii = (snap.radii ?? []).map((r) => r.radius);
+    const spread = [...new Set(seatRadii.map(String))].sort();
+    const mismatch = snap.recordedRadius !== undefined && snap.recordedRadius !== snap.radius;
+    row(
+      ops,
+      "radius",
+      snap.radius !== undefined
+        ? String(snap.radius)
+        : spread.join(" / ") + " (" + spread.length + " distinct)",
+      mismatch ? "alert" : ""
+    );
+    if (mismatch) {
       row(ops, "radius recorded", String(snap.recordedRadius), "alert");
     }
     row(ops, "history events", String(snap.history.frames.length));

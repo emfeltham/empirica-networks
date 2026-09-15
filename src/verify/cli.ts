@@ -56,6 +56,7 @@ interface Args {
   topology: string;
   /** Unvalidated as parsed, for the same reason. */
   radius: Radius;
+  radii?: Radius[];
   projectFar: boolean;
   quiet: boolean;
   help: boolean;
@@ -88,6 +89,10 @@ function parseArgs(argv: string[]): Args {
     // `"whole"` passes through as a word; everything else becomes a number so a
     // typo lands on the refusal below rather than on NaN.
     else if (a === "--project-far") args.projectFar = true;
+    // Per seat, cycled by index. Deterministic rather than random, for the
+    // reason `topologies.ts` gives about not forwarding an rng here.
+    else if (a === "--radii") args.radii = String(argv[++i] ?? "").split(",").map(parseRadius);
+    else if (a.startsWith("--radii=")) args.radii = a.slice(8).split(",").map(parseRadius);
     else if (a === "--radius") args.radius = parseRadius(argv[++i]);
     else if (a.startsWith("--radius=")) args.radius = parseRadius(a.slice(9));
     else rest.push(a);
@@ -124,6 +129,13 @@ Options:
                          step below already delivers: a triangle-free shape at
                          1.5, a shape smaller than its own diameter at 2, and
                          'whole' always, which leaves no non-neighbor at all.
+      --radii <a,b,…>    per-seat radii, assigned by seat index and cycled, for a
+                         study where some participants see further than others.
+                         --radii 1,2 puts even seats at 1 and odd at 2.
+                         Mutually exclusive with --radius. Only a MIXED run can
+                         tell a build that keys delivery on the viewer's radius
+                         from one that keys it on the subject's, so the run is
+                         refused on a graph where no pair disagrees.
       --project-far      your study sets graph.projectFar, so participants learn
                          something ABOUT people they are not connected to. It
                          changes what the leak arm is about — without it the data
@@ -160,6 +172,24 @@ async function main(): Promise<number> {
   // because the radius is one of the two things that decides whether a shape can
   // prove anything. A tool that quietly verified radius 1 for somebody who typed
   // 2 would be reporting on a study other than theirs.
+  if (args.radii !== undefined && args.radius !== 1) {
+    process.stderr.write(
+      `\n  --radius and --radii are two spellings of one setting. Pass whichever\n` +
+        `  describes your study and not both: a tool that let one silently win would\n` +
+        `  report on a study other than yours.\n\n`
+    );
+    return 1;
+  }
+  for (const r of args.radii ?? []) {
+    if (!(r === "whole" || (typeof r === "number" && Number.isFinite(r) && r >= 1 && r * 2 === Math.floor(r * 2)))) {
+      process.stderr.write(
+        `\n  --radii takes a comma-separated list of radii, assigned by seat and\n` +
+          `  cycled. ${JSON.stringify(r)} is not one of them.\n\n` +
+          `    --radii 1,2      even seats see one hop, odd seats see two\n\n`
+      );
+      return 1;
+    }
+  }
   const r = args.radius;
   const legal =
     r === "whole" ||
@@ -228,7 +258,10 @@ async function main(): Promise<number> {
     const result = await runLeakCheck({
       n: args.n,
       topology: args.topology,
-      radius: args.radius,
+      radius:
+        args.radii !== undefined
+          ? Array.from({ length: args.n }, (_, i) => args.radii![i % args.radii!.length]!)
+          : args.radius,
       projectFar: args.projectFar,
       onProgress: args.quiet ? undefined : (m) => process.stdout.write(`  … ${m}\n`),
     });

@@ -92,6 +92,14 @@ people who are not in the viewer's neighbor array at all — see **far node** ab
 A property of what participants are told, not of the graph — two studies on one topology at
 different radii leave identical edge lists. → [API, `NetworkConfig`](API.md#networkconfig)
 
+**asymmetric visibility** — what a per-participant radius produces, and the reason `radius` takes a
+function as well as a value. A at radius 2 and B at radius 1, two hops apart: A is shown B, and B is
+not shown A. Every rule keys on the **viewer's** radius — being visible to somebody who sees further
+does not widen what you see. Recorded per participant under `networkRadii:<gameID>` and read with
+`readRadii`. Only a study where the radii differ can distinguish a delivery rule keyed on the viewer
+from one keyed on the subject, since on a uniform study the two agree on every pair; `verify
+--radii` refuses a graph where no pair disagrees.
+
 **structure** — the subgraph delivered above radius 1: the ties induced on a participant's closed
 neighborhood, as pairs of indices into the array that participant already holds, plus a position
 per node laid out on the server. Never seat indices; index `0` is the viewer.

@@ -27,6 +27,7 @@ export type { ChannelMap, ProvisionResult } from "./provision.js";
 export {
   withNetwork,
   readNetwork,
+  readRadii,
   readRadius,
   readSeed,
   network,

@@ -140,7 +140,9 @@ export interface GameSnapshot {
   order: string[];
   seed: number;
   /**
-   * How much of the network this game shows its participants.
+   * How much of the network this game shows its participants, when one number
+   * describes it. `undefined` when participants are at different radii — see
+   * `radii` below, which always answers.
    *
    * The graph above says what the study RAN on; this says what it let people see
    * of it, and the two are independent. Read from the live configuration rather
@@ -149,7 +151,16 @@ export interface GameSnapshot {
    * `readRadius` reports what the record says — which is the pair that makes the
    * mismatch visible rather than a single number that quietly picks a side.
    */
-  radius: Radius;
+  radius: Radius | undefined;
+  /**
+   * How far each participant can see, by player id.
+   *
+   * The complete answer where `radius` above gives only the uniform one. A study
+   * may seat some participants wider than others — that is a manipulation, and
+   * the monitor is where an operator notices it, so it belongs on the snapshot
+   * rather than being left to the record.
+   */
+  radii: Array<{ playerID: string; radius: Radius }>;
   /**
    * The radius the batch record says this game ran at, or `undefined` if none
    * was recorded.

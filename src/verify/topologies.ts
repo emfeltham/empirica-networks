@@ -102,6 +102,13 @@ export interface VacuityAccounting {
    * which is a property of the graph rather than of the setting.
    */
   expectedIncrement: { nodes: number; edges: number };
+  /**
+   * Ordered pairs where "the viewer's radius decides" and "the subject's radius
+   * decides" give different answers. Zero on every uniform study, by
+   * construction — which is why nothing before per-seat radius could separate
+   * the two rules.
+   */
+  asymmetricPairs: number;
   /** Indices who may learn about everybody. They contribute nothing to arm 1. */
   saturated: number[];
   /** Indices who may learn about nobody. They contribute nothing to arm 3. */
@@ -218,10 +225,20 @@ function stepBelow(radius: Radius): Radius {
 /** `1.5` rather than `"1.5"`, and `whole` without quotes, in a sentence. */
 const fmt = (r: Radius): string => (r === "whole" ? "whole" : String(r));
 
+/** One radius for everybody, or one per seat. */
+export type RadiusSpec = Radius | Radius[];
+
+/** Per-seat, whichever form the caller used. Short arrays are the caller's bug, not ours. */
+export function radiiOf(spec: RadiusSpec, n: number): Radius[] {
+  return Array.isArray(spec)
+    ? Array.from({ length: n }, (_, i) => spec[i] ?? 1)
+    : new Array<Radius>(n).fill(spec);
+}
+
 export function accountVacuity(
   n: number,
   edges: Edge[],
-  radius: Radius = 1,
+  spec: RadiusSpec = 1,
   /**
    * Does the run project at distance?
    *
@@ -235,6 +252,8 @@ export function accountVacuity(
   projectsFar = false
 ): VacuityAccounting {
   const adj = adjacency(n, edges);
+  const radii = radiiOf(spec, n);
+  const uniform = radii.every((r) => r === radii[0]) ? radii[0]! : undefined;
   const saturated: number[] = [];
   const isolated: number[] = [];
   let candidatePairs = 0;
@@ -242,9 +261,11 @@ export function accountVacuity(
 
   for (let i = 0; i < n; i++) {
     // Who may this participant learn something ABOUT? Their neighbors, unless
-    // the study projects at distance, in which case everyone in their ball.
+    // the study projects at distance, in which case everyone in THEIR OWN ball.
+    // Each row uses its own radius, which is what keeps the partition identity
+    // below true seat by seat rather than only on average.
     const reach = projectsFar
-      ? expectedFor(adj, i, radius).nodes - 1
+      ? expectedFor(adj, i, radii[i]!).nodes - 1
       : adj[i]?.length ?? 0;
     const beyond = n - 1 - reach;
     candidatePairs += beyond;
@@ -253,23 +274,47 @@ export function accountVacuity(
     if (reach === 0) isolated.push(i);
   }
 
+  /**
+   * Ordered pairs where the two possible rules DISAGREE.
+   *
+   * `(v,u)` such that u is inside v's reach and v is outside u's — so a build
+   * that keyed delivery on the SUBJECT's radius rather than the VIEWER's would
+   * treat this pair differently from one that keyed it correctly.
+   *
+   * Zero on any uniform study, because the rules agree everywhere: that is why
+   * no check before per-seat radius could distinguish them, and why a mixed run
+   * that produces none is refused below rather than passed. Counted only when
+   * the study projects at distance, since without that the data rule is
+   * "neighbors only" and is symmetric whatever the radii say.
+   */
+  let asymmetricPairs = 0;
+  if (projectsFar && uniform === undefined) {
+    for (let v = 0; v < n; v++) {
+      const mine = new Set(reachableWithin(adj, v, radii[v]!));
+      for (const u of mine) {
+        if (!reachableWithin(adj, u, radii[u]!).includes(v)) asymmetricPairs++;
+      }
+    }
+  }
+
   const expectedBeyondStar = countBeyondStar(adj);
   let expectedStructureTies = 0;
   let expectedFar = 0;
   const expectedIncrement = { nodes: 0, edges: 0 };
-  if (radius !== 1) {
-    const below = stepBelow(radius);
-    for (let i = 0; i < n; i++) {
-      const at = expectedFor(adj, i, radius);
-      expectedStructureTies += at.edges;
-      expectedFar += at.nodes - 1 - (adj[i]?.length ?? 0);
-      // `below` is 1 for 1.5, where the star is drawn from the view array and
-      // no structure is sent at all — so the increment there is the whole
-      // payload, which is what makes `expectedBeyondStar` and this agree.
-      const under = expectedFor(adj, i, below);
-      expectedIncrement.nodes += at.nodes - under.nodes;
-      expectedIncrement.edges += at.edges - under.edges;
-    }
+  for (let i = 0; i < n; i++) {
+    const r = radii[i]!;
+    if (r === 1) continue;
+    const at = expectedFor(adj, i, r);
+    expectedStructureTies += at.edges;
+    expectedFar += at.nodes - 1 - (adj[i]?.length ?? 0);
+    // `below` is 1 for 1.5, where the star is drawn from the view array and no
+    // structure is sent at all — so the increment there is the whole payload,
+    // which is what makes `expectedBeyondStar` and this agree. Taken per SEAT,
+    // so a mixed study's increment is the sum of what each seat's own setting
+    // adds over the step below IT.
+    const under = expectedFor(adj, i, stepBelow(r));
+    expectedIncrement.nodes += at.nodes - under.nodes;
+    expectedIncrement.edges += at.edges - under.edges;
   }
 
   const failures: string[] = [];
@@ -294,20 +339,44 @@ export function accountVacuity(
   // graph is a perfectly good graph and a perfectly useless subject for this
   // arm: radius 1.5 on it delivers the same star radius 1 does, so the run
   // would pass without the feature having done anything.
-  if (radius !== 1 && expectedIncrement.nodes === 0 && expectedIncrement.edges === 0) {
-    const below = stepBelow(radius);
+  const widest = radii.reduce<Radius>(
+    (a, b) => (a === "whole" || b === "whole" ? "whole" : Math.max(a, b)),
+    1
+  );
+  if (widest !== 1 && expectedIncrement.nodes === 0 && expectedIncrement.edges === 0) {
+    const below = stepBelow(widest);
     failures.push(
-      `VACUOUS at radius ${fmt(radius)}: it delivers nothing on this graph that ` +
+      `VACUOUS at radius ${fmt(widest)}: it delivers nothing on this graph that ` +
         `radius ${fmt(below)} does not, so the run would pass without the setting ` +
         `having done anything. Whether it shows anything is a property of the ` +
         `graph, not of the setting.\n` +
-        (Number.isInteger(radius as number)
+        (Number.isInteger(widest as number)
           ? `  At an integer radius the usual cause is that everybody is already ` +
             `within reach: try more participants, or a shape with a larger diameter.\n`
           : `  At a half step the usual cause is that nobody has two people at the ` +
             `outer edge who are connected to each other: try --topology ringLattice, ` +
             `or a shape with triangles at that depth.\n`) +
         `  Or pass your study's own generator to runLeakCheck().`
+    );
+  }
+
+  /**
+   * A mixed study that cannot tell the two rules apart.
+   *
+   * The whole reason to run at differing radii is that it distinguishes "the
+   * VIEWER's radius decides" from "the SUBJECT's radius decides" — and it only
+   * does so where some pair actually disagrees. On a graph where none does,
+   * every arm passes exactly as it would on a uniform run, and the flag has
+   * bought nothing while looking like it bought something.
+   */
+  if (projectsFar && uniform === undefined && asymmetricPairs === 0) {
+    failures.push(
+      `VACUOUS: the radii differ but no pair of participants disagrees about who ` +
+        `may see whom, so this run cannot tell a build that keys delivery on the ` +
+        `VIEWER's radius from one that keys it on the SUBJECT's — and telling those ` +
+        `apart is the only thing a mixed radius adds.\n` +
+        `  Put the wider radius where it reaches somebody who does not reach back: ` +
+        `on a ring, two seats more than one hop apart will do.`
     );
   }
 
@@ -336,6 +405,7 @@ export function accountVacuity(
     expectedStructureTies,
     expectedFar,
     expectedIncrement,
+    asymmetricPairs,
     failures,
     notes,
   };
