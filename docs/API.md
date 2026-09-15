@@ -738,6 +738,37 @@ graph: {
 }
 ```
 
+### A radius per participant
+
+`radius` also takes a function, which runs **after** `topology` and receives the realized edges:
+
+```js
+graph: {
+  // The three most central participants see two hops. Everybody else sees one.
+  radius: ({ playerCount, edges }) => {
+    const deg = degrees(playerCount, edges);
+    const hubs = new Set([...deg.keys()].sort((a, b) => deg[b] - deg[a]).slice(0, 3));
+    return Array.from({ length: playerCount }, (_, i) => (hubs.has(i) ? 2 : 1));
+  },
+}
+```
+
+Return one radius for everybody, or an array in **seat order** — `players[i]` occupies topology
+index `i`, the same order `topology` receives. A short array is refused rather than padded, since
+padding would seat somebody at a radius the design did not choose and the screen would look
+entirely correct. Running after `topology` is what makes centrality expressible at all, and it is
+the same thing `examples/shirado2017` does to place its agents.
+
+**This makes visibility asymmetric, and that is the point.** A at radius 2 and B at radius 1, two
+hops apart, means A is shown B and B is not shown A. Every rule keys on the **viewer's** radius:
+being visible to somebody with a wider radius does not widen yours. `readRadii(game)` reads back
+what each participant actually ran at; `readRadius(game)` still answers when — and only when — one
+number describes the whole game.
+
+Only a study where the radii differ can tell a build that keys delivery on the viewer's radius from
+one that keys it on the subject's, because on a uniform study the two rules agree on every pair.
+`verify --radii` exists for exactly that, and refuses a graph where no pair disagrees.
+
 `projectFar` is a separate callback rather than `project()` receiving a distance, and the default
 is why: every `project()` written against this package ignores its context argument, so routing
 distant people through it would turn raising the radius into a full attribute disclosure about
@@ -999,6 +1030,7 @@ node dist/verify/cli.cjs verify --n 4     # from a clone, after `npm run build`
 | `-n`, `--n <count>` | 4 | Participants. Minimum 4, and refused below that: below it every named topology makes everyone everyone's neighbor, so there is no non-neighbor and a pass would prove nothing |
 | `--topology <name>` | `ring` | `ring`, `star`, `wheel`, `pairs`, `ladder`, `complete`, `ringLattice` (its `m` fixed at 2, so it needs n ≥ 5). Refused when the shape could prove nothing — see below |
 | `--radius <r>` | 1 | The radius your study runs at: `1`, `1.5`, `2`, `2.5`, … Refused rather than rounded, since 2 and 2.5 are different studies, and refused entirely for `whole`, which leaves no non-neighbor to leak to |
+| `--radii <a,b,…>` | | Per-seat radii, assigned by seat index and cycled — a study where some participants see further than others. Mutually exclusive with `--radius`. Refused on a graph where no pair of participants disagrees about who may see whom, since only such a pair can tell the viewer's-radius rule from the subject's-radius one |
 | `--project-far` | off | Your study sets `graph.projectFar`. It changes what the leak arm is *about* — without it the data rule is "neighbors only" at every radius — so it cannot be inferred, and verifying the wrong one reports cleanly on a study other than yours |
 | `-q`, `--quiet` | off | Print `PASS` or `FAIL` and nothing else. The CI form |
 | `-h`, `--help` | | Usage |

@@ -214,10 +214,11 @@ absent from record 1 would otherwise be dropped from the whole export without a 
 Everything needed is durable, and in one place:
 
 ```js
-import { readNetwork, readRadius, readSeed } from "empirica-networks/admin";   // server-side
+import { readNetwork, readRadii, readRadius, readSeed } from "empirica-networks/admin";
 const edges  = readNetwork(game);   // batch: network:<gameID>
 const seed   = readSeed(game);      // batch: networkSeed:<gameID>
 const radius = readRadius(game);    // batch: networkRadius:<gameID>
+const radii  = readRadii(game);     // batch: networkRadii:<gameID>, by player id
 ```
 
 Offline, the same three values are attributes on the batch scope in `tajriba.json`, keyed
@@ -227,6 +228,14 @@ The realized edge list is recorded, not just the seed, so the graph a run actual
 back rather than re-derived and hoped to match. To re-derive anyway (to check, or to generate a
 matched graph for a new condition), `makeRng(seed)` and the generator reproduce it exactly.
 Pinned by `test/e2e/reproducibility.test.ts`.
+
+**Two keys, and which one to read.** `networkRadii` is the complete record — one radius per player
+id, written at every setting including the uniform default — so an absent `networkRadii` means
+"this record predates the key" and nothing else. `networkRadius` answers only when one number
+describes the whole game, which a study that seats some participants wider than others has no such
+value for. Read `readRadius` if you only need the uniform case; read `readRadii` to learn that a
+study showed different participants different amounts, which is a manipulation and is not derivable
+from anything else in a finished dataset.
 
 The radius is recorded for a different reason: it is not a property of the graph at all, and
 nothing else in the record implies it. Two studies on one topology, one at each radius, leave

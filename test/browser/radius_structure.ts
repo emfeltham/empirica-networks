@@ -57,6 +57,55 @@ async function serverUp(): Promise<boolean> {
     return false;
   }
 }
+/**
+ * The same sweep `scripts/test-browser.mjs` runs between FILES, run between the
+ * two servers this file starts.
+ *
+ * Needed for the reason that script documents: the callbacks server lives in its
+ * own npm process group, survives the group-kill aimed at the dev server, holds
+ * no port of its own, and reconnects to whatever server comes up next. Between
+ * files the harness catches it; within one file nothing did, and the symptom was
+ * the second run timing out on "the graph in every window" while the server log
+ * showed a state mismatch. Measured at 2 failures in 4 runs before this.
+ */
+function sweepOrphans(): void {
+  const look = (cmd: string, args: string[]): string => {
+    try {
+      return execFileSync(cmd, args, {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }).toString();
+    } catch {
+      // Both tools exit non-zero when they match nothing, which is the ordinary
+      // case and not an error. Treating it as one made this sweep fail every
+      // run — louder than the flake it was written to fix, and in the same
+      // place, which is its own small lesson about guards.
+      return "";
+    }
+  };
+
+  const deadline = Date.now() + 30_000;
+  for (;;) {
+    const pids = new Set<string>();
+    for (const out of [
+      look("lsof", ["-ti", ":3000,:8844"]),
+      look("pgrep", ["-f", "empirica-networks/examples/.*callBackSessionToken"]),
+    ]) {
+      for (const pid of out.split("\n")) if (pid.trim()) pids.add(pid.trim());
+    }
+    if (pids.size === 0) return;
+    if (Date.now() > deadline) throw new Error(`could not clear ${[...pids].join(", ")}`);
+    for (const pid of pids) {
+      try {
+        process.kill(Number(pid), "SIGKILL");
+      } catch {
+        /* already gone */
+      }
+    }
+    execFileSync("sleep", ["0.3"]);
+  }
+}
+
 function portInUse(p: number): boolean {
   try {
     execFileSync("lsof", ["-ti", `:${p}`], { stdio: ["ignore", "pipe", "ignore"] });
@@ -292,6 +341,8 @@ async function main(): Promise<void> {
   // Serially, and 1.5 first: it is the older claim, so a failure there is a
   // regression while a failure at 2 is the new feature not arriving.
   await run("1.5");
+  // Between them, not only after: see `sweepOrphans`.
+  sweepOrphans();
   await run("2");
 }
 

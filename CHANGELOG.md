@@ -23,6 +23,29 @@ makes the entries below meaningful as a baseline rather than a moving target.
 
 ### Added
 
+- **A radius per PARTICIPANT.** `graph: { radius }` also takes a function, which runs after
+  `topology` and receives the realized edges — so "the most central participants see two hops" is
+  expressible, which is the design the setting exists for. Returns one value or one per seat.
+
+  **This makes visibility asymmetric**, and that is a larger change than a per-seat number sounds.
+  Until now "can A see B" and "can B see A" were the same question, so a build that keyed delivery
+  on the SUBJECT's radius rather than the VIEWER's would have passed every check in this
+  repository: the two rules agree on every pair of a uniform study. `verify --radii` and the
+  `asymmetricPairs` accounting exist to separate them, and a mixed run on a graph where no pair
+  disagrees is refused rather than passed.
+
+  Recorded under a second key, `networkRadii`, by player id and at every setting — not by widening
+  `networkRadius`, which would have destroyed the one property its docstring argues for: an absent
+  value meaning "predates the key" and nothing else. `readRadius` is untouched and still answers
+  when one number describes the game; `readRadii` is the complete record.
+
+- **`envelope: { maxVisibleNodes }` and `checkVision`**, which bound how many people one
+  participant can be SHOWN. `checkDegrees` bounded that until participants could see past their own
+  neighbors, and its message still claimed the payload was O(degree) — true when written, false
+  since, and once radii differ also unequal: one seat at radius 3 on an otherwise modest topology
+  is enough. The default is stated as inherited rather than earned, since delivering a ball has
+  never been benchmarked (`ISSUES.md` O1).
+
 - **`graph: { radius }` accepts any half step and `"whole"`**, where it took `1 | 1.5`. The rule
   generalizes what 1.5 already meant: `floor(radius)` bounds the PEOPLE and the fraction decides
   the TIES, so `k` and `k.5` show the same faces and differ only in whether the ties between the
