@@ -130,8 +130,36 @@ export interface GraphConfig {
   /**
    * How far each participant can see. `1` (default), `1.5`, `2`, `2.5`, … or
    * `"whole"`. See `NetworkConfig.graph`.
+   *
+   * A FUNCTION assigns per seat, and receives the realized topology because the
+   * design this is for needs it:
+   *
+   *     radius: ({ playerCount, edges }) => {
+   *       const deg = degrees(playerCount, edges);
+   *       const hubs = [...deg.keys()].sort((a, b) => deg[b] - deg[a]).slice(0, 3);
+   *       return Array.from({ length: playerCount }, (_, i) =>
+   *         hubs.includes(i) ? 2 : 1);
+   *     }
+   *
+   * Return one radius for everybody, or an array in SEAT order — `players[i]`
+   * occupies topology index `i`, the same order `topology` receives. A short
+   * array is refused rather than padded.
+   *
+   * Runs AFTER `topology`, which is what makes centrality expressible.
+   * Visibility is then asymmetric: at those settings the hubs can see somebody
+   * who cannot see them, and the rule is keyed on the VIEWER's radius alone.
    */
-  radius?: Radius;
+  radius?:
+    | Radius
+    | ((args: {
+        game: any;
+        playerCount: number;
+        /** In seat order: `players[i]` occupies topology index `i`. */
+        players: any[];
+        /** The realized topology, so centrality is available. */
+        edges: Edge[];
+        rng: Rng;
+      }) => Radius | Radius[]);
   /**
    * What a participant learns ABOUT somebody they are not connected to.
    *
@@ -441,6 +469,18 @@ interface NetworkState {
   order: string[];
   seed: number;
   /**
+   * How far each SEAT can see, index-aligned with `order`.
+   *
+   * Per seat rather than one value, because visibility is a property of the
+   * participant and not of the study — and because that makes it asymmetric:
+   * `radii[a] = 2` and `radii[b] = 1` two hops apart means a sees b and b does
+   * not see a. Every rule that reads this must read the VIEWER's entry; reading
+   * the subject's is the same picture and a different study.
+   */
+  radii: Radius[];
+  /** The widest entry in `radii`. See `widestOf`. */
+  widest: Radius;
+  /**
    * Secret that names distant people to each viewer. Empty below radius 2,
    * where every visible node is in the viewer's own neighbor array and the
    * positional scheme names all of them.
@@ -656,12 +696,11 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * should stop it starting, not surface as a screen that quietly shows less
    * than the design says.
    */
-  const graphRadius = ((): Radius => {
-    const r = config.graph?.radius ?? 1;
-    if (r === "whole") return r;
-    if (typeof r === "number" && Number.isFinite(r) && r >= 1 && r * 2 === Math.floor(r * 2)) {
-      return r;
-    }
+  const validRadius = (r: unknown): r is Radius =>
+    r === "whole" ||
+    (typeof r === "number" && Number.isFinite(r) && r >= 1 && r * 2 === Math.floor(r * 2));
+
+  const refuseRadius = (r: unknown): never => {
     throw new Error(
       `empirica-networks: graph.radius must be at least 1 and a multiple of 0.5, or ` +
         `"whole", got ${JSON.stringify(r)}.\n\n` +
@@ -675,7 +714,63 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         `  because 2 and 2.5 are different studies.\n\n` +
         `  Infinity is not accepted: "whole" is the one spelling for that.\n`
     );
+  };
+
+  /**
+   * The configured radius, when it is a literal.
+   *
+   * `undefined` when the study passed a FUNCTION, because a function cannot be
+   * resolved here: it runs against the realized topology, and no game exists
+   * yet. The shape is still checked eagerly — a study that passes a number
+   * typed wrong stops at start-up, which is what the comment above promises —
+   * and each resolved value is checked again at seat assignment, before the
+   * envelope and before any channel is provisioned.
+   */
+  const configuredRadius = ((): Radius | undefined => {
+    const r = config.graph?.radius ?? 1;
+    if (typeof r === "function") return undefined;
+    if (validRadius(r)) return r;
+    return refuseRadius(r);
   })();
+
+  /**
+   * Resolve every seat's radius, once, after the topology is realized.
+   *
+   * After, and that is the load-bearing order: the asymmetric design this
+   * exists for is "the most central participants see further", and centrality
+   * is a property of the graph the study actually drew. `examples/shirado2017`
+   * places its agents the same way.
+   */
+  function resolveRadii(args: {
+    game: any;
+    players: any[];
+    edges: Edge[];
+    rng: Rng;
+  }): Radius[] {
+    const n = args.players.length;
+    const spec = config.graph?.radius ?? 1;
+    const produced =
+      typeof spec === "function"
+        ? spec({ game: args.game, playerCount: n, players: args.players, edges: args.edges, rng: args.rng })
+        : spec;
+
+    if (!Array.isArray(produced)) {
+      if (!validRadius(produced)) refuseRadius(produced);
+      return new Array<Radius>(n).fill(produced);
+    }
+    // A short array would leave somebody at a radius nobody chose, and the
+    // screen would look entirely correct. Refused rather than padded.
+    if (produced.length !== n) {
+      throw new Error(
+        `empirica-networks: graph.radius returned ${produced.length} value(s) for ` +
+          `${n} participant(s). Return one radius per seat, in seat order, or a single ` +
+          `radius for everybody. Padding the short end would seat somebody at a radius ` +
+          `the design did not choose.`
+      );
+    }
+    for (const r of produced) if (!validRadius(r)) refuseRadius(r);
+    return [...produced];
+  }
   /**
    * Does anything go on the wire beyond the neighbor views?
    *
@@ -684,7 +779,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * number yields NaN — so the widest setting in the package would have sent
    * nothing at all, silently, at both of the places that test used to appear.
    */
-  const showsStructure = graphRadius !== 1;
+  const showsStructure = (r: Radius): boolean => r !== 1;
   /**
    * Does anyone appear in a picture without appearing in the view that names
    * them?
@@ -693,7 +788,26 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * and the positional scheme covers every node. True from 2 upward, where a
    * visible node has no entry in `NEIGHBORS` and needs a name of its own.
    */
-  const needsRefs = graphRadius === "whole" || graphRadius >= 2;
+  const needsRefs = (r: Radius): boolean => r === "whole" || r >= 2;
+
+  /**
+   * The widest setting in a game, for the two decisions that are about the GAME
+   * rather than about a viewer.
+   *
+   * `commit()` asks "could this edge change matter to anybody", and
+   * `republishAround` asks "how far do I have to walk before filtering". Both
+   * would be wrong to ask per viewer and both must be cheap, so they are derived
+   * once per game and kept beside the radii.
+   */
+  /** The one value, when there is one. `undefined` for a mixed study. */
+  const uniformOf = (radii: Radius[]): Radius | undefined =>
+    radii.length > 0 && radii.every((r) => r === radii[0]) ? radii[0] : undefined;
+
+  const widestOf = (radii: Radius[]): Radius =>
+    radii.reduce<Radius>(
+      (a, b) => (a === "whole" || b === "whole" ? "whole" : Math.max(a, b)),
+      1
+    );
   const projectFar = config.graph?.projectFar;
   /**
    * nbhd scope id -> where each of that viewer's nodes was last laid out, BY
@@ -999,6 +1113,14 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     const edges = topology({ game, playerCount: players.length, players, rng });
     const adj = adjacency(players.length, edges);
 
+    /**
+     * Who sees how far, resolved here because this is the first moment it can
+     * be: a radius function takes the realized topology, and the envelope check
+     * below needs the answer.
+     */
+    const radii = resolveRadii({ game, players, edges, rng });
+    const uniform = radii.every((r) => r === radii[0]) ? radii[0] : undefined;
+
     // Before provisioning and before anything is recorded: an out-of-envelope
     // topology should fail while the experiment is still abandonable, not after
     // participants have been committed to a game that will run badly.
@@ -1021,7 +1143,22 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     // because it is the other half of the same question and is not derivable
     // from anything else here. Write-once, like the seed: unlike `network` and
     // `history` it cannot change while a game runs.
-    batch.set(NETWORK_KEYS.radius(game.id), graphRadius);
+    //
+    // TWO KEYS, and the split is not redundancy. `networkRadii` is the complete
+    // record and is written always, so its absence has exactly one cause —
+    // "predates the key" — which is the property `networkRadius`'s own docstring
+    // argues for and which an array under that key would have destroyed, since
+    // absent would then mean "predates" OR "was mixed". `networkRadius` keeps
+    // its old meaning and is written only when there IS a single answer, so
+    // every reader that exists today keeps working unchanged.
+    //
+    // Keyed by player id rather than by seat: the seating plan lives on each
+    // participant's channel as `topologyIndex` and not on the batch, so a
+    // seat-indexed vector would be a record nobody holding this scope can read.
+    const radiiByPlayer: Record<string, Radius> = {};
+    for (const [i, p] of players.entries()) radiiByPlayer[p.id] = radii[i]!;
+    batch.set(NETWORK_KEYS.radii(game.id), radiiByPlayer);
+    if (uniform !== undefined) batch.set(NETWORK_KEYS.radius(game.id), uniform);
     // The secret that names distant people to each viewer.
     //
     // Minted for EVERY game, including the ones that will never send a name, for
@@ -1035,7 +1172,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     batch.set(NETWORK_KEYS.viewKey(game.id), viewKey);
 
     const order: string[] = players.map((p: any) => p.id);
-    networks.set(game.id, { edges, adj, order, seed, viewKey });
+    networks.set(game.id, { edges, adj, order, seed, radii, widest: widestOf(radii), viewKey });
     // The initial graph goes into the log as a `start` event, so the log alone
     // describes the whole run. Without it, `edges.csv` would begin mid-story:
     // every tie present at game start would be missing, and a study that never
@@ -1349,8 +1486,10 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
        */
       let graphPayload: GraphPayload | undefined;
       let farRecord: Array<{ ref: string; id: string; hop: number }> | undefined;
-      if (showsStructure) {
-        const seen = ball(state.adj, i, graphRadius);
+      // THIS viewer's radius, never the game's and never the subject's.
+      const radius = state.radii[i] ?? 1;
+      if (showsStructure(radius)) {
+        const seen = ball(state.adj, i, radius);
         /**
          * Everyone in the picture who is not in the delivered view.
          *
@@ -1368,7 +1507,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
          */
         const far: FarNode[] = [];
         const farNodes: number[] = [];
-        if (needsRefs) {
+        if (needsRefs(radius)) {
           const rows: Array<{ k: number; id: string; hop: number; ref: string }> = [];
           for (const k of seen.nodes) {
             const hop = seen.dist[k] ?? Infinity;
@@ -1465,8 +1604,8 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
           // Finite on the wire even when the study asked for everything: for
           // `"whole"` the honest number is how far this viewer's own component
           // actually reached, and `whole` carries the intent that no number can.
-          radius: graphRadius === "whole" ? seen.eccentricityWithin : graphRadius,
-          whole: graphRadius === "whole" ? true : undefined,
+          radius: radius === "whole" ? seen.eccentricityWithin : radius,
+          whole: radius === "whole" ? true : undefined,
           far,
           seed: state.seed,
           cache: lastLayout.get(scopeID),
@@ -1622,15 +1761,55 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     // inside it. The record is left alone — overwriting it would replace a true
     // statement about the first half of the session with a true statement about
     // the second, and lose the fact that they differ.
-    const recordedRadius = readRadius(game);
-    if (recordedRadius !== undefined && recordedRadius !== graphRadius) {
-      warn(
-        `empirica-networks: game ${game.id} was networked at graph.radius ` +
-          `${recordedRadius} and this process is configured for ${graphRadius}. Its ` +
-          `participants have been shown both. The recorded value is left as ` +
-          `${recordedRadius}; neither describes the whole session, and analysis of this ` +
-          `game should treat the radius as unknown from the restart onward.`
-      );
+    /**
+     * ADOPT the recorded radii rather than re-resolving the config.
+     *
+     * A literal cannot drift, so the scalar version could safely compare config
+     * against record. A function can: it runs against the realized topology, and
+     * a game recovered after rewiring would resolve to a different vector for
+     * reasons that have nothing to do with the study being reconfigured. What
+     * participants were actually shown is the fact worth keeping — the same
+     * argument the view key below rests on.
+     */
+    const recorded = readRadii(game);
+    // Fall back through the older records before the config: a game networked
+    // before `networkRadii` existed has only the scalar, and a game networked
+    // before either has neither. Only then does this process's own setting get
+    // to decide, and only because something must.
+    const legacy = readRadius(game);
+    const radii: Radius[] = order.map(
+      (id) => recorded?.[id] ?? legacy ?? configuredRadius ?? 1
+    );
+
+    // The warning, now element-wise. It is about a restart at a changed
+    // configuration, which is still a real event; it is NOT about the radii
+    // differing from each other, which under this feature is the ordinary state.
+    const previous = recorded !== undefined ? order.map((id) => recorded[id]) : undefined;
+    const previousUniform = previous?.every((r) => r !== undefined && r === previous[0])
+      ? previous[0]
+      : undefined;
+    if (previous !== undefined && configuredRadius !== undefined) {
+      const differing = order.filter((id) => recorded![id] !== configuredRadius);
+      if (differing.length > 0) {
+        // The uniform case keeps the sentence it always had — it is what an
+        // operator greps for, and it is still the common restart. The mixed one
+        // cannot use it, because there is no single number the game "was
+        // networked at" to name.
+        warn(
+          previousUniform !== undefined
+            ? `empirica-networks: game ${game.id} was networked at graph.radius ` +
+                `${previousUniform} and this process is configured for ${configuredRadius}. Its ` +
+                `participants have been shown both. The recorded value is left as ` +
+                `${previousUniform}; neither describes the whole session, and analysis of this ` +
+                `game should treat the radius as unknown from the restart onward.`
+            : `empirica-networks: game ${game.id} was networked with its participants at ` +
+                `differing radii, and ${differing.length} of ${order.length} of them are not at ` +
+                `the graph.radius ${JSON.stringify(configuredRadius)} this process is configured ` +
+                `for. Those participants have been shown both. The record is left as it stands; ` +
+                `no single radius describes the whole session for them, and analysis should ` +
+                `treat theirs as unknown from the restart onward.`
+        );
+      }
     }
 
     // Adopt the key this game's names were computed under, so a participant's
@@ -1647,10 +1826,10 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       game.batch?.set(NETWORK_KEYS.viewKey(game.id), viewKey);
       // Only worth saying when names were in play. A game networked before this
       // key existed sent no refs at all, so there is nothing to have renamed.
-      if (needsRefs) {
+      if (radii.some(needsRefs)) {
         warn(
-          `empirica-networks: game ${game.id} has no recorded view key and this process ` +
-            `is configured for graph.radius ${JSON.stringify(graphRadius)}, which names ` +
+          `empirica-networks: game ${game.id} has no recorded view key and ` +
+            `${radii.filter(needsRefs).length} of its participants are at a radius that names ` +
             `people a participant is not connected to. A new key has been recorded, so ` +
             `any such name shown before the restart has changed. Treat names in this ` +
             `game as comparable only within one of the two halves.`
@@ -1662,6 +1841,8 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       edges,
       adj: adjacency(order.length, edges),
       order,
+      radii,
+      widest: widestOf(radii),
       seed: typeof seed === "number" ? seed : 0,
       viewKey,
     });
@@ -1786,11 +1967,16 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
        * did not change costs nothing: the byte-identical check drops it before
        * anything reaches the wire.
        */
-      if (showsStructure) {
+      // Widened by the WIDEST seat in the game, not by each viewer's own radius.
+      // The question here is "could this edge change matter to anybody", which is
+      // about the game; asking it per viewer would be an optimization, and the
+      // comment above explains why republishing somebody whose picture did not
+      // change is free.
+      if (showsStructure(s.widest)) {
         for (const id of affected) {
           const k = s.order.indexOf(id);
           if (k === -1) continue;
-          for (const m of s.adj[k] ?? []) {
+          for (const m of ball(s.adj, k, s.widest).nodes) {
             const neighborID = s.order[m];
             if (neighborID) dirty.add(neighborID);
           }
@@ -1948,14 +2134,27 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
        * change in every study, including the overwhelming majority that run at
        * the default.
        */
-      const reach =
-        projectFar && needsRefs
-          ? ball(state.adj, i, graphRadius).nodes
-          : [i, ...(state.adj[i] ?? [])];
       const dirty = new Set<string>([playerID]);
-      for (const j of reach) {
-        const id = state.order[j];
-        if (id) dirty.add(id);
+      if (projectFar && state.radii.some(needsRefs)) {
+        // ONE walk, read against each viewer's OWN radius. Stage 1 could take
+        // the ball around p wholesale, because with a single radius `v sees p`
+        // and `p sees v` were the same statement. They are not any more: the
+        // set is `{ v : d(v,p) <= r_v }`, which is not a ball around anything.
+        // Using p's radius here instead of each viewer's is the same
+        // subject-versus-viewer confusion the verifier's asymmetry arm exists to
+        // catch, arriving in the invalidation path rather than the delivery one.
+        const seen = ball(state.adj, i, state.widest);
+        for (const [j, id] of state.order.entries()) {
+          const d = seen.dist[j];
+          if (d === undefined || !Number.isFinite(d)) continue;
+          const r = state.radii[j] ?? 1;
+          if (r === "whole" || d <= Math.floor(r)) dirty.add(id);
+        }
+      } else {
+        for (const j of [i, ...(state.adj[i] ?? [])]) {
+          const id = state.order[j];
+          if (id) dirty.add(id);
+        }
       }
       publish(game, dirty);
       return;
@@ -2248,7 +2447,8 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       edges: state.edges.map(([i, j]) => [i, j] as Edge),
       order: [...state.order],
       seed: state.seed,
-      radius: graphRadius,
+      radius: uniformOf(state.radii),
+      radii: state.order.map((id, i) => ({ playerID: id, radius: state.radii[i] ?? 1 })),
       // Read from storage rather than from config, which is the whole point of
       // carrying both: this is what the run's own data says, while `radius`
       // above is what participants are being shown now.
@@ -2445,4 +2645,29 @@ export function readRadius(game: any): Radius | undefined {
   // 1.5 would invent a fact about a dataset.
   if (raw === "whole") return raw;
   return typeof raw === "number" ? raw : undefined;
+}
+
+/**
+ * Read how far EACH participant could see, by player id.
+ *
+ * The complete record where `readRadius` answers only when there is a single
+ * answer. `undefined` means not recorded — and because the key is written at
+ * every setting including the uniform default, that has exactly one cause: the
+ * record predates the key. It never means "everybody saw one hop".
+ *
+ * A game recorded before this key existed still has `readRadius`, so read that
+ * first if you only need the uniform case; read this one to learn that a study
+ * showed different participants different amounts, which is a manipulation and
+ * is not derivable from anything else in a finished dataset.
+ */
+export function readRadii(game: any): Record<string, Radius> | undefined {
+  const raw = game?.batch?.get(NETWORK_KEYS.radii(game.id));
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const out: Record<string, Radius> = {};
+  for (const [id, r] of Object.entries(raw as Record<string, unknown>)) {
+    // Same rule the scalar accessor follows: `"whole"` is a value and a
+    // stringified number is not a record.
+    if (r === "whole" || typeof r === "number") out[id] = r as Radius;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }

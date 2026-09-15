@@ -32,7 +32,11 @@ import {
   withNetwork,
   type NetworkHandle,
 } from "../../src/admin/with_network.js";
-import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
+import {
+  EmpiricaNetwork,
+  type EmpiricaNetworkContext,
+  type Nbhd,
+} from "../../src/player/mode.js";
 import { networkStateOf } from "../../src/player/state.js";
 import { networkGraphOf } from "../../src/player/view.js";
 import { NBHD_KEYS } from "../../src/shared/keys.js";
@@ -648,6 +652,80 @@ test("a change two hops away reaches the viewer when the study projects that far
           ),
         { label: "a value from two hops away", timeoutMs: 20_000 }
       );
+    }
+  );
+});
+
+/**
+ * ASYMMETRY: the radius is the VIEWER's property.
+ *
+ * The fixture puts seat 3 two hops from seats 1 and 2, through seat 0. Give seat
+ * 3 radius 2 and everybody else radius 1, and the two possible rules come apart
+ * for the first time:
+ *
+ *   keyed on the VIEWER  — seat 3 is shown 1 and 2; seat 1 is shown nothing
+ *                          beyond its own neighbors, including nothing of seat 3.
+ *   keyed on the SUBJECT — seat 1 would be shown structure too, because the
+ *                          person it can reach has a wide radius.
+ *
+ * Until this stage the two rules agreed on every pair in every test ever written
+ * here, so a build that had them confused passed everything. That is what makes
+ * the negative half of this test the important half: seat 1 must receive NO
+ * structure payload at all, not merely a small one.
+ */
+test("a participant at a wider radius sees further, and their neighbors do not", async () => {
+  await withScenario(
+    {
+      n: N,
+      kinds: networkKinds,
+      listeners: (_: any) => {
+        gameInit(1, 1, 3_600_000)(_);
+        withNetwork(_, {
+          topology: () => fromEdgeList(N, EDGES),
+          project: (neighbor: any) => ({ id: neighbor.id }),
+          graph: {
+            // Per SEAT, in seat order, exactly as `topology` is indexed.
+            radius: ({ playerCount }: any) =>
+              Array.from({ length: playerCount }, (_v, i) => (i === 3 ? 2 : 1)),
+          },
+        });
+      },
+      modeFunc: EmpiricaNetwork,
+    },
+    async ({ admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+      await play(participants);
+
+      // Seat 3 has exactly one neighbor in this fixture; seat 4 has none.
+      const wide = participants.find(
+        (p) => (modeOf(p).nbhd.getValue()!.neighbors as unknown[]).length === 1
+      );
+      assert.ok(wide, "the fixture should give exactly one participant a single neighbor");
+
+      const structure = networkGraphOf(modeOf(wide).nbhd.getValue()!);
+      assert.ok(structure, "the wide seat must have been given a structure");
+      assert.equal(structure.radius, 2);
+      assert.equal(
+        (structure.far ?? []).length,
+        2,
+        "seat 3 is two hops from seats 1 and 2, and at radius 2 must be shown both"
+      );
+
+      // THE HALF THAT CATCHES THE CONFUSION. Everybody else is at radius 1,
+      // where the client draws a star from the neighbor views and no structure
+      // is sent at all — including to the participants who can be SEEN by the
+      // wide seat.
+      for (const p of participants) {
+        if (p === wide) continue;
+        const theirs: Nbhd = modeOf(p).nbhd.getValue()!;
+        assert.equal(
+          networkGraphOf(theirs),
+          undefined,
+          `${theirs.playerID} is at radius 1 and must have been sent no structure: ` +
+            `being visible to somebody with a wider radius is not the same as having one`
+        );
+      }
     }
   );
 });

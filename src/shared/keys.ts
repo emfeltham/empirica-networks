@@ -133,6 +133,27 @@ export const NETWORK_KEYS = {
    */
   radius: (gameID: string) => `networkRadius:${gameID}`,
   /**
+   * How much of the network EACH participant was shown, by player id.
+   *
+   * The complete record, and the one whose absence has a single cause. `radius`
+   * above answers only when there is a single answer — a study where some
+   * participants see further than others has no such value — so this is written
+   * at every setting, including the uniform default, for exactly the reason
+   * `radius` gives for writing itself at every radius. An absent `networkRadii`
+   * means "this record predates the key" and nothing else.
+   *
+   * Keyed by PLAYER ID, not by seat. The edge list is index pairs and needs the
+   * seating plan to interpret, but that plan lives on each participant's own
+   * channel (`NBHD_KEYS.INDEX`) and never on the batch — so a seat-indexed
+   * vector here would be a record that the scope holding it cannot read. Ids
+   * are also what `ViewRecord` and every exported CSV already use.
+   *
+   * Visibility is ASYMMETRIC once these differ: A at 2 and B at 1, two hops
+   * apart, means A was shown B and B was not shown A. Every rule keys on the
+   * VIEWER's entry.
+   */
+  radii: (gameID: string) => `networkRadii:${gameID}`,
+  /**
    * The secret that names distant people to each viewer, per game.
    *
    * Only meaningful above radius 1, where a participant is shown nodes that have
