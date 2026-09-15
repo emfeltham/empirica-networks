@@ -659,8 +659,13 @@ test("a change two hops away reaches the viewer when the study projects that far
 // derivable from anything else: two studies on one graph, one at each radius,
 // leave identical edge lists and identical attribute exports.
 
-test("the radius a game ran at is recorded, at both radii", async () => {
-  for (const radius of [1, 1.5] as const) {
+test("the radius a game ran at is recorded, at every setting", async () => {
+  // `"whole"` is in this list because it was NOT, and the omission hid a defect
+  // for a whole stage: the accessor tested `typeof raw === "number"`, so a study
+  // that showed participants the entire network recorded its radius and then
+  // read back as having recorded nothing. A loop over the two values that
+  // predated the feature could not have caught it.
+  for (const radius of [1, 1.5, 2, "whole"] as const) {
     let net!: NetworkHandle;
     let gameRef: any;
     await withScenario(
@@ -698,7 +703,16 @@ test("an unrecorded radius reads back as undefined, never as 1", async () => {
   // existed and a dataset from a study that deliberately drew a star are
   // different facts, and defaulting would assert the second about the first.
   assert.equal(readRadius({ id: "g", batch: { get: () => undefined } }), undefined);
-  assert.equal(readRadius({ id: "g", batch: { get: () => "1.5" } }), undefined, "a string is not a record");
+  assert.equal(
+    readRadius({ id: "g", batch: { get: () => "1.5" } }),
+    undefined,
+    "a stringified number is not a record — something wrote this key by a path that does not exist here"
+  );
+  assert.equal(
+    readRadius({ id: "g", batch: { get: () => "whole" } }),
+    "whole",
+    "but `whole` IS a recorded value, and reading it as absent made the restart guard unfireable"
+  );
   assert.equal(readRadius({ id: "g" }), undefined, "no batch at all is not a record");
   assert.equal(readRadius({ id: "g", batch: { get: () => 1 } }), 1, "a recorded 1 is a real answer");
 });

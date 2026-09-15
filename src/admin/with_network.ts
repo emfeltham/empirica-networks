@@ -2430,7 +2430,19 @@ export function readSeed(game: any): number | undefined {
  * empty graph", which is documented there as having made a recovery guard
  * unfireable.
  */
-export function readRadius(game: any): number | undefined {
+export function readRadius(game: any): Radius | undefined {
   const raw = game?.batch?.get(NETWORK_KEYS.radius(game.id));
+  // `"whole"` is a RECORDED VALUE, not a malformed one. It was not, until this
+  // line: the setting was added and the accessor still tested `typeof raw ===
+  // "number"`, so a study that showed its participants the entire network read
+  // back as never having recorded anything — which is the one thing this
+  // accessor's whole docstring says it must never do. It also made the
+  // restart-mismatch guard unfireable for those games, since that guard is
+  // written `recordedRadius !== undefined && …`.
+  //
+  // A stringified NUMBER is still not a record. `"1.5"` means something wrote
+  // this key by a path that does not exist in this package, and treating it as
+  // 1.5 would invent a fact about a dataset.
+  if (raw === "whole") return raw;
   return typeof raw === "number" ? raw : undefined;
 }
