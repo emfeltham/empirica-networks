@@ -5,7 +5,13 @@ import { withNetwork, type NetworkConfig } from "../admin/with_network.js";
 import { EmpiricaNetwork } from "../player/mode.js";
 import { adjacency, ball, type Edge, type Radius } from "../topology/index.js";
 import { NBHD_KEYS } from "../shared/keys.js";
-import { CLI_TOPOLOGIES, accountVacuity, reachableWithin } from "./topologies.js";
+import {
+  CLI_TOPOLOGIES,
+  accountVacuity,
+  radiiOf,
+  reachableWithin,
+  type RadiusSpec,
+} from "./topologies.js";
 import { batchConfig, createBatch, gameInit, waitFor, withScenario } from "../harness/harness.js";
 
 /**
@@ -88,7 +94,7 @@ export interface LeakCheckOptions {
    * wire at all — which is the claim that keeps the default free. At 1.5 they
    * assert the structure that IS sent is contained and complete.
    */
-  radius?: Radius;
+  radius?: RadiusSpec;
   /**
    * Verify a study that sets `graph.projectFar`.
    *
@@ -128,8 +134,8 @@ export interface LeakCheckResult {
   saturated: number;
   /** Participants adjacent to nobody, who arm 3 expects nothing from. */
   isolated: number;
-  /** The radius this run was made at. */
-  radius: Radius;
+  /** The radius this run was made at: one value, or one per seat. */
+  radius: RadiusSpec;
   /** Whether the run projected at distance, which decides what arm 1 is about. */
   projectsFar: boolean;
   /**
@@ -213,6 +219,9 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
   const n = opts.n ?? 4;
   const radius = opts.radius ?? 1;
   const projectsFar = opts.projectFar === true;
+  /** Per seat, once the topology has told us how many seats there are. */
+  let radii: Radius[] = [];
+  const radiusAt = (i: number): Radius => radii[i] ?? 1;
   const spec = opts.topology ?? "ring";
   const say = opts.onProgress ?? (() => {});
 
@@ -296,7 +305,9 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
         secret: sentinelFor(neighbor.id),
       }),
       graph: {
-        radius,
+        // As a function, so an array spec reaches the module by the same path a
+        // study's own per-seat assignment would.
+        radius: ({ playerCount }: { playerCount: number }) => radiiOf(radius, playerCount),
         // The same sentinel, carried the other way. No `id`: a far projection
         // may not contain one, and this run has to be a study the module would
         // actually accept.
@@ -441,6 +452,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
       // counted and excused; a run where NO participant had a non-neighbor, or
       // where nothing was expected to arrive, is a failure.
       const account = accountVacuity(playerIDs.length, edges, radius, projectsFar);
+      radii = radiiOf(radius, playerIDs.length);
       failures.push(...account.failures);
       notes.push(...account.notes);
       expectedDeliveries = account.expectedDeliveries;
@@ -470,8 +482,12 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
          * checks the publish path, and asking the publish path's own function
          * what it should have done makes the answer agree with itself.
          */
+        // THIS participant's radius. Reading the subject's instead is the
+        // confusion a mixed run exists to expose, and it would be invisible on a
+        // uniform one.
+        const mine = radiusAt(idx);
         const permitted = projectsFar
-          ? reachableWithin(adj, idx, radius).map((j: number) => playerIDs[j]!)
+          ? reachableWithin(adj, idx, mine).map((j: number) => playerIDs[j]!)
           : (adj[idx] ?? []).map((j) => playerIDs[j]!);
         const neighborIDs = permitted;
         const nonNeighborIDs = playerIDs.filter(
@@ -486,7 +502,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
             failures.push(
               `LEAK: participant ${i} received the sentinel of ${otherID}, who is ` +
                 (projectsFar
-                  ? `outside their radius of ${String(radius)}`
+                  ? `outside their radius of ${String(mine)}`
                   : `not one of their neighbors`)
             );
           }
@@ -512,7 +528,11 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
         // of ties to strangers carries no sentinel and arm 1 stays clean.
         const payloads = structureFrames(wires[i]!);
 
-        if (radius === 1) {
+        // Per SEAT. A mixed run can prove the default is still free for the
+        // participants held at it WHILE proving a wider setting delivers for the
+        // others — which is strictly more than a uniform run at either value can
+        // say, and it needs the arm to be about this viewer.
+        if (mine === 1) {
           // The default's whole claim is that it costs nothing.
           structureFramesAtRadius1 += payloads.length;
           continue;
@@ -524,7 +544,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
         if (!latest || !Array.isArray(latest.edges)) {
           failures.push(
             `STRUCTURE MISSING: participant ${i} received no usable structure at radius ` +
-              `${String(radius)}, so nothing about them can be checked`
+              `${String(mine)}, so nothing about them can be checked`
           );
           continue;
         }
@@ -557,7 +577,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
         // `expectedFor` gives: `ball()` is what the publish path used to decide
         // what to send, so asking it what should have been sent compares the
         // code with itself.
-        const expectedNodes = 1 + reachableWithin(adj, idx, radius).length;
+        const expectedNodes = 1 + reachableWithin(adj, idx, mine).length;
         const deliveredNodes = 1 + (localToPlayer.length - 1) + far.length;
         if (deliveredNodes !== expectedNodes) {
           structureViolations++;
@@ -636,7 +656,8 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
             `check cannot detect a leak at all. Treat the candidate result as unproven.`
         );
       }
-      if (radius === 1 && structureFramesAtRadius1 > 0) {
+      const heldAtOne = radii.filter((r) => r === 1).length;
+      if (heldAtOne > 0 && structureFramesAtRadius1 > 0) {
         failures.push(
           `DEFAULT NOT FREE: ${structureFramesAtRadius1} structure payload(s) were sent at ` +
             `radius 1, where the client draws a star from the neighbor views alone. Every ` +
@@ -654,7 +675,7 @@ export async function runLeakCheck(opts: LeakCheckOptions = {}): Promise<LeakChe
       // adds ties and never people, and the ties it adds are exactly the ones
       // not incident to the viewer — so the numbers pinned before this existed
       // still hold.
-      if (radius !== 1) {
+      if (radii.some((r) => r !== 1)) {
         const say = (got: number, want: number, what: string) =>
           `${got}/${want} ${what} — ` +
           (got < want
@@ -710,7 +731,10 @@ export function formatLeakResult(r: LeakCheckResult): string {
   const lines = [
     "",
     `  empirica-networks verify — neighbor-limited visibility`,
-    `  topology: ${r.topology} of ${r.n}   ·   radius: ${r.radius}` +
+    `  topology: ${r.topology} of ${r.n}   ·   radius: ` +
+      (Array.isArray(r.radius)
+        ? `${[...new Set(r.radius.map(String))].sort().join(" / ")} by seat`
+        : String(r.radius)) +
       (r.projectsFar ? `   ·   projecting at distance` : ``),
     "",
     // Every arm is printed as a figure against what it was measured over. Arm 1
@@ -726,7 +750,7 @@ export function formatLeakResult(r: LeakCheckResult): string {
   // The structural arms, which the three above cannot see: the extra bytes at
   // radius 1.5 are integers rather than anybody's attribute, so a sentinel
   // check stays clean however wrong they are.
-  if (r.radius !== 1) {
+  if (radiiOf(r.radius, r.n).some((x) => x !== 1)) {
     lines.push(
       `  ties outside the neighborhood  : ${r.structureViolations}/${r.structureTies} ties  (must be 0)`
     );

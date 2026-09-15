@@ -15,6 +15,7 @@ import {
 import { adjacency, ball, fromEdgeList, ring, type Edge, type Radius } from "../topology/index.js";
 import {
   checkDegrees,
+  checkVision,
   checkViewBytes,
   type EnvelopeLimits,
   type MeasuredPayload,
@@ -1125,6 +1126,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     // topology should fail while the experiment is still abandonable, not after
     // participants have been committed to a game that will run badly.
     checkDegrees(adj, config.envelope, warn);
+    checkVision(adj, radii, config.envelope, warn);
 
     // Recorded so the exact realization is reconstructible from stored data —
     // on the BATCH, because the game scope is delivered to every participant and
@@ -1931,6 +1933,12 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     const commit = (s: NetworkState, event: EdgeEvent, affected: string[]) => {
       s.adj = adjacency(s.order.length, s.edges);
       checkDegrees(s.adj, config.envelope, warn);
+      // Again on every rewire, for the same reason degrees are: a mutation can
+      // put somebody inside a ball they were outside of a moment ago.
+      checkVision(s.adj, s.radii, config.envelope, warn);
+      // Again on every rewire, for the same reason degrees are: a mutation can
+      // put somebody inside a ball they were outside of a moment ago.
+      checkVision(s.adj, s.radii, config.envelope, warn);
 
       // Not `if (batch)`. A mutation that cannot be recorded must fail loudly:
       // silently skipping leaves the live graph and the stored one disagreeing,
