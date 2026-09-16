@@ -769,6 +769,29 @@ Only a study where the radii differ can tell a build that keys delivery on the v
 one that keys it on the subject's, because on a uniform study the two rules agree on every pair.
 `verify --radii` exists for exactly that, and refuses a graph where no pair disagrees.
 
+### Changing a radius during a game
+
+```js
+net.setRadius(subject, 2);        // from the next publish, they see two hops
+net.radiusOf(subject);            // 2
+net.radiusHistory();              // every change, oldest first
+```
+
+Subject to the same rule as the other mutators — **only from inside a listener**, or the write will
+not flush. It republishes one screen: visibility is keyed on the viewer, so widening somebody's
+radius changes what they are shown and nothing about what anybody else is shown, including the
+people who newly become visible to them.
+
+Recorded as an event log under `networkRadiusHistory:<gameID>`, not as an overwritten snapshot, for
+the reason the edge history is: where the widening is the manipulation, the *sequence* is the
+independent variable. `radiusRows()` flattens it to `radius.csv`, and `auditViews({ radii })` uses
+it to check each delivery against what the study authorized rather than against what the delivery
+says about itself.
+
+**Narrowing stops bytes; it does not retract them.** `setRadius(p, 1)` takes the structure off that
+participant's screen from the next publish onward, and cannot unsee what they were already shown.
+No mechanism here could, and the guarantee is stated as being about delivery for that reason.
+
 `projectFar` is a separate callback rather than `project()` receiving a distance, and the default
 is why: every `project()` written against this package ignores its context argument, so routing
 distant people through it would turn raising the radius into a full attribute disclosure about

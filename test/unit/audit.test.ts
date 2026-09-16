@@ -16,10 +16,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   auditViews,
-  formatAuditResult,
   canonicalEdges,
+  formatAuditResult,
   mergeAuditResults,
   parseEdgesCsv,
+  parseRadiiCsv,
   structuralEdges,
 } from "../../src/verify/audit.js";
 
@@ -525,4 +526,76 @@ test("the new counters survive a merge", () => {
   const merged = mergeAuditResults([one, one]);
   assert.equal(merged.farShown, one.farShown * 2);
   assert.equal(merged.farTies, one.farTies * 2);
+});
+
+// --------------------------------------------- a radius that changed mid-run
+//
+// A delivery carries the radius it was made at, which is the server describing
+// itself. That catches a payload inconsistent with its own claim and cannot
+// catch a claim nobody authorized: a server delivering three hops and stamping
+// `radius: 3` on it passes every other arm. `radius.csv` is the record of what
+// the study actually set, and it is the only thing that can contradict the
+// server about permission.
+
+const RADII_CSV = [
+  `"game_id","t","seq","event","player","radius_from","radius_to"`,
+  `"g1","1","0","start","a","","1"`,
+  `"g1","1","0","start","b","","1"`,
+  `"g1","1","0","start","c","","1"`,
+  `"g1","5","3","set","a","1","2"`,
+].join("\n");
+
+test("parseRadiiCsv reads the log, in order", () => {
+  const parsed = parseRadiiCsv(RADII_CSV);
+  const g1 = parsed.get("g1")!;
+  assert.equal(g1.length, 4);
+  assert.deepEqual(
+    g1.map((e) => `${e.seq}:${e.player}:${e.to}`),
+    ["0:a:1", "0:b:1", "0:c:1", "3:a:2"]
+  );
+});
+
+test("a delivery at a radius the record never authorized is reported", () => {
+  // Seq 1 is before the change at seq 3, so `a` was still at radius 1 — and a
+  // payload stamped 2 at that moment is either a delivery the study did not
+  // allow or a record that is wrong about what it allowed. Both are findings.
+  const early = {
+    ...wideDelivery({ radius: 2 }),
+    seq: 1,
+    far: [{ ref: "k3m9x2pq", id: "d", hop: 2 }],
+    graph: {
+      radius: 2,
+      edges: [[0, 1] as [number, number]],
+      positions: [],
+      far: [{ ref: "k3m9x2pq", d: 2 }],
+    },
+  };
+  const r = auditViews({
+    views: ndjson(early),
+    edges: wide(),
+    radii: parseRadiiCsv(RADII_CSV),
+  });
+  assert.ok(!r.pass);
+  assert.match(r.failures.join(" "), /RADIUS MISREPORTED/);
+  assert.match(r.failures.join(" "), /authorizes 1/);
+});
+
+test("the same delivery after the change is authorized, and passes", () => {
+  const late = { ...wideDelivery({}), seq: 4 };
+  const r = auditViews({
+    views: ndjson(late),
+    edges: wide(),
+    radii: parseRadiiCsv(RADII_CSV),
+  });
+  assert.equal(r.structureLeaks, 0, r.failures.join("\n"));
+  assert.ok(r.pass, r.failures.join("\n"));
+});
+
+test("without the log the audit still runs, and says less", () => {
+  // The self-report is checked against the graph either way; only PERMISSION
+  // goes unchecked. That is a real reduction and it must not fail the run — a
+  // study that never changed anybody's radius has no log to supply.
+  const early = { ...wideDelivery({}), seq: 1 };
+  const r = auditViews({ views: ndjson(early), edges: wide() });
+  assert.ok(r.pass, r.failures.join("\n"));
 });

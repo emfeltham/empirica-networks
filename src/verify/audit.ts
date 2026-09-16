@@ -288,7 +288,91 @@ function hopsFrom(graph: NeighborMap, source: string): Map<string, number> {
   return dist;
 }
 
-export function auditViews(input: { views: string; edges: ParsedEdges }): AuditResult {
+/**
+ * `radius.csv`, parsed: for each game, every change in the order it happened.
+ *
+ * Kept as events rather than flattened into a final assignment, for the reason
+ * the log is kept that way — under mutation "what was this person allowed to
+ * see" has no single answer, only an answer per moment.
+ */
+export type ParsedRadii = Map<string, Array<{ seq: number; player: string; to: string }>>;
+
+/**
+ * Read `radius.csv` as `radiusRows` writes it.
+ *
+ * Local, like `parseEdgesCsv`, and for the same reason: this module may hold no
+ * runtime import, and an offline analyst should be able to run it over a file
+ * collected months ago with nothing installed.
+ */
+export function parseRadiiCsv(text: string): ParsedRadii {
+  const out: ParsedRadii = new Map();
+  const lines = text.split("\n").filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return out;
+
+  const header = splitCsvLine(lines[0]!);
+  const at = (name: string): number => header.indexOf(name);
+  const iGame = at("game_id");
+  const iSeq = at("seq");
+  const iPlayer = at("player");
+  const iTo = at("radius_to");
+  if (iGame < 0 || iSeq < 0 || iPlayer < 0 || iTo < 0) {
+    throw new Error(
+      `parseRadiiCsv: expected columns game_id, seq, player, radius_to. Found: ` +
+        `${header.join(", ")}`
+    );
+  }
+
+  for (const line of lines.slice(1)) {
+    const f = splitCsvLine(line);
+    const gameID = f[iGame] ?? "";
+    const player = f[iPlayer] ?? "";
+    if (!gameID || !player) continue;
+    const list = out.get(gameID) ?? [];
+    list.push({ seq: Number(f[iSeq] ?? 0), player, to: f[iTo] ?? "" });
+    out.set(gameID, list);
+  }
+  for (const list of out.values()) list.sort((a, b) => a.seq - b.seq);
+  return out;
+}
+
+/** What the record says this participant was ALLOWED to see at this publish. */
+function authorizedAt(
+  radii: ParsedRadii | undefined,
+  gameID: string,
+  player: string,
+  seq: number
+): number | "whole" | undefined {
+  const events = radii?.get(gameID);
+  if (!events) return undefined;
+  let found: string | undefined;
+  // The last change to this participant at or before the publish in question.
+  // `seq` and not the clock: two events from one process inside one millisecond
+  // cannot be ordered by time, and a radius change is exactly the kind of thing
+  // that lands there.
+  for (const e of events) {
+    if (e.player !== player || e.seq > seq) continue;
+    found = e.to;
+  }
+  if (found === undefined) return undefined;
+  if (found === "whole") return "whole";
+  const n = Number(found);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+export function auditViews(input: {
+  views: string;
+  edges: ParsedEdges;
+  /**
+   * `radius.csv`, when the study changed anybody's radius during the run.
+   *
+   * Without it the audit checks each delivery against the radius that delivery
+   * itself reports — which catches a payload inconsistent with its own claim and
+   * cannot catch a claim nobody authorized. A server that delivered three hops
+   * and stamped `radius: 3` on it would self-certify. With the log, the claim is
+   * checked against what the study actually set.
+   */
+  radii?: ParsedRadii;
+}): AuditResult {
   const { graphs, rewired } = input.edges;
   const { records, dropped } = parseNdjson<ViewRecord>(input.views);
   const quoted: string[] = [];
@@ -438,6 +522,24 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
      * for. `floor` because the fraction decides ties and not people.
      */
     const claimed = typeof g.radius === "number" && Number.isFinite(g.radius) ? g.radius : 1;
+    /**
+     * The delivery's own claim, against what the study authorized.
+     *
+     * The payload's `radius` is the server describing itself, which is evidence
+     * about consistency and not about permission. Both readings are findings and
+     * neither is a pass: either somebody was shown more than the study allowed,
+     * or the record of what it allowed is wrong.
+     */
+    const allowed = authorizedAt(input.radii, r.gameID, r.viewer, r.seq);
+    if (allowed !== undefined && allowed !== "whole" && allowed !== claimed) {
+      session.structureLeaks++;
+      complain(
+        `RADIUS MISREPORTED: ${r.viewer} (game ${r.gameID}, seq ${r.seq}) was delivered a ` +
+          `structure stamped radius ${claimed} while the record authorizes ${allowed}. ` +
+          `Either the delivery was wider than the study allowed, or the record of what ` +
+          `it allowed is wrong.`
+      );
+    }
     const depth = Math.floor(claimed);
     const hops = depth > 1 || delivered.length > 0 ? hopsFrom(graph, r.viewer) : undefined;
     const within = (id: string): boolean => {
