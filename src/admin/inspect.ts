@@ -47,10 +47,21 @@ export interface NodeSnapshot {
    * seats are the wide ones — that is the question the monitor exists to answer
    * about anything else it draws.
    *
-   * Live, like `GameSnapshot.radius`: what this participant is being shown NOW,
-   * not what the record says they started at.
+   * Live, like `GameSnapshot.radius`: what this participant is being shown NOW.
    */
   radius: Radius;
+  /**
+   * What the batch record says THIS participant ran at, or `undefined` if
+   * nothing was recorded for them.
+   *
+   * The per-seat half of the pair `GameSnapshot.radius`/`recordedRadius` makes
+   * at game level, and the reason it is needed: that pair compares two scalars,
+   * and both of them abstain for a study where participants see different
+   * distances — so the mismatch a restart produces was invisible on the monitor
+   * for exactly the studies this setting exists for, while the server logged it.
+   * An operator watching a live run needs to see WHICH seats disagree.
+   */
+  recordedRadius?: Radius;
   /**
    * Has this participant's private channel scope materialised on the server?
    *

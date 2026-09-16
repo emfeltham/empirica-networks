@@ -175,6 +175,13 @@ See [Envelope](#envelope).
 ##### `chat?: boolean | { history?: number }`
 
 Neighbor-scoped chat, off by default because it costs a listener and per-channel storage.
+
+**Neighbors, and only neighbors, whatever `graph.radius` says.** A wider radius changes what a
+participant can see; it does not change who they can talk to. Seeing somebody two hops away is a
+fact about the network you are in; being able to message them is a tie, and this package has one
+word for ties. A design that wants the wider group talking should widen the graph rather than the
+radius — that way the change is in the edge log, where an analyst will find it, rather than implied
+by a setting about vision.
 `history` defaults to 200 messages per participant, capped because the log is server memory and
 wire payload both.
 
