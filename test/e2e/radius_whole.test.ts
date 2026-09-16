@@ -43,13 +43,24 @@ test.beforeEach(() => resetChannels());
 
 const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
 
-function makeListeners() {
+function makeListeners(projectFar = false) {
   return (_: any) => {
     gameInit(1, 1, 3_600_000)(_);
     withNetwork(_, {
       topology: () => fromEdgeList(N, EDGES),
       project: (neighbor: any) => ({ id: neighbor.id }),
-      graph: { radius: "whole" },
+      watch: ["mood"],
+      graph: {
+        radius: "whole",
+        ...(projectFar
+          ? {
+              projectFar: (person: any, _v: any, ctx: any) => ({
+                hop: ctx.distance,
+                mood: ctx.stateOf(person).get("mood"),
+              }),
+            }
+          : {}),
+      },
     });
   };
 }
@@ -157,3 +168,80 @@ test('radius "whole": everybody sees everybody, drawn once', async () => {
   );
 });
 
+
+/**
+ * The most disclosive combination the package can be configured into.
+ *
+ * `radius: "whole"` and `graph.projectFar` together: every participant sees
+ * everybody they can reach, AND learns whatever the study chose to reveal about
+ * each of them. Each half is tested on its own and the combination was not,
+ * which is the wrong way round — if any setting deserves an end-to-end check it
+ * is the one that discloses most.
+ *
+ * What must still hold, and is what this asserts: distant people are still named
+ * per viewer and never by id, the names are still this viewer's alone, and the
+ * hop the callback saw is the hop the payload reports. `ISSUES.md` O27 records
+ * what does NOT hold at this setting — two participants who compare screens can
+ * reconstruct the seating plan by structure, and no naming scheme can prevent
+ * that.
+ */
+test('radius "whole" with projectFar: everybody is described, and nobody is named', async () => {
+  await withScenario(
+    {
+      n: N,
+      kinds: networkKinds,
+      listeners: makeListeners(true),
+      modeFunc: EmpiricaNetwork,
+    },
+    async ({ admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+      await play(participants);
+
+      const ids = new Set(
+        participants.map((p) => modeOf(p).nbhd.getValue()!.playerID as string)
+      );
+
+      let described = 0;
+      const refsByPerson = new Map<string, Set<string>>();
+
+      for (const p of participants) {
+        const nbhd = modeOf(p).nbhd.getValue()!;
+        const me = nbhd.playerID!;
+        const neighbors = (nbhd.neighbors as { id: string }[]).map((x) => x.id);
+        if (neighbors.length === 0) continue; // the isolate reaches nobody
+
+        const structure = networkGraphOf(nbhd)!;
+        assert.ok(structure.whole);
+
+        for (const f of structure.far ?? []) {
+          described++;
+          const view = f.view as { hop?: number; mood?: unknown } | undefined;
+          assert.ok(view, `${me} was given a distant person with no projection`);
+          assert.equal(
+            view.hop,
+            f.d,
+            "the distance the callback saw and the distance the payload reports are one fact"
+          );
+          // The rule the whole naming scheme rests on, at the setting where the
+          // most people are being described.
+          assert.ok(!ids.has(f.ref), `${me} was handed a real player id as a name`);
+          assert.match(f.ref, /^[0-9abcdefghjkmnpqrstvwxyz]{8}$/);
+
+          const seen = refsByPerson.get(f.ref) ?? new Set<string>();
+          seen.add(me);
+          refsByPerson.set(f.ref, seen);
+        }
+      }
+
+      assert.ok(described > 0, "nobody was described, so this proves nothing");
+      // No two viewers share a name for anybody. On this fixture each ref
+      // belongs to exactly one (viewer, person) pair, which is the property that
+      // stops two participants aligning their screens BY NAME — and only by
+      // name; see O27.
+      for (const [ref, viewers] of refsByPerson) {
+        assert.equal(viewers.size, 1, `${ref} was used by more than one viewer`);
+      }
+    }
+  );
+});

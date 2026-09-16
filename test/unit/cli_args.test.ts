@@ -10,7 +10,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseArgs } from "../../src/verify/args.js";
+import { parseArgs, refuseArgs } from "../../src/verify/args.js";
 
 test("the defaults are the documented ones", () => {
   const a = parseArgs(["verify"]);
@@ -60,4 +60,64 @@ test("the flags compose in any order", () => {
   assert.equal(a.topology, "ring");
   assert.equal(a.n, 8);
   assert.equal(a.projectFar, true);
+});
+
+// ------------------------------------------------------------- the refusals
+//
+// Every one of these lived inside `main()`, which boots a real server, so none
+// of them could be reached by a test. A refusal that fires when it should not is
+// a tool that will not run; one that does not fire when it should is a PASS over
+// a check that examined nothing, which is the result this command exists to
+// prevent. Both directions are asserted for each.
+
+const args = (argv: string[]) => parseArgs(["verify", ...argv]);
+
+test("a legal run is not refused", () => {
+  for (const argv of [
+    [],
+    ["--radius", "1.5"],
+    ["--radius", "2.5"],
+    ["--radii", "1,2"],
+    ["--radii", "1,whole"],
+    ["--radii", "2,1", "--project-far"],
+  ]) {
+    assert.equal(refuseArgs(args(argv)), undefined, `refused a legal run: ${argv.join(" ")}`);
+  }
+});
+
+test("--radius and --radii together are refused rather than one silently winning", () => {
+  const m = refuseArgs(args(["--radius", "2", "--radii", "1,2"]));
+  assert.match(m ?? "", /two spellings of one setting/);
+  // But the DEFAULT radius alongside --radii is not a conflict: nobody typed it.
+  assert.equal(refuseArgs(args(["--radii", "1,2"])), undefined);
+});
+
+test("a radius between the steps is refused, in either spelling", () => {
+  assert.match(refuseArgs(args(["--radius", "1.2"])) ?? "", /multiple of 0\.5/);
+  assert.match(refuseArgs(args(["--radius", "banana"])) ?? "", /multiple of 0\.5/);
+  assert.match(refuseArgs(args(["--radii", "1,1.2"])) ?? "", /is not one of them/);
+  assert.match(refuseArgs(args(["--radii", "1,all"])) ?? "", /is not one of them/);
+});
+
+test("radius 0.5 and 0 are refused: half a step reaches nobody", () => {
+  assert.match(refuseArgs(args(["--radius", "0.5"])) ?? "", /at least 1/);
+  assert.match(refuseArgs(args(["--radius", "0"])) ?? "", /at least 1/);
+});
+
+/**
+ * The refusal that inverts under per-seat radii.
+ *
+ * `whole` for EVERYBODY leaves no non-neighbor, so confinement has an empty
+ * denominator. `whole` for SOME is the opposite: every narrow seat is a live
+ * test and the wide one is the hazard worth watching, which makes it the more
+ * interesting run rather than an unverifiable one.
+ */
+test("whole for everybody is refused; whole for somebody is not", () => {
+  assert.match(refuseArgs(args(["--radius", "whole"])) ?? "", /no confinement to verify/);
+  assert.match(refuseArgs(args(["--radii", "whole,whole"])) ?? "", /no confinement to verify/);
+  assert.equal(
+    refuseArgs(args(["--radii", "1,whole"])),
+    undefined,
+    "a mixed run with one wide seat is checkable, and is the shape worth running"
+  );
 });

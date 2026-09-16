@@ -17,7 +17,7 @@ import { setLogLevel } from "@empirica/core/console";
 // pin declaration (src/harness/compat.ts), because a CLI that prints a version
 // number of its own is a CLI that can print the wrong one — see the note there.
 import type { Radius } from "../topology/index.js";
-import { parseArgs, type Args } from "./args.js";
+import { parseArgs, refuseArgs, type Args } from "./args.js";
 import { VERIFIED_CORE } from "../harness/compat.js";
 import { formatLeakResult, runLeakCheck } from "./leak_test.js";
 import { CLI_TOPOLOGY_NAMES, preflightCliTopology } from "./topologies.js";
@@ -135,34 +135,9 @@ async function main(): Promise<number> {
       return 1;
     }
   }
-  const r = args.radius;
-  const legal =
-    r === "whole" ||
-    (typeof r === "number" && Number.isFinite(r) && r >= 1 && r * 2 === Math.floor(r * 2));
-  if (!legal) {
-    process.stderr.write(
-      `\n  --radius must be at least 1 and a multiple of 0.5, or "whole", got ` +
-        `${JSON.stringify(args.radius)}.\n` +
-        `  floor(radius) bounds the PEOPLE and the fraction decides the TIES, so 2 and\n` +
-        `  2.5 show the same faces and differ only in whether the ties between the\n` +
-        `  outermost of them come too. They are different studies, so a radius between\n` +
-        `  the steps is refused rather than rounded to either.\n\n`
-    );
-    return 1;
-  }
-  // `whole` makes no confinement claim to verify: every participant is inside
-  // every other's radius by definition, exactly as `--topology complete` leaves
-  // no non-neighbor. Refused here rather than reported as a PASS over an empty
-  // check, which is the shape of result this whole command exists to prevent.
-  if (r === "whole") {
-    process.stderr.write(
-      `\n  --radius whole has no confinement to verify: every participant is inside\n` +
-        `  every other's radius, so there is no non-neighbor whose state could leak and\n` +
-        `  a PASS would mean nothing. This is the same refusal --topology complete gets.\n\n` +
-        `  What is still worth checking at that setting — that every delivered tie is\n` +
-        `  real, and that the control detects a leak — runs at any finite radius, so\n` +
-        `  verify the largest one your study could reach instead.\n\n`
-    );
+  const refusal = refuseArgs(args);
+  if (refusal !== undefined) {
+    process.stderr.write(`\n  ${refusal}\n\n`);
     return 1;
   }
 
