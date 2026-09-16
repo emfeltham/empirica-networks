@@ -89,6 +89,7 @@ writeFileSync("data/views.csv", toCSV(viewRows(records)));
 |---|---|---|
 | `game_id` | string | |
 | `t` | number | Wall clock, milliseconds, from the event that caused the change |
+| `seq` | number | The publish counter when the change was recorded. Joins to `views.csv` on `seq`, and is what makes a rewiring study auditable: a view published at `seq` was built on every tie change with a lower one. `-1` on a record written before this column existed |
 | `event` | `connected` \| `disconnected` | |
 | `player_a`, `player_b` | string | Player ids, in the order the event recorded them |
 

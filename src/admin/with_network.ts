@@ -1197,6 +1197,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       added: edges.map(([i, j]) => [order[i]!, order[j]!] as [string, string]),
       removed: [],
       size: edges.length,
+      seq: seqByGame.get(game.id) ?? 0,
       at: Date.now(),
     };
     historyByGame.set(game.id, [startEvent]);
@@ -2014,9 +2015,11 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       // Again on every rewire, for the same reason degrees are: a mutation can
       // put somebody inside a ball they were outside of a moment ago.
       checkVision(s.adj, s.radii, config.envelope, warn);
-      // Again on every rewire, for the same reason degrees are: a mutation can
-      // put somebody inside a ball they were outside of a moment ago.
-      checkVision(s.adj, s.radii, config.envelope, warn);
+      // Stamped HERE rather than at each mutator, so a future one cannot forget
+      // it. Without this an auditor cannot order a tie change against a delivery
+      // except by wall clock, and a rewire and the publish it triggers land in
+      // the same millisecond by construction.
+      if (event.seq === undefined) event.seq = seqByGame.get(gameID) ?? 0;
 
       // Not `if (batch)`. A mutation that cannot be recorded must fail loudly:
       // silently skipping leaves the live graph and the stored one disagreeing,

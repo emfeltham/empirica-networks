@@ -39,6 +39,14 @@ export type EdgeRow = {
   game_id: string;
   /** Wall clock, ms, from the event that caused it. */
   t: number;
+  /**
+   * The publish counter when the event was recorded. Joins to `views.csv` on
+   * `seq`, and is what makes a rewiring study auditable: a view published at
+   * `seq` was built on every tie change with a lower one.
+   *
+   * `-1` for a record written before the field existed.
+   */
+  seq: number;
   event: "connected" | "disconnected";
   player_a: string;
   player_b: string;
@@ -72,10 +80,24 @@ export function edgeRows(gameID: string, history: EdgeEvent[]): EdgeRow[] {
     // (a,c) reads more naturally as a departure then an arrival, and a reader
     // scanning for "when did a lose b" should not have to look past an add.
     for (const [a, b] of e.removed ?? []) {
-      rows.push({ game_id: gameID, t: e.at, event: "disconnected", player_a: a, player_b: b });
+      rows.push({
+        game_id: gameID,
+        t: e.at,
+        seq: e.seq ?? -1,
+        event: "disconnected",
+        player_a: a,
+        player_b: b,
+      });
     }
     for (const [a, b] of e.added ?? []) {
-      rows.push({ game_id: gameID, t: e.at, event: "connected", player_a: a, player_b: b });
+      rows.push({
+        game_id: gameID,
+        t: e.at,
+        seq: e.seq ?? -1,
+        event: "connected",
+        player_a: a,
+        player_b: b,
+      });
     }
   }
   return rows;
