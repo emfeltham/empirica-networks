@@ -138,6 +138,7 @@ function fakeSource() {
             index,
             playerID,
             degree: (deg.get(index) ?? []).length,
+            radius: 1,
             neighbors: (deg.get(index) ?? []).slice().sort((a, b) => a - b),
             channel: !pending.includes(playerID),
             attrs: {},

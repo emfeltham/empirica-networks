@@ -66,6 +66,7 @@ function fakeSource(initial: Partial<GameSnapshot> = {}) {
             index,
             playerID,
             degree: 2,
+            radius: 1,
             neighbors: [],
             channel: true,
             attrs: {},
