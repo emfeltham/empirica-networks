@@ -169,28 +169,31 @@ test("a radius wider than the graph is the graph, not an error", () => {
 });
 
 /**
- * `"whole"` is everybody, including other components.
+ * `"whole"` is no depth limit, which on a disconnected graph is the viewer's own
+ * component rather than the whole study.
  *
- * The alternative reading — the viewer's own component — is still expressible as
- * a large finite radius, and this one is not expressible any other way. So the
- * setting that cannot be spelled otherwise gets the word.
+ * This read "every node including other components" first, and the publish path
+ * disagreed with it: a participant in another component has no hop count, and a
+ * hop count is how a distant person is described on the wire, so they were
+ * dropped at delivery while this function insisted they were included. The
+ * disagreement survived two stages and was found by the first end-to-end test
+ * that asked somebody at this setting to account for everybody they could see.
  */
-test('"whole" reaches across a disconnected graph', () => {
+test('"whole" reaches everybody the viewer can reach, and nobody they cannot', () => {
   const adj = adjacency(4, [
     [0, 1],
     [2, 3],
   ]);
   const b = ball(adj, 0, "whole");
-  assert.deepEqual([...b.nodes].sort((x, y) => x - y), [0, 1, 2, 3]);
-  assert.deepEqual(b.edges, [
-    [0, 1],
-    [2, 3],
-  ]);
+  assert.deepEqual(b.nodes, [0, 1], "the other component is not reachable and is not included");
+  assert.deepEqual(b.edges, [[0, 1]]);
   assert.equal(b.dist[2], Infinity, "reachability is still reported honestly");
-  assert.equal(b.eccentricityWithin, 1, "and the unreachable do not inflate it");
+  assert.equal(b.eccentricityWithin, 1);
 
-  const far = ball(adj, 0, 50);
-  assert.deepEqual(far.nodes, [0, 1], "a large finite radius stays in the component");
+  // On a connected graph it is everybody, which is what an author means by it.
+  const whole = ball(adjacency(6, ring(6)), 0, "whole");
+  assert.equal(whole.nodes.length, 6);
+  assert.equal(whole.edges.length, 6);
 });
 
 test("a star's hub sees everyone at radius 1; a leaf needs 2", () => {

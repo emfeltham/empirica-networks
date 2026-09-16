@@ -174,7 +174,16 @@ test("an identical SHAPE holding different people is laid out afresh", () => {
     edges: inducedEdges(star, [0, 1, 3]),
     cache: first.cache,
   });
-  assert.equal(first.cache.key, swapped.cache.key, "the shapes really are identical");
+  // The key is over PLAYER IDS, so these two are not the same shape and the
+  // reuse path is never reached. It used to be over local indices, where they
+  // WERE the same key and the separate "same people" check was the only thing
+  // standing between a newcomer and the coordinates of the person they replaced.
+  // That check is still there; the key no longer depends on it being right.
+  assert.notEqual(
+    first.cache.key,
+    swapped.cache.key,
+    "the same shape holding different people is a different picture, and the key says so"
+  );
   assert.ok(
     !swapped.cache.positions.has("b"),
     "the departed neighbor is not carried into the new cache"

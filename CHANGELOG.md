@@ -23,6 +23,16 @@ makes the entries below meaningful as a baseline rather than a moving target.
 
 ### Added
 
+- **Whole-network vision is drawn once, not once per viewer.** Every viewer's ball at
+  `radius: "whole"` is the same graph, and the layout cache keyed it by LOCAL indices — so two
+  participants looking at the same picture, numbered differently because each puts themselves
+  first, counted as two different shapes. The key is over player ids now, which makes the picture
+  shareable and also makes the key say what it only implied: the old one could match for two
+  different sets of people with the same shape, and a separate check was the only thing stopping a
+  newcomer inheriting the coordinates of whoever they replaced. That check stays; the key no longer
+  depends on it. Measured on this machine at n=50: 4.6 ms per layout, so 228 ms of a single event
+  loop for one republish, down to 4.6 ms. (Machine-local, per `ISSUES.md` O1.)
+
 - **`net.setRadius(playerID, radius)`** — change how far somebody can see, mid-game, which is what
   the whole feature was asked for. Recorded as a `RadiusEvent` log under `networkRadiusHistory`
   rather than by overwriting the snapshot: for a study where widening somebody's vision partway
@@ -423,6 +433,15 @@ makes the entries below meaningful as a baseline rather than a moving target.
   documented `empirica-networks` import, resolved against the built package).
 
 ### Fixed
+
+- **`"whole"` promised more than it could deliver** (2026-09-16). `ball()` documented it as every
+  node in the study *including other components*, and the publish path could not carry that: a
+  participant with no path to the viewer has no hop count, and a hop count is how a distant person
+  is described on the wire — so they were dropped at delivery while the function insisted they were
+  included. The disagreement survived two stages and was found by the first end-to-end test that
+  asked somebody at that setting to account for everybody they could see. `"whole"` now means no
+  depth limit, which on a connected graph is everybody and on a disconnected one is the viewer's own
+  component — the reading the whole pipeline can carry.
 
 - **A radius that dropped left the old picture on the screen forever** (2026-09-16). A structure
   payload is written only above radius 1, and an attribute that is not written keeps its last

@@ -816,7 +816,12 @@ a ring lattice under `NBHD_RADIUS=1.5` for that reason. The same is true further
 monotone — a ring is vacuous at 1.5, informative at 2, and vacuous again at 2.5 — so `verify`
 computes the refusal per radius rather than keeping a list.
 
-`"whole"` deserves a paragraph of its own, because a naming scheme cannot save it. Refs stop two
+`"whole"` means **no depth limit** — everybody the viewer can reach, which on a connected graph is
+everybody and on a disconnected one is their own component. Not "every participant in the study":
+somebody with no path to the viewer has no hop count, and a hop count is how a distant person is
+described on the wire.
+
+It deserves a paragraph of its own, because a naming scheme cannot save it. Refs stop two
 participants joining their views *by name*; they do not stop them joining *by structure*. At whole-
 network vision each holds the entire graph under different labels, and aligning two labelings of
 one small graph — with degree sequences as a hint — is straightforward. **Whole-network vision

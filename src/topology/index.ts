@@ -532,10 +532,17 @@ export interface Ball {
  * Without the rule, `--radius 2` and `--radius 2.5` are indistinguishable at the
  * wire and a study asking for 2 could be given 2.5 with nothing saying so.
  *
- * `"whole"` is every node and every tie, INCLUDING other components. That is the
- * reading an author means by "no boundary" — and it keeps "the viewer's own
- * component" expressible as a large finite radius, whereas the other way round
- * there would be no spelling for "everybody".
+ * `"whole"` is no depth limit: everyone the viewer can REACH, and every tie
+ * among them. On a connected graph that is everybody, which is what an author
+ * means by it.
+ *
+ * Not "every node in the study", which is what this said first and could not be
+ * delivered. A participant in another component has no path to the viewer and
+ * therefore no hop count, and a hop count is what a distant person is described
+ * by on the wire — so the publish path dropped them while `ball` claimed they
+ * were included, and the two disagreed until an end-to-end test at this setting
+ * asked one of them to prove it. Reachability is the honest reading, and the
+ * one the whole pipeline can carry.
  *
  * Takes an adjacency list rather than `(n, edges)` like its neighbours in this
  * module, because the publish path calls it once per viewer per publish and
@@ -586,11 +593,6 @@ export function ball(adj: number[][], source: number, r: Radius): Ball {
       dist[u] = d + 1;
       nodes.push(u);
     }
-  }
-  if (whole) {
-    // Every node, not just the reachable ones — see the docstring. Appended in
-    // index order after the BFS so the reachable part keeps its distance order.
-    for (let v = 0; v < n; v++) if (dist[v] === Infinity) nodes.push(v);
   }
 
   const inside = new Set(nodes);
