@@ -25,9 +25,12 @@ Decide whether to capture projected views before beginning data collection:
 | The realized network | batch scope, always | Yes | `network:<gameID>`, the edge list as it now stands |
 | The seed | batch scope, always | Yes | `networkSeed:<gameID>`, enough to re-derive the topology |
 | The edge history | batch scope, always | Yes | `networkHistory:<gameID>`, every tie change, including the initial graph as a `start` event |
-| The radius | batch scope, always | Yes | `networkRadius:<gameID>`, how much of the network participants were shown |
+| The radius | batch scope, always | Yes | `networkRadius:<gameID>`, present only when one number describes the game |
+| Every participant's radius | batch scope, always | Yes | `networkRadii:<gameID>`, by player id. The complete record; an absent key means this run predates it and nothing else |
+| The radius history | batch scope, always | Yes | `networkRadiusHistory:<gameID>`, every `setRadius` change, including the opening assignment as a `start` event |
+| The naming key | batch scope, always | Yes | `networkViewKey:<gameID>`. Only meaningful above radius 1.5, where it made each viewer's private names for distant people stable. Not needed for analysis — `ViewRecord.far` records who each name was |
 | The run log | `log: { file }`, opt-in | Yes | Whatever your listeners wrote, as the study happened |
-| Captured views | `views: { file }`, opt-in | Yes | Exactly what each participant was delivered, per delivery — at radius 1.5 including the ties among their neighbors and where everything was drawn |
+| Captured views | `views: { file }`, opt-in | Yes | Exactly what each participant was delivered, per delivery — above radius 1 including the structure they were shown, who the distant people in it were, and where everything was drawn |
 | The views themselves | — | No | Published `ephemeral`. Gone unless captured |
 
 Two properties of these outputs deserve particular attention.
@@ -134,6 +137,40 @@ Empty unless the study ran at `graph: { radius: 1.5 }`.
 | `radius` | number | The radius this delivery was made at |
 | `a_index`, `b_index` | number | Local index of each end: `0` is the viewer, `1..d` index into that delivery's view |
 | `a_id`, `b_id` | string | The projected `id` of each end when there is one, empty otherwise |
+
+### `farRows()` → one row per person a viewer could see and could not reach
+
+Empty below radius 2, where every visible node is a neighbor and `views.csv` already has them all.
+
+| Column | Type | Notes |
+|---|---|---|
+| `game_id`, `viewer`, `seq`, `t` | | As above |
+| `radius` | number | The radius this delivery was made at |
+| `node_index` | number | Local index, so this joins to `structure.csv` on `a_index`/`b_index` |
+| `ref` | string | What THIS viewer called them. Not comparable across viewers — two rows with the same `ref` and different `viewer` are two different people far more often than not |
+| `id` | string | Who they actually were. Recorded server-side; the participant never saw it |
+| `hop` | number | How many hops away. Always 2 or more |
+| …your fields | string \| number | One column per field `graph.projectFar` returned, if you set one |
+
+Its own table rather than rows in `views.csv` because the grain differs: `NEIGHBORS` carries
+distance 1 and only distance 1, so every row of `views.csv` is one hop by construction. A row here
+with no projected fields is not an empty row — `ref`, `id` and `hop` are the disclosure, and
+whether a participant could see somebody at all is what most designs manipulate.
+
+### `radiusRows()` → one row per change to how far somebody could see
+
+| Column | Type | Notes |
+|---|---|---|
+| `game_id`, `t` | | As above |
+| `seq` | number | The publish counter when this was recorded. Joins to `views.csv` on `seq` |
+| `event` | string | `start` for the opening assignment, `set` for a change |
+| `player` | string | Who changed. On a `start` row, one row per participant |
+| `radius_from`, `radius_to` | string | Strings because `whole` is a legal value |
+
+The `start` event expands to one row per participant, so the table alone answers "what was this
+person's radius at seq N" by taking their last row at or below N. Ordered on `seq` and not on `t`:
+two events from one process inside one millisecond cannot be ordered by time, and a radius change
+lands there easily.
 
 ### `positionRows()` → one row per node in one viewer's drawing, per delivery
 

@@ -338,3 +338,33 @@ test("checkVision: onExceed warn reports instead of throwing, as everywhere else
   assert.equal(said.length, 1);
   assert.match(said[0]!, /radius exceeds the supported envelope/);
 });
+
+test("checkVision: the preflight is wired, and refuses before anybody is committed", () => {
+  // `checkDegrees` runs before `provisionChannels` so an out-of-envelope study
+  // fails while it is still abandonable. `checkVision` is only worth having if
+  // it runs in the same place — a limit enforced after participants are seated
+  // is a limit that arrives too late to act on. Asserted by construction
+  // (`with_network.ts` calls both at the same site) and here by the property
+  // that matters: the throw is an EnvelopeError, so the game-start listener
+  // aborts rather than warning and continuing.
+  const adj = adjacency(60, complete(60));
+  const radii = new Array<Radius>(60).fill(1);
+  radii[0] = 2;
+  assert.throws(() => checkVision(adj, radii, {}), EnvelopeError);
+});
+
+test("checkVision: `whole` is bounded like any other radius", () => {
+  // The widest setting must not be the one that escapes the check. It reaches
+  // everybody in the component, which on a connected graph is the largest ball
+  // there is.
+  const adj = adjacency(60, complete(60));
+  const radii = new Array<Radius>(60).fill(1);
+  radii[7] = "whole";
+  try {
+    checkVision(adj, radii, {});
+    assert.fail("a whole-network seat on a 60-node graph must breach the default");
+  } catch (e) {
+    assert.match((e as Error).message, /participant 7 at radius whole/);
+    assert.match((e as Error).message, /shown 59/);
+  }
+});

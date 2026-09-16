@@ -128,7 +128,16 @@ export interface SessionOutcome {
    * to it. Recorded anyway, because "1 because that is what ran" and "1 because
    * nobody wrote it down" are different statements about a dataset.
    */
-  radius?: number;
+  radius?: number | "whole";
+  /**
+   * Every DISTINCT radius in the session, as strings.
+   *
+   * `radius` above answers only when one number describes the game. A study that
+   * seats some participants wider than others has no such value, and reporting
+   * `undefined` for it would say "not recorded" about the most deliberately
+   * configured thing in the run.
+   */
+  radii?: string[];
   outDir: string;
   elapsedMs: number;
   /** Which C5 failure was injected, if any. */
@@ -192,14 +201,29 @@ function captureGraph(gameID: string | undefined, outcome: SessionOutcome): void
   try {
     const snap = (
       net as {
-        inspect: (id: string) => { seed?: number; order?: string[]; radius?: number } | undefined;
+        inspect: (id: string) =>
+          | {
+              seed?: number;
+              order?: string[];
+              radius?: number | "whole";
+              radii?: Array<{ playerID: string; radius: number | "whole" }>;
+            }
+          | undefined;
       }
     ).inspect(gameID);
     if (!snap) return;
     outcome.gameID = gameID;
     if (typeof snap.seed === "number") outcome.recordedSeed = snap.seed;
     if (Array.isArray(snap.order)) outcome.order = snap.order;
-    if (typeof snap.radius === "number") outcome.radius = snap.radius;
+    // `"whole"` and `undefined` are both real answers, and testing for a number
+    // dropped them silently — `undefined` is what a MIXED study reports, so the
+    // two cases this feature added were exactly the two the manifest lost. The
+    // same mistake `readRadius` made, in a second place.
+    if (snap.radius !== undefined) outcome.radius = snap.radius;
+    if (Array.isArray(snap.radii) && snap.radii.length > 0) {
+      const distinct = [...new Set(snap.radii.map((r) => String(r.radius)))].sort();
+      outcome.radii = distinct;
+    }
   } catch {
     /* a session that died before its network was built has nothing to capture */
   }

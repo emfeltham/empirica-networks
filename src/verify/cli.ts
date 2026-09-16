@@ -17,6 +17,7 @@ import { setLogLevel } from "@empirica/core/console";
 // pin declaration (src/harness/compat.ts), because a CLI that prints a version
 // number of its own is a CLI that can print the wrong one — see the note there.
 import type { Radius } from "../topology/index.js";
+import { parseArgs, type Args } from "./args.js";
 import { VERIFIED_CORE } from "../harness/compat.js";
 import { formatLeakResult, runLeakCheck } from "./leak_test.js";
 import { CLI_TOPOLOGY_NAMES, preflightCliTopology } from "./topologies.js";
@@ -42,64 +43,8 @@ function installedCoreVersion(): string | undefined {
   }
 }
 
-/** `"whole"` stays a word; anything else becomes a number so a typo is refused. */
-function parseRadius(raw: string | undefined): Radius {
-  const text = (raw ?? "").trim();
-  if (text === "whole") return "whole";
-  return Number(text);
-}
 
-interface Args {
-  command: string;
-  n: number;
-  /** Unvalidated as parsed; `main` refuses an unknown or vacuous one. */
-  topology: string;
-  /** Unvalidated as parsed, for the same reason. */
-  radius: Radius;
-  radii?: Radius[];
-  projectFar: boolean;
-  quiet: boolean;
-  help: boolean;
-}
 
-function parseArgs(argv: string[]): Args {
-  const args: Args = {
-    command: "",
-    n: 4,
-    topology: "ring",
-    radius: 1,
-    projectFar: false,
-    quiet: false,
-    help: false,
-  };
-  const rest: string[] = [];
-
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i]!;
-    if (a === "--help" || a === "-h") args.help = true;
-    else if (a === "--quiet" || a === "-q") args.quiet = true;
-    else if (a === "--n" || a === "-n") args.n = Number(argv[++i]);
-    else if (a.startsWith("--n=")) args.n = Number(a.slice(4));
-    // Stored as written. The casts that used to be here (`as "ring"`) made every
-    // string typecheck and none of them take effect: `--topology=star` ran a ring
-    // and the verdict printed "topology: star". A verification tool reporting a
-    // shape it did not run is the one bug it must not have.
-    else if (a === "--topology") args.topology = argv[++i] ?? "";
-    else if (a.startsWith("--topology=")) args.topology = a.slice(11);
-    // `"whole"` passes through as a word; everything else becomes a number so a
-    // typo lands on the refusal below rather than on NaN.
-    else if (a === "--project-far") args.projectFar = true;
-    // Per seat, cycled by index. Deterministic rather than random, for the
-    // reason `topologies.ts` gives about not forwarding an rng here.
-    else if (a === "--radii") args.radii = String(argv[++i] ?? "").split(",").map(parseRadius);
-    else if (a.startsWith("--radii=")) args.radii = a.slice(8).split(",").map(parseRadius);
-    else if (a === "--radius") args.radius = parseRadius(argv[++i]);
-    else if (a.startsWith("--radius=")) args.radius = parseRadius(a.slice(9));
-    else rest.push(a);
-  }
-  args.command = rest[0] ?? "";
-  return args;
-}
 
 const USAGE = `
 empirica-networks verify — reproduce the neighbor-limited visibility guarantee
