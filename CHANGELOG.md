@@ -23,6 +23,21 @@ makes the entries below meaningful as a baseline rather than a moving target.
 
 ### Added
 
+- **`auditViews` no longer refuses a game that rewired.** It used to, and the refusal was honest
+  about a real problem — a view checked against the graph that REPLACED the one it was built on
+  reads as a leak — but it was never a limitation of the data. `edges.csv` has carried a timestamp
+  for every row since it existed; what it lacked was a way to order a tie change against the
+  DELIVERY it caused, which a wall clock cannot do when the two land in the same millisecond by
+  construction. `EdgeEvent` and `edges.csv` now carry the publish counter, and the audit replays
+  the graph to the moment of each record.
+
+  Replaying rather than merging is the point: a view showing somebody a tie that did not exist yet
+  is still a leak, and an audit that took the union of both graphs would call it fine.
+
+  The refusal survives for exactly one case — a capture written before the `seq` column existed,
+  which can only be replayed by clock — stated on the rows that put it there rather than on the
+  game. A study that never rewired keeps the final adjacency it has always used and pays nothing.
+
 - **Whole-network vision is drawn once, not once per viewer.** Every viewer's ball at
   `radius: "whole"` is the same graph, and the layout cache keyed it by LOCAL indices — so two
   participants looking at the same picture, numbered differently because each puts themselves

@@ -599,3 +599,92 @@ test("without the log the audit still runs, and says less", () => {
   const r = auditViews({ views: ndjson(early), edges: wide() });
   assert.ok(r.pass, r.failures.join("\n"));
 });
+
+// ------------------------------------------------- a game that rewired
+//
+// `auditViews` refused these outright, and the refusal was honest about a real
+// problem: a view checked against the graph that REPLACED the one it was built
+// on reads as a leak. It was never a limitation of the data — `edges.csv` has
+// always carried a timestamp — but a wall clock cannot order a tie change
+// against the delivery it caused, because the two land in the same millisecond
+// by construction. The publish counter can.
+
+/** `a-b` from the start; `a-c` added at seq 5, `a-b` dropped at seq 5. */
+const REWIRED_CSV = [
+  `"game_id","t","seq","event","player_a","player_b"`,
+  `"g1","1","0","connected","a","b"`,
+  `"g1","9","5","disconnected","a","b"`,
+  `"g1","9","5","connected","a","c"`,
+].join("\n");
+
+const deliveryTo = (viewer: string, ids: string[], seq: number) => ({
+  gameID: "g1",
+  viewer,
+  seq,
+  at: 1000 + seq,
+  view: ids.map((id) => ({ id })),
+});
+
+test("a rewiring game is audited against the graph each view was built on", () => {
+  const r = auditViews({
+    views: ndjson(
+      // Before the rewire: `a` sees `b`, which is true then and false later.
+      deliveryTo("a", ["b"], 2),
+      // After it: `a` sees `c`.
+      deliveryTo("a", ["c"], 7)
+    ),
+    edges: parseEdgesCsv(REWIRED_CSV),
+  });
+  assert.ok(r.pass, r.failures.join("\n"));
+  assert.equal(r.leaks, 0, "a view that was correct when sent is not a leak");
+  assert.equal(r.deliveriesChecked, 2);
+  assert.doesNotMatch(r.failures.join(" "), /REFUSED/);
+});
+
+test("and a view from the wrong side of the rewire is still caught", () => {
+  // The whole point of replaying rather than taking the union: `a` seeing `c`
+  // BEFORE the tie existed is a leak, and an audit that merged both graphs
+  // together would call it fine.
+  const r = auditViews({
+    views: ndjson(deliveryTo("a", ["c"], 2)),
+    edges: parseEdgesCsv(REWIRED_CSV),
+  });
+  assert.equal(r.leaks, 1);
+  assert.match(r.failures.join(" "), /LEAK/);
+});
+
+test("a tie dropped is gone: the old neighbor is a leak afterwards", () => {
+  const r = auditViews({
+    views: ndjson(deliveryTo("a", ["b"], 7)),
+    edges: parseEdgesCsv(REWIRED_CSV),
+  });
+  assert.equal(r.leaks, 1, "`b` was disconnected at seq 5 and this view is seq 7");
+});
+
+test("a rewiring game with no publish counter is still refused, and says why", () => {
+  // The case the counter does not cover: a capture written before the column
+  // existed can only be replayed by clock. Refused rather than replayed
+  // approximately, and stated on what put it there.
+  const noSeq = [
+    `"game_id","t","event","player_a","player_b"`,
+    `"g1","1","connected","a","b"`,
+    `"g1","9","disconnected","a","b"`,
+    `"g1","9","connected","a","c"`,
+  ].join("\n");
+  const r = auditViews({
+    views: ndjson(deliveryTo("a", ["c"], 7)),
+    edges: parseEdgesCsv(noSeq),
+  });
+  assert.ok(!r.pass);
+  assert.match(r.failures.join(" "), /REFUSED/);
+  assert.match(r.failures.join(" "), /no publish counter/);
+});
+
+test("a game that never rewired is unaffected, and pays nothing", () => {
+  // The common case keeps the final adjacency it has always used. Asserted
+  // because the replay is conditional, and a condition that is wrong in the
+  // permissive direction would be invisible.
+  const r = auditViews({ views: CLEAN, edges: edges() });
+  assert.ok(r.pass, r.failures.join("\n"));
+  assert.equal(r.deliveriesChecked, 4);
+});

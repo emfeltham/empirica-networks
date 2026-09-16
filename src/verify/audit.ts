@@ -59,17 +59,47 @@ export type NeighborMap = Map<string, Set<string>>;
 /** Every game found in an `edges.csv`, keyed by `game_id`. */
 export type GameGraphs = Map<string, NeighborMap>;
 
+/** One tie change, in the order it was recorded. */
+export interface TieChange {
+  /** Publish counter, or `-1` for a record written before the column existed. */
+  seq: number;
+  t: number;
+  a: string;
+  b: string;
+  connect: boolean;
+}
+
 export interface ParsedEdges {
   graphs: GameGraphs;
   /**
    * Games whose edge log contained a disconnection.
    *
    * Returned rather than held in module state, so two audits in one process
-   * cannot contaminate each other. Shirado never rewires — `callbacks.js` warns
-   * if its event count is not exactly one — so this is empty in practice and
-   * exists to stop a rewiring design being audited against the wrong graph.
+   * cannot contaminate each other. No longer a reason to refuse: it used to be,
+   * because a delivery could only be checked against the final adjacency and a
+   * view that was correct when sent would read as a leak against the graph that
+   * replaced it. `timeline` is what removed that, and this is now a fact about
+   * the run rather than a verdict on it.
    */
   rewired: Set<string>;
+  /**
+   * Every tie change, in order, per game.
+   *
+   * The same rows as `graphs`, unflattened. `graphs` answers "what did the graph
+   * end as", which is all a static study needs; this answers "what was it when
+   * this view was delivered", which is the only question a rewiring study can be
+   * audited on.
+   */
+  timeline: Map<string, TieChange[]>;
+  /**
+   * Rows carrying no publish counter, because they predate the column.
+   *
+   * Reported rather than worked around: without one, a change and the delivery
+   * it caused can only be ordered by a wall clock they usually share, so those
+   * games fall back to the final adjacency and the audit says how many rows put
+   * it in that position.
+   */
+  undated: number;
 }
 
 export interface SessionAudit {
@@ -201,8 +231,10 @@ function splitCsvLine(line: string): string[] {
 export function parseEdgesCsv(text: string): ParsedEdges {
   const graphs: GameGraphs = new Map();
   const rewired = new Set<string>();
+  const timeline: Map<string, TieChange[]> = new Map();
+  let undated = 0;
   const lines = text.split("\n").filter((l) => l.trim().length > 0);
-  if (lines.length === 0) return { graphs, rewired };
+  if (lines.length === 0) return { graphs, rewired, timeline, undated };
 
   const headers = splitCsvLine(lines[0]!);
   const col = (name: string) => headers.indexOf(name);
@@ -210,6 +242,8 @@ export function parseEdgesCsv(text: string): ParsedEdges {
   const iEvent = col("event");
   const iA = col("player_a");
   const iB = col("player_b");
+  const iSeq = col("seq");
+  const iT = col("t");
   if (iGame < 0 || iEvent < 0 || iA < 0 || iB < 0) {
     throw new Error(
       `edges.csv is missing a required column: expected game_id, event, player_a, ` +
@@ -242,8 +276,55 @@ export function parseEdgesCsv(text: string): ParsedEdges {
     link(a, b, connect);
     link(b, a, connect);
     if (!connect) rewired.add(gameID);
+
+    // The same rows, kept in order as well as replayed, so a delivery can be
+    // checked against the graph as it stood AT THAT MOMENT rather than against
+    // the one the study finished with. `graphs` above is still the final
+    // adjacency and is still what a static study needs.
+    const seq = iSeq >= 0 ? Number(f[iSeq] ?? -1) : -1;
+    if (!Number.isFinite(seq) || seq < 0) undated++;
+    const list = timeline.get(gameID) ?? [];
+    list.push({ seq, t: iT >= 0 ? Number(f[iT] ?? 0) : 0, a, b, connect });
+    timeline.set(gameID, list);
   }
-  return { graphs, rewired };
+  // Stable within a seq: the writer emits removals before additions inside one
+  // event, and a rewire that drops (a,b) and adds (a,c) has to replay in that
+  // order or the intermediate graph is wrong.
+  for (const list of timeline.values()) {
+    list.forEach((c, i) => ((c as TieChange & { i: number }).i = i));
+    list.sort((x, y) => x.seq - y.seq || x.t - y.t || (x as any).i - (y as any).i);
+  }
+  return { graphs, rewired, timeline, undated };
+}
+
+/**
+ * The graph as it stood at a given publish.
+ *
+ * Replayed from the start rather than diffed from the final adjacency, because
+ * the final one cannot be walked backwards: `edges.csv` records that a tie was
+ * disconnected and not what the graph looked like before it.
+ */
+function graphAt(changes: TieChange[] | undefined, seq: number): NeighborMap {
+  const g: NeighborMap = new Map();
+  const link = (x: string, y: string, connect: boolean) => {
+    let set = g.get(x);
+    if (!set) {
+      set = new Set();
+      g.set(x, set);
+    }
+    if (connect) set.add(y);
+    else set.delete(y);
+  };
+  for (const c of changes ?? []) {
+    // A change recorded AT this publish counter was made before the publish that
+    // carries it — `commit` stamps the counter as it stands and then flushes —
+    // so `<=` is what puts a tie change and the delivery it caused on the right
+    // sides of each other.
+    if (c.seq > seq) break;
+    link(c.a, c.b, c.connect);
+    link(c.b, c.a, c.connect);
+  }
+  return g;
 }
 
 /**
@@ -393,18 +474,38 @@ export function auditViews(input: {
     });
   }
 
-  for (const gameID of rewired) {
-    if (!graphs.has(gameID)) continue;
+  /**
+   * A rewiring game used to be refused here, and is not any more.
+   *
+   * The refusal was honest about a real limitation — a view checked against the
+   * graph that REPLACED the one it was built on reads as a leak — and it was
+   * never a limitation of the data. `edges.csv` has carried a timestamp for
+   * every row since it existed; what it lacked was a way to order a tie change
+   * against a DELIVERY, which a wall clock cannot do when the change and the
+   * publish it triggers land in the same millisecond. `seq` closed that, and the
+   * timeline is replayed per record below.
+   *
+   * What survives is the case the counter is missing: a capture written before
+   * that column existed can only be replayed by clock, so those games are still
+   * checked against the final adjacency and still refused if they rewired —
+   * stated on the count of rows that put them there rather than on the game.
+   */
+  const undatedRewires = [...rewired].filter(
+    (gameID) => graphs.has(gameID) && (input.edges.timeline?.get(gameID) ?? []).some((c) => c.seq < 0)
+  );
+  for (const gameID of undatedRewires) {
     failures.push(
-      `REFUSED: game ${gameID} rewired during the session, so its views cannot be ` +
-        `checked against one static neighbor set — a view that was correct when ` +
-        `delivered would read as a leak against the graph that replaced it.`
+      `REFUSED: game ${gameID} rewired during the session and its edge log carries no ` +
+        `publish counter, so a tie change cannot be ordered against a delivery — a view ` +
+        `that was correct when it was sent would read as a leak against the graph that ` +
+        `replaced it. Re-export with a build that writes the \`seq\` column, or audit a ` +
+        `game that did not rewire.`
     );
   }
 
   for (const r of records) {
-    const graph = graphs.get(r.gameID);
-    if (!graph) {
+    const staticGraph = graphs.get(r.gameID);
+    if (!staticGraph) {
       complain(
         `ERROR: a view was delivered in game ${r.gameID}, which has no graph in ` +
           `edges.csv. The views file and the edge export do not describe the same run.`
@@ -412,6 +513,17 @@ export function auditViews(input: {
       continue;
     }
     const session = perSession.get(r.gameID)!;
+    /**
+     * The graph as it stood when this view was delivered.
+     *
+     * Replayed only for a game that actually rewired AND carries the counter;
+     * everything else keeps the final adjacency it has always used, so a static
+     * study pays nothing and every number it produced before is unchanged.
+     */
+    const changes = input.edges.timeline?.get(r.gameID);
+    const replay =
+      rewired.has(r.gameID) && changes !== undefined && changes.every((c) => c.seq >= 0);
+    const graph = replay ? graphAt(changes, r.seq) : staticGraph;
     const neighbors = graph.get(r.viewer);
     if (!neighbors) {
       complain(

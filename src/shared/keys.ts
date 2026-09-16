@@ -243,6 +243,20 @@ export interface EdgeEvent {
   removed: Array<[string, string]>;
   /** Edge count after the mutation, so a snapshot can be sanity-checked. */
   size: number;
+  /**
+   * The publish counter when this was recorded.
+   *
+   * What lets an auditor order a tie change against a DELIVERY without reasoning
+   * about clocks: a view published at `seq` was built on every edge event whose
+   * own `seq` is lower. Two events from one process inside one millisecond
+   * cannot be ordered by time, and a rewire followed immediately by the publish
+   * it triggers lands there by construction.
+   *
+   * Optional because a record written before this field existed has none, and
+   * `auditViews` falls back to the wall clock for those — reporting how many
+   * deliveries it could not place, rather than guessing.
+   */
+  seq?: number;
   /** Wall clock, ms. */
   at: number;
 }
