@@ -88,11 +88,34 @@ export interface Arm {
   bots: number;
   placement?: string;
   noise?: number;
+  /**
+   * How far subjects can see. Absent means the paper's design, which is 1.
+   *
+   * NOT part of Shirado & Christakis's experiment — their subjects saw only the
+   * colours of neighbors they were directly connected to. An arm that sets this
+   * runs a different study, and `manifest.json` says so on its own face rather
+   * than leaving it to whoever reads the numbers later.
+   *
+   * It exists because nothing else in this repository exercises a wider radius
+   * end to end at scale: the structure payload, the people a subject cannot
+   * reach, and `auditViews`' arms over both.
+   */
+  radius?: number | "whole";
 }
 
 export const ARMS: Record<string, Arm> = {
   control: { name: "control", bots: 0 },
   agent: { name: "agent", bots: 3, placement: "central", noise: 0.1 },
+  /**
+   * NOT the paper's design, and named so nobody reads it as one.
+   *
+   * Human-only at radius 2, so subjects see their neighbors' neighbors and the
+   * ties among them. Here to exercise the machinery a wider radius involves
+   * rather than to measure anything: `docs/EXPERIMENTS.md` explains why this
+   * makes the colouring task easier and therefore drives time-to-solution toward
+   * zero, which means no outcome from this arm is comparable with any other.
+   */
+  "wide-not-the-paper": { name: "wide-not-the-paper", bots: 0, radius: 2 },
 };
 
 /**
@@ -322,6 +345,11 @@ export async function runSession(opts: {
           const treatment: Record<string, unknown> = { botCount: opts.arm.bots };
           if (opts.arm.placement !== undefined) treatment["botPlacement"] = opts.arm.placement;
           if (opts.arm.noise !== undefined) treatment["botNoise"] = opts.arm.noise;
+          // Through the treatment, which is how every other condition reaches
+          // the example — and now possible because `graph.radius` takes a
+          // function that receives the game. It could not before, and the
+          // `notExercised` note below said so for longer than it was true.
+          if (opts.arm.radius !== undefined) treatment["radius"] = opts.arm.radius;
 
           const batch = await createBatch(admin, batchConfig(opts.n, 1, [treatment]));
           await batch.running();
@@ -582,21 +610,49 @@ async function sweep(args: SweepArgs): Promise<number> {
         // DIFFERENT distances, so a manifest reading only that one silently
         // dropped exactly the studies this setting exists for.
         radii: everyRadius(outcomes),
+        // On the artifact's own face, because an arm name is easy to skim past
+        // and a number is easy to quote. Emitted only when an arm actually ran
+        // above the default, so a manifest for the paper's design carries
+        // nothing extra and says nothing it does not need to.
+        ...(everyRadius(outcomes).some((r) => r !== "1")
+          ? {
+              notThePapersDesign:
+                "One or more arms ran above radius 1, where subjects see more than the " +
+                "colours of their direct neighbors. Shirado & Christakis's subjects did " +
+                "not: their design is radius 1, which is the default and what every other " +
+                "arm here runs at. A wider radius is a DIFFERENT EXPERIMENT and its " +
+                "sessions are not comparable with the rest — local structure is what a " +
+                "coordinating subject lacks, and the dependent variable is time to " +
+                "solution, so widening vision does not bias the number visibly, it drives " +
+                "it toward zero while every screen still looks correct. These arms exist " +
+                "to exercise the machinery a wider radius involves, not to measure " +
+                "anything. See docs/EXPERIMENTS.md.",
+            }
+          : {}),
         notExercised: [
           "the React client",
           "the browser WebSocket",
           "Lobby()",
           "examples/shirado2017/server/src/index.js",
-          // Named for as long as no arm delivers one. The example's `withNetwork`
-          // config is a literal fixed at module load and there is no path from a
-          // flag to it, so every session here runs at the DEFAULT radius — which
-          // leaves unexercised not just the structure payload but everything
-          // built on it, and saying "radius 1.5" alone would now understate what
-          // this rig does not reach by four settings.
-          "any radius above 1: the structure payload, the people a participant " +
-            "cannot reach, projection at distance, a radius that differs between " +
-            "participants or changes during a game — and `auditViews`' arms over " +
-            "all of them (every arm here runs at the default)",
+          // Listed against what the SELECTED arms actually did, not against what
+          // the rig is capable of. This entry claimed for several commits that
+          // there was "no path from a flag" to the radius — true when
+          // `graph.radius` took only a literal, and false since it began taking
+          // a function that receives the game. The claim outlived its cause,
+          // which is the failure this list exists to prevent in the other
+          // direction.
+          ...(everyRadius(outcomes).some((r) => r !== "1")
+            ? []
+            : [
+                "any radius above 1: the structure payload, the people a participant " +
+                  "cannot reach, and auditViews' arms over both. Reachable — run the " +
+                  "wide-not-the-paper arm — and not reached by these arms",
+              ]),
+          // Still out of reach from here whatever arm is chosen: nothing in this
+          // rig projects at distance, seats participants at differing radii, or
+          // changes one during a game.
+          "graph.projectFar, a radius that differs between participants, and " +
+            "net.setRadius — no arm configures any of them",
         ],
         halted: halted === "" ? null : halted,
         sessions: outcomes,
