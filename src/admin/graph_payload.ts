@@ -88,13 +88,40 @@ export interface BuildResult {
 const SIZE = 600;
 const MARGIN = 40; // alter radius 30 + padding 10, matching `player/graph.ts`
 
+/**
+ * A name for the SHAPE a layout belongs to, in player ids rather than local
+ * indices.
+ *
+ * Ids and not indices, and that is what makes a layout shareable. Two viewers of
+ * the same set of people with the same ties between them have the same picture
+ * to draw — but they number it differently, because each puts themselves at 0
+ * and their own neighbors next. A key over local indices therefore says "these
+ * are different shapes" about two drawings that are the same one, which at
+ * whole-network vision is every pair of participants in the game.
+ *
+ * It also makes the key say what the old one only implied. `${n}:${localEdges}`
+ * could match for two different sets of people with the same shape, which
+ * `buildGraphPayload` then had to exclude separately by checking that every
+ * remembered id was present. That check stays — it is still the thing that
+ * catches a rewire arriving at an identical shape — but the key no longer
+ * depends on it being right.
+ */
+export function shapeKey(ids: string[], edges: LocalEdge[]): string {
+  const pairs = edges.map(([a, b]) => {
+    const x = ids[a] ?? String(a);
+    const y = ids[b] ?? String(b);
+    return x < y ? `${x}~${y}` : `${y}~${x}`;
+  });
+  return `${ids.length}:${pairs.sort().join(" ")}`;
+}
+
 export function buildGraphPayload(args: BuildArgs): BuildResult {
   const { ids, edges, radius, whole, far, seed, cache } = args;
   const n = ids.length;
   // The node count as well as the ties: a neighborhood can lose a node without
   // losing an edge between the ones that remain, and that is still a different
   // picture to lay out.
-  const key = `${n}:${edgeKey(edges)}`;
+  const key = shapeKey(ids, edges);
 
   // Remembered positions, in this publish's node order. `undefined` unless
   // EVERY node is remembered: a partial array cannot be index-aligned with the

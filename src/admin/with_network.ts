@@ -30,6 +30,7 @@ import {
 } from "./projection.js";
 import {
   buildGraphPayload,
+  shapeKey,
   type GraphPayload,
   type LayoutCache,
 } from "./graph_payload.js";
@@ -1429,6 +1430,8 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     // with different fixes, and only the second is visible from a total.
     const sizes: MeasuredPayload[] = [];
     const readKeys = new Set<string>();
+    /** Shapes laid out during THIS publish, so identical pictures cost one layout. */
+    const sharedLayouts = new Map<string, LayoutCache>();
 
     for (const [i, playerID] of state.order.entries()) {
       const scopeID = channels[playerID];
@@ -1621,6 +1624,29 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         }
         localEdges.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
 
+        /**
+         * One layout per distinct SHAPE, not per viewer.
+         *
+         * Two participants looking at the same people with the same ties between
+         * them have the same picture to draw; they only number it differently.
+         * At the default radius that never happens, so this map holds one entry
+         * per viewer and buys nothing. At whole-network vision it is the whole
+         * cost: every viewer's ball is the entire graph, so the first one lays
+         * it out and the rest reuse it.
+         *
+         * Measured on this machine at n=50 whole-network: 4.9 ms per layout, so
+         * 245 ms of a single event loop for one republish — a quarter second
+         * during which nothing else in the study is served. One layout instead
+         * of n brings that back to 4.9 ms. (Machine-local, per ISSUES.md O1.)
+         *
+         * Preferring this viewer's OWN cache when it matches, because that one
+         * carries the warm start their picture has been settling into; the
+         * shared entry is only better than laying out from scratch.
+         */
+        const shapeID = shapeKey(ids, localEdges);
+        const own = lastLayout.get(scopeID);
+        const cache = own?.key === shapeID ? own : sharedLayouts.get(shapeID);
+
         const built = buildGraphPayload({
           ids,
           edges: localEdges,
@@ -1631,10 +1657,11 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
           whole: radius === "whole" ? true : undefined,
           far,
           seed: state.seed,
-          cache: lastLayout.get(scopeID),
+          cache,
         });
         graphPayload = built.payload;
         lastLayout.set(scopeID, built.cache);
+        sharedLayouts.set(shapeID, built.cache);
         sizes.push({
           bytes: projectionBytes(graphPayload),
           label: `${playerID}'s neighborhood structure`,
