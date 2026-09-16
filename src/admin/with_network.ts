@@ -324,10 +324,11 @@ export interface NetworkConfig {
    *   - It tells a participant who among their neighbors know each other, which
    *     is a fact about two OTHER people that neither of them disclosed.
    *
-   * Radii above 1.5 are not implemented and are refused rather than rounded
-   * down: whole-network visibility would need per-viewer relabeling of people
-   * the viewer cannot see, and it is not a setting that should arrive as a side
-   * effect of a typo.
+   * Wider settings exist and are the rest of this config: `2`, `2.5`, … and
+   * `"whole"`, per seat if `radius` is given a function, and changeable during a
+   * game with `net.setRadius`. A value BETWEEN the steps is still refused rather
+   * than rounded, because 2 and 2.5 are different studies and neither should
+   * arrive as a side effect of a typo.
    */
   graph?: GraphConfig;
   /**

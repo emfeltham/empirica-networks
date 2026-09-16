@@ -302,3 +302,28 @@ the CLI rather than a hole in the guarantee.
 *Done when:* a shape with triangles at depth ships as a named `--topology`, so half-radii above 1.5
 have a second subject. A ring of triangles or a fixed-parameter `grid` would both do; the choice
 needs someone to decide which is worth explaining.
+
+### O29. The bench cannot measure anything this feature added — **debt**
+
+**Evidence:** `test/bench/envelope.ts` — `Cell.radius?: 1 | 1.5` (`:95`), `RADIUS` coerced to
+`1 | 1.5` (`:246`), `structureBytes(d, radius)` (`:346-361`).
+
+`structureBytes` models the payload as the complete neighborhood — `d + 1` nodes and every tie among
+them — which was the right bound at radius 1.5 and is wrong at every wider setting. At radius 2 the
+node count is the ball, not the degree, and the formula under-estimates by roughly its square. That
+number **sizes the envelope the bench then runs under**, and the envelope throws, so an
+under-estimate means the bench stops measuring exactly where the payload got interesting.
+
+Nothing above 1.5 has therefore ever been benchmarked, which is why `checkVision`'s default is
+stated as inherited rather than earned, and why `ISSUES.md` O1's caveat is quoted wherever a
+latency figure for this feature appears. The two figures this branch does cite — 4.6 ms per layout
+at n=50, and the 228 ms a naive whole-network republish cost before layouts were shared — were
+taken by hand on a laptop and are recorded as such in `CHANGELOG.md`.
+
+Deferred rather than done because it is a measurement round and not a code change: it wants the
+same pinned host O1 asks for, and doing it on this machine would produce another set of numbers
+that have to be re-taken.
+
+*Done when:* `structureBytes` is computed from the realized ball rather than from degree, `Cell`
+carries a `Radius`, and a sweep at radius 2 and at `whole` has been run somewhere the numbers mean
+something.

@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fromEdgeList, ring } from "../../src/topology/index.js";
-import { runLeakCheck } from "../../src/verify/leak_test.js";
+import { formatLeakResult, runLeakCheck } from "../../src/verify/leak_test.js";
 import { accountVacuity, preflightCliTopology } from "../../src/verify/topologies.js";
 
 test("ring of 4: no participant ever receives a non-neighbor's state", async () => {
@@ -157,4 +157,58 @@ test("radius 1.5 on a triangle-free shape is refused, not passed", async () => {
 
   // And the same shape is accepted at the radius it can speak to.
   assert.ok(!("refusal" in preflightCliTopology("ring", 6, 1)));
+});
+
+/**
+ * A study where participants see different distances, end to end.
+ *
+ * Run by hand against a real server while this was built and never by anything
+ * automated, which is the wrong footing for the arm that exists to separate two
+ * rules from each other: "the VIEWER's radius decides who they may learn about"
+ * and "the SUBJECT's radius decides who may learn about them" agree on every
+ * pair of a uniform study, so every other test here passes under either.
+ *
+ * Seat 0 at radius 2 on a ring of 8 reaches seats 2 and 6, and neither reaches
+ * back — that asymmetry is the whole subject, and `accountVacuity` refuses a run
+ * that does not have it.
+ */
+test("mixed radii: each participant is held to their own, and the run says which", async () => {
+  const radii = Array.from({ length: 8 }, (_, i) => (i === 0 ? 2 : 1));
+  const r = await runLeakCheck({ n: 8, topology: "ring", radius: radii, projectFar: true });
+
+  assert.ok(r.pass, r.failures.join("\n"));
+  assert.deepEqual(r.radius, radii, "the result reports the assignment it ran");
+  assert.ok(r.projectsFar);
+
+  // The denominators moved, and by the right amount: seven seats reach two
+  // people each and one reaches four, so 18 deliveries and 38 forbidden pairs
+  // out of the 56 ordered pairs of eight participants.
+  assert.equal(r.expectedDeliveries, 18);
+  assert.equal(r.candidatePairs, 38);
+  assert.equal(
+    r.candidatePairs + r.expectedDeliveries,
+    8 * 7,
+    "and they still partition every ordered pair"
+  );
+  assert.equal(r.crossParticipantLeaks, 0);
+  assert.ok(r.controlLeaks > 0, "the control still proves detection works");
+
+  // The report has to name the shape, or a reader cannot tell which study the
+  // verdict is about.
+  assert.match(formatLeakResult(r), /radius: 1 \/ 2 by seat/);
+});
+
+test("mixed radii on a graph where no pair disagrees is refused, not passed", async () => {
+  // A complete graph: everybody is one hop from everybody, so a wider radius
+  // reaches nobody new and the two rules agree on every pair however the radii
+  // are set. The run would pass while proving nothing about which rule is in
+  // force, which is the one thing a mixed run is for.
+  const r = await runLeakCheck({
+    n: 6,
+    topology: "complete",
+    radius: [2, 1, 1, 1, 1, 1],
+    projectFar: true,
+  });
+  assert.equal(r.pass, false);
+  assert.match(r.failures.join(" "), /cannot tell a build that keys delivery/);
 });

@@ -28,6 +28,7 @@ import { networkKinds } from "../../src/admin/kinds.js";
 import { resetChannels } from "../../src/admin/provision.js";
 import {
   network,
+  readRadii,
   readRadius,
   withNetwork,
   type NetworkHandle,
@@ -928,6 +929,53 @@ test("the radius a game ran at is recorded, at every setting", async () => {
     );
     resetChannels();
   }
+});
+
+test("a mixed study records every participant's radius, and says so in one place", async () => {
+  let gameRef: any;
+  await withScenario(
+    {
+      n: N,
+      kinds: networkKinds,
+      listeners: (_: any) => {
+        gameInit(1, 1, 3_600_000)(_);
+        _.on("game", "start", (_ctx: any, { game }: any) => {
+          if (game.get("start")) gameRef = game;
+        });
+        withNetwork(_, {
+          topology: () => fromEdgeList(N, EDGES),
+          project: (neighbor: any) => ({ id: neighbor.id }),
+          graph: {
+            radius: ({ playerCount }: any) =>
+              Array.from({ length: playerCount }, (_v, i) => (i === 3 ? 2 : 1)),
+          },
+        });
+      },
+      modeFunc: EmpiricaNetwork,
+    },
+    async ({ admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+      await play(participants);
+
+      const recorded = readRadii(gameRef);
+      assert.ok(recorded, "a mixed study must record what each participant ran at");
+      assert.equal(Object.keys(recorded).length, N, "one entry per participant");
+      assert.equal(
+        Object.values(recorded).filter((r) => r === 2).length,
+        1,
+        "exactly the one seat that was widened"
+      );
+      // The scalar answers only when there IS one answer, and this study has
+      // none — which is a different fact from "nothing was recorded" and is why
+      // there are two keys rather than one wider one.
+      assert.equal(
+        readRadius(gameRef),
+        undefined,
+        "no single radius describes this game, and the scalar says so by abstaining"
+      );
+    }
+  );
 });
 
 test("an unrecorded radius reads back as undefined, never as 1", async () => {
