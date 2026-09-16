@@ -933,6 +933,7 @@ test("the radius a game ran at is recorded, at every setting", async () => {
 
 test("a mixed study records every participant's radius, and says so in one place", async () => {
   let gameRef: any;
+  let net!: NetworkHandle;
   await withScenario(
     {
       n: N,
@@ -942,7 +943,7 @@ test("a mixed study records every participant's radius, and says so in one place
         _.on("game", "start", (_ctx: any, { game }: any) => {
           if (game.get("start")) gameRef = game;
         });
-        withNetwork(_, {
+        net = withNetwork(_, {
           topology: () => fromEdgeList(N, EDGES),
           project: (neighbor: any) => ({ id: neighbor.id }),
           graph: {
@@ -973,6 +974,29 @@ test("a mixed study records every participant's radius, and says so in one place
         readRadius(gameRef),
         undefined,
         "no single radius describes this game, and the scalar says so by abstaining"
+      );
+
+      // And the monitor has the per-seat pair it needs to raise a restart
+      // mismatch. It could not before: `GameSnapshot.radius` and
+      // `recordedRadius` BOTH abstain for a mixed study, so a comparison
+      // between them is `undefined !== undefined` and the alarm was
+      // unreachable for exactly the studies the setting exists for.
+      const snap = net.inspect(
+        modeOf(participants[0]!).player.getValue()!.get("gameID") as string
+      )!;
+      assert.equal(snap.radius, undefined, "no single live radius either");
+      assert.equal(snap.nodes.length, N);
+      for (const node of snap.nodes) {
+        assert.equal(
+          node.recordedRadius,
+          node.radius,
+          `${node.playerID}: recorded and live agree on a run that did not restart`
+        );
+      }
+      assert.equal(
+        snap.nodes.filter((n) => n.radius === 2).length,
+        1,
+        "and the widened seat is identifiable on the node, not only in a summary"
       );
     }
   );

@@ -341,6 +341,15 @@ export interface NetworkConfig {
    * server to whoever is their neighbor AT THAT MOMENT. There is no separate
    * privacy path — it is the same channel, a different key — which is the same
    * reason `project()` is the only route for state.
+   *
+   * NEIGHBORS, AND ONLY NEIGHBORS, whatever `graph.radius` says. A wider radius
+   * changes what a participant can SEE; it does not change who they can talk to,
+   * and the two are deliberately different questions. Seeing somebody two hops
+   * away is a fact about the network you are in; being able to message them is a
+   * tie, and this package has one word for ties. A design that wants the wider
+   * group talking should widen the graph rather than the radius — that way the
+   * change is in the edge log, where an analyst will find it, instead of implied
+   * by a setting about vision.
    */
   chat?: boolean | ChatConfig;
   /**
@@ -2549,6 +2558,9 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     const players: any[] = game.players ?? [];
     const byID = new Map(players.map((p) => [p.id, p]));
     const pendingChannels: string[] = [];
+    // Read once for the whole snapshot rather than per node: it is one batch
+    // attribute and the node loop runs n times.
+    const recordedRadii = readRadii(game);
 
     const nodes: NodeSnapshot[] = state.order.map((playerID, i) => {
       const scopeID = channels[playerID];
@@ -2581,6 +2593,9 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         degree: neighbors.length,
         neighbors,
         radius: state.radii[i] ?? 1,
+        ...(recordedRadii?.[playerID] !== undefined
+          ? { recordedRadius: recordedRadii[playerID]! }
+          : {}),
         channel: Boolean(channelScope),
         attrs,
         state: privateState,
