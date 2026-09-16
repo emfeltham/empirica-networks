@@ -730,6 +730,160 @@ test("a participant at a wider radius sees further, and their neighbors do not",
   );
 });
 
+const SET_RADIUS = "setRadiusCmd";
+
+/**
+ * Change somebody's radius from inside the server's own callback.
+ *
+ * For the reason `addTie` above gives, and the reason is not theoretical here:
+ * `setRadius` publishes, and a publish driven from test code updates server
+ * state and then reaches nobody until something else flushes the runloop.
+ */
+async function setRadius(
+  admin: AdminHandle,
+  gameID: string,
+  playerID: string,
+  radius: number
+): Promise<void> {
+  await admin.taj.setAttribute({
+    key: SET_RADIUS,
+    val: JSON.stringify({ playerID, radius }),
+    nodeID: gameID,
+  });
+}
+
+function mutableListeners(capture: (h: NetworkHandle) => void, onGame?: (g: any) => void) {
+  return (_: any) => {
+    gameInit(1, 1, 3_600_000)(_);
+    if (onGame)
+      _.on("game", "start", (_ctx: any, { game }: any) => {
+        if (game.get("start")) onGame(game);
+      });
+    _.on("game", SET_RADIUS, (_ctx: any, { game }: any) => {
+      const cmd = game.get(SET_RADIUS) as { playerID: string; radius: number } | undefined;
+      if (!cmd) return;
+      network(game).setRadius(cmd.playerID, cmd.radius);
+    });
+    capture(
+      withNetwork(_, {
+        topology: () => fromEdgeList(N, EDGES),
+        project: (neighbor: any) => ({ id: neighbor.id }),
+        graph: { radius: 1 },
+      })
+    );
+  };
+}
+
+test("a radius raised mid-game widens exactly one screen, and is logged", async () => {
+  let net!: NetworkHandle;
+  let gameRef: any;
+  await withScenario(
+    {
+      n: N,
+      kinds: networkKinds,
+      listeners: mutableListeners(
+        (h) => (net = h),
+        (g) => (gameRef = g)
+      ),
+      modeFunc: EmpiricaNetwork,
+    },
+    async ({ admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+      await play(participants);
+
+      const gameID = modeOf(participants[0]!).player.getValue()!.get("gameID") as string;
+      // Seat 3: one neighbor, and two people two hops away.
+      const subject = participants.find(
+        (p) => (modeOf(p).nbhd.getValue()!.neighbors as unknown[]).length === 1
+      )!;
+      const subjectID = modeOf(subject).nbhd.getValue()!.playerID!;
+
+      // Everybody starts at the default, so nobody has a structure at all.
+      for (const p of participants) {
+        assert.equal(networkGraphOf(modeOf(p).nbhd.getValue()!), undefined);
+      }
+
+      await setRadius(admin, gameID, subjectID, 2);
+      await waitFor(() => networkGraphOf(modeOf(subject).nbhd.getValue()!) !== undefined, {
+        label: "the widened participant receives a structure",
+        timeoutMs: 20_000,
+      });
+
+      const widened = networkGraphOf(modeOf(subject).nbhd.getValue()!)!;
+      assert.equal(widened.radius, 2);
+      assert.equal((widened.far ?? []).length, 2, "the two people two hops away");
+
+      // EXACTLY one screen. The people who newly became visible to the subject
+      // did not themselves become able to see further — that is what "keyed on
+      // the viewer" means, and it is the half a symmetric implementation gets
+      // wrong.
+      for (const p of participants) {
+        if (p === subject) continue;
+        const theirs: Nbhd = modeOf(p).nbhd.getValue()!;
+        assert.equal(
+          networkGraphOf(theirs),
+          undefined,
+          `${theirs.playerID} did not have their radius changed and must still be at 1`
+        );
+      }
+
+      const log = network(gameRef).radiusHistory();
+      assert.equal(log.length, 2, "the opening assignment, then the change");
+      assert.equal(log[0]!.op, "start");
+      assert.equal(log[1]!.op, "set");
+      assert.equal(log[1]!.player, subjectID);
+      assert.equal(log[1]!.from, 1);
+      assert.equal(log[1]!.to, 2);
+      assert.equal(log[1]!.after[subjectID], 2, "the snapshot makes the entry self-contained");
+      assert.ok(log[1]!.seq >= 1, "and orderable against a delivery without a clock");
+    }
+  );
+});
+
+/**
+ * The failure that cannot happen before this stage.
+ *
+ * A structure payload is written only above radius 1 and an attribute that is
+ * not written keeps its last value — so a radius that DROPS would leave the
+ * participant being drawn the ball they had when it was wider, indefinitely,
+ * while every other part of their screen kept updating. There is no way to
+ * reach that state without mutating a radius, which is why it appears here.
+ */
+test("a radius lowered mid-game takes the old picture away", async () => {
+  await withScenario(
+    {
+      n: N,
+      kinds: networkKinds,
+      listeners: mutableListeners(() => {}),
+      modeFunc: EmpiricaNetwork,
+    },
+    async ({ admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+      await play(participants);
+
+      const gameID = modeOf(participants[0]!).player.getValue()!.get("gameID") as string;
+      const subject = participants.find(
+        (p) => (modeOf(p).nbhd.getValue()!.neighbors as unknown[]).length === 1
+      )!;
+      const subjectID = modeOf(subject).nbhd.getValue()!.playerID!;
+
+      await setRadius(admin, gameID, subjectID, 2);
+      await waitFor(() => networkGraphOf(modeOf(subject).nbhd.getValue()!) !== undefined, {
+        label: "widened",
+        timeoutMs: 20_000,
+      });
+
+      await setRadius(admin, gameID, subjectID, 1);
+      await waitFor(() => networkGraphOf(modeOf(subject).nbhd.getValue()!) === undefined, {
+        label: "the structure is taken away again, not merely left to go stale",
+        timeoutMs: 20_000,
+      });
+    }
+  );
+});
+
 // ------------------------------------------------- the record a run leaves
 //
 // The graph a study ran on is recorded so a finished run is reproducible from

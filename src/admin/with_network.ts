@@ -9,6 +9,7 @@ import {
   toldKey,
   type ChatMessage,
   type EdgeEvent,
+  type RadiusEvent,
   type FarNode,
   type ViewRecord,
 } from "../shared/keys.js";
@@ -907,7 +908,16 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
    * was made the source of truth. The attribute is a projection of this, not the
    * other way round.
    */
+  /**
+   * Channels that currently hold a structure payload.
+   *
+   * Only so one can be cleared when a viewer's radius drops below the setting
+   * that produced it. See the write loop in `publish`.
+   */
+  const graphSent = new Set<string>();
   const historyByGame = new Map<string, EdgeEvent[]>();
+  /** Every change to how far somebody can see, per game. See `RadiusEvent`. */
+  const radiusLogByGame = new Map<string, RadiusEvent[]>();
 
   /**
    * Subscribe the admin to channel scopes.
@@ -1024,6 +1034,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     logSink?.flush();
     gameNetworks.delete(game.id);
     historyByGame.delete(game.id);
+    radiusLogByGame.delete(game.id);
 
     // Read the channel map BEFORE clearing it: the per-scope maps are keyed by
     // channel scope id, not by game, so this is the only way to find them.
@@ -1187,6 +1198,16 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       at: Date.now(),
     };
     historyByGame.set(game.id, [startEvent]);
+    // The opening assignment, so this log alone describes the run — including a
+    // study that never changes anybody's, where it is the only entry and says so.
+    const radiusStart: RadiusEvent = {
+      op: "start",
+      after: { ...radiiByPlayer },
+      seq: seqByGame.get(game.id) ?? 0,
+      at: startEvent.at,
+    };
+    radiusLogByGame.set(game.id, [radiusStart]);
+    batch.set(NETWORK_KEYS.radiusHistory(game.id), [radiusStart]);
     batch.set(NETWORK_KEYS.history(game.id), [startEvent]);
 
     gameNetworks.set(game.id, makeGameNetwork(game));
@@ -1665,7 +1686,31 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       // never holds a neighbor list from one publish and a structure from
       // another, which would draw ties between the wrong people for as long as
       // the skew lasted.
-      if (graph) scope.set(NBHD_KEYS.GRAPH, graph, { ephemeral: true });
+      if (graph) {
+        scope.set(NBHD_KEYS.GRAPH, graph, { ephemeral: true });
+        graphSent.add(scope.id);
+      } else if (graphSent.has(scope.id)) {
+        /**
+         * CLEARED, because nothing else would.
+         *
+         * A radius that drops to 1 stops producing a payload, and an attribute
+         * that is simply not written keeps its last value — so the participant
+         * would go on being drawn the ball they had when their radius was wider,
+         * indefinitely, while every other part of their screen updated. It
+         * cannot happen without `setRadius`, which is why it appears in this
+         * stage and not the two before it.
+         *
+         * `null` rather than a delete: `networkGraphOf` already maps it to
+         * `undefined`, which is "this study is at radius 1, draw a star" — the
+         * correct picture rather than a blocked one.
+         *
+         * CONDITIONAL on having sent one. Writing it unconditionally would have
+         * the default path touching a key it has never touched, and "radius 1
+         * sends zero bytes" is a claim with a test behind it.
+         */
+        scope.set(NBHD_KEYS.GRAPH, null, { ephemeral: true });
+        graphSent.delete(scope.id);
+      }
       // Monotonic counter, used client-side to detect the silent dones-wiring
       // failure where scopes materialise but every .get() returns undefined.
       scope.set(NBHD_KEYS.SEQ, seq, { ephemeral: true });
@@ -1853,6 +1898,11 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
     // across a restart rather than starting again from empty.
     const stored = game.batch?.get(NETWORK_KEYS.history(game.id));
     historyByGame.set(game.id, Array.isArray(stored) ? (stored as EdgeEvent[]).slice() : []);
+    const storedRadiusLog = game.batch?.get(NETWORK_KEYS.radiusHistory(game.id));
+    radiusLogByGame.set(
+      game.id,
+      Array.isArray(storedRadiusLog) ? (storedRadiusLog as RadiusEvent[]).slice() : []
+    );
     gameNetworks.set(game.id, makeGameNetwork(game));
 
     // Views are ephemeral, so a real process restart takes Tajriba's copy with
@@ -2007,6 +2057,63 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
       edges() {
         const s = state();
         return s.edges.map(([i, j]) => [s.order[i]!, s.order[j]!] as [string, string]);
+      },
+      radiusOf(playerID) {
+        const s = state();
+        return s.radii[indexOf(playerID)] ?? 1;
+      },
+      setRadius(playerID, radius) {
+        const s = state();
+        const i = indexOf(playerID);
+        if (!validRadius(radius)) refuseRadius(radius);
+        const before = s.radii[i] ?? 1;
+        if (before === radius) return false;
+
+        s.radii = s.radii.map((r, k) => (k === i ? radius : r));
+        s.widest = widestOf(s.radii);
+
+        const batch = games.get(gameID)?.batch;
+        if (!batch) {
+          throw new Error(
+            `empirica-networks: game ${gameID} has no batch, so this radius change cannot ` +
+              `be recorded. Refusing to apply it rather than let what a participant is ` +
+              `shown and what the record says diverge.`
+          );
+        }
+        const after: Record<string, Radius> = {};
+        for (const [k, id] of s.order.entries()) after[id] = s.radii[k] ?? 1;
+        const event: RadiusEvent = {
+          op: "set",
+          player: playerID,
+          from: before,
+          to: radius,
+          after,
+          // The counter as it stands NOW. Every view published after this point
+          // carries a higher one, which is what lets an auditor order a change
+          // against a delivery without reasoning about clocks — two events from
+          // one process inside one millisecond cannot be ordered by time.
+          seq: seqByGame.get(gameID) ?? 0,
+          at: Date.now(),
+        };
+        const log = radiusLogByGame.get(gameID) ?? [];
+        log.push(event);
+        radiusLogByGame.set(gameID, log);
+        batch.set(NETWORK_KEYS.radii(gameID), after);
+        batch.set(NETWORK_KEYS.radiusHistory(gameID), [...log]);
+
+        // Only this participant, because visibility is keyed on the viewer: how
+        // far somebody can see changes their own screen and nobody else's, not
+        // even the screens of the people who newly become visible to them.
+        //
+        // An OPTIMIZATION rather than a correctness property, and worth saying
+        // so: publishing everybody would be equally correct, because the
+        // byte-identical check drops every screen that did not move. Measured —
+        // widening the set to the whole game leaves the tests green.
+        publish(games.get(gameID), new Set([playerID]));
+        return true;
+      },
+      radiusHistory() {
+        return (radiusLogByGame.get(gameID) ?? []).slice();
       },
       addEdge(a, b) {
         const s = state();
@@ -2531,6 +2638,30 @@ export interface GameNetwork {
   hasEdge(a: string, b: string): boolean;
   /** Every current tie, as player id pairs. */
   edges(): Array<[string, string]>;
+  /** How far this participant can currently see. */
+  radiusOf(playerID: string): Radius;
+  /**
+   * Change how far one participant can see, mid-game.
+   *
+   *     net.setRadius(subject, 2);   // from the next publish, they see two hops
+   *
+   * Returns false if it was already that. Subject to the same rule as the other
+   * mutators: **only from inside a listener**, or the write will not flush.
+   *
+   * Republishes exactly one screen. Visibility is keyed on the VIEWER, so
+   * widening somebody's radius changes what THEY are shown and nothing about
+   * what anybody else is shown — including the people who newly become visible
+   * to them.
+   *
+   * Recorded as a `RadiusEvent`, because for a study where the widening IS the
+   * manipulation the sequence is the independent variable and a snapshot would
+   * lose it. Narrowing is recorded the same way and is worth being clear about:
+   * it stops further bytes and does not retract what a participant has already
+   * seen, which no mechanism here could.
+   */
+  setRadius(playerID: string, radius: Radius): boolean;
+  /** Every radius change since game start, oldest first. */
+  radiusHistory(): RadiusEvent[];
   /** Add a tie. Returns false if it already existed. */
   addEdge(a: string, b: string): boolean;
   /** Drop a tie. Returns false if it was not there. */

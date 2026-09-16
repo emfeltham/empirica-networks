@@ -12,7 +12,7 @@
  * export, they unit test in milliseconds with no server, and an analyst can
  * reuse them on data collected months ago.
  */
-import type { EdgeEvent, ViewRecord } from "../shared/keys.js";
+import type { EdgeEvent, RadiusEvent, ViewRecord } from "../shared/keys.js";
 
 /**
  * `EdgeRow` and `SnapshotRow` are `type` aliases rather than `interface`s, and that
@@ -181,6 +181,64 @@ export function viewRows(records: ViewRecord[]): ViewRow[] {
       }
       rows.push(row);
     }
+  }
+  return rows;
+}
+
+/**
+ * One row of `radius.csv`: one change to how far somebody could see.
+ *
+ * `radius_to` is a string because `"whole"` is a legal value and every other
+ * column in this module is `string | number` — stringifying is the only option
+ * that does not either invent a sentinel number or export `[object Object]`.
+ */
+export type RadiusRow = {
+  game_id: string;
+  t: number;
+  /** The publish counter when this was recorded. Joins to `views.csv` on `seq`. */
+  seq: number;
+  event: "start" | "set";
+  /** Empty on `start`, which is about everybody. */
+  player: string;
+  radius_from: string;
+  radius_to: string;
+};
+
+/**
+ * Flatten the log of who could see how far, and when.
+ *
+ * The `start` event expands to one row per participant — the opening assignment
+ * — so the table alone answers "what was this person's radius at seq N" by
+ * taking their last row at or below N. Without that expansion a reader would
+ * have to join against a separate snapshot to interpret the first half of any
+ * study that never changed anybody's radius, which is most of them.
+ */
+export function radiusRows(gameID: string, history: RadiusEvent[]): RadiusRow[] {
+  const rows: RadiusRow[] = [];
+  for (const e of history) {
+    if (e.op === "start") {
+      for (const [player, r] of Object.entries(e.after ?? {})) {
+        rows.push({
+          game_id: gameID,
+          t: e.at,
+          seq: e.seq,
+          event: "start",
+          player,
+          radius_from: "",
+          radius_to: String(r),
+        });
+      }
+      continue;
+    }
+    rows.push({
+      game_id: gameID,
+      t: e.at,
+      seq: e.seq,
+      event: "set",
+      player: e.player ?? "",
+      radius_from: e.from === undefined ? "" : String(e.from),
+      radius_to: e.to === undefined ? "" : String(e.to),
+    });
   }
   return rows;
 }

@@ -23,6 +23,24 @@ makes the entries below meaningful as a baseline rather than a moving target.
 
 ### Added
 
+- **`net.setRadius(playerID, radius)`** — change how far somebody can see, mid-game, which is what
+  the whole feature was asked for. Recorded as a `RadiusEvent` log under `networkRadiusHistory`
+  rather than by overwriting the snapshot: for a study where widening somebody's vision partway
+  through IS the manipulation, the sequence is the independent variable. Each event carries the
+  full assignment after it, so one entry answers "who could see how far at this moment", and the
+  publish counter, which is what lets an auditor order a change against a delivery without
+  reasoning about clocks — two events from one process inside one millisecond cannot be ordered by
+  time.
+
+  Narrowing is recorded like widening, and stops further bytes rather than retracting what a
+  participant has already seen; no mechanism here could do the second.
+
+- **`radiusRows()` and `auditViews({ radii })`.** A delivery carries the radius it was made at,
+  which is the server describing itself — enough to catch a payload inconsistent with its own
+  claim, and unable to catch a claim nobody authorized. With the log, the claim is checked against
+  what the study actually set, and a disagreement is reported either way round: somebody was shown
+  more than was allowed, or the record of what was allowed is wrong.
+
 - **A radius per PARTICIPANT.** `graph: { radius }` also takes a function, which runs after
   `topology` and receives the realized edges — so "the most central participants see two hops" is
   expressible, which is the design the setting exists for. Returns one value or one per seat.
@@ -405,6 +423,14 @@ makes the entries below meaningful as a baseline rather than a moving target.
   documented `empirica-networks` import, resolved against the built package).
 
 ### Fixed
+
+- **A radius that dropped left the old picture on the screen forever** (2026-09-16). A structure
+  payload is written only above radius 1, and an attribute that is not written keeps its last
+  value — so `setRadius(p, 1)` on a participant who had been at 2 left them being drawn the ball
+  they had when it was wider, indefinitely, while the rest of their screen updated. Nothing could
+  reach that state before mutation existed. The key is cleared with `null`, which the client
+  already reads as "radius 1, draw a star", and conditionally, so the default path still never
+  touches a key it has never touched.
 
 - **A correct radius-2 run failed its own audit** (2026-09-14). `auditViews` resolved every local
   index through the delivered view array, so an edge touching somebody the viewer is not connected

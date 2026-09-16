@@ -154,6 +154,21 @@ export const NETWORK_KEYS = {
    */
   radii: (gameID: string) => `networkRadii:${gameID}`,
   /**
+   * Append-only log of every change to how far somebody can see.
+   *
+   * The same relation to `radii` that `history` has to `network`: one says what
+   * the setting IS, this says how it got there. For a study where widening
+   * somebody's vision partway through is the manipulation, the sequence is the
+   * independent variable, and a snapshot overwritten as radii change would
+   * destroy the thing being measured.
+   *
+   * One `start` event for a study that never changes anybody's, which is what
+   * the common case costs. The `start` entry carries the whole opening
+   * assignment, so the log alone describes the run — the same property
+   * `EdgeEvent`'s own `start` exists for.
+   */
+  radiusHistory: (gameID: string) => `networkRadiusHistory:${gameID}`,
+  /**
    * The secret that names distant people to each viewer, per game.
    *
    * Only meaningful above radius 1, where a participant is shown nodes that have
@@ -183,6 +198,39 @@ export const NETWORK_KEYS = {
  * event is self-contained and `edges.csv` is a direct read rather than a
  * reconstruction.
  */
+/**
+ * One change to how far somebody can see, as recorded in the radius log.
+ *
+ * Self-contained, for the reason `EdgeEvent` is: `after` carries the whole
+ * assignment following the event, so a reader can answer "who could see how far
+ * at this moment" from any single entry rather than by replaying from the start
+ * and hoping nothing was dropped. It is O(n) where an edge list is O(n²), so the
+ * snapshot is affordable here in a way it would not be there.
+ */
+export interface RadiusEvent {
+  /** `start` is the opening assignment, so the log alone describes the run. */
+  op: "start" | "set";
+  /** Who changed. Absent on `start`, which is about everybody. */
+  player?: string;
+  /** What they could see before. Absent on `start`. */
+  from?: number | "whole";
+  /** What they can see now. Absent on `start`. */
+  to?: number | "whole";
+  /** Everybody's radius after this event, by player id. */
+  after: Record<string, number | "whole">;
+  /**
+   * The publish counter at the moment this was recorded.
+   *
+   * What makes the log joinable to `ViewRecord.seq` without reasoning about
+   * clocks: a view published at `seq` was built under every radius event whose
+   * own `seq` is lower. Wall-clock times from one process inside one
+   * millisecond cannot be ordered, and two of these can easily land there.
+   */
+  seq: number;
+  /** Wall clock, ms. */
+  at: number;
+}
+
 export interface EdgeEvent {
   /** `start` is the initial graph, so the log alone describes the whole run. */
   op: "start" | "add" | "remove" | "rewire";
