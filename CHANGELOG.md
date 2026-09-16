@@ -23,6 +23,24 @@ makes the entries below meaningful as a baseline rather than a moving target.
 
 ### Added
 
+- **`simulate` can run an arm above radius 1**, which it could not, and which the tool's own
+  `notExercised` list went on asserting after it became possible. The claim — "the example's config
+  is a literal fixed at module load and there is no path from a flag to it" — was true until
+  `graph.radius` began taking a function that receives the game, which is exactly the path: the
+  example reads its condition off the treatment already, and `simulate` already puts arbitrary keys
+  there. A stale claim outliving its cause, in prose rather than code.
+
+  The `wide-not-the-paper` arm is named so nobody reads it as the paper's design, and the manifest
+  says so on its own face whenever any arm ran above 1 — an arm name is easy to skim past and a
+  number is easy to quote. Shirado & Christakis's subjects saw only the colours of neighbors they
+  were directly connected to; a wider radius is a different experiment, and because the dependent
+  variable is time to solution it does not bias the number visibly, it drives it toward zero while
+  every screen still looks right.
+
+  It earns its place by exercising, at a scale no fixture reaches, arms that had only unit
+  coverage: one eight-participant session audits 643 views, 7050 ties and 2439 people beyond a
+  viewer's own neighbors.
+
 - **`auditViews` no longer refuses a game that rewired.** It used to, and the refusal was honest
   about a real problem — a view checked against the graph that REPLACED the one it was built on
   reads as a leak — but it was never a limitation of the data. `edges.csv` has carried a timestamp

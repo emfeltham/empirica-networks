@@ -92,6 +92,11 @@ function conditionOf(game) {
     bots: Number(treatment["botCount"] ?? 0),
     placement: String(treatment["botPlacement"] ?? "random"),
     noise: Number(treatment["botNoise"] ?? 0),
+    // Absent from the paper's design; see `graph` below. `"whole"` passes
+    // through as a word, everything else as a number, so a typo lands on the
+    // module's own refusal rather than silently on the default.
+    radius:
+      treatment["radius"] === "whole" ? "whole" : Number(treatment["radius"] ?? 1),
   };
 }
 
@@ -225,6 +230,30 @@ Empirica.onStageStart(({ stage }) => {
 });
 
 export const net = withNetwork(Empirica, {
+  /**
+   * How much of the network a subject can see.
+   *
+   * ABSENT FROM THE PAPER'S DESIGN, and present here anyway, so read this before
+   * using it. Shirado & Christakis's subjects "could see only the colors of
+   * neighbors to whom they were directly connected" — radius 1, which is the
+   * default and what every arm of the reconstruction runs at.
+   *
+   * A treatment that sets it higher is therefore NOT this paper's experiment. It
+   * is a legitimate study and a different one, for the reason `docs/EXPERIMENTS.md`
+   * gives at length: local structure is exactly what a coordinating subject lacks,
+   * and the dependent variable is TIME TO SOLUTION, so widening vision does not
+   * bias the number in a visible way — it drives it toward zero while every screen
+   * still looks right. At `"whole"` a subject can solve the colouring immediately
+   * and the variable is not measurable at all.
+   *
+   * It is wired to the treatment rather than hard-coded so `simulate` can exercise
+   * the machinery a wider radius involves — the structure payload, the people a
+   * subject cannot reach, and `auditViews`' arms over both — which nothing else in
+   * this repository runs end to end at scale. Any manifest that records a value
+   * above 1 here says so about itself.
+   */
+  graph: { radius: ({ game }) => conditionOf(game).radius },
+
   /**
    * "the network structure was created de novo for each session by attaching new
    * nodes (each with two links) to existing nodes" — Barabási–Albert, m = 2.
