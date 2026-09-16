@@ -38,6 +38,20 @@ export interface NodeSnapshot {
   /** Structural indices this seat is currently tied to. */
   neighbors: number[];
   /**
+   * How far THIS participant can see.
+   *
+   * On the node rather than only in the game-level summary, because under a
+   * per-participant radius "who sees how far" is the manipulation, and a summary
+   * row can say a study is mixed without saying who is which. An operator
+   * watching a live asymmetric study needs to look at the graph and know which
+   * seats are the wide ones — that is the question the monitor exists to answer
+   * about anything else it draws.
+   *
+   * Live, like `GameSnapshot.radius`: what this participant is being shown NOW,
+   * not what the record says they started at.
+   */
+  radius: Radius;
+  /**
    * Has this participant's private channel scope materialised on the server?
    *
    * False is the interesting value: it means provisioning has run but the scope

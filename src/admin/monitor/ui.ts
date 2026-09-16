@@ -364,7 +364,8 @@ export const PAGE = `<!doctype html>
     var node = snap.nodes[index];
     var tip = el("tip");
     var rect = el("stage").getBoundingClientRect();
-    var html = "<b>seat " + node.index + " \\u00b7 degree " + node.degree + "</b>" +
+    var html = "<b>seat " + node.index + " \\u00b7 degree " + node.degree +
+      (snap.radius === undefined ? " \\u00b7 radius " + node.radius : "") + "</b>" +
       "<div class='k'>" + node.playerID + "</div>";
     for (var i = 0; i < snap.watch.length; i++) {
       var k = snap.watch[i];
@@ -498,6 +499,10 @@ export const PAGE = `<!doctype html>
       row(dl, "seat", String(node.index));
       row(dl, "player", node.playerID);
       row(dl, "degree", String(node.degree));
+      // Only where it says something. In a uniform study the ops row above
+      // already carries it and repeating it on every seat is noise; in a mixed
+      // one it is the manipulation, and the summary cannot say WHO.
+      if (snap.radius === undefined) row(dl, "radius", String(node.radius));
       row(dl, "neighbors", node.neighbors.join(", ") || "\\u2014");
       row(dl, "channel", node.channel ? "yes" : "NO", node.channel ? "" : "alert");
       for (var w = 0; w < snap.watch.length; w++) {
@@ -514,15 +519,18 @@ export const PAGE = `<!doctype html>
   // the thing to copy out of when something looks wrong.
   function renderTable(snap) {
     var host = el("tableView");
+    var mixed = snap.radius === undefined;
     var head = "<tr><th>seat</th><th>player</th><th class='num'>degree</th>" +
-      "<th>neighbors</th><th>channel</th>";
+      (mixed ? "<th>radius</th>" : "") + "<th>neighbors</th><th>channel</th>";
     for (var i = 0; i < snap.watch.length; i++) head += "<th>" + snap.watch[i] + "</th>";
     head += "</tr>";
     var body = "";
     for (var n = 0; n < snap.nodes.length; n++) {
       var node = snap.nodes[n];
       body += "<tr><td class='num'>" + node.index + "</td><td>" + node.playerID +
-        "</td><td class='num'>" + node.degree + "</td><td>" + node.neighbors.join(" ") +
+        "</td><td class='num'>" + node.degree + "</td>" +
+        (mixed ? "<td>" + node.radius + "</td>" : "") +
+        "<td>" + node.neighbors.join(" ") +
         "</td><td>" + (node.channel ? "yes" : "NO") + "</td>";
       for (var k = 0; k < snap.watch.length; k++) {
         body += "<td>" + text(valueOfKey(node, snap.watch[k])) + "</td>";

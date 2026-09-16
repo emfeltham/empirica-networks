@@ -2577,6 +2577,7 @@ export function withNetwork(collector: any, config: NetworkConfig = {}): Network
         playerID,
         degree: neighbors.length,
         neighbors,
+        radius: state.radii[i] ?? 1,
         channel: Boolean(channelScope),
         attrs,
         state: privateState,

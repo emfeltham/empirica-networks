@@ -95,6 +95,23 @@ export const ARMS: Record<string, Arm> = {
   agent: { name: "agent", bots: 3, placement: "central", noise: 0.1 },
 };
 
+/**
+ * Every distinct radius across these sessions, as strings.
+ *
+ * Reads BOTH fields. `radius` answers only when one number described a session,
+ * and `radii` is what a session with participants at differing distances reports
+ * instead — so a manifest built from `radius` alone drops precisely the runs
+ * where the setting was doing something.
+ */
+function everyRadius(outcomes: SessionOutcome[]): string[] {
+  const seen = new Set<string>();
+  for (const o of outcomes) {
+    if (o.radius !== undefined) seen.add(String(o.radius));
+    for (const r of o.radii ?? []) seen.add(r);
+  }
+  return [...seen].sort();
+}
+
 export interface SessionOutcome {
   arm: string;
   seed: number;
@@ -554,12 +571,17 @@ async function sweep(args: SweepArgs): Promise<number> {
           "node executes the agent policy, and simulated humans act on noise=0 where the " +
           "server told them nothing. System properties are reported PER ARM. No cross-arm " +
           "outcome comparison is valid from this data, t_solution_ms included.",
-        // Every session's radius, so the manifest says what these runs showed
-        // people rather than leaving it to be inferred from a config file that
-        // may have changed since. One value in practice; a set, because a run
-        // spanning a restart at a changed radius is exactly the case worth
-        // seeing here rather than discovering later.
-        radii: [...new Set(outcomes.map((o) => o.radius).filter((r) => r !== undefined))],
+        // Every radius these runs showed people, so the manifest says it rather
+        // than leaving it to be inferred from a config file that may have
+        // changed since. One value in practice; a set, because a run spanning a
+        // restart at a changed radius is exactly the case worth seeing here
+        // rather than discovering later.
+        //
+        // Drawn from `radii` as well as `radius`, and that is the whole point of
+        // the pair: `radius` is `undefined` for a session where participants saw
+        // DIFFERENT distances, so a manifest reading only that one silently
+        // dropped exactly the studies this setting exists for.
+        radii: everyRadius(outcomes),
         notExercised: [
           "the React client",
           "the browser WebSocket",
@@ -567,9 +589,14 @@ async function sweep(args: SweepArgs): Promise<number> {
           "examples/shirado2017/server/src/index.js",
           // Named for as long as no arm delivers one. The example's `withNetwork`
           // config is a literal fixed at module load and there is no path from a
-          // flag to it, so every session here runs at the default radius and the
-          // structure payload — and `auditViews`' arms over it — go unexercised.
-          "the radius 1.5 structure payload (every arm runs at the default radius)",
+          // flag to it, so every session here runs at the DEFAULT radius — which
+          // leaves unexercised not just the structure payload but everything
+          // built on it, and saying "radius 1.5" alone would now understate what
+          // this rig does not reach by four settings.
+          "any radius above 1: the structure payload, the people a participant " +
+            "cannot reach, projection at distance, a radius that differs between " +
+            "participants or changes during a game — and `auditViews`' arms over " +
+            "all of them (every arm here runs at the default)",
         ],
         halted: halted === "" ? null : halted,
         sessions: outcomes,
@@ -895,7 +922,7 @@ async function runInjections(args: SweepArgs): Promise<number> {
         at: new Date().toISOString(),
         n: args.n,
         arms: ["control"],
-        radii: [...new Set(outcomes.map((o) => o.radius).filter((r) => r !== undefined))],
+        radii: everyRadius(outcomes),
         criterion:
           "Not that the session survives — some do not. That the data for what did " +
           "happen is intact and says what happened, and that a session which never " +

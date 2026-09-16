@@ -43,7 +43,9 @@ src/
     kinds.ts          networkKinds, assertKindsRegistered, the registration diff
     provision.ts      one channel per participant: batched, idempotent, order-independent
     projection.ts     validateProjection, projectionBytes — what a view may contain
-    envelope.ts       degree / view-bytes / neighborhood-bytes limits
+                      plus validateNoIdentifiers: a distant person may not be named
+    pseudonym.ts      per-viewer names for people a participant is not connected to
+    envelope.ts       degree / ball-size / view-bytes / neighborhood-bytes limits
     reads.ts          recording proxies; the unwatched-key report
     listeners.ts      the duplicate-lifecycle-listener detector
     registration.ts   the O14 kind-registration check: constants and messages, zero imports
@@ -51,11 +53,15 @@ src/
     seed.ts           hashSeed, makeRng — deterministic realization
     sink.ts           the shared NDJSON writer behind views: and log:
     views.ts          view capture config on top of the sink
-    export.ts         pure row builders: edgeRows, snapshotRows, viewRows, toCSV
+    export.ts         pure row builders: edgeRows, snapshotRows, viewRows,
+                      structureRows, positionRows, farRows, radiusRows, toCSV
     inspect.ts        GameSnapshot and the pure builders behind it
     layout.ts         Fruchterman-Reingold, seeded and warm-startable. Pure.
-                      Shared by the monitor and by participants at radius 1.5
+                      Shared by the monitor and by every participant above radius 1,
+                      and computed ONCE per distinct shape — at whole-network
+                      vision every viewer is looking at the same picture
     subgraph.ts       the closed neighborhood in LOCAL indices. Pure, zero imports
+    graph_payload.ts  what one participant is sent: the ball, laid out and named
     monitor/          the live view. Separate subpath so opting out is structural
   player/             client side; imports @empirica/core/player* ONLY
     mode.ts           EmpiricaNetwork — EmpiricaClassic composed with an nbhd context
@@ -77,6 +83,12 @@ src/
                       components, isConnected). Pure, index-based, zero imports
     graphology.ts     the graphology bridge, kept behind its own subpath
   verify/             the `verify` CLI: sentinel leak test, topology preflight, the ndjson audit
+                      args.ts holds the flag parsing and every refusal, separately, so
+                      both can be tested — cli.ts itself cannot be loaded by the unit tier
+                      topologies.ts and audit.ts each carry their OWN reachability walk
+                      rather than importing ball(): a checker that asks the publish
+                      path's own function what should have been sent compares the
+                      code with itself, and that was measured, not supposed
   harness/            shared Tajriba harness: spawn+probe a real server, session compat shims,
                       a TCP-cut chaos utility — used by `verify`, `simulate` and every e2e test
   simulate/           the `simulate` tool: batch-run simulated sessions for the evaluation paper
@@ -148,16 +160,43 @@ examples. Three branches:
 - Otherwise, the normal path below.
 
 5. Realize the topology. `seed = config.seed ?? hashSeed(String(game.id))`, `rng =
-makeRng(seed)`, `edges = topology({ game, playerCount, rng })`, `adj = adjacency(...)`. Then
-`checkDegrees()` runs before provisioning and before anything is recorded, so an out-of-envelope
-topology fails while the experiment is still abandonable rather than after participants have been
-committed to a game that will run badly.
+makeRng(seed)`, `edges = topology({ game, playerCount, rng })`, `adj = adjacency(...)`.
+
+Then **resolve how far each participant can see**, and the order is forced from both sides.
+`graph.radius` may be a function, and it runs AFTER the topology because the design it exists for
+is "the most central participants see further" — centrality is a property of the graph the study
+actually drew. It must run BEFORE the envelope, because `checkVision()` needs the answer: above
+radius 1 a participant's payload is their ball and not their degree, so one wide seat on an
+otherwise modest topology is enough to leave the supported envelope.
+
+`checkDegrees()` and `checkVision()` then run before provisioning and before anything is recorded,
+so an out-of-envelope study fails while the experiment is still abandonable rather than after
+participants have been committed to a game that will run badly.
 
 6. Record the realization on the batch scope. `batch.set(NETWORK_KEYS.seed(gameID), seed)` and
-`NETWORK_KEYS.network(gameID)`, plus a `start` event appended to `NETWORK_KEYS.history(gameID)`,
-plus `NETWORK_KEYS.radius(gameID)` — what the study showed people, which is not a property of the
-graph and which nothing else in the record implies. These are suffixed by game id because one
-batch holds many games. A game with no batch throws,
+`NETWORK_KEYS.network(gameID)`, plus a `start` event appended to `NETWORK_KEYS.history(gameID)`.
+Then four keys about what the study SHOWED people, which is not a property of the graph and which
+nothing else in the record implies:
+
+- `NETWORK_KEYS.radii(gameID)` — how far each participant could see, by player id. The complete
+  record, written at every setting including the uniform default, so an absent key means "this run
+  predates the key" and nothing else. By player id and not by seat, because the seating plan lives
+  on each participant's own channel and never on the batch: a seat-indexed vector here would be a
+  record the scope holding it cannot read.
+- `NETWORK_KEYS.radius(gameID)` — the same fact when one number describes it. Kept because every
+  reader that existed before per-participant radii still works, and written only when there IS a
+  single answer.
+- `NETWORK_KEYS.radiusHistory(gameID)` — a `start` event carrying the opening assignment, appended
+  to by `setRadius`. The same relation to `radii` that `history` has to `network`: one says what the
+  setting is, the other how it got there, and where widening somebody's vision partway through is
+  the manipulation the sequence is the independent variable.
+- `NETWORK_KEYS.viewKey(gameID)` — the secret that names distant people to each viewer
+  (`pseudonym.ts`). Minted for every game, including those that will never send a name, so it is
+  never missing the first time somebody widens a radius mid-session. On the batch for the reason
+  the edge list is: it is the one durable scope measured not to reach participants, and a key
+  participants hold is not a key.
+
+These are suffixed by game id because one batch holds many games. A game with no batch throws,
 since without it the run is neither reproducible nor restart-survivable, and that is worth failing
 loudly for.
 
