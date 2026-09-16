@@ -125,7 +125,15 @@ wider radius and have them reason only locally — that is a design choice — b
 choice, not an asymmetry nobody noticed.
 
 From radius 2 the payload also carries `far`: people the bot can see and is not connected to, each
-with the per-viewer name the server gave *this bot* for them. A policy indexing `structure().edges`
+with the per-viewer name the server gave *this bot* for them — never an id, and never a name any
+other participant would recognise. `test/e2e/bots.test.ts` runs a bot on a ring at radius 2 and
+checks all of it: two people two hops away, a structure larger than the neighbor list, and no two
+bots sharing a name for anybody.
+
+One thing that test had to learn the hard way and a policy should know: on a **static** graph there
+is exactly one publish, and the byte-identical check suppresses everything after it — so a policy
+that listens only for `onView` never hears anything. `onStart` is where the first structure
+arrives. A policy indexing `structure().edges`
 by `neighbors()` must mind that boundary — `neighbors()` is distance 1 only — and the boundary is
 the point rather than an inconsistency to work around: it is exactly the one a human in that seat
 sees. Its third state, `null`, means the payload arrived and cannot be used;
