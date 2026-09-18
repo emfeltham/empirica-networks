@@ -53,12 +53,13 @@ import { setLogLevel } from "@empirica/core/console";
 
 import { networkKinds } from "../admin/kinds.js";
 import { makeRng } from "../admin/seed.js";
-import { barabasiAlbert } from "../topology/index.js";
+import { barabasiAlbert, ringLattice } from "../topology/index.js";
 import { EmpiricaNetwork } from "../player/mode.js";
 import { runBots, botIdentifiers, type BotContext, type BotPolicy } from "../bots/index.js";
 import { batchConfig, createBatch, waitFor, withScenario } from "../harness/harness.js";
 import {
   auditViews,
+  parseRadiiCsv,
   canonicalEdges,
   formatAuditResult,
   mergeAuditResults,
@@ -101,7 +102,26 @@ export interface Arm {
    * reach, and `auditViews`' arms over both.
    */
   radius?: number | "whole";
+  /**
+   * The shape to run on, when the default is the wrong one to audit against.
+   *
+   * Only a wide arm sets this. The reconstruction's own graph is scale-free, and
+   * at radius 2 that puts 15 per cent of seats in sight of the whole network
+   * (measured over 200 seeds at n = 20), where a containment check has nothing
+   * left to forbid. The example explains the choice where it makes it.
+   */
+  topology?: string;
 }
+
+/**
+ * Neighbors per side in the lattice the auditing arms run on.
+ *
+ * Duplicated from the example rather than imported, like `ATTACHMENT` beside it:
+ * this file regenerates the graph INDEPENDENTLY of the server that produced it,
+ * and importing the value the server used would make C4b compare the example
+ * with itself.
+ */
+const LATTICE_NEIGHBORS = 2;
 
 export const ARMS: Record<string, Arm> = {
   control: { name: "control", bots: 0 },
@@ -116,6 +136,32 @@ export const ARMS: Record<string, Arm> = {
    * zero, which means no outcome from this arm is comparable with any other.
    */
   "wide-not-the-paper": { name: "wide-not-the-paper", bots: 0, radius: 2 },
+  /**
+   * The two arms the wider guarantee is evidenced on, and neither is the paper's
+   * design — the names say so, as `wide-not-the-paper` does.
+   *
+   * Split by radius because the two settings exercise different arms and one run
+   * cannot report both. At 1.5 the payload adds ties among a subject's own
+   * neighbors and nobody new, so it evidences containment of the structure and
+   * leaves the half step and the distant-person arms with nothing to check. At 2
+   * it adds people, which is what brings the per-viewer naming, the hop check and
+   * the half step into play.
+   *
+   * Human-only, so the traffic is the colour policy alone and no agent behaviour
+   * is mixed into a delivery count that is the point of the arm.
+   */
+  "audit-1.5-not-the-paper": {
+    name: "audit-1.5-not-the-paper",
+    bots: 0,
+    radius: 1.5,
+    topology: "ringLattice",
+  },
+  "audit-2-not-the-paper": {
+    name: "audit-2-not-the-paper",
+    bots: 0,
+    radius: 2,
+    topology: "ringLattice",
+  },
 };
 
 /**
@@ -350,6 +396,7 @@ export async function runSession(opts: {
           // function that receives the game. It could not before, and the
           // `notExercised` note below said so for longer than it was true.
           if (opts.arm.radius !== undefined) treatment["radius"] = opts.arm.radius;
+          if (opts.arm.topology !== undefined) treatment["topology"] = opts.arm.topology;
 
           const batch = await createBatch(admin, batchConfig(opts.n, 1, [treatment]));
           await batch.running();
@@ -481,11 +528,28 @@ function sweepOrphans(): number {
   return count;
 }
 
+/**
+ * `radius.csv` for a session, parsed, when the export wrote one.
+ *
+ * Optional because a capture taken before the example wrote the file is still
+ * auditable — it is checked against each delivery's own claim instead, which is
+ * a weaker audit that `auditViews` reports as such rather than passing over in
+ * silence. A malformed file is a different matter and is not swallowed: the
+ * parse throws on a bad header, and an audit that silently downgraded itself
+ * because a column was renamed would be the failure this whole tier exists to
+ * prevent.
+ */
+function radiiOfSession(o: SessionOutcome): ReturnType<typeof parseRadiiCsv> | undefined {
+  if (!o.gameID) return undefined;
+  const text = readIfPresent(path.join(o.outDir, o.gameID, "radius.csv"));
+  return text.trim() === "" ? undefined : parseRadiiCsv(text);
+}
+
 /** Audit one session's own files, so a failure names the session that produced it. */
 function auditSession(o: SessionOutcome): AuditResult {
   const views = readIfPresent(path.join(o.outDir, "views.ndjson"));
   const edges = o.gameID ? readIfPresent(path.join(o.outDir, o.gameID, "edges.csv")) : "";
-  return auditViews({ views, edges: parseEdgesCsv(edges) });
+  return auditViews({ views, edges: parseEdgesCsv(edges), radii: radiiOfSession(o) });
 }
 
 async function sweep(args: SweepArgs): Promise<number> {
@@ -750,7 +814,20 @@ function regeneratesFromSeed(
       o.order
     );
     const rng = makeRng(o.recordedSeed);
-    let regen = barabasiAlbert(n, Number(ATTACHMENT), { rng }) as IndexEdge[];
+    /**
+     * The generator the arm actually ran, not the one the paper's arms run.
+     *
+     * An arm auditing a wider radius runs on a ring lattice, and regenerating it
+     * with the scale-free generator would report a mismatch that says nothing
+     * about the seed. The lattice takes no rng, so it draws nothing from the
+     * stream and any later placement sees the same stream either way.
+     */
+    const shape = ARMS[o.arm]?.topology;
+    let regen = (
+      shape === "ringLattice"
+        ? ringLattice(n, LATTICE_NEIGHBORS)
+        : barabasiAlbert(n, Number(ATTACHMENT), { rng })
+    ) as IndexEdge[];
     if (botIndices.length > 0) {
       regen = placeBots(regen, n, botIndices, placement, rng) as IndexEdge[];
     }
@@ -785,7 +862,9 @@ function checkResults(root: string): number {
     for (const o of mine) {
       const views = readIfPresent(path.join(o.outDir, "views.ndjson"));
       const edgesText = o.gameID ? readIfPresent(path.join(o.outDir, o.gameID, "edges.csv")) : "";
-      audits.push(auditViews({ views, edges: parseEdgesCsv(edgesText) }));
+      audits.push(
+        auditViews({ views, edges: parseEdgesCsv(edgesText), radii: radiiOfSession(o) })
+      );
 
       let botIndices: number[] = [];
       let placement = "";

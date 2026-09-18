@@ -118,6 +118,12 @@ export interface SessionAudit {
   farTies: number;
   /** People shown to somebody not connected to them. Above 1.5 only. */
   farShown: number;
+  /** Far entries that carried a `projectFar` payload. The denominator for `farLeaks`. */
+  farViews: number;
+  /** Far payloads naming a participant. Must be 0. */
+  farLeaks: number;
+  /** Deliveries whose radius was checked against an authorization. */
+  authorizationChecked: number;
   /** Records that carried a structure at all. */
   structured: number;
 }
@@ -160,6 +166,26 @@ export interface AuditResult {
    */
   farTies: number;
   farShown: number;
+  /**
+   * Far entries that carried a `projectFar` payload, and how many named a person.
+   *
+   * `farShown` counts people a viewer was told about; these count what they were
+   * told ABOUT them. Without `projectFar` a distant person is a shape and a name,
+   * so `farViews` is zero and the arm is vacuous — which is a different fact from
+   * the arm having run and found nothing, and is reported as one.
+   */
+  farViews: number;
+  /** Far payloads naming a participant. Must be 0. */
+  farLeaks: number;
+  /**
+   * Deliveries whose stamped radius was checked against what the study authorized.
+   *
+   * Zero means no radius log was supplied, and therefore that every structure in
+   * this audit was checked only against its own claim. A server that delivered
+   * three hops and stamped `radius: 3` on it would self-certify, so this figure
+   * is printed against `structuredRecords` rather than left absent.
+   */
+  authorizationChecked: number;
   /** Records carrying a structure. Zero at the default radius. */
   structuredRecords: number;
   /** Games with a graph but no delivered view. Not a pass. */
@@ -370,6 +396,44 @@ function hopsFrom(graph: NeighborMap, source: string): Map<string, number> {
 }
 
 /**
+ * Does a `projectFar` payload name a participant?
+ *
+ * THE OFFLINE HALF OF `validateNoIdentifiers`. The publish path refuses a far
+ * view carrying a player id (`src/admin/projection.ts`), because an id is a
+ * stable handle that is the same for every viewer, while the `ref` beside it is
+ * deliberately not: two participants comparing screens can join on an id and
+ * cannot join on a ref. That check runs on the server, against the build that
+ * shipped. This one runs on the capture, against the build that ran — which is
+ * the only one the evaluation can speak for.
+ *
+ * It matters because nothing else here looks inside a far payload at all. The
+ * loops above check WHO was shown and HOW FAR AWAY the payload said they were;
+ * a build that put strangers' attributes in `far[k].view` would leave every one
+ * of those counts clean. That failure first becomes possible at radius 2, which
+ * is the radius this audit exists to cover.
+ *
+ * A string-only walk, like the server's: ids are strings, and a number or a
+ * boolean cannot be one however it is nested.
+ */
+function namesAnybody(value: unknown, ids: ReadonlySet<string>): string | undefined {
+  if (typeof value === "string") return ids.has(value) ? value : undefined;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const hit = namesAnybody(item, ids);
+      if (hit !== undefined) return hit;
+    }
+    return undefined;
+  }
+  if (value !== null && typeof value === "object") {
+    for (const item of Object.values(value as Record<string, unknown>)) {
+      const hit = namesAnybody(item, ids);
+      if (hit !== undefined) return hit;
+    }
+  }
+  return undefined;
+}
+
+/**
  * `radius.csv`, parsed: for each game, every change in the order it happened.
  *
  * Kept as events rather than flattened into a final assignment, for the reason
@@ -470,6 +534,7 @@ export function auditViews(input: {
     perSession.set(gameID, {
       gameID, records: 0, deliveries: 0, leaks: 0, missing: 0,
       ties: 0, structureLeaks: 0, beyondStar: 0, farTies: 0, farShown: 0,
+      farViews: 0, farLeaks: 0, authorizationChecked: 0,
       structured: 0,
     });
   }
@@ -643,6 +708,7 @@ export function auditViews(input: {
      * or the record of what it allowed is wrong.
      */
     const allowed = authorizedAt(input.radii, r.gameID, r.viewer, r.seq);
+    if (allowed !== undefined) session.authorizationChecked++;
     if (allowed !== undefined && allowed !== "whole" && allowed !== claimed) {
       session.structureLeaks++;
       complain(
@@ -653,7 +719,33 @@ export function auditViews(input: {
       );
     }
     const depth = Math.floor(claimed);
-    const hops = depth > 1 || delivered.length > 0 ? hopsFrom(graph, r.viewer) : undefined;
+    const hops =
+      depth > 1 || delivered.length > 0 || allowed === "whole"
+        ? hopsFrom(graph, r.viewer)
+        : undefined;
+    /**
+     * A seat authorized `"whole"` is still checked, against a different quantity.
+     *
+     * `"whole"` authorizes no particular number, so comparing it to `claimed`
+     * is meaningless — but the wire never carries `"whole"`. It carries the
+     * finite eccentricity the viewer's component actually reached, and that IS
+     * checkable from the edge log. Skipping these seats entirely, as this arm
+     * did, meant a seat authorized `"whole"` could be delivered any radius at
+     * all with no complaint.
+     */
+    if (allowed === "whole" && hops) {
+      let ecc = 0;
+      for (const d of hops.values()) if (Number.isFinite(d) && d > ecc) ecc = d;
+      if (claimed !== ecc) {
+        session.structureLeaks++;
+        complain(
+          `RADIUS MISREPORTED: ${r.viewer} (game ${r.gameID}, seq ${r.seq}) was authorized ` +
+            `the whole of their component and delivered a structure stamped radius ` +
+            `${claimed}, while the edge log puts the furthest person they can reach ` +
+            `${ecc} hop(s) away.`
+        );
+      }
+    }
     const within = (id: string): boolean => {
       if (id === r.viewer) return true;
       if (!hops) return neighbors.has(id);
@@ -665,8 +757,34 @@ export function auditViews(input: {
     // count is what a study would analyse on — "did seeing somebody two steps
     // away change behaviour" — so a wrong one is a wrong finding rather than a
     // cosmetic slip.
+    let population: ReadonlySet<string> | undefined;
     for (const [k, f] of far.entries()) {
       session.farShown++;
+      /**
+       * What the viewer was told ABOUT this person, as opposed to that they
+       * exist and how far away they are.
+       *
+       * Absent unless the study set `graph.projectFar`, which is why this is
+       * counted separately rather than folded into `farShown`: zero far views
+       * over a thousand far people is the default configuration behaving
+       * correctly, and it must not read as an arm that ran and passed.
+       */
+      const payload = delivered[k]?.view;
+      if (payload !== undefined) {
+        session.farViews++;
+        population ??= new Set(graph.keys());
+        const named = namesAnybody(payload, population);
+        if (named !== undefined) {
+          session.farLeaks++;
+          session.structureLeaks++;
+          complain(
+            `FAR LEAK: ${r.viewer} (game ${r.gameID}, seq ${r.seq}) was told something ` +
+              `about somebody ${String(delivered[k]?.d)} hop(s) away that names participant ` +
+              `${named}. A far payload may carry a per-viewer ref and not an id: an id is ` +
+              `the same handle for every viewer, so two participants can join on it.`
+          );
+        }
+      }
       const actual = hops?.get(f.id);
       if (actual === undefined || actual !== delivered[k]?.d) {
         session.structureLeaks++;
@@ -763,6 +881,9 @@ export function auditViews(input: {
   const beyondStar = sessions.reduce((s, x) => s + x.beyondStar, 0);
   const farTies = sessions.reduce((s, x) => s + x.farTies, 0);
   const farShown = sessions.reduce((s, x) => s + x.farShown, 0);
+  const farViews = sessions.reduce((s, x) => s + x.farViews, 0);
+  const farLeaks = sessions.reduce((s, x) => s + x.farLeaks, 0);
+  const authorizationChecked = sessions.reduce((s, x) => s + x.authorizationChecked, 0);
   const structuredRecords = sessions.reduce((s, x) => s + x.structured, 0);
 
   // Vacuity, stated on the denominator rather than on the session count, for the
@@ -800,6 +921,41 @@ export function auditViews(input: {
     );
   }
 
+  /**
+   * An arm that did not run says so, per this file's header.
+   *
+   * Without a radius log every structure was checked only against the radius it
+   * stamped on itself, which cannot catch a delivery nobody authorized. That is
+   * a weaker audit than the same output with `radius.csv` present, and the two
+   * are indistinguishable in the result unless this is said.
+   */
+  if (structuredRecords > 0 && authorizationChecked === 0) {
+    notes.push(
+      `no radius log was supplied, so all ${structuredRecords} structure(s) were checked ` +
+        `against the radius each delivery reported for itself and none against what the ` +
+        `study authorized. Export radius.csv to check the claim rather than its consistency`
+    );
+  } else if (authorizationChecked > 0) {
+    notes.push(
+      `${authorizationChecked} of ${structuredRecords} structure(s) were checked against ` +
+        `an authorized radius`
+    );
+  }
+
+  // The far payload arm, on its own denominator. Zero far views over any number
+  // of far people is `projectFar` being unset, which is the default and not a
+  // result; it must not read as an arm that ran clean.
+  if (farShown > 0) {
+    notes.push(
+      farViews === 0
+        ? `${farShown} distant person(s) were shown and none carried a projected payload: ` +
+            `at this setting a distant person is a shape and a name, so the far-disclosure ` +
+            `arm is vacuous rather than passed`
+        : `${farViews} of ${farShown} distant person(s) carried a projected payload; ` +
+            `${farLeaks} named a participant`
+    );
+  }
+
   if (dropped > 0) {
     notes.push(
       `${dropped} line(s) dropped as unparseable — the expected cause is a hard ` +
@@ -826,6 +982,9 @@ export function auditViews(input: {
     beyondStar,
     farTies,
     farShown,
+    farViews,
+    farLeaks,
+    authorizationChecked,
     structuredRecords,
     vacuousSessions,
     dropped,
@@ -868,9 +1027,13 @@ export function formatAuditResult(r: AuditResult): string {
     if (r.farShown > 0 || r.farTies > 0) {
       lines.push(
         `  people beyond neighbors : ${r.farShown}  (non-vacuity above radius 1.5)`,
-        `  ties reaching past them : ${r.farTies}`
+        `  ties reaching past them : ${r.farTies}`,
+        `  far payloads naming one : ${r.farLeaks}/${r.farViews} projected  (must be 0)`
       );
     }
+    lines.push(
+      `  radius authorized       : ${r.authorizationChecked}/${r.structuredRecords} checked`
+    );
   }
   lines.push("");
   for (const s of r.perSession) {
@@ -908,6 +1071,9 @@ export function mergeAuditResults(results: AuditResult[]): AuditResult {
     beyondStar: 0,
     farTies: 0,
     farShown: 0,
+    farViews: 0,
+    farLeaks: 0,
+    authorizationChecked: 0,
     structuredRecords: 0,
     vacuousSessions: [],
     dropped: 0,
@@ -926,6 +1092,9 @@ export function mergeAuditResults(results: AuditResult[]): AuditResult {
     merged.beyondStar += r.beyondStar;
     merged.farTies += r.farTies;
     merged.farShown += r.farShown;
+    merged.farViews += r.farViews;
+    merged.farLeaks += r.farLeaks;
+    merged.authorizationChecked += r.authorizationChecked;
     merged.structuredRecords += r.structuredRecords;
     merged.dropped += r.dropped;
     merged.vacuousSessions.push(...r.vacuousSessions);

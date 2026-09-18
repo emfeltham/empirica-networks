@@ -19,7 +19,7 @@ keywords:
   - behavioral experiments
   - experimental design
 license: MIT
-version: 0.0.0
+version: 0.1.0
 references:
   - type: article
     scope: "The design reconstructed in examples/rand2011."

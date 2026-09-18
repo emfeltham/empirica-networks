@@ -200,8 +200,12 @@ everything else links to it. At publish time that is one edit rather than a sear
 
 ## 7. Releasing
 
-The package is `private: true` at `0.0.0`, so this section does not yet apply.
-Once it is published:
+Prepared for `0.1.0` on 2026-09-18: `private` is removed, the version is set, `CHANGELOG.md`'s
+`[Unreleased]` section is now `[0.1.0]`, and the README and GETTING-STARTED install blocks name
+the published package. **Steps 2 and 3 below are therefore done**; 1, 4 and 5 are not, and the tag
+and publish have not happened.
+
+The procedure, kept for this release and the next:
 
 1. Freeze the surface and give [API.md](API.md) a read-through against it: the CLI's flags and
    exit codes are surface too, and freeze with the rest.

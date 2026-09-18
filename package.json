@@ -1,7 +1,6 @@
 {
   "name": "empirica-networks",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
   "description": "Network experiments for Empirica: neighbor-limited visibility, topologies, and rewiring.",
   "license": "MIT",
@@ -71,7 +70,8 @@
     "soak": "node scripts/soak.mjs",
     "test:repeat": "node scripts/e2e-repeat.mjs",
     "example:build": "node scripts/example-build.mjs",
-    "figure:shot": "node scripts/figure-shot.mjs"
+    "figure:shot": "node scripts/figure-shot.mjs",
+    "figure:ladder": "node scripts/figure-ladder.mjs"
   },
   "peerDependencies": {
     "@empirica/core": ">=1.12.0 <2",
