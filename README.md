@@ -45,12 +45,19 @@ Every participant also receives each co-player's recruitment identifier. The sam
 
 <a id="not-published-yet"></a>
 
-```sh
-npm --prefix server install empirica-networks
-npm --prefix client install empirica-networks
-```
+> **Not on npm yet.** `0.1.0` is tagged and released on GitHub, with the evaluation output
+> attached, but the package has not been published to the registry. Until it is, install from a
+> packed tarball or from the release; the npm form below is what it becomes on publication.
 
-The anchor above is kept because older documents and links point at it.
+```sh
+npm pack                                          # in a clone -> empirica-networks-0.1.0.tgz
+npm --prefix server install /path/to/empirica-networks-0.1.0.tgz
+npm --prefix client install /path/to/empirica-networks-0.1.0.tgz
+
+# once published:
+# npm --prefix server install empirica-networks
+# npm --prefix client install empirica-networks
+```
 
 The package requires Node 20 or later and the Empirica CLI (`curl https://install.empirica.dev | sh`). Install it in both the `server` and `client` projects because they use separate package installations.
 
