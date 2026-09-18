@@ -10,16 +10,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   edgeRows,
+  farRows,
   historyIsConsistent,
   parseNdjson,
   positionRows,
+  radiusRows,
   snapshotRows,
   structureRows,
   toCSV,
   viewRows,
 } from "../../src/admin/export.js";
 import type { ViewRecord } from "../../src/shared/keys.js";
-import type { EdgeEvent } from "../../src/shared/keys.js";
+import type { EdgeEvent, RadiusEvent } from "../../src/shared/keys.js";
 
 /** A ring of three, then one tie dropped and another added. */
 const HISTORY: EdgeEvent[] = [
@@ -234,6 +236,11 @@ test("structureRows resolves local index 0 to the viewer, not to their first nei
     b_index: 2,
     a_id: "a",
     b_id: "b",
+    // Both ends are the viewer's own neighbors, which at this radius is the
+    // only thing they can be. The column earns its place above 1.5, where a row
+    // with `a_hop: 2` is a different relationship in the same table.
+    a_hop: 1,
+    b_hop: 1,
   });
 });
 
@@ -273,6 +280,10 @@ test("positionRows keeps the isolated viewer, whom an edge table would drop", ()
       radius: 1.5,
       node_index: 0,
       node_id: "me",
+      node_hop: 0,
+      // The viewer is named by their id, so they have no private name for
+      // themselves — and neither does anybody they are connected to.
+      node_ref: "",
       x: 300,
       y: 300,
     },
@@ -299,4 +310,131 @@ test("a radius 1 delivery produces no structure rows at all", () => {
   assert.deepEqual(structureRows([plain]), []);
   assert.deepEqual(positionRows([plain]), []);
   assert.equal(viewRows([plain]).length, 1, "and the existing table is untouched");
+});
+
+// --------------------------------------------------- the tables added late
+//
+// `farRows` and `radiusRows` shipped with no test of their own — `farRows` only
+// through `examples/minimal/recover.mjs`, which is a worked example and not a
+// check, and `radiusRows` through nothing at all. Both are on the offline path a
+// researcher publishes from.
+
+const FAR_DELIVERY: ViewRecord = {
+  gameID: "g1",
+  viewer: "me",
+  seq: 3,
+  at: 1000,
+  view: [{ id: "a" }, { id: "b" }],
+  graph: {
+    radius: 2,
+    edges: [
+      [0, 1],
+      [1, 3],
+    ],
+    positions: [
+      { x: 300, y: 300 },
+      { x: 300, y: 100 },
+      { x: 450, y: 400 },
+      { x: 100, y: 500 },
+    ],
+    far: [{ ref: "k3m9x2pq", d: 2, view: { mood: "calm" } }],
+  },
+  far: [{ ref: "k3m9x2pq", id: "z", hop: 2 }],
+};
+
+test("farRows: one row per distant person, with the ref AND who it was", () => {
+  const rows = farRows([FAR_DELIVERY]);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0], {
+    game_id: "g1",
+    viewer: "me",
+    seq: 3,
+    t: 1000,
+    radius: 2,
+    // Local index 3: the viewer, two neighbors, then this.
+    node_index: 3,
+    ref: "k3m9x2pq",
+    id: "z",
+    hop: 2,
+    // Whatever `projectFar` returned, flattened like a view row's fields.
+    mood: "calm",
+  });
+});
+
+test("farRows: a study that projected nothing at distance still records the disclosure", () => {
+  const structureOnly: ViewRecord = {
+    ...FAR_DELIVERY,
+    graph: { ...FAR_DELIVERY.graph!, far: [{ ref: "k3m9x2pq", d: 2 }] },
+  };
+  const rows = farRows([structureOnly]);
+  assert.equal(rows.length, 1, "seeing somebody at all is the fact most designs manipulate");
+  assert.equal(rows[0]!["mood"], undefined);
+  assert.equal(rows[0]!["hop"], 2);
+});
+
+test("farRows: below radius 2 there is nobody to have a row", () => {
+  const near: ViewRecord = {
+    ...FAR_DELIVERY,
+    graph: { radius: 1.5, edges: [[0, 1]], positions: [] },
+    far: undefined,
+  };
+  assert.deepEqual(farRows([near]), []);
+});
+
+test("farRows: a projected field may not overwrite an identity column", () => {
+  // An author's `projectFar` returning `{ id: … }` is refused at publish time,
+  // but this builder also reads captures written by other builds and must not
+  // let one clobber the column an analyst joins on.
+  const hostile: ViewRecord = {
+    ...FAR_DELIVERY,
+    graph: {
+      ...FAR_DELIVERY.graph!,
+      far: [{ ref: "k3m9x2pq", d: 2, view: { id: "someone-else", hop: 99 } }],
+    },
+  };
+  const row = farRows([hostile])[0]!;
+  assert.equal(row["id"], "z", "the recorded identity wins");
+  assert.equal(row["hop"], 2, "and so does the recorded distance");
+});
+
+const RADIUS_LOG: RadiusEvent[] = [
+  { op: "start", after: { a: 1, b: 1 }, seq: 0, at: 100 },
+  { op: "set", player: "a", from: 1, to: 2, after: { a: 2, b: 1 }, seq: 4, at: 200 },
+  { op: "set", player: "a", from: 2, to: "whole", after: { a: "whole", b: 1 }, seq: 9, at: 300 },
+];
+
+test("radiusRows: the start event expands to one row per participant", () => {
+  const rows = radiusRows("g1", RADIUS_LOG);
+  assert.equal(rows.length, 4, "two opening rows, then two changes");
+  assert.deepEqual(
+    rows.slice(0, 2).map((r) => `${r.event}:${r.player}:${r.radius_to}`),
+    ["start:a:1", "start:b:1"]
+  );
+  // Without the expansion, a study that never changed anybody's radius would
+  // export a table that says nothing about anybody — and that is most studies.
+  assert.equal(rows[0]!.radius_from, "", "nothing preceded the opening assignment");
+});
+
+test("radiusRows: a change carries both ends, and seq is what orders it", () => {
+  const rows = radiusRows("g1", RADIUS_LOG);
+  const change = rows.find((r) => r.event === "set")!;
+  assert.equal(change.player, "a");
+  assert.equal(change.radius_from, "1");
+  assert.equal(change.radius_to, "2");
+  assert.equal(change.seq, 4, "the publish counter, not the clock");
+});
+
+test('radiusRows: "whole" survives as a value rather than becoming a number', () => {
+  const rows = radiusRows("g1", RADIUS_LOG);
+  assert.equal(rows.at(-1)!.radius_to, "whole");
+  // Every column in this module is `string | number`, so a value that is neither
+  // has to be stringified — and stringifying is also what keeps it from being
+  // read back as a number by something that assumes one.
+  assert.equal(typeof rows.at(-1)!.radius_to, "string");
+});
+
+test("radiusRows: a study that never changed anybody still exports its assignment", () => {
+  const rows = radiusRows("g1", [RADIUS_LOG[0]!]);
+  assert.equal(rows.length, 2);
+  assert.ok(rows.every((r) => r.event === "start"));
 });

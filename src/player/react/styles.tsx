@@ -68,6 +68,18 @@ export const NETWORK_GRAPH_CSS = `
   user-select: none;
 }
 .nbhd .nbhd-node-self .nbhd-label { font-size: 18px; }
+
+/*
+ * People the viewer cannot act on, above radius 1.5.
+ *
+ * Drawn smaller by \`graphModelOf\` and hollow here, which is the honest default:
+ * a solid circle the size of a neighbor says "this is someone you are connected
+ * to" in a visual language the rest of the screen has already taught. A study
+ * that carries state in fill will override this, and should — but it should do
+ * it on purpose rather than inherit it.
+ */
+.nbhd .nbhd-node-far circle { fill: #fff; stroke: #999; stroke-width: 2px; }
+.nbhd .nbhd-node-far .nbhd-label { font-size: 11px; fill: #666; }
 `;
 
 /**

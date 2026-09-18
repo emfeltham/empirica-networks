@@ -132,11 +132,13 @@ function fakeSource() {
           order: ORDER,
           seed: 7,
           radius: 1,
+          radii: [],
           seq: 12,
           nodes: ORDER.map((playerID, index) => ({
             index,
             playerID,
             degree: (deg.get(index) ?? []).length,
+            radius: 1,
             neighbors: (deg.get(index) ?? []).slice().sort((a, b) => a - b),
             channel: !pending.includes(playerID),
             attrs: {},

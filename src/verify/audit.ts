@@ -59,17 +59,47 @@ export type NeighborMap = Map<string, Set<string>>;
 /** Every game found in an `edges.csv`, keyed by `game_id`. */
 export type GameGraphs = Map<string, NeighborMap>;
 
+/** One tie change, in the order it was recorded. */
+export interface TieChange {
+  /** Publish counter, or `-1` for a record written before the column existed. */
+  seq: number;
+  t: number;
+  a: string;
+  b: string;
+  connect: boolean;
+}
+
 export interface ParsedEdges {
   graphs: GameGraphs;
   /**
    * Games whose edge log contained a disconnection.
    *
    * Returned rather than held in module state, so two audits in one process
-   * cannot contaminate each other. Shirado never rewires — `callbacks.js` warns
-   * if its event count is not exactly one — so this is empty in practice and
-   * exists to stop a rewiring design being audited against the wrong graph.
+   * cannot contaminate each other. No longer a reason to refuse: it used to be,
+   * because a delivery could only be checked against the final adjacency and a
+   * view that was correct when sent would read as a leak against the graph that
+   * replaced it. `timeline` is what removed that, and this is now a fact about
+   * the run rather than a verdict on it.
    */
   rewired: Set<string>;
+  /**
+   * Every tie change, in order, per game.
+   *
+   * The same rows as `graphs`, unflattened. `graphs` answers "what did the graph
+   * end as", which is all a static study needs; this answers "what was it when
+   * this view was delivered", which is the only question a rewiring study can be
+   * audited on.
+   */
+  timeline: Map<string, TieChange[]>;
+  /**
+   * Rows carrying no publish counter, because they predate the column.
+   *
+   * Reported rather than worked around: without one, a change and the delivery
+   * it caused can only be ordered by a wall clock they usually share, so those
+   * games fall back to the final adjacency and the audit says how many rows put
+   * it in that position.
+   */
+  undated: number;
 }
 
 export interface SessionAudit {
@@ -84,6 +114,16 @@ export interface SessionAudit {
   structureLeaks: number;
   /** Ties delivered that were NOT incident to the viewer — what radius 1.5 adds. */
   beyondStar: number;
+  /** Ties delivered with an end beyond the viewer's own neighbors. Above 1.5 only. */
+  farTies: number;
+  /** People shown to somebody not connected to them. Above 1.5 only. */
+  farShown: number;
+  /** Far entries that carried a `projectFar` payload. The denominator for `farLeaks`. */
+  farViews: number;
+  /** Far payloads naming a participant. Must be 0. */
+  farLeaks: number;
+  /** Deliveries whose radius was checked against an authorization. */
+  authorizationChecked: number;
   /** Records that carried a structure at all. */
   structured: number;
 }
@@ -116,6 +156,36 @@ export interface AuditResult {
    * put nothing in it.
    */
   beyondStar: number;
+  /**
+   * The generalization of `beyondStar`, which only ever meant anything at 1.5.
+   *
+   * Above that radius most ties touch neither the viewer nor another neighbor,
+   * so "not incident to local 0" stops separating the interesting case from the
+   * ordinary one. These count what a wider radius actually adds: ties reaching
+   * past the neighbor array, and the people at the far end of them.
+   */
+  farTies: number;
+  farShown: number;
+  /**
+   * Far entries that carried a `projectFar` payload, and how many named a person.
+   *
+   * `farShown` counts people a viewer was told about; these count what they were
+   * told ABOUT them. Without `projectFar` a distant person is a shape and a name,
+   * so `farViews` is zero and the arm is vacuous — which is a different fact from
+   * the arm having run and found nothing, and is reported as one.
+   */
+  farViews: number;
+  /** Far payloads naming a participant. Must be 0. */
+  farLeaks: number;
+  /**
+   * Deliveries whose stamped radius was checked against what the study authorized.
+   *
+   * Zero means no radius log was supplied, and therefore that every structure in
+   * this audit was checked only against its own claim. A server that delivered
+   * three hops and stamped `radius: 3` on it would self-certify, so this figure
+   * is printed against `structuredRecords` rather than left absent.
+   */
+  authorizationChecked: number;
   /** Records carrying a structure. Zero at the default radius. */
   structuredRecords: number;
   /** Games with a graph but no delivered view. Not a pass. */
@@ -187,8 +257,10 @@ function splitCsvLine(line: string): string[] {
 export function parseEdgesCsv(text: string): ParsedEdges {
   const graphs: GameGraphs = new Map();
   const rewired = new Set<string>();
+  const timeline: Map<string, TieChange[]> = new Map();
+  let undated = 0;
   const lines = text.split("\n").filter((l) => l.trim().length > 0);
-  if (lines.length === 0) return { graphs, rewired };
+  if (lines.length === 0) return { graphs, rewired, timeline, undated };
 
   const headers = splitCsvLine(lines[0]!);
   const col = (name: string) => headers.indexOf(name);
@@ -196,6 +268,8 @@ export function parseEdgesCsv(text: string): ParsedEdges {
   const iEvent = col("event");
   const iA = col("player_a");
   const iB = col("player_b");
+  const iSeq = col("seq");
+  const iT = col("t");
   if (iGame < 0 || iEvent < 0 || iA < 0 || iB < 0) {
     throw new Error(
       `edges.csv is missing a required column: expected game_id, event, player_a, ` +
@@ -228,8 +302,55 @@ export function parseEdgesCsv(text: string): ParsedEdges {
     link(a, b, connect);
     link(b, a, connect);
     if (!connect) rewired.add(gameID);
+
+    // The same rows, kept in order as well as replayed, so a delivery can be
+    // checked against the graph as it stood AT THAT MOMENT rather than against
+    // the one the study finished with. `graphs` above is still the final
+    // adjacency and is still what a static study needs.
+    const seq = iSeq >= 0 ? Number(f[iSeq] ?? -1) : -1;
+    if (!Number.isFinite(seq) || seq < 0) undated++;
+    const list = timeline.get(gameID) ?? [];
+    list.push({ seq, t: iT >= 0 ? Number(f[iT] ?? 0) : 0, a, b, connect });
+    timeline.set(gameID, list);
   }
-  return { graphs, rewired };
+  // Stable within a seq: the writer emits removals before additions inside one
+  // event, and a rewire that drops (a,b) and adds (a,c) has to replay in that
+  // order or the intermediate graph is wrong.
+  for (const list of timeline.values()) {
+    list.forEach((c, i) => ((c as TieChange & { i: number }).i = i));
+    list.sort((x, y) => x.seq - y.seq || x.t - y.t || (x as any).i - (y as any).i);
+  }
+  return { graphs, rewired, timeline, undated };
+}
+
+/**
+ * The graph as it stood at a given publish.
+ *
+ * Replayed from the start rather than diffed from the final adjacency, because
+ * the final one cannot be walked backwards: `edges.csv` records that a tie was
+ * disconnected and not what the graph looked like before it.
+ */
+function graphAt(changes: TieChange[] | undefined, seq: number): NeighborMap {
+  const g: NeighborMap = new Map();
+  const link = (x: string, y: string, connect: boolean) => {
+    let set = g.get(x);
+    if (!set) {
+      set = new Set();
+      g.set(x, set);
+    }
+    if (connect) set.add(y);
+    else set.delete(y);
+  };
+  for (const c of changes ?? []) {
+    // A change recorded AT this publish counter was made before the publish that
+    // carries it — `commit` stamps the counter as it stands and then flushes —
+    // so `<=` is what puts a tie change and the delivery it caused on the right
+    // sides of each other.
+    if (c.seq > seq) break;
+    link(c.a, c.b, c.connect);
+    link(c.b, c.a, c.connect);
+  }
+  return g;
 }
 
 /**
@@ -243,7 +364,160 @@ export function parseEdgesCsv(text: string): ParsedEdges {
  */
 const MAX_QUOTED = 20;
 
-export function auditViews(input: { views: string; edges: ParsedEdges }): AuditResult {
+/**
+ * Hops from `source` to everyone reachable, over the graph the edge log gives.
+ *
+ * Written here rather than imported, and the import constraint is not the only
+ * reason. `src/topology/index.ts` has a runtime import so it is barred from this
+ * file anyway — but `ball()` is also the function the PUBLISH PATH used to decide
+ * what to send, and an audit that asked it what should have been sent would be
+ * comparing the server with itself. `verify` learned that the expensive way:
+ * with `ball()`'s edge filter broken it still reported PASS, because both sides
+ * of the comparison moved together. `src/verify/topologies.ts` carries an
+ * independent walk for the same reason; this is the offline one.
+ *
+ * Plain FIFO BFS over player ids. No depth limit: the caller compares against
+ * whatever radius the record itself claims, and a distance is cheaper to compute
+ * once than to recompute per radius.
+ */
+function hopsFrom(graph: NeighborMap, source: string): Map<string, number> {
+  const dist = new Map<string, number>([[source, 0]]);
+  const queue = [source];
+  for (let head = 0; head < queue.length; head++) {
+    const v = queue[head]!;
+    const d = dist.get(v)!;
+    for (const u of graph.get(v) ?? []) {
+      if (dist.has(u)) continue;
+      dist.set(u, d + 1);
+      queue.push(u);
+    }
+  }
+  return dist;
+}
+
+/**
+ * Does a `projectFar` payload name a participant?
+ *
+ * THE OFFLINE HALF OF `validateNoIdentifiers`. The publish path refuses a far
+ * view carrying a player id (`src/admin/projection.ts`), because an id is a
+ * stable handle that is the same for every viewer, while the `ref` beside it is
+ * deliberately not: two participants comparing screens can join on an id and
+ * cannot join on a ref. That check runs on the server, against the build that
+ * shipped. This one runs on the capture, against the build that ran — which is
+ * the only one the evaluation can speak for.
+ *
+ * It matters because nothing else here looks inside a far payload at all. The
+ * loops above check WHO was shown and HOW FAR AWAY the payload said they were;
+ * a build that put strangers' attributes in `far[k].view` would leave every one
+ * of those counts clean. That failure first becomes possible at radius 2, which
+ * is the radius this audit exists to cover.
+ *
+ * A string-only walk, like the server's: ids are strings, and a number or a
+ * boolean cannot be one however it is nested.
+ */
+function namesAnybody(value: unknown, ids: ReadonlySet<string>): string | undefined {
+  if (typeof value === "string") return ids.has(value) ? value : undefined;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const hit = namesAnybody(item, ids);
+      if (hit !== undefined) return hit;
+    }
+    return undefined;
+  }
+  if (value !== null && typeof value === "object") {
+    for (const item of Object.values(value as Record<string, unknown>)) {
+      const hit = namesAnybody(item, ids);
+      if (hit !== undefined) return hit;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * `radius.csv`, parsed: for each game, every change in the order it happened.
+ *
+ * Kept as events rather than flattened into a final assignment, for the reason
+ * the log is kept that way — under mutation "what was this person allowed to
+ * see" has no single answer, only an answer per moment.
+ */
+export type ParsedRadii = Map<string, Array<{ seq: number; player: string; to: string }>>;
+
+/**
+ * Read `radius.csv` as `radiusRows` writes it.
+ *
+ * Local, like `parseEdgesCsv`, and for the same reason: this module may hold no
+ * runtime import, and an offline analyst should be able to run it over a file
+ * collected months ago with nothing installed.
+ */
+export function parseRadiiCsv(text: string): ParsedRadii {
+  const out: ParsedRadii = new Map();
+  const lines = text.split("\n").filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return out;
+
+  const header = splitCsvLine(lines[0]!);
+  const at = (name: string): number => header.indexOf(name);
+  const iGame = at("game_id");
+  const iSeq = at("seq");
+  const iPlayer = at("player");
+  const iTo = at("radius_to");
+  if (iGame < 0 || iSeq < 0 || iPlayer < 0 || iTo < 0) {
+    throw new Error(
+      `parseRadiiCsv: expected columns game_id, seq, player, radius_to. Found: ` +
+        `${header.join(", ")}`
+    );
+  }
+
+  for (const line of lines.slice(1)) {
+    const f = splitCsvLine(line);
+    const gameID = f[iGame] ?? "";
+    const player = f[iPlayer] ?? "";
+    if (!gameID || !player) continue;
+    const list = out.get(gameID) ?? [];
+    list.push({ seq: Number(f[iSeq] ?? 0), player, to: f[iTo] ?? "" });
+    out.set(gameID, list);
+  }
+  for (const list of out.values()) list.sort((a, b) => a.seq - b.seq);
+  return out;
+}
+
+/** What the record says this participant was ALLOWED to see at this publish. */
+function authorizedAt(
+  radii: ParsedRadii | undefined,
+  gameID: string,
+  player: string,
+  seq: number
+): number | "whole" | undefined {
+  const events = radii?.get(gameID);
+  if (!events) return undefined;
+  let found: string | undefined;
+  // The last change to this participant at or before the publish in question.
+  // `seq` and not the clock: two events from one process inside one millisecond
+  // cannot be ordered by time, and a radius change is exactly the kind of thing
+  // that lands there.
+  for (const e of events) {
+    if (e.player !== player || e.seq > seq) continue;
+    found = e.to;
+  }
+  if (found === undefined) return undefined;
+  if (found === "whole") return "whole";
+  const n = Number(found);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+export function auditViews(input: {
+  views: string;
+  edges: ParsedEdges;
+  /**
+   * `radius.csv`, when the study changed anybody's radius during the run.
+   *
+   * Without it the audit checks each delivery against the radius that delivery
+   * itself reports — which catches a payload inconsistent with its own claim and
+   * cannot catch a claim nobody authorized. A server that delivered three hops
+   * and stamped `radius: 3` on it would self-certify. With the log, the claim is
+   * checked against what the study actually set.
+   */
+  radii?: ParsedRadii;
+}): AuditResult {
   const { graphs, rewired } = input.edges;
   const { records, dropped } = parseNdjson<ViewRecord>(input.views);
   const quoted: string[] = [];
@@ -259,22 +533,44 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
   for (const gameID of graphs.keys()) {
     perSession.set(gameID, {
       gameID, records: 0, deliveries: 0, leaks: 0, missing: 0,
-      ties: 0, structureLeaks: 0, beyondStar: 0, structured: 0,
+      ties: 0, structureLeaks: 0, beyondStar: 0, farTies: 0, farShown: 0,
+      farViews: 0, farLeaks: 0, authorizationChecked: 0,
+      structured: 0,
     });
   }
 
-  for (const gameID of rewired) {
-    if (!graphs.has(gameID)) continue;
+  /**
+   * A rewiring game used to be refused here, and is not any more.
+   *
+   * The refusal was honest about a real limitation — a view checked against the
+   * graph that REPLACED the one it was built on reads as a leak — and it was
+   * never a limitation of the data. `edges.csv` has carried a timestamp for
+   * every row since it existed; what it lacked was a way to order a tie change
+   * against a DELIVERY, which a wall clock cannot do when the change and the
+   * publish it triggers land in the same millisecond. `seq` closed that, and the
+   * timeline is replayed per record below.
+   *
+   * What survives is the case the counter is missing: a capture written before
+   * that column existed can only be replayed by clock, so those games are still
+   * checked against the final adjacency and still refused if they rewired —
+   * stated on the count of rows that put them there rather than on the game.
+   */
+  const undatedRewires = [...rewired].filter(
+    (gameID) => graphs.has(gameID) && (input.edges.timeline?.get(gameID) ?? []).some((c) => c.seq < 0)
+  );
+  for (const gameID of undatedRewires) {
     failures.push(
-      `REFUSED: game ${gameID} rewired during the session, so its views cannot be ` +
-        `checked against one static neighbor set — a view that was correct when ` +
-        `delivered would read as a leak against the graph that replaced it.`
+      `REFUSED: game ${gameID} rewired during the session and its edge log carries no ` +
+        `publish counter, so a tie change cannot be ordered against a delivery — a view ` +
+        `that was correct when it was sent would read as a leak against the graph that ` +
+        `replaced it. Re-export with a build that writes the \`seq\` column, or audit a ` +
+        `game that did not rewire.`
     );
   }
 
   for (const r of records) {
-    const graph = graphs.get(r.gameID);
-    if (!graph) {
+    const staticGraph = graphs.get(r.gameID);
+    if (!staticGraph) {
       complain(
         `ERROR: a view was delivered in game ${r.gameID}, which has no graph in ` +
           `edges.csv. The views file and the edge export do not describe the same run.`
@@ -282,6 +578,17 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
       continue;
     }
     const session = perSession.get(r.gameID)!;
+    /**
+     * The graph as it stood when this view was delivered.
+     *
+     * Replayed only for a game that actually rewired AND carries the counter;
+     * everything else keeps the final adjacency it has always used, so a static
+     * study pays nothing and every number it produced before is unchanged.
+     */
+    const changes = input.edges.timeline?.get(r.gameID);
+    const replay =
+      rewired.has(r.gameID) && changes !== undefined && changes.every((c) => c.seq >= 0);
+    const graph = replay ? graphAt(changes, r.seq) : staticGraph;
     const neighbors = graph.get(r.viewer);
     if (!neighbors) {
       complain(
@@ -341,6 +648,17 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
     // Local index 0 is the viewer; 1..d index this record's own view, in
     // delivery order. Resolved from the record rather than from the graph,
     // because that is the mapping the participant was actually sent.
+    /**
+     * Local index -> player id, across the whole index space.
+     *
+     * `0` is the viewer, `1..view.length` are the delivered view in order, and
+     * anything beyond that is somebody the viewer is NOT connected to. Those
+     * carry only a per-viewer name on the wire, so they cannot be resolved from
+     * the payload at all — `ViewRecord.far` is the server's own record of who
+     * they were, written beside the payload and never delivered, and it is
+     * index-aligned with `graph.far` by construction.
+     */
+    const far = r.far ?? [];
     const localToPlayer: Array<unknown> = [
       r.viewer,
       ...(r.view ?? []).map((entry) =>
@@ -348,7 +666,141 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
           ? (entry as Record<string, unknown>)["id"]
           : undefined
       ),
+      ...far.map((f) => (typeof f?.id === "string" ? f.id : undefined)),
     ];
+
+    /**
+     * A payload that names distant people, in a capture that did not record who
+     * they were, cannot be checked at all — and the checks that WOULD still run
+     * (every tie resolving to a view entry) would all pass, because every far
+     * index simply fails to resolve and is reported once. Refused rather than
+     * half-audited, for the reason this file's header gives: a check that cannot
+     * run must not be mistaken for a check that passed.
+     */
+    const delivered = g.far ?? [];
+    if (delivered.length > 0 && far.length !== delivered.length) {
+      session.structureLeaks++;
+      complain(
+        `REFUSED: ${r.viewer} (game ${r.gameID}, seq ${r.seq}) was shown ` +
+          `${delivered.length} person(s) they are not connected to, and this capture ` +
+          `records ${far.length === 0 ? "none of them" : `${far.length} of them`}. Who ` +
+          `was shown to whom cannot be established. Re-capture with a build that writes ` +
+          `ViewRecord.far.`
+      );
+      continue;
+    }
+
+    /**
+     * How far this participant was allowed to see, as the DELIVERY itself
+     * reports it — not as the batch record does.
+     *
+     * The per-delivery radius is the only one that is right across a restart at
+     * a changed setting, which is the case `StructureRow.radius` is denormalized
+     * for. `floor` because the fraction decides ties and not people.
+     */
+    const claimed = typeof g.radius === "number" && Number.isFinite(g.radius) ? g.radius : 1;
+    /**
+     * The delivery's own claim, against what the study authorized.
+     *
+     * The payload's `radius` is the server describing itself, which is evidence
+     * about consistency and not about permission. Both readings are findings and
+     * neither is a pass: either somebody was shown more than the study allowed,
+     * or the record of what it allowed is wrong.
+     */
+    const allowed = authorizedAt(input.radii, r.gameID, r.viewer, r.seq);
+    if (allowed !== undefined) session.authorizationChecked++;
+    if (allowed !== undefined && allowed !== "whole" && allowed !== claimed) {
+      session.structureLeaks++;
+      complain(
+        `RADIUS MISREPORTED: ${r.viewer} (game ${r.gameID}, seq ${r.seq}) was delivered a ` +
+          `structure stamped radius ${claimed} while the record authorizes ${allowed}. ` +
+          `Either the delivery was wider than the study allowed, or the record of what ` +
+          `it allowed is wrong.`
+      );
+    }
+    const depth = Math.floor(claimed);
+    const hops =
+      depth > 1 || delivered.length > 0 || allowed === "whole"
+        ? hopsFrom(graph, r.viewer)
+        : undefined;
+    /**
+     * A seat authorized `"whole"` is still checked, against a different quantity.
+     *
+     * `"whole"` authorizes no particular number, so comparing it to `claimed`
+     * is meaningless — but the wire never carries `"whole"`. It carries the
+     * finite eccentricity the viewer's component actually reached, and that IS
+     * checkable from the edge log. Skipping these seats entirely, as this arm
+     * did, meant a seat authorized `"whole"` could be delivered any radius at
+     * all with no complaint.
+     */
+    if (allowed === "whole" && hops) {
+      let ecc = 0;
+      for (const d of hops.values()) if (Number.isFinite(d) && d > ecc) ecc = d;
+      if (claimed !== ecc) {
+        session.structureLeaks++;
+        complain(
+          `RADIUS MISREPORTED: ${r.viewer} (game ${r.gameID}, seq ${r.seq}) was authorized ` +
+            `the whole of their component and delivered a structure stamped radius ` +
+            `${claimed}, while the edge log puts the furthest person they can reach ` +
+            `${ecc} hop(s) away.`
+        );
+      }
+    }
+    const within = (id: string): boolean => {
+      if (id === r.viewer) return true;
+      if (!hops) return neighbors.has(id);
+      const d = hops.get(id);
+      return d !== undefined && d <= depth;
+    };
+
+    // Each distant person must really be as far away as the payload said. A hop
+    // count is what a study would analyse on — "did seeing somebody two steps
+    // away change behaviour" — so a wrong one is a wrong finding rather than a
+    // cosmetic slip.
+    let population: ReadonlySet<string> | undefined;
+    for (const [k, f] of far.entries()) {
+      session.farShown++;
+      /**
+       * What the viewer was told ABOUT this person, as opposed to that they
+       * exist and how far away they are.
+       *
+       * Absent unless the study set `graph.projectFar`, which is why this is
+       * counted separately rather than folded into `farShown`: zero far views
+       * over a thousand far people is the default configuration behaving
+       * correctly, and it must not read as an arm that ran and passed.
+       */
+      const payload = delivered[k]?.view;
+      if (payload !== undefined) {
+        session.farViews++;
+        population ??= new Set(graph.keys());
+        const named = namesAnybody(payload, population);
+        if (named !== undefined) {
+          session.farLeaks++;
+          session.structureLeaks++;
+          complain(
+            `FAR LEAK: ${r.viewer} (game ${r.gameID}, seq ${r.seq}) was told something ` +
+              `about somebody ${String(delivered[k]?.d)} hop(s) away that names participant ` +
+              `${named}. A far payload may carry a per-viewer ref and not an id: an id is ` +
+              `the same handle for every viewer, so two participants can join on it.`
+          );
+        }
+      }
+      const actual = hops?.get(f.id);
+      if (actual === undefined || actual !== delivered[k]?.d) {
+        session.structureLeaks++;
+        complain(
+          `STRUCTURE: ${r.viewer} (game ${r.gameID}, seq ${r.seq}) was told somebody was ` +
+            `${String(delivered[k]?.d)} hop(s) away and the edge log puts them ` +
+            `${actual === undefined ? "out of reach entirely" : `${actual} away`}.`
+        );
+      } else if (actual > depth) {
+        session.structureLeaks++;
+        complain(
+          `STRUCTURE LEAK: ${r.viewer} was shown somebody ${actual} hops away at radius ` +
+            `${claimed} in game ${r.gameID} (seq ${r.seq}).`
+        );
+      }
+    }
 
     for (const edge of g.edges ?? []) {
       session.ties++;
@@ -368,11 +820,11 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
       // Both ends must be visible to this viewer, and the tie must be real. A
       // drawn tie that does not exist is not a leak; it is a fabrication, and
       // it fails here for the same reason.
-      if (!(x === r.viewer || neighbors.has(x)) || !(y === r.viewer || neighbors.has(y))) {
+      if (!within(x) || !within(y)) {
         session.structureLeaks++;
         complain(
           `STRUCTURE LEAK: ${r.viewer} was shown a tie involving somebody outside their ` +
-            `neighborhood in game ${r.gameID} (seq ${r.seq}).`
+            `radius of ${claimed} in game ${r.gameID} (seq ${r.seq}).`
         );
         continue;
       }
@@ -384,7 +836,29 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
         );
         continue;
       }
+      // THE HALF STEP, offline. At an integer radius a tie between two people who
+      // are BOTH at the outer edge is not delivered — it is what the next half
+      // step adds. Both ends are visible either way, so every arm above passes
+      // it, and without this a study asking for 2 could have been given 2.5 with
+      // the record showing nothing wrong.
+      if (hops && claimed === depth && depth > 1) {
+        const dx = hops.get(x);
+        const dy = hops.get(y);
+        if (dx !== undefined && dy !== undefined && dx >= depth && dy >= depth) {
+          session.structureLeaks++;
+          complain(
+            `STRUCTURE: ${r.viewer} was shown the tie between two people who are each ` +
+              `${depth} hops away, in game ${r.gameID} (seq ${r.seq}). At radius ${claimed} ` +
+              `that tie is not delivered — it is what radius ${depth + 0.5} adds.`
+          );
+          continue;
+        }
+      }
       if (a !== 0 && b !== 0) session.beyondStar++;
+      if (typeof a === "number" && typeof b === "number") {
+        const edge = Math.max(a, b);
+        if (edge > (r.view ?? []).length) session.farTies++;
+      }
     }
   }
 
@@ -405,6 +879,11 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
   const tiesChecked = sessions.reduce((s, x) => s + x.ties, 0);
   const structureLeaks = sessions.reduce((s, x) => s + x.structureLeaks, 0);
   const beyondStar = sessions.reduce((s, x) => s + x.beyondStar, 0);
+  const farTies = sessions.reduce((s, x) => s + x.farTies, 0);
+  const farShown = sessions.reduce((s, x) => s + x.farShown, 0);
+  const farViews = sessions.reduce((s, x) => s + x.farViews, 0);
+  const farLeaks = sessions.reduce((s, x) => s + x.farLeaks, 0);
+  const authorizationChecked = sessions.reduce((s, x) => s + x.authorizationChecked, 0);
   const structuredRecords = sessions.reduce((s, x) => s + x.structured, 0);
 
   // Vacuity, stated on the denominator rather than on the session count, for the
@@ -427,7 +906,7 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
   // A study that delivered structure and never once showed a tie beyond a
   // viewer's own star delivered what radius 1 delivers: the channel was opened
   // and nothing was put in it, and every other count here stays clean.
-  if (structuredRecords > 0 && beyondStar === 0) {
+  if (structuredRecords > 0 && beyondStar === 0 && farShown === 0) {
     failures.push(
       `VACUOUS: ${structuredRecords} record(s) carried a structure and not one showed a tie ` +
         `between two of a viewer's neighbors, which is what radius 1 already draws. The ` +
@@ -439,6 +918,41 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
     notes.push(
       `${structuredRecords} of ${recordsChecked} record(s) carried structure; ${beyondStar} ` +
         `tie(s) beyond a viewer's own star were delivered across ${tiesChecked} examined`
+    );
+  }
+
+  /**
+   * An arm that did not run says so, per this file's header.
+   *
+   * Without a radius log every structure was checked only against the radius it
+   * stamped on itself, which cannot catch a delivery nobody authorized. That is
+   * a weaker audit than the same output with `radius.csv` present, and the two
+   * are indistinguishable in the result unless this is said.
+   */
+  if (structuredRecords > 0 && authorizationChecked === 0) {
+    notes.push(
+      `no radius log was supplied, so all ${structuredRecords} structure(s) were checked ` +
+        `against the radius each delivery reported for itself and none against what the ` +
+        `study authorized. Export radius.csv to check the claim rather than its consistency`
+    );
+  } else if (authorizationChecked > 0) {
+    notes.push(
+      `${authorizationChecked} of ${structuredRecords} structure(s) were checked against ` +
+        `an authorized radius`
+    );
+  }
+
+  // The far payload arm, on its own denominator. Zero far views over any number
+  // of far people is `projectFar` being unset, which is the default and not a
+  // result; it must not read as an arm that ran clean.
+  if (farShown > 0) {
+    notes.push(
+      farViews === 0
+        ? `${farShown} distant person(s) were shown and none carried a projected payload: ` +
+            `at this setting a distant person is a shape and a name, so the far-disclosure ` +
+            `arm is vacuous rather than passed`
+        : `${farViews} of ${farShown} distant person(s) carried a projected payload; ` +
+            `${farLeaks} named a participant`
     );
   }
 
@@ -466,6 +980,11 @@ export function auditViews(input: { views: string; edges: ParsedEdges }): AuditR
     tiesChecked,
     structureLeaks,
     beyondStar,
+    farTies,
+    farShown,
+    farViews,
+    farLeaks,
+    authorizationChecked,
     structuredRecords,
     vacuousSessions,
     dropped,
@@ -502,6 +1021,19 @@ export function formatAuditResult(r: AuditResult): string {
       `  ties outside the view  : ${r.structureLeaks}/${r.tiesChecked} ties  (must be 0)`,
       `  ties between neighbors  : ${r.beyondStar}  (non-vacuity, must be > 0)`
     );
+    // Only where they mean something. Below radius 2 nobody is shown anybody
+    // outside their own neighbors, so these are structurally zero and a
+    // permanently empty line teaches a reader to skip lines.
+    if (r.farShown > 0 || r.farTies > 0) {
+      lines.push(
+        `  people beyond neighbors : ${r.farShown}  (non-vacuity above radius 1.5)`,
+        `  ties reaching past them : ${r.farTies}`,
+        `  far payloads naming one : ${r.farLeaks}/${r.farViews} projected  (must be 0)`
+      );
+    }
+    lines.push(
+      `  radius authorized       : ${r.authorizationChecked}/${r.structuredRecords} checked`
+    );
   }
   lines.push("");
   for (const s of r.perSession) {
@@ -537,6 +1069,11 @@ export function mergeAuditResults(results: AuditResult[]): AuditResult {
     tiesChecked: 0,
     structureLeaks: 0,
     beyondStar: 0,
+    farTies: 0,
+    farShown: 0,
+    farViews: 0,
+    farLeaks: 0,
+    authorizationChecked: 0,
     structuredRecords: 0,
     vacuousSessions: [],
     dropped: 0,
@@ -553,6 +1090,11 @@ export function mergeAuditResults(results: AuditResult[]): AuditResult {
     merged.tiesChecked += r.tiesChecked;
     merged.structureLeaks += r.structureLeaks;
     merged.beyondStar += r.beyondStar;
+    merged.farTies += r.farTies;
+    merged.farShown += r.farShown;
+    merged.farViews += r.farViews;
+    merged.farLeaks += r.farLeaks;
+    merged.authorizationChecked += r.authorizationChecked;
     merged.structuredRecords += r.structuredRecords;
     merged.dropped += r.dropped;
     merged.vacuousSessions.push(...r.vacuousSessions);

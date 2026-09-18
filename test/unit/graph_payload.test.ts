@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { adjacency } from "../../src/topology/index.js";
 import { buildGraphPayload } from "../../src/admin/graph_payload.js";
+import { inducedEdges } from "../../src/admin/subgraph.js";
 
 const SIZE = 600;
 const CENTER = SIZE / 2;
@@ -30,8 +31,17 @@ const TRIANGLE_PLUS = adjacency(4, [
   [1, 2],
 ]);
 
+// `buildGraphPayload` lays out what it is given; the caller decides which ties
+// the radius delivers. At 1.5 that is the whole induced subgraph, which is what
+// `inducedEdges` has always returned, so these cases are unchanged in substance.
 const build = (nodes: number[], ids: string[], cache?: any) =>
-  buildGraphPayload({ adj: TRIANGLE_PLUS, nodes, ids, radius: 1.5, seed: 7, cache });
+  buildGraphPayload({
+    ids,
+    edges: inducedEdges(TRIANGLE_PLUS, nodes),
+    radius: 1.5,
+    seed: 7,
+    cache,
+  });
 
 test("the payload carries the ties among the viewer's neighbors, and its own radius", () => {
   const { payload } = build([0, 1, 2, 3], ["me", "a", "b", "c"]);
@@ -79,9 +89,8 @@ test("a star neighborhood still puts the viewer in the middle", () => {
     [0, 4],
   ]);
   const { payload } = buildGraphPayload({
-    adj: star,
-    nodes: [0, 1, 2, 3, 4],
     ids: ["me", "a", "b", "c", "d"],
+    edges: inducedEdges(star, [0, 1, 2, 3, 4]),
     radius: 1.5,
     seed: 7,
   });
@@ -153,15 +162,28 @@ test("an identical SHAPE holding different people is laid out afresh", () => {
     [0, 3],
     [0, 4],
   ]);
-  const args = { adj: star, radius: 1.5 as const, seed: 7 };
-  const first = buildGraphPayload({ ...args, nodes: [0, 1, 2], ids: ["me", "a", "b"] });
+  const args = { radius: 1.5 as const, seed: 7 };
+  const first = buildGraphPayload({
+    ...args,
+    ids: ["me", "a", "b"],
+    edges: inducedEdges(star, [0, 1, 2]),
+  });
   const swapped = buildGraphPayload({
     ...args,
-    nodes: [0, 1, 3],
     ids: ["me", "a", "z"],
+    edges: inducedEdges(star, [0, 1, 3]),
     cache: first.cache,
   });
-  assert.equal(first.cache.key, swapped.cache.key, "the shapes really are identical");
+  // The key is over PLAYER IDS, so these two are not the same shape and the
+  // reuse path is never reached. It used to be over local indices, where they
+  // WERE the same key and the separate "same people" check was the only thing
+  // standing between a newcomer and the coordinates of the person they replaced.
+  // That check is still there; the key no longer depends on it being right.
+  assert.notEqual(
+    first.cache.key,
+    swapped.cache.key,
+    "the same shape holding different people is a different picture, and the key says so"
+  );
   assert.ok(
     !swapped.cache.positions.has("b"),
     "the departed neighbor is not carried into the new cache"

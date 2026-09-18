@@ -72,6 +72,48 @@ test("the two denominators partition every ordered pair, for every generator", (
   }
 });
 
+/**
+ * The same identity, once a study projects at distance.
+ *
+ * The partition is over "may this participant learn about that one", and that
+ * question changes when `graph.projectFar` is set: the permitted set becomes the
+ * ball rather than the neighbors. If the two arms did not move together the
+ * accounting would be reporting against a rule the server is not following, and
+ * a clean run would mean nothing — which is the failure the identity above
+ * exists to catch, arriving one radius further out.
+ */
+test("the partition still holds at every radius when the study projects at distance", () => {
+  for (const [label, n, build] of EVERY_GENERATOR) {
+    const edges = build();
+    for (const radius of [1, 1.5, 2, 2.5, 3, "whole"] as const) {
+      const a = accountVacuity(n, edges, radius, true);
+      assert.equal(
+        a.candidatePairs + a.expectedDeliveries,
+        n * (n - 1),
+        `${label} at radius ${radius}: ${a.candidatePairs} + ${a.expectedDeliveries} != ${n * (n - 1)}`
+      );
+    }
+  }
+});
+
+/**
+ * And the denominators must actually MOVE, or the test above is satisfied by an
+ * accounting that ignores the flag entirely.
+ */
+test("projecting at distance widens what may be delivered and narrows what may leak", () => {
+  const n = 8;
+  const edges = ring(n);
+  const near = accountVacuity(n, edges, 2, false);
+  const far = accountVacuity(n, edges, 2, true);
+
+  assert.equal(near.expectedDeliveries, 16, "two neighbors each, whatever the radius");
+  assert.equal(far.expectedDeliveries, 32, "four people within two hops each");
+  assert.ok(
+    far.candidatePairs < near.candidatePairs,
+    "a wider data rule leaves fewer pairs for arm 1 to examine, and that must be said"
+  );
+});
+
 test("a complete graph is refused: there is no non-neighbor to leak to", () => {
   const a = accountVacuity(4, complete(4));
   assert.equal(a.candidatePairs, 0);
@@ -278,4 +320,76 @@ test("ringLattice below its minimum is refused by name, not by a stray throw", (
   const r = preflightCliTopology("ringLattice", 4, 1);
   assert.ok("refusal" in r, "n=4 cannot build a ring lattice of m=2");
   assert.match(r.refusal, /ringLattice cannot be built at n=4/);
+});
+
+/**
+ * Per-seat radii, and the pair of rules only a mixed study can separate.
+ *
+ * "The viewer's radius decides who they may learn about" and "the subject's
+ * radius decides who may learn about them" are different rules that agree on
+ * every pair of a uniform study. That is why nothing written before per-seat
+ * radius could distinguish them, and why the accounting counts the pairs where
+ * they disagree rather than assuming a mixed run exercises the difference.
+ */
+test("the partition holds seat by seat when the radii differ", () => {
+  for (const [label, n, build] of EVERY_GENERATOR) {
+    const edges = build();
+    // A different radius for every third seat, so no generator gets a uniform
+    // run by accident.
+    const radii = Array.from({ length: n }, (_, i) =>
+      ([1, 2, 2.5] as const)[i % 3]!
+    );
+    const a = accountVacuity(n, edges, radii, true);
+    assert.equal(
+      a.candidatePairs + a.expectedDeliveries,
+      n * (n - 1),
+      `${label}: ${a.candidatePairs} + ${a.expectedDeliveries} != ${n * (n - 1)}`
+    );
+  }
+});
+
+test("a seat's own radius decides its row, not the game's widest", () => {
+  const n = 8;
+  const edges = ring(n);
+  // One wide seat. If the accounting used the widest radius for everybody, the
+  // deliveries would be eight seats' worth of a 2-ball rather than one.
+  const radii = Array.from({ length: n }, (_, i) => (i === 0 ? 2 : 1));
+  const mixed = accountVacuity(n, edges, radii, true);
+  const allNarrow = accountVacuity(n, edges, 1, true);
+  const allWide = accountVacuity(n, edges, 2, true);
+
+  assert.equal(allNarrow.expectedDeliveries, 16, "two neighbors each");
+  assert.equal(allWide.expectedDeliveries, 32, "four within two hops each");
+  assert.equal(
+    mixed.expectedDeliveries,
+    18,
+    "seven seats at 2 apiece and one at 4 — not 16, and emphatically not 32"
+  );
+});
+
+test("a mixed run on a graph where no pair disagrees is refused", () => {
+  const n = 6;
+  // A COMPLETE graph: everybody is one hop from everybody, so a wider radius
+  // reaches nobody new and the two rules agree on every pair however the radii
+  // are set. The run would pass while proving nothing about which rule is in
+  // force.
+  const same = accountVacuity(n, complete(n), [2, 1, 1, 1, 1, 1], true);
+  assert.equal(same.asymmetricPairs, 0);
+  assert.match(same.failures.join(" "), /cannot tell a build that keys delivery/);
+
+  // On a ring the same assignment does disagree: seat 0 reaches seats 2 and 6,
+  // and neither reaches back.
+  const ok = accountVacuity(8, ring(8), [2, 1, 1, 1, 1, 1, 1, 1], true);
+  assert.ok(ok.asymmetricPairs > 0, "the wide seat reaches people who do not reach it");
+  assert.doesNotMatch(ok.failures.join(" "), /cannot tell a build that keys delivery/);
+});
+
+test("a uniform run is never refused for asymmetry, since it claims none", () => {
+  // The refusal is about a mixed study failing to exercise what mixing is for.
+  // A uniform study is not making that claim and must not be held to it.
+  for (const r of [1, 1.5, 2] as const) {
+    const a = accountVacuity(8, ring(8), r, true);
+    assert.equal(a.asymmetricPairs, 0, "uniform radii agree on every pair, by construction");
+    assert.doesNotMatch(a.failures.join(" "), /cannot tell a build that keys delivery/);
+  }
 });

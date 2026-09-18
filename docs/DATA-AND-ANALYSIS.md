@@ -25,9 +25,12 @@ Decide whether to capture projected views before beginning data collection:
 | The realized network | batch scope, always | Yes | `network:<gameID>`, the edge list as it now stands |
 | The seed | batch scope, always | Yes | `networkSeed:<gameID>`, enough to re-derive the topology |
 | The edge history | batch scope, always | Yes | `networkHistory:<gameID>`, every tie change, including the initial graph as a `start` event |
-| The radius | batch scope, always | Yes | `networkRadius:<gameID>`, how much of the network participants were shown |
+| The radius | batch scope, always | Yes | `networkRadius:<gameID>`, present only when one number describes the game |
+| Every participant's radius | batch scope, always | Yes | `networkRadii:<gameID>`, by player id. The complete record; an absent key means this run predates it and nothing else |
+| The radius history | batch scope, always | Yes | `networkRadiusHistory:<gameID>`, every `setRadius` change, including the opening assignment as a `start` event |
+| The naming key | batch scope, always | Yes | `networkViewKey:<gameID>`. Only meaningful above radius 1.5, where it made each viewer's private names for distant people stable. Not needed for analysis — `ViewRecord.far` records who each name was |
 | The run log | `log: { file }`, opt-in | Yes | Whatever your listeners wrote, as the study happened |
-| Captured views | `views: { file }`, opt-in | Yes | Exactly what each participant was delivered, per delivery — at radius 1.5 including the ties among their neighbors and where everything was drawn |
+| Captured views | `views: { file }`, opt-in | Yes | Exactly what each participant was delivered, per delivery — above radius 1 including the structure they were shown, who the distant people in it were, and where everything was drawn |
 | The views themselves | — | No | Published `ephemeral`. Gone unless captured |
 
 Two properties of these outputs deserve particular attention.
@@ -86,6 +89,7 @@ writeFileSync("data/views.csv", toCSV(viewRows(records)));
 |---|---|---|
 | `game_id` | string | |
 | `t` | number | Wall clock, milliseconds, from the event that caused the change |
+| `seq` | number | The publish counter when the change was recorded. Joins to `views.csv` on `seq`, and is what makes a rewiring study auditable: a view published at `seq` was built on every tie change with a lower one. `-1` on a record written before this column existed |
 | `event` | `connected` \| `disconnected` | |
 | `player_a`, `player_b` | string | Player ids, in the order the event recorded them |
 
@@ -134,6 +138,40 @@ Empty unless the study ran at `graph: { radius: 1.5 }`.
 | `radius` | number | The radius this delivery was made at |
 | `a_index`, `b_index` | number | Local index of each end: `0` is the viewer, `1..d` index into that delivery's view |
 | `a_id`, `b_id` | string | The projected `id` of each end when there is one, empty otherwise |
+
+### `farRows()` → one row per person a viewer could see and could not reach
+
+Empty below radius 2, where every visible node is a neighbor and `views.csv` already has them all.
+
+| Column | Type | Notes |
+|---|---|---|
+| `game_id`, `viewer`, `seq`, `t` | | As above |
+| `radius` | number | The radius this delivery was made at |
+| `node_index` | number | Local index, so this joins to `structure.csv` on `a_index`/`b_index` |
+| `ref` | string | What THIS viewer called them. Not comparable across viewers — two rows with the same `ref` and different `viewer` are two different people far more often than not |
+| `id` | string | Who they actually were. Recorded server-side; the participant never saw it |
+| `hop` | number | How many hops away. Always 2 or more |
+| …your fields | string \| number | One column per field `graph.projectFar` returned, if you set one |
+
+Its own table rather than rows in `views.csv` because the grain differs: `NEIGHBORS` carries
+distance 1 and only distance 1, so every row of `views.csv` is one hop by construction. A row here
+with no projected fields is not an empty row — `ref`, `id` and `hop` are the disclosure, and
+whether a participant could see somebody at all is what most designs manipulate.
+
+### `radiusRows()` → one row per change to how far somebody could see
+
+| Column | Type | Notes |
+|---|---|---|
+| `game_id`, `t` | | As above |
+| `seq` | number | The publish counter when this was recorded. Joins to `views.csv` on `seq` |
+| `event` | string | `start` for the opening assignment, `set` for a change |
+| `player` | string | Who changed. On a `start` row, one row per participant |
+| `radius_from`, `radius_to` | string | Strings because `whole` is a legal value |
+
+The `start` event expands to one row per participant, so the table alone answers "what was this
+person's radius at seq N" by taking their last row at or below N. Ordered on `seq` and not on `t`:
+two events from one process inside one millisecond cannot be ordered by time, and a radius change
+lands there easily.
 
 ### `positionRows()` → one row per node in one viewer's drawing, per delivery
 
@@ -214,10 +252,11 @@ absent from record 1 would otherwise be dropped from the whole export without a 
 Everything needed is durable, and in one place:
 
 ```js
-import { readNetwork, readRadius, readSeed } from "empirica-networks/admin";   // server-side
+import { readNetwork, readRadii, readRadius, readSeed } from "empirica-networks/admin";
 const edges  = readNetwork(game);   // batch: network:<gameID>
 const seed   = readSeed(game);      // batch: networkSeed:<gameID>
 const radius = readRadius(game);    // batch: networkRadius:<gameID>
+const radii  = readRadii(game);     // batch: networkRadii:<gameID>, by player id
 ```
 
 Offline, the same three values are attributes on the batch scope in `tajriba.json`, keyed
@@ -227,6 +266,14 @@ The realized edge list is recorded, not just the seed, so the graph a run actual
 back rather than re-derived and hoped to match. To re-derive anyway (to check, or to generate a
 matched graph for a new condition), `makeRng(seed)` and the generator reproduce it exactly.
 Pinned by `test/e2e/reproducibility.test.ts`.
+
+**Two keys, and which one to read.** `networkRadii` is the complete record — one radius per player
+id, written at every setting including the uniform default — so an absent `networkRadii` means
+"this record predates the key" and nothing else. `networkRadius` answers only when one number
+describes the whole game, which a study that seats some participants wider than others has no such
+value for. Read `readRadius` if you only need the uniform case; read `readRadii` to learn that a
+study showed different participants different amounts, which is a manipulation and is not derivable
+from anything else in a finished dataset.
 
 The radius is recorded for a different reason: it is not a property of the graph at all, and
 nothing else in the record implies it. Two studies on one topology, one at each radius, leave

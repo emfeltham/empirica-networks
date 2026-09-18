@@ -8,6 +8,7 @@ dist/
 *.tgz
 .tmp-bench/
 .tmp-simulate/
+.tmp-hybrid/
 .tmp-soak/
 .tmp-test-one/
 .tmp-test-repeat/
@@ -23,3 +24,8 @@ results/
 # Per-contributor Claude Code settings. The shared `.claude/` config is tracked;
 # this file holds one person's local permissions and paths.
 .claude/settings.local.json
+
+# Manuscript figures, written by `npm run figure:shot` and `npm run figure:ladder`.
+# Generated on demand from the examples and copied into the paper's own repository;
+# ignored here for the reason `data/` is, so a regenerated PNG cannot stage itself.
+figures/

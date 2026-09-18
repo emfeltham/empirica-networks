@@ -24,26 +24,81 @@ Empirica.onGameStart(({ game }) => {
  * that opened a socket would be a surprise in a test run.
  */
 /**
- * Try radius 1.5 without editing this file:
+ * Try a wider radius without editing this file:
  *
- *     NBHD_RADIUS=1.5 empirica
+ *     NBHD_RADIUS=1.5 empirica     the ties AMONG your connections
+ *     NBHD_RADIUS=2   empirica     your connections' connections
  *
  * At the default, each participant sees themselves and their connections — a
- * star, which is what Breadboard drew. At 1.5 they additionally see which of
- * their connections are connected to EACH OTHER.
+ * star, which is what Breadboard drew.
  *
- * It switches the topology too, and that is not a convenience. A ring has no
- * ties among anyone's neighbors at all: your two neighbors sit on opposite
- * sides of you and are not tied to each other, so radius 1.5 on a ring draws
- * exactly the same star and demonstrates nothing. A ring LATTICE (each node
- * tied to its two nearest on each side) is full of triangles, so the difference
- * is visible. Whether a design has anything to show at this radius is a
- * property of its graph, not of the setting.
+ * Parsed as a NUMBER, not matched against a string. It was `=== "1.5"` and a
+ * run at `NBHD_RADIUS=2` therefore went quietly to the default: the same class
+ * of trap as `"whole" > 1` being false, which silently disabled the feature
+ * inside the package. `"whole"` is not offered here at all — it is a decision
+ * worth making in a file you have read (see `docs/API.md`), not by exporting an
+ * environment variable.
  *
- * Needs playerCount >= 5: `ringLattice(n, 2)` requires n >= 2m+1, or the ring
- * wraps onto itself.
+ * It switches the topology too, and that is not a convenience. Whether a radius
+ * shows a participant anything is a property of the GRAPH, and which graph works
+ * is not monotone in the radius:
+ *
+ *   1.5 needs triangles. A ring has none — your two neighbors sit on opposite
+ *       sides of you and are not tied — so 1.5 on a ring draws the same star
+ *       radius 1 draws. A ring LATTICE is full of them.
+ *   2   needs DISTANCE, and a plain ring is ideal: your neighbors' neighbors are
+ *       two new people. On the lattice at small n everybody is already within
+ *       two hops and there is nothing new to show.
+ *
+ * So the shape that is useless at 1.5 is the right one at 2, and the one that
+ * works at 1.5 stops working at 2. `verify` computes that refusal per radius
+ * rather than keeping a list, for the same reason.
+ *
+ * The lattice needs playerCount >= 5: `ringLattice(n, 2)` requires n >= 2m+1,
+ * or the ring wraps onto itself.
  */
-const RADIUS = process.env.NBHD_RADIUS === "1.5" ? 1.5 : 1;
+const RADIUS = (() => {
+  const raw = Number(process.env.NBHD_RADIUS);
+  return Number.isFinite(raw) && raw >= 1 ? raw : 1;
+})();
+
+/** Fractional radii deliver the ties among the outermost ring, so they need triangles. */
+const WANTS_TRIANGLES = RADIUS % 1 !== 0;
+
+/**
+ * Override the shape the radius would otherwise pick.
+ *
+ * The rule below picks a shape from the radius, and it is right about what each
+ * radius NEEDS and silent about what it wastes. A ring has no ties among
+ * anybody's neighbors, so at radius 2 it delivers exactly what radius 2.5
+ * delivers, and the half step — the one rule a reader is most likely to doubt —
+ * becomes invisible on it. Above five participants a ring lattice shows both: at
+ * twelve participants one viewer sees four others and four ties at radius 1,
+ * the same four others and seven ties at 1.5, and eight others and thirteen ties
+ * at 2.
+ *
+ * Unset by default, so the rule below is what an ordinary run gets.
+ *
+ *     NBHD_TOPOLOGY=ringLattice NBHD_RADIUS=2 empirica
+ */
+const TOPOLOGY = process.env.NBHD_TOPOLOGY;
+
+/**
+ * Radii by seat, cycled, when how far somebody sees should differ between them.
+ *
+ * `NBHD_RADIUS=2` gives everybody 2; `NBHD_RADII=1,2` gives seat 0 a radius of 1,
+ * seat 1 a radius of 2, seat 2 a radius of 1, and so on. Visibility is then
+ * asymmetric, and asymmetric in the direction the package defines: every rule
+ * keys on the radius of whoever is doing the LOOKING, so seat 1 is shown seat 0's
+ * neighborhood while seat 0 is not shown seat 1's.
+ *
+ * Takes precedence over `NBHD_RADIUS`, which it generalizes.
+ */
+const RADII = (process.env.NBHD_RADII ?? "")
+  .split(",")
+  .map((r) => r.trim())
+  .filter(Boolean)
+  .map((r) => (r === "whole" ? "whole" : Number(r)));
 
 /**
  * Where the run log and the captured views go, when they are wanted at all.
@@ -62,7 +117,41 @@ const RADIUS = process.env.NBHD_RADIUS === "1.5" ? 1.5 : 1;
 const OUT_DIR = process.env.MINIMAL_OUT;
 
 export const net = withNetwork(Empirica, {
-  graph: { radius: RADIUS },
+  graph: {
+    // A function, not a literal, when the seats differ: it runs after `topology`
+    // and returns one radius per seat, in seat order.
+    radius:
+      RADII.length > 0
+        ? ({ playerCount }) =>
+            Array.from({ length: playerCount }, (_, i) => RADII[i % RADII.length])
+        : RADIUS,
+
+    /**
+     * What a participant learns ABOUT somebody they are not connected to.
+     *
+     * THE SECOND DECISION, and off unless asked for, which is why it is behind a
+     * flag. A radius above 1 by itself discloses the SHAPE of the network: who
+     * is out there and how the ties run, and nothing about any of them. This is
+     * what moves that line — with it, a distant participant also carries an
+     * attribute, and the graph stops being the only thing a wider radius shows.
+     *
+     *     NBHD_RADIUS=2 NBHD_PROJECT_FAR=1 empirica
+     *
+     * No `id`. A far view naming a participant is refused at publish time, and
+     * the reason is the point of the per-viewer `ref` beside it: an id is the
+     * same handle for every viewer, so two participants holding one can compare
+     * screens and agree on who they are looking at. `ctx.ref` is not.
+     *
+     * Less than a neighbor reveals, deliberately: the color and not the name.
+     */
+    ...(process.env.NBHD_PROJECT_FAR
+      ? {
+          projectFar: (target, viewer, ctx) => ({
+            color: ctx.stateOf(target).get("color"),
+          }),
+        }
+      : {}),
+  },
 
   /**
    * Capture what each participant was shown.
@@ -84,10 +173,12 @@ export const net = withNetwork(Empirica, {
 
   // Seeded from the game id unless you pass `seed`, and recorded on the game
   // scope, so the realized graph is reconstructible from stored data.
-  topology: ({ playerCount, rng }) =>
-    RADIUS > 1 && playerCount >= 5
+  topology: ({ playerCount, rng }) => {
+    const wantsLattice = TOPOLOGY ? TOPOLOGY === "ringLattice" : WANTS_TRIANGLES;
+    return wantsLattice && playerCount >= 5
       ? topology.ringLattice(playerCount, 2, { rng })
-      : topology.ring(playerCount, { rng }),
+      : topology.ring(playerCount, { rng });
+  },
 
   // The ONLY path from server to client. Return plain data — returning the
   // scope itself is refused, because it carries the global attribute store.

@@ -8,10 +8,17 @@ import {
   checkDegrees,
   checkNeighborhoodBytes,
   checkViewBytes,
+  checkVision,
   defaultMaxDegree,
   resolveEnvelope,
 } from "../../src/admin/envelope.js";
-import { adjacency, complete, ring, ringLattice } from "../../src/topology/index.js";
+import {
+  adjacency,
+  complete,
+  ring,
+  ringLattice,
+  type Radius,
+} from "../../src/topology/index.js";
 
 function collectWarnings() {
   const seen: string[] = [];
@@ -267,4 +274,97 @@ test("checkViewBytes runs the aggregate check too, and reports the sharper one f
   assert.equal(seen.length, 2);
   assert.match(seen[0]!, /neighbor view\(s\) exceed/);
   assert.match(seen[1]!, /would receive more than/);
+});
+
+/**
+ * `checkVision` — how many people one participant can SEE.
+ *
+ * `checkDegrees` bounded this until participants could see past their own
+ * neighbors, and its message still says the payload is O(degree). Above radius 1
+ * it is the ball, so a study can sit well inside `maxDegree` and still hand
+ * somebody most of the study — and once radii differ, it takes only ONE seat.
+ */
+test("checkVision: a study at the default radius is not walked at all", () => {
+  // The common case must cost a comparison and no BFS. Asserted by giving it a
+  // graph whose ball would breach at any wider radius and requiring silence.
+  const adj = adjacency(12, complete(12));
+  assert.doesNotThrow(() =>
+    checkVision(adj, new Array(12).fill(1), { maxVisibleNodes: 2 })
+  );
+});
+
+test("checkVision: one wide seat is enough to breach, and the message names it", () => {
+  const adj = adjacency(12, ring(12));
+  const radii = new Array<Radius>(12).fill(1);
+  radii[3] = 4; // sees 8 others on a ring of 12; everybody else sees 2.
+
+  assert.doesNotThrow(
+    () => checkVision(adj, radii, { maxVisibleNodes: 8 }),
+    "exactly at the limit is inside it"
+  );
+  try {
+    checkVision(adj, radii, { maxVisibleNodes: 7 });
+    assert.fail("a seat over the limit must breach");
+  } catch (e) {
+    const msg = (e as Error).message;
+    assert.match(msg, /1 of 12 participants/);
+    // The two facts a reader needs to know which thing to change.
+    assert.match(msg, /participant 3 at radius 4/);
+    assert.match(msg, /shown 8/);
+  }
+});
+
+test("checkVision: the default is stated as inherited rather than measured", () => {
+  const adj = adjacency(60, complete(60));
+  const radii = new Array<Radius>(60).fill(1);
+  radii[0] = 2;
+  try {
+    checkVision(adj, radii, {});
+    assert.fail("59 visible at the default of 50 must breach");
+  } catch (e) {
+    assert.match((e as Error).message, /INHERITED, not earned/);
+    assert.match((e as Error).message, /never been benchmarked/);
+  }
+});
+
+test("checkVision: onExceed warn reports instead of throwing, as everywhere else", () => {
+  const adj = adjacency(12, ring(12));
+  const radii = new Array<Radius>(12).fill(1);
+  radii[0] = 5;
+  const said: string[] = [];
+  assert.doesNotThrow(() =>
+    checkVision(adj, radii, { maxVisibleNodes: 2, onExceed: "warn" }, (m) => said.push(m))
+  );
+  assert.equal(said.length, 1);
+  assert.match(said[0]!, /radius exceeds the supported envelope/);
+});
+
+test("checkVision: the preflight is wired, and refuses before anybody is committed", () => {
+  // `checkDegrees` runs before `provisionChannels` so an out-of-envelope study
+  // fails while it is still abandonable. `checkVision` is only worth having if
+  // it runs in the same place — a limit enforced after participants are seated
+  // is a limit that arrives too late to act on. Asserted by construction
+  // (`with_network.ts` calls both at the same site) and here by the property
+  // that matters: the throw is an EnvelopeError, so the game-start listener
+  // aborts rather than warning and continuing.
+  const adj = adjacency(60, complete(60));
+  const radii = new Array<Radius>(60).fill(1);
+  radii[0] = 2;
+  assert.throws(() => checkVision(adj, radii, {}), EnvelopeError);
+});
+
+test("checkVision: `whole` is bounded like any other radius", () => {
+  // The widest setting must not be the one that escapes the check. It reaches
+  // everybody in the component, which on a connected graph is the largest ball
+  // there is.
+  const adj = adjacency(60, complete(60));
+  const radii = new Array<Radius>(60).fill(1);
+  radii[7] = "whole";
+  try {
+    checkVision(adj, radii, {});
+    assert.fail("a whole-network seat on a 60-node graph must breach the default");
+  } catch (e) {
+    assert.match((e as Error).message, /participant 7 at radius whole/);
+    assert.match((e as Error).message, /shown 59/);
+  }
 });

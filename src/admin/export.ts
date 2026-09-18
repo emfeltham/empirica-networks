@@ -12,7 +12,7 @@
  * export, they unit test in milliseconds with no server, and an analyst can
  * reuse them on data collected months ago.
  */
-import type { EdgeEvent, ViewRecord } from "../shared/keys.js";
+import type { EdgeEvent, RadiusEvent, ViewRecord } from "../shared/keys.js";
 
 /**
  * `EdgeRow` and `SnapshotRow` are `type` aliases rather than `interface`s, and that
@@ -39,6 +39,14 @@ export type EdgeRow = {
   game_id: string;
   /** Wall clock, ms, from the event that caused it. */
   t: number;
+  /**
+   * The publish counter when the event was recorded. Joins to `views.csv` on
+   * `seq`, and is what makes a rewiring study auditable: a view published at
+   * `seq` was built on every tie change with a lower one.
+   *
+   * `-1` for a record written before the field existed.
+   */
+  seq: number;
   event: "connected" | "disconnected";
   player_a: string;
   player_b: string;
@@ -72,10 +80,24 @@ export function edgeRows(gameID: string, history: EdgeEvent[]): EdgeRow[] {
     // (a,c) reads more naturally as a departure then an arrival, and a reader
     // scanning for "when did a lose b" should not have to look past an add.
     for (const [a, b] of e.removed ?? []) {
-      rows.push({ game_id: gameID, t: e.at, event: "disconnected", player_a: a, player_b: b });
+      rows.push({
+        game_id: gameID,
+        t: e.at,
+        seq: e.seq ?? -1,
+        event: "disconnected",
+        player_a: a,
+        player_b: b,
+      });
     }
     for (const [a, b] of e.added ?? []) {
-      rows.push({ game_id: gameID, t: e.at, event: "connected", player_a: a, player_b: b });
+      rows.push({
+        game_id: gameID,
+        t: e.at,
+        seq: e.seq ?? -1,
+        event: "connected",
+        player_a: a,
+        player_b: b,
+      });
     }
   }
   return rows;
@@ -186,6 +208,144 @@ export function viewRows(records: ViewRecord[]): ViewRow[] {
 }
 
 /**
+ * One row of `radius.csv`: one change to how far somebody could see.
+ *
+ * `radius_to` is a string because `"whole"` is a legal value and every other
+ * column in this module is `string | number` — stringifying is the only option
+ * that does not either invent a sentinel number or export `[object Object]`.
+ */
+export type RadiusRow = {
+  game_id: string;
+  t: number;
+  /** The publish counter when this was recorded. Joins to `views.csv` on `seq`. */
+  seq: number;
+  event: "start" | "set";
+  /** Empty on `start`, which is about everybody. */
+  player: string;
+  radius_from: string;
+  radius_to: string;
+};
+
+/**
+ * Flatten the log of who could see how far, and when.
+ *
+ * The `start` event expands to one row per participant — the opening assignment
+ * — so the table alone answers "what was this person's radius at seq N" by
+ * taking their last row at or below N. Without that expansion a reader would
+ * have to join against a separate snapshot to interpret the first half of any
+ * study that never changed anybody's radius, which is most of them.
+ */
+export function radiusRows(gameID: string, history: RadiusEvent[]): RadiusRow[] {
+  const rows: RadiusRow[] = [];
+  for (const e of history) {
+    if (e.op === "start") {
+      for (const [player, r] of Object.entries(e.after ?? {})) {
+        rows.push({
+          game_id: gameID,
+          t: e.at,
+          seq: e.seq,
+          event: "start",
+          player,
+          radius_from: "",
+          radius_to: String(r),
+        });
+      }
+      continue;
+    }
+    rows.push({
+      game_id: gameID,
+      t: e.at,
+      seq: e.seq,
+      event: "set",
+      player: e.player ?? "",
+      radius_from: e.from === undefined ? "" : String(e.from),
+      radius_to: e.to === undefined ? "" : String(e.to),
+    });
+  }
+  return rows;
+}
+
+/**
+ * One row of `far.csv`: one person a viewer could see but was not connected to.
+ *
+ * An `interface` with its own index signature rather than a `type`, exactly as
+ * `ViewRow` is, because a study that sets `graph.projectFar` chooses what these
+ * carry and the columns cannot be known here.
+ */
+export interface FarRow {
+  [field: string]: string | number;
+  game_id: string;
+  viewer: string;
+  seq: number;
+  t: number;
+  /** As `StructureRow.radius`. */
+  radius: number;
+  /** Local index in the delivery, so this joins to `structure.csv` on `a_index`/`b_index`. */
+  node_index: number;
+  /** What this viewer called them. See `PositionRow.node_ref`. */
+  ref: string;
+  /** Who they actually were. Recorded server-side; the participant never saw it. */
+  id: string;
+  /** Hops from the viewer. Always 2 or more. */
+  hop: number;
+}
+
+/**
+ * Flatten the people each participant could see and could not reach.
+ *
+ * Its own builder rather than rows in `views.csv`, and the reason is the grain
+ * rather than tidiness: `NEIGHBORS` carries distance 1 and only distance 1 — so
+ * that `useNeighbors()` keeps its meaning and no assertion written against it
+ * moves — which makes every row in `views.csv` hop 1 by construction. Folding
+ * these in would put two different relationships in one table under a column
+ * that is constant for half of it.
+ *
+ * Empty below radius 2, where every visible node is a neighbor and `views.csv`
+ * already has them all.
+ *
+ * The projected fields are present only if the study set `graph.projectFar`. A
+ * row with none is the ordinary case and is not an empty row: `ref`, `id` and
+ * `hop` are the disclosure, and whether a participant could see somebody at all
+ * is the thing most designs are manipulating.
+ */
+export function farRows(records: ViewRecord[]): FarRow[] {
+  const rows: FarRow[] = [];
+  for (const r of records) {
+    const delivered = r.graph?.far ?? [];
+    const recorded = r.far ?? [];
+    const base = (r.view ?? []).length + 1;
+    for (const [k, f] of delivered.entries()) {
+      const row: FarRow = {
+        game_id: r.gameID,
+        viewer: r.viewer,
+        seq: r.seq,
+        t: r.at,
+        radius: r.graph?.radius ?? 1,
+        node_index: base + k,
+        ref: typeof f?.ref === "string" ? f.ref : "",
+        // Empty when the capture predates `ViewRecord.far`, which `auditViews`
+        // refuses outright. Kept as a column rather than dropped so the table
+        // says which rows it cannot account for instead of omitting them.
+        id: typeof recorded[k]?.id === "string" ? recorded[k]!.id : "",
+        hop: typeof f?.d === "number" ? f.d : -1,
+      };
+      const view = f?.view;
+      if (view !== null && typeof view === "object" && !Array.isArray(view)) {
+        for (const [key, v] of Object.entries(view as Record<string, unknown>)) {
+          // Never let a projected field overwrite the identity columns.
+          if (key in row) continue;
+          row[key] = scalar(v);
+        }
+      } else if (view !== undefined) {
+        row["value"] = scalar(view);
+      }
+      rows.push(row);
+    }
+  }
+  return rows;
+}
+
+/**
  * One row of `structure.csv`: one tie one viewer was shown, at one delivery.
  *
  * A `type`, not an `interface`, for the reason given at the top of this file:
@@ -212,12 +372,28 @@ export type StructureRow = {
    * the join would give the wrong answer is the case worth catching.
    */
   radius: number;
-  /** Local index of each end: 0 is the viewer, 1..d index into that delivery's view. */
+  /**
+   * Local index of each end.
+   *
+   * `0` is the viewer, `1..d` index into that delivery's view, and anything
+   * beyond that is somebody the viewer is not connected to — see `a_hop`.
+   */
   a_index: number;
   b_index: number;
-  /** The projected `id` of each end, when there is one. Empty otherwise. */
+  /** The `id` of each end: the projected one for a neighbor, the recorded one beyond. */
   a_id: string;
   b_id: string;
+  /**
+   * Hops from the viewer to each end. `0` is the viewer, `1` a neighbor.
+   *
+   * Without it a tie among a viewer's own connections and a tie two steps out
+   * are the same row, and which of the two a participant was shown is usually
+   * the manipulation rather than a detail. It also makes the half-step rule
+   * checkable from the CSV alone: at an integer radius no row may have both
+   * hops equal to that radius.
+   */
+  a_hop: number;
+  b_hop: number;
 };
 
 /** One row of `positions.csv`: where one node sat in one viewer's drawing. See above re `type`. */
@@ -230,6 +406,19 @@ export type PositionRow = {
   radius: number;
   node_index: number;
   node_id: string;
+  /** As `StructureRow.a_hop`. */
+  node_hop: number;
+  /**
+   * What THIS viewer called this node, for a node beyond their own neighbors.
+   * Empty for the viewer and for their neighbors, who are named by their id.
+   *
+   * The only name the participant ever saw, and therefore the join key for
+   * anything a study collected about a stranger — "which of these people did you
+   * recognise" has no other answer. Deliberately not comparable across viewers:
+   * two rows with the same `node_ref` and different `viewer` are two different
+   * people far more often than not.
+   */
+  node_ref: string;
   x: number;
   y: number;
 };
@@ -244,10 +433,46 @@ export type PositionRow = {
  */
 function idAt(record: ViewRecord, local: number): string {
   if (local === 0) return record.viewer;
-  const entry = (record.view ?? [])[local - 1];
+  const view = record.view ?? [];
+  if (local > view.length) {
+    // Somebody the viewer is not connected to. The delivery named them only by
+    // a per-viewer ref, so this is the only way back to an identity — and it is
+    // why `ViewRecord.far` is written server-side at all. Without it these rows
+    // carried an empty id, indistinguishable from a projection that has none.
+    const f = (record.far ?? [])[local - 1 - view.length];
+    return typeof f?.id === "string" ? f.id : "";
+  }
+  const entry = view[local - 1];
   if (entry === null || typeof entry !== "object" || Array.isArray(entry)) return "";
   const id = (entry as Record<string, unknown>)["id"];
   return typeof id === "string" ? id : "";
+}
+
+/**
+ * How many hops from the viewer the node at this local index was.
+ *
+ * Read off the index space rather than computed: `0` is the viewer, `1..d` are
+ * their own neighbors by construction, and anything beyond carries its distance
+ * in the record. `-1` for an index the record cannot account for, which is a
+ * malformed delivery rather than a distance.
+ *
+ * Without this column a tie among a viewer's neighbors and a tie two steps out
+ * are the same row, and the distinction is usually the independent variable.
+ */
+function hopAt(record: ViewRecord, local: number): number {
+  if (local === 0) return 0;
+  const view = record.view ?? [];
+  if (local <= view.length) return 1;
+  const f = (record.far ?? [])[local - 1 - view.length];
+  return typeof f?.hop === "number" ? f.hop : -1;
+}
+
+/** This viewer's private name for the node at this local index, if it has one. */
+function refAt(record: ViewRecord, local: number): string {
+  const view = record.view ?? [];
+  if (local <= view.length) return "";
+  const f = (record.far ?? [])[local - 1 - view.length];
+  return typeof f?.ref === "string" ? f.ref : "";
 }
 
 /**
@@ -283,6 +508,8 @@ export function structureRows(records: ViewRecord[]): StructureRow[] {
         b_index: b,
         a_id: idAt(r, a),
         b_id: idAt(r, b),
+        a_hop: hopAt(r, a),
+        b_hop: hopAt(r, b),
       });
     }
   }
@@ -314,6 +541,8 @@ export function positionRows(records: ViewRecord[]): PositionRow[] {
         radius: r.graph?.radius ?? 1,
         node_index: index,
         node_id: idAt(r, index),
+        node_hop: hopAt(r, index),
+        node_ref: refAt(r, index),
         x: p.x,
         y: p.y,
       });

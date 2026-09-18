@@ -21,13 +21,6 @@ npm --prefix server install empirica-networks
 npm --prefix client install empirica-networks
 ```
 
-> The package remains unpublished. It is marked `"private": true` at version `0.0.0` while the
-> public API remains under development.
-> Until then, install from a packed tarball: run `npm pack` in this repository, then
-> `npm --prefix server install /path/to/empirica-networks-0.0.0.tgz`. Commands below that show
-> `npx empirica-networks` are what they become on publication; the form used from a clone is given
-> alongside.
-
 > ### Caution: install from a tarball
 >
 > `"empirica-networks": "file:../empirica-networks"` makes npm create a symbolic link, and if the

@@ -255,3 +255,75 @@ the first datum this entry has ever had that is not an inference.
 
 *Still done when:* the platform path is reproduced — the mechanism in §20 says where to look — or
 `lateProvisioned` is zero across a real deployment, which is the first thing to read off one.
+
+### O27. Whole-network vision discloses the seating plan to two cooperating participants — **ours, by construction**
+
+**Evidence:** `src/admin/pseudonym.ts`; `docs/API.md` ("`"whole"` deserves a paragraph of its own");
+`src/verify/cli.ts` refuses `--radius whole`.
+
+The per-viewer naming scheme stops two participants joining their views **by name**. It cannot stop
+them joining **by structure**. At `graph: { radius: "whole" }` each participant holds the entire
+graph under their own labels, and aligning two labelings of one small graph — with the degree
+sequence as a hint — is a graph-isomorphism instance that is easy at the sizes this package
+targets. Two participants who compare screens can therefore reconstruct who sits where.
+
+No naming scheme fixes this, because the disclosure is the graph itself rather than anything
+attached to its nodes. It is recorded here rather than solved: the setting exists because a
+global-vision arm is a legitimate design, and it ships with the property written down in
+`docs/API.md` instead of being implied not to hold.
+
+`verify --radius whole` refuses for a related but different reason — every participant is inside
+every other's radius, so the confinement arm has an empty denominator and a PASS would mean
+nothing. That refusal is not a mitigation and should not be read as one.
+
+*Done when:* either a study wants this property and it is documented well enough to defend, which
+is where it stands; or somebody produces a defence against structural joining, which would have to
+withhold part of the graph and would therefore not be whole-network vision.
+
+### O28. Half the CLI's shapes are unusable as verify subjects above radius 1.5 — **debt**
+
+**Evidence:** `src/verify/topologies.ts` (`CLI_TOPOLOGIES`, `accountVacuity`); the refusal table in
+`docs/TOPOLOGIES.md`.
+
+Whether a shape can demonstrate anything is **not monotone in the radius**, which is why the
+refusal is computed per radius rather than kept as a list. The consequence is a thin bench:
+
+- `wheel` and `star` have diameter 2, so every radius-2 ball is the whole graph and there is no
+  non-neighbor left. Refused at 2 and beyond **at every n** — including `wheel`, which the radius
+  1.5 refusal message recommends.
+- `ring` and `ladder` are triangle-free and refused at 1.5, and become usable at 2.
+- At 2.5 and above, `ringLattice` is the only shipped shape that works at any practical n.
+
+That last line is the same condition that justified adding `ringLattice` in the first place: one
+shape away from having none. A study can always pass its own generator to `runLeakCheck()`, which
+is the better path anyway since it verifies the graph the study runs — so this is a sharp edge on
+the CLI rather than a hole in the guarantee.
+
+*Done when:* a shape with triangles at depth ships as a named `--topology`, so half-radii above 1.5
+have a second subject. A ring of triangles or a fixed-parameter `grid` would both do; the choice
+needs someone to decide which is worth explaining.
+
+### O29. The bench cannot measure anything this feature added — **debt**
+
+**Evidence:** `test/bench/envelope.ts` — `Cell.radius?: 1 | 1.5` (`:95`), `RADIUS` coerced to
+`1 | 1.5` (`:246`), `structureBytes(d, radius)` (`:346-361`).
+
+`structureBytes` models the payload as the complete neighborhood — `d + 1` nodes and every tie among
+them — which was the right bound at radius 1.5 and is wrong at every wider setting. At radius 2 the
+node count is the ball, not the degree, and the formula under-estimates by roughly its square. That
+number **sizes the envelope the bench then runs under**, and the envelope throws, so an
+under-estimate means the bench stops measuring exactly where the payload got interesting.
+
+Nothing above 1.5 has therefore ever been benchmarked, which is why `checkVision`'s default is
+stated as inherited rather than earned, and why `ISSUES.md` O1's caveat is quoted wherever a
+latency figure for this feature appears. The two figures this branch does cite — 4.6 ms per layout
+at n=50, and the 228 ms a naive whole-network republish cost before layouts were shared — were
+taken by hand on a laptop and are recorded as such in `CHANGELOG.md`.
+
+Deferred rather than done because it is a measurement round and not a code change: it wants the
+same pinned host O1 asks for, and doing it on this machine would produce another set of numbers
+that have to be re-taken.
+
+*Done when:* `structureBytes` is computed from the realized ball rather than from degree, `Cell`
+carries a `Radius`, and a sweep at radius 2 and at `whole` has been run somewhere the numbers mean
+something.

@@ -45,25 +45,16 @@ Every participant also receives each co-player's recruitment identifier. The sam
 
 <a id="not-published-yet"></a>
 
-> ### Not published yet
->
-> The package is deliberately marked `"private": true` at version `0.0.0` while the public API
-> remains under development. This setting prevents an accidental `npm publish` from permanently
-> registering the current name and version.
->
-> Until publication, install the package from a tarball. Commands shown as
-> `npx empirica-networks …` describe the eventual published form; relevant sections also provide
-> the equivalent command for a cloned repository. Other documentation links to this notice.
-
 ```sh
-npm pack                                    # in this repo -> empirica-networks-0.0.0.tgz
-npm --prefix server install /path/to/empirica-networks-0.0.0.tgz
-npm --prefix client install /path/to/empirica-networks-0.0.0.tgz
+npm --prefix server install empirica-networks
+npm --prefix client install empirica-networks
 ```
+
+The anchor above is kept because older documents and links point at it.
 
 The package requires Node 20 or later and the Empirica CLI (`curl https://install.empirica.dev | sh`). Install it in both the `server` and `client` projects because they use separate package installations.
 
-Install from the packed tarball instead of using an npm `file:` dependency. npm implements a `file:` dependency as a symbolic link, which loads two copies of `@empirica/core` and causes Empirica's `instanceof` checks to fail. The failure appears as a full game in which every participant remains on “Waiting for other players” (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) and `docs/PLATFORM-NOTES.md` §10).
+When working from a clone, install from a packed tarball (`npm pack`, then install the resulting `.tgz`) rather than an npm `file:` dependency. npm implements a `file:` dependency as a symbolic link, which loads two copies of `@empirica/core` and causes Empirica's `instanceof` checks to fail. The failure appears as a full game in which every participant remains on “Waiting for other players” (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) and `docs/PLATFORM-NOTES.md` §10).
 
 The unscoped name `empirica-networks` supports discovery in an ecosystem that currently lacks a registry, plugin API, or curated package list. Choosing the name before publication also avoids a later breaking change.
 
@@ -134,9 +125,31 @@ common failure mode at each step. [`docs/API.md`](docs/API.md) documents the com
 
 ## The guarantee and its limit
 
-The package guarantees that projected state—the subset of a neighbor's data selected by
-`project()`—never reaches non-neighbors. Each participant has a private channel scope, and the
-server writes that participant's projections exclusively to this channel.
+The package guarantees that projected state—the subset of a participant's data selected by
+`project()`—reaches another participant only if that participant is inside the configured radius.
+Each participant has a private channel scope, and the server writes their projections exclusively
+to this channel.
+
+At the default radius that reads as it always has: **projected state never reaches non-neighbors**,
+and `project()` is the only path by which one participant's data reaches another. Two settings
+widen it, both opt-in and both recorded:
+
+- `graph: { radius }` above 1 also sends the *shape* of the neighborhood — ties, and from 2 upward
+  people the viewer is not connected to. Topology carries nobody's attributes, so this widens what
+  a participant knows about the network without widening what they know about anyone in it.
+- `graph: { projectFar }` is the second decision, and the one that moves the sentence above. With
+  it, a study chooses what a participant learns *about* somebody further away — typically less than
+  a neighbor reveals. Without it, distant people are a shape and a name.
+
+The radius is also a property of each **participant** rather than of the study, so a design can seat
+some people wider than others — and visibility is then asymmetric: A may be shown B while B is not
+shown A. Every rule keys on the viewer's radius; being visible to somebody who sees further does not
+widen what you see.
+
+What does not change at any setting: nothing outside a participant's own radius arrives, the radius
+is the study's to set and never the participant's, and a person beyond distance 1 is named per
+viewer so two participants cannot compare screens and identify them. `verify --radius <r> [--project-far]` checks
+the version of the claim your study actually makes.
 
 The write location determines whether a value remains private. Empirica links every participant to
 every player node, so `player.set(key, value)` broadcasts the value to the entire game regardless

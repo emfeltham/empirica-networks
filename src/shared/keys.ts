@@ -132,6 +132,61 @@ export const NETWORK_KEYS = {
    * unfireable.
    */
   radius: (gameID: string) => `networkRadius:${gameID}`,
+  /**
+   * How much of the network EACH participant was shown, by player id.
+   *
+   * The complete record, and the one whose absence has a single cause. `radius`
+   * above answers only when there is a single answer — a study where some
+   * participants see further than others has no such value — so this is written
+   * at every setting, including the uniform default, for exactly the reason
+   * `radius` gives for writing itself at every radius. An absent `networkRadii`
+   * means "this record predates the key" and nothing else.
+   *
+   * Keyed by PLAYER ID, not by seat. The edge list is index pairs and needs the
+   * seating plan to interpret, but that plan lives on each participant's own
+   * channel (`NBHD_KEYS.INDEX`) and never on the batch — so a seat-indexed
+   * vector here would be a record that the scope holding it cannot read. Ids
+   * are also what `ViewRecord` and every exported CSV already use.
+   *
+   * Visibility is ASYMMETRIC once these differ: A at 2 and B at 1, two hops
+   * apart, means A was shown B and B was not shown A. Every rule keys on the
+   * VIEWER's entry.
+   */
+  radii: (gameID: string) => `networkRadii:${gameID}`,
+  /**
+   * Append-only log of every change to how far somebody can see.
+   *
+   * The same relation to `radii` that `history` has to `network`: one says what
+   * the setting IS, this says how it got there. For a study where widening
+   * somebody's vision partway through is the manipulation, the sequence is the
+   * independent variable, and a snapshot overwritten as radii change would
+   * destroy the thing being measured.
+   *
+   * One `start` event for a study that never changes anybody's, which is what
+   * the common case costs. The `start` entry carries the whole opening
+   * assignment, so the log alone describes the run — the same property
+   * `EdgeEvent`'s own `start` exists for.
+   */
+  radiusHistory: (gameID: string) => `networkRadiusHistory:${gameID}`,
+  /**
+   * The secret that names distant people to each viewer, per game.
+   *
+   * Only meaningful above radius 1, where a participant is shown nodes that have
+   * no entry in their neighbor array and therefore no positional name. See
+   * `src/admin/pseudonym.ts` for why the names are keyed rather than derived.
+   *
+   * On the BATCH scope for the same reason the edge list is: it is the one
+   * durable scope measured not to reach participants, and a key participants
+   * hold is not a key. Recorded rather than held in memory for exactly one
+   * reason — so a restart keeps every name it had. It is NOT the analyst's way
+   * back to identities: the server records that mapping directly in
+   * `ViewRecord.far`, because `src/admin/export.ts` may not import `node:crypto`
+   * and re-hashing offline is therefore not available to it.
+   *
+   * A study that would rather the names be unrecoverable can decline to record
+   * it and lose only restart stability.
+   */
+  viewKey: (gameID: string) => `networkViewKey:${gameID}`,
 } as const;
 
 /**
@@ -143,6 +198,39 @@ export const NETWORK_KEYS = {
  * event is self-contained and `edges.csv` is a direct read rather than a
  * reconstruction.
  */
+/**
+ * One change to how far somebody can see, as recorded in the radius log.
+ *
+ * Self-contained, for the reason `EdgeEvent` is: `after` carries the whole
+ * assignment following the event, so a reader can answer "who could see how far
+ * at this moment" from any single entry rather than by replaying from the start
+ * and hoping nothing was dropped. It is O(n) where an edge list is O(n²), so the
+ * snapshot is affordable here in a way it would not be there.
+ */
+export interface RadiusEvent {
+  /** `start` is the opening assignment, so the log alone describes the run. */
+  op: "start" | "set";
+  /** Who changed. Absent on `start`, which is about everybody. */
+  player?: string;
+  /** What they could see before. Absent on `start`. */
+  from?: number | "whole";
+  /** What they can see now. Absent on `start`. */
+  to?: number | "whole";
+  /** Everybody's radius after this event, by player id. */
+  after: Record<string, number | "whole">;
+  /**
+   * The publish counter at the moment this was recorded.
+   *
+   * What makes the log joinable to `ViewRecord.seq` without reasoning about
+   * clocks: a view published at `seq` was built under every radius event whose
+   * own `seq` is lower. Wall-clock times from one process inside one
+   * millisecond cannot be ordered, and two of these can easily land there.
+   */
+  seq: number;
+  /** Wall clock, ms. */
+  at: number;
+}
+
 export interface EdgeEvent {
   /** `start` is the initial graph, so the log alone describes the whole run. */
   op: "start" | "add" | "remove" | "rewire";
@@ -155,6 +243,20 @@ export interface EdgeEvent {
   removed: Array<[string, string]>;
   /** Edge count after the mutation, so a snapshot can be sanity-checked. */
   size: number;
+  /**
+   * The publish counter when this was recorded.
+   *
+   * What lets an auditor order a tie change against a DELIVERY without reasoning
+   * about clocks: a view published at `seq` was built on every edge event whose
+   * own `seq` is lower. Two events from one process inside one millisecond
+   * cannot be ordered by time, and a rewire followed immediately by the publish
+   * it triggers lands there by construction.
+   *
+   * Optional because a record written before this field existed has none, and
+   * `auditViews` falls back to the wall clock for those — reporting how many
+   * deliveries it could not place, rather than guessing.
+   */
+  seq?: number;
   /** Wall clock, ms. */
   at: number;
 }
@@ -264,9 +366,54 @@ export const OUTBOX_KEY = "_outbox";
  * `1..d` are `view[0..d-1]` in order. `positions` is index-aligned with those.
  */
 export interface ViewGraph {
+  /**
+   * How far this viewer was actually shown, as a finite number.
+   *
+   * Finite even when the study asked for `"whole"`, because `networkGraphOf`
+   * rejects a non-finite radius as malformed and a sentinel on the wire would
+   * have to be translated by every consumer anyway. For `"whole"` this is the
+   * depth the viewer's own component actually reached, which is the honest
+   * answer to "how far did I see" — and `whole` below carries the intent that
+   * produced it, which no number can.
+   */
   radius: number;
+  /** Set only when the study asked for the entire network. */
+  whole?: true;
   edges: Array<[number, number]>;
   positions: Array<{ x: number; y: number }>;
+  /**
+   * The people in the picture who are NOT in the delivered view.
+   *
+   * Absent at radius 1 and 1.5, where every visible node is a neighbor and the
+   * positional scheme names all of them — so a payload from those radii is
+   * byte-identical to one written before this field existed.
+   *
+   * Above that, local index `1 + view.length + k` names `far[k]`. The local
+   * index space is therefore: `0` the viewer, then the delivered view in order,
+   * then these. Extending rather than renumbering is what keeps every existing
+   * consumer correct.
+   */
+  far?: FarNode[];
+}
+
+/**
+ * One person a viewer can see but is not connected to.
+ *
+ * `ref` is what this viewer calls them, and it is all they get: a name that is
+ * stable for this pair, uncorrelated with what any other viewer calls the same
+ * person, and derived from neither a seat nor a player id
+ * (`src/admin/pseudonym.ts`).
+ *
+ * `view` is absent unless the study configured a projection at distance. The
+ * default is structure only — a wider radius discloses topology, and making it
+ * disclose attributes as well should be a second decision rather than a side
+ * effect of a larger number.
+ */
+export interface FarNode {
+  ref: string;
+  /** Hops from the viewer. Always >= 2. */
+  d: number;
+  view?: unknown;
 }
 
 export interface ViewRecord {
@@ -299,6 +446,23 @@ export interface ViewRecord {
    * fail its own audit.
    */
   graph?: ViewGraph;
+  /**
+   * Who the refs in `graph.far` actually were. SERVER-SIDE ONLY.
+   *
+   * Never delivered — `graph` is byte-for-byte what went on the wire, and this
+   * sits beside it as the server's key to its own payload. Without it a captured
+   * run above radius 1 records that a participant was shown four anonymous nodes
+   * and loses which four, which would make the structure unjoinable to anything.
+   *
+   * Recorded here rather than resolved offline because `src/admin/export.ts` may
+   * not import `node:crypto` (`test/unit/export_isolation.test.ts`), so an
+   * analyst cannot re-derive a ref even holding the key. The server already
+   * knows the answer at publish time; writing it down is cheaper and does not
+   * put a secret on the analysis path.
+   *
+   * Absent whenever `graph.far` is.
+   */
+  far?: Array<{ ref: string; id: string; hop: number }>;
 }
 
 /** One chat message as delivered to a recipient. */

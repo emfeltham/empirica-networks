@@ -22,7 +22,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { ClassicListenersCollector } from "@empirica/core/admin/classic";
-import { edgeRows, network, toCSV, topology, withNetwork } from "empirica-networks/admin";
+import {
+  edgeRows,
+  network,
+  radiusRows,
+  toCSV,
+  topology,
+  withNetwork,
+} from "empirica-networks/admin";
 import {
   ATTACHMENT,
   BOT_COUNT,
@@ -37,6 +44,15 @@ export const Empirica = new ClassicListenersCollector();
 
 /** Where CSVs land at game end, relative to wherever the server was started. */
 const OUT_DIR = process.env["SHIRADO2017_OUT"] ?? "data";
+
+/**
+ * Neighbors on each side for the ring lattice an auditing arm may ask for.
+ *
+ * 2, giving degree 4 — the degree the paper's own graph averages at m = 2 — so an
+ * arm that changes the shape does not also change the message size the envelope
+ * was measured against.
+ */
+const LATTICE_NEIGHBORS = 2;
 
 /**
  * The agents' participant keys, shared with `../bots.mjs` through the environment.
@@ -92,6 +108,14 @@ function conditionOf(game) {
     bots: Number(treatment["botCount"] ?? 0),
     placement: String(treatment["botPlacement"] ?? "random"),
     noise: Number(treatment["botNoise"] ?? 0),
+    // Absent from the paper's design; see `graph` below. `"whole"` passes
+    // through as a word, everything else as a number, so a typo lands on the
+    // module's own refusal rather than silently on the default.
+    radius:
+      treatment["radius"] === "whole" ? "whole" : Number(treatment["radius"] ?? 1),
+    // Also absent from the paper's design, and gated behind the same arm as the
+    // radius for the same reason. See `topology` below.
+    shape: String(treatment["topology"] ?? "barabasiAlbert"),
   };
 }
 
@@ -226,6 +250,30 @@ Empirica.onStageStart(({ stage }) => {
 
 export const net = withNetwork(Empirica, {
   /**
+   * How much of the network a subject can see.
+   *
+   * ABSENT FROM THE PAPER'S DESIGN, and present here anyway, so read this before
+   * using it. Shirado & Christakis's subjects "could see only the colors of
+   * neighbors to whom they were directly connected" — radius 1, which is the
+   * default and what every arm of the reconstruction runs at.
+   *
+   * A treatment that sets it higher is therefore NOT this paper's experiment. It
+   * is a legitimate study and a different one, for the reason `docs/EXPERIMENTS.md`
+   * gives at length: local structure is exactly what a coordinating subject lacks,
+   * and the dependent variable is TIME TO SOLUTION, so widening vision does not
+   * bias the number in a visible way — it drives it toward zero while every screen
+   * still looks right. At `"whole"` a subject can solve the colouring immediately
+   * and the variable is not measurable at all.
+   *
+   * It is wired to the treatment rather than hard-coded so `simulate` can exercise
+   * the machinery a wider radius involves — the structure payload, the people a
+   * subject cannot reach, and `auditViews`' arms over both — which nothing else in
+   * this repository runs end to end at scale. Any manifest that records a value
+   * above 1 here says so about itself.
+   */
+  graph: { radius: ({ game }) => conditionOf(game).radius },
+
+  /**
    * "the network structure was created de novo for each session by attaching new
    * nodes (each with two links) to existing nodes" — Barabási–Albert, m = 2.
    *
@@ -236,8 +284,28 @@ export const net = withNetwork(Empirica, {
    * graph cannot control for it.
    */
   topology: ({ game, players, playerCount, rng }) => {
-    const graph = topology.barabasiAlbert(playerCount, ATTACHMENT, { rng });
-    const { bots, placement } = conditionOf(game);
+    const { bots, placement, shape } = conditionOf(game);
+    /**
+     * Barabási–Albert unless an arm asks for something else, which only an arm
+     * running above radius 1 does.
+     *
+     * A scale-free graph is the paper's, and at radius 2 it is a poor shape to
+     * AUDIT delivery on: measured over 200 seeds at n = 20, a subject at radius 2
+     * sees 14.4 of the other 19 on average, and 15 per cent of seats see all
+     * nineteen. For those seats nothing is forbidden, so a containment check over
+     * them cannot fail however the server behaves. A ring lattice holds the same
+     * subject to 8 of 19, leaving 11 pairs per subject the check can discriminate
+     * on.
+     *
+     * This is a property of the shape and not of the package, which is why it is
+     * selected here rather than worked around downstream — and why it is wired to
+     * the treatment rather than switched on the radius: an arm says what it runs,
+     * and the manifest records it.
+     */
+    const graph =
+      shape === "ringLattice"
+        ? topology.ringLattice(playerCount, LATTICE_NEIGHBORS)
+        : topology.barabasiAlbert(playerCount, ATTACHMENT, { rng });
 
     // Which SEATS the agents got. `players[i]` is whoever will occupy topology
     // index `i` — that is the package's seating guarantee, and it is the whole
@@ -467,6 +535,23 @@ Empirica.onGameEnded(({ game }) => {
   for (const [name, contents] of Object.entries(files)) {
     fs.writeFileSync(path.join(dir, name), contents);
   }
+
+  /**
+   * How far each participant could see, and every time that changed.
+   *
+   * Beside `edges.csv` because it answers the same kind of question about the
+   * same run: that one says who was connected to whom, this one says how far
+   * each of them could see along those connections. The audit needs both —
+   * without this it can only check a delivered structure against the radius the
+   * delivery stamped on ITSELF, which a server that over-delivered would stamp
+   * to match. The log always carries a `start` event, so a study that never
+   * changed anybody still exports its opening assignment rather than an empty
+   * file.
+   */
+  fs.writeFileSync(
+    path.join(dir, "radius.csv"),
+    toCSV(radiusRows(game.id, network(game).radiusHistory()))
+  );
 
   sessions.delete(game.id);
   botSeating.delete(game.id);

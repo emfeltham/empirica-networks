@@ -27,6 +27,7 @@ export type { ChannelMap, ProvisionResult } from "./provision.js";
 export {
   withNetwork,
   readNetwork,
+  readRadii,
   readRadius,
   readSeed,
   network,
@@ -60,14 +61,18 @@ export {
   viewRows,
   structureRows,
   positionRows,
+  farRows,
+  radiusRows,
   historyIsConsistent,
   parseNdjson,
   toCSV,
 } from "./export.js";
 export type {
   EdgeRow,
+  FarRow,
   NdjsonParse,
   PositionRow,
+  RadiusRow,
   SnapshotRow,
   StructureRow,
   ViewRow,

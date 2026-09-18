@@ -3,13 +3,218 @@
 Notable changes to `empirica-networks`. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [semantic versioning](https://semver.org/spec/v2.0.0.html) from the first release.
 
-## [Unreleased]
+## [0.1.0] - 2026-09-18
 
-Nothing has been released. The package is `private: true` at `0.0.0` while the public API is
-still unfrozen. This section will become `0.1.0` at the first publish, and that freeze is what
-makes the entries below meaningful as a baseline rather than a moving target.
+The first release, and the baseline the entries below are measured against. `package.json` is at
+`0.1.0` with `private` removed, which is what makes the public API a freeze rather than a moving
+target.
+
+> **Re-date this heading if publication slips.** It was written on the day the release was
+> prepared, not the day it was tagged, and the two are the same date only if the tag went out
+> immediately.
+
+### Changed
+
+- **The central guarantee is now parameterized, and the README says so.** It read "projected state
+  never reaches non-neighbors", which was true of every version of this package until
+  `graph.projectFar` existed. It now reads: projected state reaches a participant only if its
+  subject is inside that participant's configured radius. At the default — still the default, still
+  sending no extra byte — the two sentences say the same thing, and the reconstructions in
+  `examples/` are byte-identical. Two opt-in settings widen it, and they widen different things: a
+  radius above 1 discloses TOPOLOGY, which carries nobody's attributes, while `projectFar` is the
+  second decision and the one that moves the sentence. The old wording is the kind a researcher
+  quotes in a methods section, so leaving it standing was not an option.
 
 ### Added
+
+- **A session with real browsers in it, audited.** `test/browser/hybrid_session.ts` runs twenty
+  participants of the `shirado2017` reconstruction with four of them real Chromium windows —
+  loading the bundled client, passing the consent and identification screens, and choosing colors
+  by clicking — and sixteen simulated, then audits the whole session with the same `auditViews`
+  the evaluation uses. Every session the evaluation produces replaces each participant with a
+  process, which left the client, its bundle and its rendering outside the evidence; this is the
+  overlap `two_windows.ts` (four participants, the minimal example) and `simulate` (twenty
+  participants, no browser) did not cover between them.
+
+  It also checks each browser's rendered connection count against that participant's degree in the
+  recorded edge list, which is the half a server-side audit cannot see. What it deliberately does
+  NOT assert is `two_windows.ts`'s wire property: that check works there because four participants
+  hold four distinct colors, so a color names a participant, and twenty participants sharing three
+  colors makes every color arrive legitimately in every tab. The file records that reasoning so it
+  is not "fixed" later.
+
+- **The offline audit looks inside a `projectFar` payload, which nothing did.** Every arm in
+  `auditViews` checked WHO a participant was shown and HOW FAR AWAY the payload said they were;
+  none looked at what the payload said ABOUT them. A build that shipped strangers' attributes in
+  `far[k].view` would have left every count in the report clean. The publish path has refused a
+  far view carrying a player id since `projectFar` existed (`validateNoIdentifiers`), but that
+  check runs on the server, against the build that shipped; this one runs on the capture, against
+  the build that actually ran, which is the only one an evaluation can speak for. The gap first
+  becomes reachable at radius 2.
+
+  `farViews` is reported against `farShown` rather than folded into it, because zero far payloads
+  over a thousand far people is `projectFar` being unset — the default, and a different fact from
+  an arm that ran and found nothing. The report says which.
+
+- **The audit says when it checked permission and when it only checked consistency.** Without a
+  radius log every structure was checked against the radius the delivery stamped on ITSELF, which a
+  server that over-delivered would stamp to match; the result was indistinguishable from the same
+  output with `radius.csv` present. `authorizationChecked` is now printed against
+  `structuredRecords`, and a run with no log says so in a note. Seats authorized `"whole"` were
+  also skipped outright, so such a seat could be delivered any radius at all — `"whole"` never
+  reaches the wire, so the delivery's finite radius is now checked against the eccentricity the
+  edge log gives.
+
+- **`radius.csv`, written by the `shirado2017` example beside `edges.csv`**, and read by `simulate`
+  at both audit call sites. The export helper existed and nothing called it, so the arm above could
+  not run over a real session even where the data existed.
+
+- **Two arms that evidence the wider guarantee at session scale**,
+  `audit-1.5-not-the-paper` and `audit-2-not-the-paper`. Split by radius because the two settings
+  exercise different arms and one run cannot report both, and run on a ring lattice rather than the
+  reconstruction's scale-free graph for a measured reason: over 200 seeds at n = 20, a participant
+  at radius 2 on Barabási–Albert (m = 2) sees 14.4 of the other 19 on average and 15 per cent of
+  seats see all 19, leaving a containment check nothing to forbid on those seats. The lattice holds
+  the same participant to 8 of 19. The shape is selected through the treatment, like the radius, so
+  an arm says what it runs and the manifest records it.
+
+- **`NBHD_TOPOLOGY` in `examples/minimal`**, overriding the shape the radius would otherwise pick.
+  The existing rule is right about what each radius needs and silent about what it wastes: a ring
+  has no ties among anybody's neighbors, so at radius 2 it delivers exactly what 2.5 delivers and
+  the half step is invisible on it. Its comment justified the choice at n = 5, where the lattice
+  puts everybody within two hops; that stops being true above five participants.
+
+- **`npm run figure:ladder`**, which captures one participant's screen at radius 1, 1.5 and 2 on
+  one fixed graph, for the manuscript. Held fixed through `NBHD_TOPOLOGY` because the comparison is
+  only honest on one shape. A fourth panel repeats radius 2 with the distance projection on, which
+  is the same radius and a different picture. `--asymmetry` is the other mode: one session at two
+  radii, two adjacent participants.
+
+- **`NBHD_PROJECT_FAR` in `examples/minimal`**, declaring `graph.projectFar` so a distant
+  participant carries a colour rather than only a position and a name. No client change was needed:
+  the example's `nodeAttrs` already runs for far nodes, and its own attribute selector outranks the
+  default hollow style on specificity, which is what the stylesheet's comment asks a study to do
+  deliberately. The projection returns no `id` — an id is the same handle for every viewer, which
+  is the whole point of the per-viewer `ref`, and a far view carrying one is refused at publish.
+
+- **`simulate` can run an arm above radius 1**, which it could not, and which the tool's own
+  `notExercised` list went on asserting after it became possible. The claim — "the example's config
+  is a literal fixed at module load and there is no path from a flag to it" — was true until
+  `graph.radius` began taking a function that receives the game, which is exactly the path: the
+  example reads its condition off the treatment already, and `simulate` already puts arbitrary keys
+  there. A stale claim outliving its cause, in prose rather than code.
+
+  The `wide-not-the-paper` arm is named so nobody reads it as the paper's design, and the manifest
+  says so on its own face whenever any arm ran above 1 — an arm name is easy to skim past and a
+  number is easy to quote. Shirado & Christakis's subjects saw only the colours of neighbors they
+  were directly connected to; a wider radius is a different experiment, and because the dependent
+  variable is time to solution it does not bias the number visibly, it drives it toward zero while
+  every screen still looks right.
+
+  It earns its place by exercising, at a scale no fixture reaches, arms that had only unit
+  coverage: one eight-participant session audits 643 views, 7050 ties and 2439 people beyond a
+  viewer's own neighbors.
+
+- **`auditViews` no longer refuses a game that rewired.** It used to, and the refusal was honest
+  about a real problem — a view checked against the graph that REPLACED the one it was built on
+  reads as a leak — but it was never a limitation of the data. `edges.csv` has carried a timestamp
+  for every row since it existed; what it lacked was a way to order a tie change against the
+  DELIVERY it caused, which a wall clock cannot do when the two land in the same millisecond by
+  construction. `EdgeEvent` and `edges.csv` now carry the publish counter, and the audit replays
+  the graph to the moment of each record.
+
+  Replaying rather than merging is the point: a view showing somebody a tie that did not exist yet
+  is still a leak, and an audit that took the union of both graphs would call it fine.
+
+  The refusal survives for exactly one case — a capture written before the `seq` column existed,
+  which can only be replayed by clock — stated on the rows that put it there rather than on the
+  game. A study that never rewired keeps the final adjacency it has always used and pays nothing.
+
+- **Whole-network vision is drawn once, not once per viewer.** Every viewer's ball at
+  `radius: "whole"` is the same graph, and the layout cache keyed it by LOCAL indices — so two
+  participants looking at the same picture, numbered differently because each puts themselves
+  first, counted as two different shapes. The key is over player ids now, which makes the picture
+  shareable and also makes the key say what it only implied: the old one could match for two
+  different sets of people with the same shape, and a separate check was the only thing stopping a
+  newcomer inheriting the coordinates of whoever they replaced. That check stays; the key no longer
+  depends on it. Measured on this machine at n=50: 4.6 ms per layout, so 228 ms of a single event
+  loop for one republish, down to 4.6 ms. (Machine-local, per `ISSUES.md` O1.)
+
+- **`net.setRadius(playerID, radius)`** — change how far somebody can see, mid-game, which is what
+  the whole feature was asked for. Recorded as a `RadiusEvent` log under `networkRadiusHistory`
+  rather than by overwriting the snapshot: for a study where widening somebody's vision partway
+  through IS the manipulation, the sequence is the independent variable. Each event carries the
+  full assignment after it, so one entry answers "who could see how far at this moment", and the
+  publish counter, which is what lets an auditor order a change against a delivery without
+  reasoning about clocks — two events from one process inside one millisecond cannot be ordered by
+  time.
+
+  Narrowing is recorded like widening, and stops further bytes rather than retracting what a
+  participant has already seen; no mechanism here could do the second.
+
+- **`radiusRows()` and `auditViews({ radii })`.** A delivery carries the radius it was made at,
+  which is the server describing itself — enough to catch a payload inconsistent with its own
+  claim, and unable to catch a claim nobody authorized. With the log, the claim is checked against
+  what the study actually set, and a disagreement is reported either way round: somebody was shown
+  more than was allowed, or the record of what was allowed is wrong.
+
+- **A radius per PARTICIPANT.** `graph: { radius }` also takes a function, which runs after
+  `topology` and receives the realized edges — so "the most central participants see two hops" is
+  expressible, which is the design the setting exists for. Returns one value or one per seat.
+
+  **This makes visibility asymmetric**, and that is a larger change than a per-seat number sounds.
+  Until now "can A see B" and "can B see A" were the same question, so a build that keyed delivery
+  on the SUBJECT's radius rather than the VIEWER's would have passed every check in this
+  repository: the two rules agree on every pair of a uniform study. `verify --radii` and the
+  `asymmetricPairs` accounting exist to separate them, and a mixed run on a graph where no pair
+  disagrees is refused rather than passed.
+
+  Recorded under a second key, `networkRadii`, by player id and at every setting — not by widening
+  `networkRadius`, which would have destroyed the one property its docstring argues for: an absent
+  value meaning "predates the key" and nothing else. `readRadius` is untouched and still answers
+  when one number describes the game; `readRadii` is the complete record.
+
+- **`envelope: { maxVisibleNodes }` and `checkVision`**, which bound how many people one
+  participant can be SHOWN. `checkDegrees` bounded that until participants could see past their own
+  neighbors, and its message still claimed the payload was O(degree) — true when written, false
+  since, and once radii differ also unequal: one seat at radius 3 on an otherwise modest topology
+  is enough. The default is stated as inherited rather than earned, since delivering a ball has
+  never been benchmarked (`ISSUES.md` O1).
+
+- **`graph: { radius }` accepts any half step and `"whole"`**, where it took `1 | 1.5`. The rule
+  generalizes what 1.5 already meant: `floor(radius)` bounds the PEOPLE and the fraction decides
+  the TIES, so `k` and `k.5` show the same faces and differ only in whether the ties between the
+  outermost of them come too. A value between the steps is refused rather than rounded, because 2
+  and 2.5 are different studies. `ball()` in `src/topology/index.ts` is the first BFS in the
+  package; everything else is written against its half-step rule.
+
+- **Per-viewer names for people a participant is not connected to.** From radius 2 a visible node
+  has no entry in `useNeighbors()`, so the positional scheme that names everything at 1.5 has
+  nothing to say about it — and a seat cannot stand in, because a topology index is a stable name
+  for everybody in the study. Each distant person gets a `ref`: HMAC-SHA256 under a per-game key on
+  the batch scope, with the viewer inside the message so one secret gives every viewer a disjoint
+  name space. Stable for the session, uncorrelated between viewers, never an id and never a seat.
+  Deliberately not built on `hashSeed`, which says of itself that it is not cryptographic and takes
+  a 32-bit salt: a participant who learned one `(ref, id)` pair could have recovered it.
+
+- **`graph: { projectFar }`** — what a participant learns ABOUT somebody further away. A separate
+  callback rather than `project()` receiving a distance, because every `project()` written against
+  this package ignores its context argument and routing distant people through it would have made a
+  wider radius a full attribute disclosure by accident. Omit it and distant people are a shape and
+  a name. The returned value may not contain a player id, and that is refused at publish time.
+
+- **`verify --radius <r>` and `--project-far`.** The structural arms are generalized to any radius,
+  and — the part that matters — the expectation is computed by a second implementation. Using
+  `ball()`, the function the publish path uses to decide what to SEND, to decide what should have
+  been sent makes the check a comparison of the code with itself: with its edge filter broken,
+  `verify` reported PASS. `--radius whole` is refused rather than reported, since every participant
+  is then inside every other's radius and there is no non-neighbor left to leak to.
+
+- **`farRows()`, plus `a_hop`/`b_hop` on `structure.csv` and `node_hop`/`node_ref` on
+  `positions.csv`.** Its own builder rather than rows in `views.csv`, because `NEIGHBORS` carries
+  distance 1 and only distance 1, so every view row is hop 1 by construction. `node_ref` is the
+  only name a participant ever saw for a stranger, and therefore the join key for anything a study
+  collected about one.
 
 - The radius a game ran at is recorded on the batch scope (`networkRadius:<gameID>`) and read back
   with `readRadius(game)`, alongside the edge list and the seed. Nothing else in a finished dataset
@@ -335,6 +540,34 @@ makes the entries below meaningful as a baseline rather than a moving target.
   documented `empirica-networks` import, resolved against the built package).
 
 ### Fixed
+
+- **`"whole"` promised more than it could deliver** (2026-09-16). `ball()` documented it as every
+  node in the study *including other components*, and the publish path could not carry that: a
+  participant with no path to the viewer has no hop count, and a hop count is how a distant person
+  is described on the wire — so they were dropped at delivery while the function insisted they were
+  included. The disagreement survived two stages and was found by the first end-to-end test that
+  asked somebody at that setting to account for everybody they could see. `"whole"` now means no
+  depth limit, which on a connected graph is everybody and on a disconnected one is the viewer's own
+  component — the reading the whole pipeline can carry.
+
+- **A radius that dropped left the old picture on the screen forever** (2026-09-16). A structure
+  payload is written only above radius 1, and an attribute that is not written keeps its last
+  value — so `setRadius(p, 1)` on a participant who had been at 2 left them being drawn the ball
+  they had when it was wider, indefinitely, while the rest of their screen updated. Nothing could
+  reach that state before mutation existed. The key is cleared with `null`, which the client
+  already reads as "radius 1, draw a star", and conditionally, so the default path still never
+  touches a key it has never touched.
+
+- **A correct radius-2 run failed its own audit** (2026-09-14). `auditViews` resolved every local
+  index through the delivered view array, so an edge touching somebody the viewer is not connected
+  to resolved to nothing and was reported as a tie "outside the neighborhood they were sent". It
+  had good unit coverage and every fixture in it was written against the same assumption the code
+  made, so the fixtures agreed with the bug. `ViewRecord.far` — the server's own record of who each
+  ref was, written beside the payload and never delivered — had been written for exactly this and
+  nothing read it. The audit now walks the graph itself rather than importing `ball()`: it could
+  not import it anyway, but the stronger reason is that asking the publish path's own function what
+  should have been sent is the same self-comparison `verify` had just been caught making. There is
+  now an e2e that audits a real session, which nothing did before.
 
 - The Shirado agent arm failed 60% of the time, and the placement it doubted was correct
   (2026-09-14). `test/e2e/shirado2017.test.ts` compared the agents against the top three nodes

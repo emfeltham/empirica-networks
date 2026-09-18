@@ -16,10 +16,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   auditViews,
-  formatAuditResult,
   canonicalEdges,
+  formatAuditResult,
   mergeAuditResults,
   parseEdgesCsv,
+  parseRadiiCsv,
   structuralEdges,
 } from "../../src/verify/audit.js";
 
@@ -392,4 +393,416 @@ test("the structural counts survive a merge", () => {
   assert.equal(merged.beyondStar, one.beyondStar * 2);
   assert.equal(merged.structuredRecords, one.structuredRecords * 2);
   assert.equal(merged.structureLeaks, 0);
+});
+
+// ---------------------------------------------- above radius 1.5, offline
+//
+// `a-b`, `a-c`, `b-d`, `c-e`, `d-e`. From `a`: b and c are neighbors, d and e
+// are two hops away, and d-e joins two people who are BOTH at the outer edge —
+// so it is what radius 2.5 adds and radius 2 withholds. That one tie is the
+// only thing separating the two settings in a record, which is why the fixture
+// is built around it.
+const WIDE_CSV = [
+  `"game_id","t","event","player_a","player_b"`,
+  `"g1","1","connected","a","b"`,
+  `"g1","1","connected","a","c"`,
+  `"g1","1","connected","b","d"`,
+  `"g1","1","connected","c","e"`,
+  `"g1","1","connected","d","e"`,
+].join("\n");
+
+/**
+ * One delivery to `a` at a wider radius.
+ *
+ * Local indices: `0` a, `1` b, `2` c, then `3` and `4` are the two people `a`
+ * cannot reach directly. `far` is the server's record of who those were — the
+ * payload itself carries only a per-viewer name, so without it nothing offline
+ * can say who was shown to whom.
+ */
+const wideDelivery = (opts: {
+  radius?: number;
+  edges?: Array<[number, number]>;
+  far?: Array<{ ref: string; id: string; hop: number }>;
+  omitRecord?: boolean;
+}) => {
+  const far = opts.far ?? [
+    { ref: "k3m9x2pq", id: "d", hop: 2 },
+    { ref: "b7t4wz01", id: "e", hop: 2 },
+  ];
+  return {
+    gameID: "g1",
+    viewer: "a",
+    seq: 1,
+    at: 1000,
+    view: [{ id: "b" }, { id: "c" }],
+    graph: {
+      radius: opts.radius ?? 2,
+      edges: opts.edges ?? [[0, 1], [0, 2], [1, 3], [2, 4]],
+      positions: [],
+      far: far.map((f) => ({ ref: f.ref, d: f.hop })),
+    },
+    ...(opts.omitRecord ? {} : { far }),
+  };
+};
+
+const wide = () => parseEdgesCsv(WIDE_CSV);
+
+test("radius 2: a correct delivery of distant people passes, and is counted", () => {
+  const r = auditViews({ views: ndjson(wideDelivery({})), edges: wide() });
+  assert.equal(r.structureLeaks, 0, r.failures.join("\n"));
+  assert.equal(r.farShown, 2, "both people two hops out were audited");
+  assert.equal(r.farTies, 2, "the two ties reaching them");
+  assert.equal(r.tiesChecked, 4);
+  assert.ok(r.pass, r.failures.join("\n"));
+});
+
+test("radius 2 withholds the tie between two people at the outer edge; 2.5 delivers it", () => {
+  const withFringe: Array<[number, number]> = [[0, 1], [0, 2], [1, 3], [2, 4], [3, 4]];
+
+  const at2 = auditViews({
+    views: ndjson(wideDelivery({ radius: 2, edges: withFringe })),
+    edges: wide(),
+  });
+  assert.equal(at2.structureLeaks, 1, "d-e is not radius 2's to deliver");
+  assert.match(at2.failures.join(" "), /it is what radius 2\.5 adds/);
+
+  const at25 = auditViews({
+    views: ndjson(wideDelivery({ radius: 2.5, edges: withFringe })),
+    edges: wide(),
+  });
+  assert.equal(at25.structureLeaks, 0, at25.failures.join("\n"));
+  assert.ok(at25.pass);
+});
+
+test("a distant person claimed to be nearer than they are is caught", () => {
+  const r = auditViews({
+    views: ndjson(
+      wideDelivery({ far: [{ ref: "k3m9x2pq", id: "d", hop: 1 }] })
+    ),
+    edges: wide(),
+  });
+  assert.ok(r.structureLeaks > 0);
+  assert.match(r.failures.join(" "), /1 hop\(s\) away and the edge log puts them 2 away/);
+});
+
+test("somebody outside the radius on a viewer's screen is a leak, not a rounding", () => {
+  // `e` is two hops from `a`. At radius 1.5 nobody beyond the neighbors may
+  // appear at all, so a payload naming one is the disclosure this file exists
+  // to find in a finished dataset.
+  const r = auditViews({
+    views: ndjson(
+      wideDelivery({
+        radius: 1.5,
+        edges: [[0, 1], [0, 2], [1, 3]],
+        far: [{ ref: "k3m9x2pq", id: "d", hop: 2 }],
+      })
+    ),
+    edges: wide(),
+  });
+  assert.ok(r.structureLeaks > 0);
+  assert.match(r.failures.join(" "), /shown somebody 2 hops away at radius 1\.5/);
+});
+
+/**
+ * The capture that cannot be audited at all.
+ *
+ * A payload names distant people by a per-viewer name and nothing else, so a
+ * record without `ViewRecord.far` has no way back to who they were. Every other
+ * arm would pass — the ties resolve to nothing and are reported once — and a
+ * reader would take that for a clean result.
+ */
+test("a capture that lost who the distant people were is refused, not half-audited", () => {
+  const r = auditViews({
+    views: ndjson(wideDelivery({ omitRecord: true })),
+    edges: wide(),
+  });
+  assert.ok(!r.pass);
+  assert.match(r.failures.join(" "), /REFUSED/);
+  assert.match(r.failures.join(" "), /Who was shown to whom cannot be established/);
+});
+
+test("the new counters survive a merge", () => {
+  const one = auditViews({ views: ndjson(wideDelivery({})), edges: wide() });
+  const merged = mergeAuditResults([one, one]);
+  assert.equal(merged.farShown, one.farShown * 2);
+  assert.equal(merged.farTies, one.farTies * 2);
+});
+
+// --------------------------------------------- a radius that changed mid-run
+//
+// A delivery carries the radius it was made at, which is the server describing
+// itself. That catches a payload inconsistent with its own claim and cannot
+// catch a claim nobody authorized: a server delivering three hops and stamping
+// `radius: 3` on it passes every other arm. `radius.csv` is the record of what
+// the study actually set, and it is the only thing that can contradict the
+// server about permission.
+
+const RADII_CSV = [
+  `"game_id","t","seq","event","player","radius_from","radius_to"`,
+  `"g1","1","0","start","a","","1"`,
+  `"g1","1","0","start","b","","1"`,
+  `"g1","1","0","start","c","","1"`,
+  `"g1","5","3","set","a","1","2"`,
+].join("\n");
+
+test("parseRadiiCsv reads the log, in order", () => {
+  const parsed = parseRadiiCsv(RADII_CSV);
+  const g1 = parsed.get("g1")!;
+  assert.equal(g1.length, 4);
+  assert.deepEqual(
+    g1.map((e) => `${e.seq}:${e.player}:${e.to}`),
+    ["0:a:1", "0:b:1", "0:c:1", "3:a:2"]
+  );
+});
+
+test("a delivery at a radius the record never authorized is reported", () => {
+  // Seq 1 is before the change at seq 3, so `a` was still at radius 1 — and a
+  // payload stamped 2 at that moment is either a delivery the study did not
+  // allow or a record that is wrong about what it allowed. Both are findings.
+  const early = {
+    ...wideDelivery({ radius: 2 }),
+    seq: 1,
+    far: [{ ref: "k3m9x2pq", id: "d", hop: 2 }],
+    graph: {
+      radius: 2,
+      edges: [[0, 1] as [number, number]],
+      positions: [],
+      far: [{ ref: "k3m9x2pq", d: 2 }],
+    },
+  };
+  const r = auditViews({
+    views: ndjson(early),
+    edges: wide(),
+    radii: parseRadiiCsv(RADII_CSV),
+  });
+  assert.ok(!r.pass);
+  assert.match(r.failures.join(" "), /RADIUS MISREPORTED/);
+  assert.match(r.failures.join(" "), /authorizes 1/);
+});
+
+test("the same delivery after the change is authorized, and passes", () => {
+  const late = { ...wideDelivery({}), seq: 4 };
+  const r = auditViews({
+    views: ndjson(late),
+    edges: wide(),
+    radii: parseRadiiCsv(RADII_CSV),
+  });
+  assert.equal(r.structureLeaks, 0, r.failures.join("\n"));
+  assert.ok(r.pass, r.failures.join("\n"));
+});
+
+test("without the log the audit still runs, and says less", () => {
+  // The self-report is checked against the graph either way; only PERMISSION
+  // goes unchecked. That is a real reduction and it must not fail the run — a
+  // study that never changed anybody's radius has no log to supply.
+  const early = { ...wideDelivery({}), seq: 1 };
+  const r = auditViews({ views: ndjson(early), edges: wide() });
+  assert.ok(r.pass, r.failures.join("\n"));
+});
+
+// ------------------------------------------------- a game that rewired
+//
+// `auditViews` refused these outright, and the refusal was honest about a real
+// problem: a view checked against the graph that REPLACED the one it was built
+// on reads as a leak. It was never a limitation of the data — `edges.csv` has
+// always carried a timestamp — but a wall clock cannot order a tie change
+// against the delivery it caused, because the two land in the same millisecond
+// by construction. The publish counter can.
+
+/** `a-b` from the start; `a-c` added at seq 5, `a-b` dropped at seq 5. */
+const REWIRED_CSV = [
+  `"game_id","t","seq","event","player_a","player_b"`,
+  `"g1","1","0","connected","a","b"`,
+  `"g1","9","5","disconnected","a","b"`,
+  `"g1","9","5","connected","a","c"`,
+].join("\n");
+
+const deliveryTo = (viewer: string, ids: string[], seq: number) => ({
+  gameID: "g1",
+  viewer,
+  seq,
+  at: 1000 + seq,
+  view: ids.map((id) => ({ id })),
+});
+
+test("a rewiring game is audited against the graph each view was built on", () => {
+  const r = auditViews({
+    views: ndjson(
+      // Before the rewire: `a` sees `b`, which is true then and false later.
+      deliveryTo("a", ["b"], 2),
+      // After it: `a` sees `c`.
+      deliveryTo("a", ["c"], 7)
+    ),
+    edges: parseEdgesCsv(REWIRED_CSV),
+  });
+  assert.ok(r.pass, r.failures.join("\n"));
+  assert.equal(r.leaks, 0, "a view that was correct when sent is not a leak");
+  assert.equal(r.deliveriesChecked, 2);
+  assert.doesNotMatch(r.failures.join(" "), /REFUSED/);
+});
+
+test("and a view from the wrong side of the rewire is still caught", () => {
+  // The whole point of replaying rather than taking the union: `a` seeing `c`
+  // BEFORE the tie existed is a leak, and an audit that merged both graphs
+  // together would call it fine.
+  const r = auditViews({
+    views: ndjson(deliveryTo("a", ["c"], 2)),
+    edges: parseEdgesCsv(REWIRED_CSV),
+  });
+  assert.equal(r.leaks, 1);
+  assert.match(r.failures.join(" "), /LEAK/);
+});
+
+test("a tie dropped is gone: the old neighbor is a leak afterwards", () => {
+  const r = auditViews({
+    views: ndjson(deliveryTo("a", ["b"], 7)),
+    edges: parseEdgesCsv(REWIRED_CSV),
+  });
+  assert.equal(r.leaks, 1, "`b` was disconnected at seq 5 and this view is seq 7");
+});
+
+test("a rewiring game with no publish counter is still refused, and says why", () => {
+  // The case the counter does not cover: a capture written before the column
+  // existed can only be replayed by clock. Refused rather than replayed
+  // approximately, and stated on what put it there.
+  const noSeq = [
+    `"game_id","t","event","player_a","player_b"`,
+    `"g1","1","connected","a","b"`,
+    `"g1","9","disconnected","a","b"`,
+    `"g1","9","connected","a","c"`,
+  ].join("\n");
+  const r = auditViews({
+    views: ndjson(deliveryTo("a", ["c"], 7)),
+    edges: parseEdgesCsv(noSeq),
+  });
+  assert.ok(!r.pass);
+  assert.match(r.failures.join(" "), /REFUSED/);
+  assert.match(r.failures.join(" "), /no publish counter/);
+});
+
+test("a game that never rewired is unaffected, and pays nothing", () => {
+  // The common case keeps the final adjacency it has always used. Asserted
+  // because the replay is conditional, and a condition that is wrong in the
+  // permissive direction would be invisible.
+  const r = auditViews({ views: CLEAN, edges: edges() });
+  assert.ok(r.pass, r.failures.join("\n"));
+  assert.equal(r.deliveriesChecked, 4);
+});
+
+// ------------------------------------------- what a far payload may carry
+//
+// Every arm above this point checks WHO was shown and HOW FAR AWAY the payload
+// said they were. None of them looks inside `far[k].view`, which is what a
+// study's `projectFar` puts there — so a build that shipped strangers'
+// attributes would leave all of those counts clean. The arm exists for that
+// case, and it first becomes reachable at radius 2.
+
+/** One delivery to `a` at radius 2, with a chosen payload on each distant person. */
+const farCarrying = (view: unknown) => {
+  const far = [
+    { ref: "k3m9x2pq", id: "d", hop: 2 },
+    { ref: "b7t4wz01", id: "e", hop: 2 },
+  ];
+  return {
+    gameID: "g1",
+    viewer: "a",
+    seq: 1,
+    at: 1000,
+    view: [{ id: "b" }, { id: "c" }],
+    far,
+    graph: {
+      radius: 2,
+      edges: [[0, 1], [0, 2], [1, 3], [2, 4]] as Array<[number, number]>,
+      positions: [],
+      far: far.map((f) => ({ ref: f.ref, d: f.hop, ...(view === undefined ? {} : { view }) })),
+    },
+  };
+};
+
+test("a far payload naming a participant is caught", () => {
+  // `d` is a player id: the same handle for every viewer, which is exactly what
+  // the per-viewer ref exists to avoid. Two participants holding it can join.
+  const r = auditViews({ views: ndjson(farCarrying({ color: "red", who: "d" })), edges: wide() });
+  assert.ok(!r.pass);
+  assert.equal(r.farLeaks, 2, "both far payloads carried it");
+  assert.match(r.failures.join(" "), /FAR LEAK/);
+  assert.match(r.failures.join(" "), /names participant d/);
+});
+
+test("an id buried in a nested far payload is still caught", () => {
+  const r = auditViews({
+    views: ndjson(farCarrying({ trace: { seen: ["x", { by: "e" }] } })),
+    edges: wide(),
+  });
+  assert.ok(!r.pass);
+  assert.match(r.failures.join(" "), /names participant e/);
+});
+
+test("a far payload carrying no identifier passes, and the arm reports its denominator", () => {
+  const r = auditViews({
+    views: ndjson(farCarrying({ color: "red", ref: "k3m9x2pq" })),
+    edges: wide(),
+  });
+  assert.ok(r.pass, r.failures.join("\n"));
+  assert.equal(r.farViews, 2, "both distant people carried a projected payload");
+  assert.equal(r.farLeaks, 0);
+  assert.match(r.notes.join(" "), /2 of 2 distant person\(s\) carried a projected payload/);
+});
+
+test("distant people with no payload leave the arm vacuous, and it says so", () => {
+  // The default configuration: a distant person is a shape and a name. Zero
+  // leaks here is `projectFar` being unset, not an arm that ran and found
+  // nothing, and the two must not read the same.
+  const r = auditViews({ views: ndjson(farCarrying(undefined)), edges: wide() });
+  assert.ok(r.pass, r.failures.join("\n"));
+  assert.equal(r.farShown, 2);
+  assert.equal(r.farViews, 0);
+  assert.match(r.notes.join(" "), /vacuous rather than passed/);
+});
+
+// ------------------------------------------- an arm that did not run says so
+
+test("without a radius log the audit says permission went unchecked", () => {
+  const r = auditViews({ views: ndjson(wideDelivery({})), edges: wide() });
+  assert.ok(r.pass, r.failures.join("\n"));
+  assert.equal(r.authorizationChecked, 0);
+  assert.match(r.notes.join(" "), /none against what the study authorized/);
+});
+
+test("with a radius log the audit says how many structures it checked", () => {
+  const r = auditViews({
+    views: ndjson({ ...wideDelivery({}), seq: 4 }),
+    edges: wide(),
+    radii: parseRadiiCsv(RADII_CSV),
+  });
+  assert.equal(r.authorizationChecked, 1);
+  assert.match(r.notes.join(" "), /1 of 1 structure\(s\) were checked against an authorized radius/);
+});
+
+test("a seat authorized the whole component is checked against its eccentricity", () => {
+  // `whole` authorizes no particular number, so it was skipped outright — which
+  // meant such a seat could be delivered any radius at all. The wire never
+  // carries `whole`; it carries the eccentricity actually reached, and the edge
+  // log knows what that is. From `a`, the furthest of b/c/d/e is two hops.
+  const csv = [
+    `"game_id","t","seq","event","player","radius_from","radius_to"`,
+    `"g1","1","0","start","a","","whole"`,
+  ].join("\n");
+
+  const honest = auditViews({
+    views: ndjson(wideDelivery({})),
+    edges: wide(),
+    radii: parseRadiiCsv(csv),
+  });
+  assert.ok(honest.pass, honest.failures.join("\n"));
+  assert.equal(honest.authorizationChecked, 1);
+
+  const overstated = auditViews({
+    views: ndjson(wideDelivery({ radius: 3 })),
+    edges: wide(),
+    radii: parseRadiiCsv(csv),
+  });
+  assert.ok(!overstated.pass);
+  assert.match(overstated.failures.join(" "), /RADIUS MISREPORTED/);
+  assert.match(overstated.failures.join(" "), /furthest person they can reach 2 hop/);
 });

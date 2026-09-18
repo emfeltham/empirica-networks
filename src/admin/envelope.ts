@@ -26,6 +26,8 @@
  * Zero dependencies, so it unit tests without a server (same as `seed.ts`).
  */
 
+import { ball, type Radius } from "../topology/index.js";
+
 export interface EnvelopeLimits {
   /**
    * Max neighbors any one participant may have.
@@ -34,6 +36,21 @@ export interface EnvelopeLimits {
    * it — so no cap at all within the target regime. Set a number to override.
    */
   maxDegree?: number;
+  /**
+   * Most people any one participant may be SHOWN, at their own radius.
+   *
+   * `maxDegree` bounded this until stage 1 of the radius work, because until
+   * then a participant's payload was their neighbors and nothing else. Above
+   * radius 1 it is the ball, which on a sparse graph grows roughly with degree
+   * to the power of the radius — so a study can sit comfortably inside
+   * `maxDegree` and still hand somebody most of the study.
+   *
+   * Defaults to `MEASURED_DENSE_N`, and that number is INHERITED rather than
+   * earned: it is the largest n at which anything dense has been measured at
+   * all, not a measurement of ball delivery, which has never been benchmarked
+   * (see `ISSUES.md` O1). Stated so a reader knows what they are up against.
+   */
+  maxVisibleNodes?: number;
   /** Max serialized bytes for ONE neighbor's view. Default 8192. */
   maxViewBytes?: number;
   /**
@@ -82,6 +99,7 @@ export interface EnvelopeLimits {
 
 export interface ResolvedEnvelope {
   maxDegree: number;
+  maxVisibleNodes: number;
   maxViewBytes: number;
   maxNeighborhoodBytes: number;
   onExceed: "throw" | "warn";
@@ -150,6 +168,7 @@ export function defaultMaxDegree(n: number): number {
  */
 export const DEFAULT_ENVELOPE: ResolvedEnvelope = {
   maxDegree: MEASURED_SPARSE_DEGREE,
+  maxVisibleNodes: MEASURED_DENSE_N,
   maxViewBytes: 8192,
   maxNeighborhoodBytes: 65536,
   onExceed: "throw",
@@ -262,6 +281,19 @@ export interface MeasuredPayload {
   label: string;
   viewer?: string;
   aggregateOnly?: boolean;
+  /**
+   * Checked against `maxViewBytes`, but NOT counted toward the participant's
+   * total.
+   *
+   * The complement of `aggregateOnly`, and it exists for one case: a value an
+   * author's `graph.projectFar` returned, which travels INSIDE the structure
+   * payload. That payload is already charged to the participant in full, so
+   * counting the piece again would bill the same bytes twice — but the piece
+   * still came from an author's callback, which is precisely what the per-view
+   * limit is a detector for.
+   */
+  perViewOnly?: boolean;
+
 }
 
 export function checkViewBytes(
@@ -328,6 +360,9 @@ export function checkNeighborhoodBytes(
   const totals = new Map<string, { bytes: number; count: number }>();
   for (const v of views) {
     if (v.viewer === undefined) continue;
+    // Already inside an aggregate entry; counting it here would bill the same
+    // bytes twice and make a study look over its envelope while it is not.
+    if (v.perViewOnly) continue;
     const t = totals.get(v.viewer) ?? { bytes: 0, count: 0 };
     t.bytes += v.bytes;
     t.count++;
@@ -357,6 +392,74 @@ export function checkNeighborhoodBytes(
       `    withNetwork(Empirica, { envelope: { maxNeighborhoodBytes: ${
         worst.bytes * 2
       } } })\n`,
+    env,
+    warn
+  );
+}
+
+/**
+ * Check how many people each participant can SEE, at their own radius.
+ *
+ * `checkDegrees` bounded this until participants could see past their own
+ * neighbors, and its message still says "Per-participant payload is O(degree)" —
+ * true when it was written and false since. Above radius 1 the payload is the
+ * ball, which on a sparse graph grows roughly with degree to the power of the
+ * radius, so a study can sit well inside `maxDegree` and still hand somebody
+ * most of the study.
+ *
+ * Per participant rather than per graph, because that is the shape of the
+ * failure once radii differ: one seat at radius 3 on an otherwise modest
+ * topology is enough, and a check on the average or the maximum degree would
+ * report the topology when the cause is the radius. The message names the worst
+ * seat AND its radius, so a reader can tell which of the two to change.
+ *
+ * Runs where `checkDegrees` runs — at game start before provisioning, and again
+ * on every rewire — and short-circuits when nobody is above the default radius,
+ * so a study at radius 1 pays a comparison and no walk at all.
+ */
+export function checkVision(
+  adj: number[][],
+  radii: Radius[],
+  limits: EnvelopeLimits = {},
+  warn: WarnFn = console.warn
+): void {
+  if (radii.every((r) => r === 1)) return;
+  const env = resolveEnvelope(limits, adj.length);
+
+  let worstIndex = -1;
+  let worstSeen = 0;
+  let worstRadius: Radius = 1;
+  let over = 0;
+
+  for (const [i, r] of radii.entries()) {
+    if (r === 1) continue;
+    const seen = ball(adj, i, r).nodes.length - 1;
+    if (seen > env.maxVisibleNodes) over++;
+    if (seen > worstSeen) {
+      worstSeen = seen;
+      worstIndex = i;
+      worstRadius = r;
+    }
+  }
+
+  if (over === 0) return;
+
+  const explanation =
+    limits.maxVisibleNodes !== undefined
+      ? `  This is the limit YOU set.\n`
+      : `  This default is INHERITED, not earned: ${MEASURED_DENSE_N} is the largest n at which\n` +
+        `  anything dense has been measured (p50 16ms at n=50 d=49, 2026-08-16), and\n` +
+        `  delivering a BALL has never been benchmarked at all (ISSUES.md O1). It is a\n` +
+        `  line drawn where the evidence stops rather than where the performance does.\n`;
+
+  breach(
+    `radius exceeds the supported envelope: ${over} of ${adj.length} participants are ` +
+      `shown more than ${env.maxVisibleNodes} other people (worst: participant ` +
+      `${worstIndex} at radius ${String(worstRadius)}, shown ${worstSeen}).\n\n` +
+      `${explanation}\n` +
+      `  Lower the radius, use a sparser topology, or opt out deliberately:\n\n` +
+      `    withNetwork(Empirica, { envelope: { maxVisibleNodes: ${worstSeen} } })\n` +
+      `    withNetwork(Empirica, { envelope: { onExceed: "warn" } })\n`,
     env,
     warn
   );

@@ -364,7 +364,8 @@ export const PAGE = `<!doctype html>
     var node = snap.nodes[index];
     var tip = el("tip");
     var rect = el("stage").getBoundingClientRect();
-    var html = "<b>seat " + node.index + " \\u00b7 degree " + node.degree + "</b>" +
+    var html = "<b>seat " + node.index + " \\u00b7 degree " + node.degree +
+      (snap.radius === undefined ? " \\u00b7 radius " + node.radius : "") + "</b>" +
       "<div class='k'>" + node.playerID + "</div>";
     for (var i = 0; i < snap.watch.length; i++) {
       var k = snap.watch[i];
@@ -414,10 +415,40 @@ export const PAGE = `<!doctype html>
     // whole network, so without this line an operator is watching a study with
     // no idea whether its participants are looking at a star or at the ties
     // among their own connections.
-    row(ops, "radius", String(snap.radius),
-      snap.recordedRadius !== undefined && snap.recordedRadius !== snap.radius ? "alert" : "");
-    if (snap.recordedRadius !== undefined && snap.recordedRadius !== snap.radius) {
-      row(ops, "radius recorded", String(snap.recordedRadius), "alert");
+    // One value when there is one, a spread when there is not. A study may seat
+    // some participants wider than others, and under that setting "no single
+    // radius" is the ORDINARY state rather than an alarm — so it is reported as
+    // a fact here and the banner below keeps its own, narrower subject.
+    const seatRadii = (snap.radii ?? []).map((r) => r.radius);
+    const spread = [...new Set(seatRadii.map(String))].sort();
+    // PER SEAT, because the game-level pair cannot answer this. Both
+    // snap.radius and snap.recordedRadius both abstain for a study where
+    // participants see different distances, so a comparison between them was
+    // undefined !== undefined — false — and the banner below could never fire
+    // for exactly the studies the setting exists for, while the server logged
+    // the mismatch perfectly well. An operator watching a live run was the one
+    // person who could not see it.
+    const differing = (snap.nodes ?? []).filter(
+      (n) => n.recordedRadius !== undefined && n.recordedRadius !== n.radius
+    );
+    const mismatch = differing.length > 0;
+    row(
+      ops,
+      "radius",
+      snap.radius !== undefined
+        ? String(snap.radius)
+        : spread.join(" / ") + " (" + spread.length + " distinct)",
+      mismatch ? "alert" : ""
+    );
+    if (mismatch) {
+      row(
+        ops,
+        "radius recorded",
+        snap.recordedRadius !== undefined
+          ? String(snap.recordedRadius)
+          : "differs for " + differing.length + " of " + snap.nodes.length + " seats",
+        "alert"
+      );
     }
     row(ops, "history events", String(snap.history.frames.length));
     row(ops, "channels pending", String(snap.pendingChannels.length),
@@ -436,15 +467,22 @@ export const PAGE = `<!doctype html>
     } else if (!snap.history.consistent) {
       banner("The edge history does not add up: the log's own counts disagree with replaying it. " +
         "Treat the scrubber and the exported snapshots with suspicion.");
-    } else if (snap.recordedRadius !== undefined && snap.recordedRadius !== snap.radius) {
+    } else if (mismatch) {
       // Third, and correctly outranked by both above: a stalled game and a
       // broken history are wrong NOW, while this is a fact about how the data
-      // will read afterwards. It is here at all because the participants in
-      // this game have been shown both radii and no artifact of the run names
-      // more than one of them.
-      banner("This game was recorded at graph.radius " + snap.recordedRadius +
-        " and is publishing at " + snap.radius + ". Its participants have been shown both, " +
-        "and no single radius describes the session. The server logged this when it recovered " +
+      // will read afterwards. It is here at all because the participants named
+      // have been shown both radii and no artifact of the run names more than
+      // one of them.
+      //
+      // NOT about the radii differing from each other, which under a per-seat
+      // setting is the ordinary state and would make this permanent noise. Its
+      // subject is a RESTART at a changed configuration, which is still an
+      // event worth an alarm.
+      var who = differing.slice(0, 4).map(function (n) { return "seat " + n.index; }).join(", ");
+      if (differing.length > 4) who += " and " + (differing.length - 4) + " more";
+      banner("Recorded and live radius disagree for " + differing.length + " of " +
+        snap.nodes.length + " participants (" + who + "). They have been shown both, and no " +
+        "artifact of this run names more than one. The server logged this when it recovered " +
         "the game after a restart.");
     } else {
       banner("");
@@ -485,6 +523,10 @@ export const PAGE = `<!doctype html>
       row(dl, "seat", String(node.index));
       row(dl, "player", node.playerID);
       row(dl, "degree", String(node.degree));
+      // Only where it says something. In a uniform study the ops row above
+      // already carries it and repeating it on every seat is noise; in a mixed
+      // one it is the manipulation, and the summary cannot say WHO.
+      if (snap.radius === undefined) row(dl, "radius", String(node.radius));
       row(dl, "neighbors", node.neighbors.join(", ") || "\\u2014");
       row(dl, "channel", node.channel ? "yes" : "NO", node.channel ? "" : "alert");
       for (var w = 0; w < snap.watch.length; w++) {
@@ -501,15 +543,18 @@ export const PAGE = `<!doctype html>
   // the thing to copy out of when something looks wrong.
   function renderTable(snap) {
     var host = el("tableView");
+    var mixed = snap.radius === undefined;
     var head = "<tr><th>seat</th><th>player</th><th class='num'>degree</th>" +
-      "<th>neighbors</th><th>channel</th>";
+      (mixed ? "<th>radius</th>" : "") + "<th>neighbors</th><th>channel</th>";
     for (var i = 0; i < snap.watch.length; i++) head += "<th>" + snap.watch[i] + "</th>";
     head += "</tr>";
     var body = "";
     for (var n = 0; n < snap.nodes.length; n++) {
       var node = snap.nodes[n];
       body += "<tr><td class='num'>" + node.index + "</td><td>" + node.playerID +
-        "</td><td class='num'>" + node.degree + "</td><td>" + node.neighbors.join(" ") +
+        "</td><td class='num'>" + node.degree + "</td>" +
+        (mixed ? "<td>" + node.radius + "</td>" : "") +
+        "<td>" + node.neighbors.join(" ") +
         "</td><td>" + (node.channel ? "yes" : "NO") + "</td>";
       for (var k = 0; k < snap.watch.length; k++) {
         body += "<td>" + text(valueOfKey(node, snap.watch[k])) + "</td>";

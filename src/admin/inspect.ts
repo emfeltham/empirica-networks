@@ -19,7 +19,14 @@
  * same reason.
  */
 import type { EdgeEvent } from "../shared/keys.js";
-import { components, degrees, maxDegree, meanDegree, type Edge } from "../topology/index.js";
+import {
+  components,
+  degrees,
+  maxDegree,
+  meanDegree,
+  type Edge,
+  type Radius,
+} from "../topology/index.js";
 import { historyIsConsistent, snapshotRows } from "./export.js";
 
 /** One participant's seat, as the monitor sees it. */
@@ -30,6 +37,31 @@ export interface NodeSnapshot {
   degree: number;
   /** Structural indices this seat is currently tied to. */
   neighbors: number[];
+  /**
+   * How far THIS participant can see.
+   *
+   * On the node rather than only in the game-level summary, because under a
+   * per-participant radius "who sees how far" is the manipulation, and a summary
+   * row can say a study is mixed without saying who is which. An operator
+   * watching a live asymmetric study needs to look at the graph and know which
+   * seats are the wide ones — that is the question the monitor exists to answer
+   * about anything else it draws.
+   *
+   * Live, like `GameSnapshot.radius`: what this participant is being shown NOW.
+   */
+  radius: Radius;
+  /**
+   * What the batch record says THIS participant ran at, or `undefined` if
+   * nothing was recorded for them.
+   *
+   * The per-seat half of the pair `GameSnapshot.radius`/`recordedRadius` makes
+   * at game level, and the reason it is needed: that pair compares two scalars,
+   * and both of them abstain for a study where participants see different
+   * distances — so the mismatch a restart produces was invisible on the monitor
+   * for exactly the studies this setting exists for, while the server logged it.
+   * An operator watching a live run needs to see WHICH seats disagree.
+   */
+  recordedRadius?: Radius;
   /**
    * Has this participant's private channel scope materialised on the server?
    *
@@ -133,7 +165,9 @@ export interface GameSnapshot {
   order: string[];
   seed: number;
   /**
-   * How much of the network this game shows its participants: 1 or 1.5.
+   * How much of the network this game shows its participants, when one number
+   * describes it. `undefined` when participants are at different radii — see
+   * `radii` below, which always answers.
    *
    * The graph above says what the study RAN on; this says what it let people see
    * of it, and the two are independent. Read from the live configuration rather
@@ -142,7 +176,16 @@ export interface GameSnapshot {
    * `readRadius` reports what the record says — which is the pair that makes the
    * mismatch visible rather than a single number that quietly picks a side.
    */
-  radius: number;
+  radius: Radius | undefined;
+  /**
+   * How far each participant can see, by player id.
+   *
+   * The complete answer where `radius` above gives only the uniform one. A study
+   * may seat some participants wider than others — that is a manipulation, and
+   * the monitor is where an operator notices it, so it belongs on the snapshot
+   * rather than being left to the record.
+   */
+  radii: Array<{ playerID: string; radius: Radius }>;
   /**
    * The radius the batch record says this game ran at, or `undefined` if none
    * was recorded.
@@ -158,7 +201,7 @@ export interface GameSnapshot {
    * one number against a record holding the other. The server warns; an operator
    * watching the monitor should be able to see it without reading the log.
    */
-  recordedRadius?: number;
+  recordedRadius?: Radius;
   /** Publish counter — how many times this game has published a view. */
   seq: number;
   nodes: NodeSnapshot[];

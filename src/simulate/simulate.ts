@@ -53,12 +53,13 @@ import { setLogLevel } from "@empirica/core/console";
 
 import { networkKinds } from "../admin/kinds.js";
 import { makeRng } from "../admin/seed.js";
-import { barabasiAlbert } from "../topology/index.js";
+import { barabasiAlbert, ringLattice } from "../topology/index.js";
 import { EmpiricaNetwork } from "../player/mode.js";
 import { runBots, botIdentifiers, type BotContext, type BotPolicy } from "../bots/index.js";
 import { batchConfig, createBatch, waitFor, withScenario } from "../harness/harness.js";
 import {
   auditViews,
+  parseRadiiCsv,
   canonicalEdges,
   formatAuditResult,
   mergeAuditResults,
@@ -88,12 +89,97 @@ export interface Arm {
   bots: number;
   placement?: string;
   noise?: number;
+  /**
+   * How far subjects can see. Absent means the paper's design, which is 1.
+   *
+   * NOT part of Shirado & Christakis's experiment — their subjects saw only the
+   * colours of neighbors they were directly connected to. An arm that sets this
+   * runs a different study, and `manifest.json` says so on its own face rather
+   * than leaving it to whoever reads the numbers later.
+   *
+   * It exists because nothing else in this repository exercises a wider radius
+   * end to end at scale: the structure payload, the people a subject cannot
+   * reach, and `auditViews`' arms over both.
+   */
+  radius?: number | "whole";
+  /**
+   * The shape to run on, when the default is the wrong one to audit against.
+   *
+   * Only a wide arm sets this. The reconstruction's own graph is scale-free, and
+   * at radius 2 that puts 15 per cent of seats in sight of the whole network
+   * (measured over 200 seeds at n = 20), where a containment check has nothing
+   * left to forbid. The example explains the choice where it makes it.
+   */
+  topology?: string;
 }
+
+/**
+ * Neighbors per side in the lattice the auditing arms run on.
+ *
+ * Duplicated from the example rather than imported, like `ATTACHMENT` beside it:
+ * this file regenerates the graph INDEPENDENTLY of the server that produced it,
+ * and importing the value the server used would make C4b compare the example
+ * with itself.
+ */
+const LATTICE_NEIGHBORS = 2;
 
 export const ARMS: Record<string, Arm> = {
   control: { name: "control", bots: 0 },
   agent: { name: "agent", bots: 3, placement: "central", noise: 0.1 },
+  /**
+   * NOT the paper's design, and named so nobody reads it as one.
+   *
+   * Human-only at radius 2, so subjects see their neighbors' neighbors and the
+   * ties among them. Here to exercise the machinery a wider radius involves
+   * rather than to measure anything: `docs/EXPERIMENTS.md` explains why this
+   * makes the colouring task easier and therefore drives time-to-solution toward
+   * zero, which means no outcome from this arm is comparable with any other.
+   */
+  "wide-not-the-paper": { name: "wide-not-the-paper", bots: 0, radius: 2 },
+  /**
+   * The two arms the wider guarantee is evidenced on, and neither is the paper's
+   * design — the names say so, as `wide-not-the-paper` does.
+   *
+   * Split by radius because the two settings exercise different arms and one run
+   * cannot report both. At 1.5 the payload adds ties among a subject's own
+   * neighbors and nobody new, so it evidences containment of the structure and
+   * leaves the half step and the distant-person arms with nothing to check. At 2
+   * it adds people, which is what brings the per-viewer naming, the hop check and
+   * the half step into play.
+   *
+   * Human-only, so the traffic is the colour policy alone and no agent behaviour
+   * is mixed into a delivery count that is the point of the arm.
+   */
+  "audit-1.5-not-the-paper": {
+    name: "audit-1.5-not-the-paper",
+    bots: 0,
+    radius: 1.5,
+    topology: "ringLattice",
+  },
+  "audit-2-not-the-paper": {
+    name: "audit-2-not-the-paper",
+    bots: 0,
+    radius: 2,
+    topology: "ringLattice",
+  },
 };
+
+/**
+ * Every distinct radius across these sessions, as strings.
+ *
+ * Reads BOTH fields. `radius` answers only when one number described a session,
+ * and `radii` is what a session with participants at differing distances reports
+ * instead — so a manifest built from `radius` alone drops precisely the runs
+ * where the setting was doing something.
+ */
+function everyRadius(outcomes: SessionOutcome[]): string[] {
+  const seen = new Set<string>();
+  for (const o of outcomes) {
+    if (o.radius !== undefined) seen.add(String(o.radius));
+    for (const r of o.radii ?? []) seen.add(r);
+  }
+  return [...seen].sort();
+}
 
 export interface SessionOutcome {
   arm: string;
@@ -128,7 +214,16 @@ export interface SessionOutcome {
    * to it. Recorded anyway, because "1 because that is what ran" and "1 because
    * nobody wrote it down" are different statements about a dataset.
    */
-  radius?: number;
+  radius?: number | "whole";
+  /**
+   * Every DISTINCT radius in the session, as strings.
+   *
+   * `radius` above answers only when one number describes the game. A study that
+   * seats some participants wider than others has no such value, and reporting
+   * `undefined` for it would say "not recorded" about the most deliberately
+   * configured thing in the run.
+   */
+  radii?: string[];
   outDir: string;
   elapsedMs: number;
   /** Which C5 failure was injected, if any. */
@@ -192,14 +287,29 @@ function captureGraph(gameID: string | undefined, outcome: SessionOutcome): void
   try {
     const snap = (
       net as {
-        inspect: (id: string) => { seed?: number; order?: string[]; radius?: number } | undefined;
+        inspect: (id: string) =>
+          | {
+              seed?: number;
+              order?: string[];
+              radius?: number | "whole";
+              radii?: Array<{ playerID: string; radius: number | "whole" }>;
+            }
+          | undefined;
       }
     ).inspect(gameID);
     if (!snap) return;
     outcome.gameID = gameID;
     if (typeof snap.seed === "number") outcome.recordedSeed = snap.seed;
     if (Array.isArray(snap.order)) outcome.order = snap.order;
-    if (typeof snap.radius === "number") outcome.radius = snap.radius;
+    // `"whole"` and `undefined` are both real answers, and testing for a number
+    // dropped them silently — `undefined` is what a MIXED study reports, so the
+    // two cases this feature added were exactly the two the manifest lost. The
+    // same mistake `readRadius` made, in a second place.
+    if (snap.radius !== undefined) outcome.radius = snap.radius;
+    if (Array.isArray(snap.radii) && snap.radii.length > 0) {
+      const distinct = [...new Set(snap.radii.map((r) => String(r.radius)))].sort();
+      outcome.radii = distinct;
+    }
   } catch {
     /* a session that died before its network was built has nothing to capture */
   }
@@ -281,6 +391,12 @@ export async function runSession(opts: {
           const treatment: Record<string, unknown> = { botCount: opts.arm.bots };
           if (opts.arm.placement !== undefined) treatment["botPlacement"] = opts.arm.placement;
           if (opts.arm.noise !== undefined) treatment["botNoise"] = opts.arm.noise;
+          // Through the treatment, which is how every other condition reaches
+          // the example — and now possible because `graph.radius` takes a
+          // function that receives the game. It could not before, and the
+          // `notExercised` note below said so for longer than it was true.
+          if (opts.arm.radius !== undefined) treatment["radius"] = opts.arm.radius;
+          if (opts.arm.topology !== undefined) treatment["topology"] = opts.arm.topology;
 
           const batch = await createBatch(admin, batchConfig(opts.n, 1, [treatment]));
           await batch.running();
@@ -412,11 +528,28 @@ function sweepOrphans(): number {
   return count;
 }
 
+/**
+ * `radius.csv` for a session, parsed, when the export wrote one.
+ *
+ * Optional because a capture taken before the example wrote the file is still
+ * auditable — it is checked against each delivery's own claim instead, which is
+ * a weaker audit that `auditViews` reports as such rather than passing over in
+ * silence. A malformed file is a different matter and is not swallowed: the
+ * parse throws on a bad header, and an audit that silently downgraded itself
+ * because a column was renamed would be the failure this whole tier exists to
+ * prevent.
+ */
+function radiiOfSession(o: SessionOutcome): ReturnType<typeof parseRadiiCsv> | undefined {
+  if (!o.gameID) return undefined;
+  const text = readIfPresent(path.join(o.outDir, o.gameID, "radius.csv"));
+  return text.trim() === "" ? undefined : parseRadiiCsv(text);
+}
+
 /** Audit one session's own files, so a failure names the session that produced it. */
 function auditSession(o: SessionOutcome): AuditResult {
   const views = readIfPresent(path.join(o.outDir, "views.ndjson"));
   const edges = o.gameID ? readIfPresent(path.join(o.outDir, o.gameID, "edges.csv")) : "";
-  return auditViews({ views, edges: parseEdgesCsv(edges) });
+  return auditViews({ views, edges: parseEdgesCsv(edges), radii: radiiOfSession(o) });
 }
 
 async function sweep(args: SweepArgs): Promise<number> {
@@ -530,22 +663,60 @@ async function sweep(args: SweepArgs): Promise<number> {
           "node executes the agent policy, and simulated humans act on noise=0 where the " +
           "server told them nothing. System properties are reported PER ARM. No cross-arm " +
           "outcome comparison is valid from this data, t_solution_ms included.",
-        // Every session's radius, so the manifest says what these runs showed
-        // people rather than leaving it to be inferred from a config file that
-        // may have changed since. One value in practice; a set, because a run
-        // spanning a restart at a changed radius is exactly the case worth
-        // seeing here rather than discovering later.
-        radii: [...new Set(outcomes.map((o) => o.radius).filter((r) => r !== undefined))],
+        // Every radius these runs showed people, so the manifest says it rather
+        // than leaving it to be inferred from a config file that may have
+        // changed since. One value in practice; a set, because a run spanning a
+        // restart at a changed radius is exactly the case worth seeing here
+        // rather than discovering later.
+        //
+        // Drawn from `radii` as well as `radius`, and that is the whole point of
+        // the pair: `radius` is `undefined` for a session where participants saw
+        // DIFFERENT distances, so a manifest reading only that one silently
+        // dropped exactly the studies this setting exists for.
+        radii: everyRadius(outcomes),
+        // On the artifact's own face, because an arm name is easy to skim past
+        // and a number is easy to quote. Emitted only when an arm actually ran
+        // above the default, so a manifest for the paper's design carries
+        // nothing extra and says nothing it does not need to.
+        ...(everyRadius(outcomes).some((r) => r !== "1")
+          ? {
+              notThePapersDesign:
+                "One or more arms ran above radius 1, where subjects see more than the " +
+                "colours of their direct neighbors. Shirado & Christakis's subjects did " +
+                "not: their design is radius 1, which is the default and what every other " +
+                "arm here runs at. A wider radius is a DIFFERENT EXPERIMENT and its " +
+                "sessions are not comparable with the rest — local structure is what a " +
+                "coordinating subject lacks, and the dependent variable is time to " +
+                "solution, so widening vision does not bias the number visibly, it drives " +
+                "it toward zero while every screen still looks correct. These arms exist " +
+                "to exercise the machinery a wider radius involves, not to measure " +
+                "anything. See docs/EXPERIMENTS.md.",
+            }
+          : {}),
         notExercised: [
           "the React client",
           "the browser WebSocket",
           "Lobby()",
           "examples/shirado2017/server/src/index.js",
-          // Named for as long as no arm delivers one. The example's `withNetwork`
-          // config is a literal fixed at module load and there is no path from a
-          // flag to it, so every session here runs at the default radius and the
-          // structure payload — and `auditViews`' arms over it — go unexercised.
-          "the radius 1.5 structure payload (every arm runs at the default radius)",
+          // Listed against what the SELECTED arms actually did, not against what
+          // the rig is capable of. This entry claimed for several commits that
+          // there was "no path from a flag" to the radius — true when
+          // `graph.radius` took only a literal, and false since it began taking
+          // a function that receives the game. The claim outlived its cause,
+          // which is the failure this list exists to prevent in the other
+          // direction.
+          ...(everyRadius(outcomes).some((r) => r !== "1")
+            ? []
+            : [
+                "any radius above 1: the structure payload, the people a participant " +
+                  "cannot reach, and auditViews' arms over both. Reachable — run the " +
+                  "wide-not-the-paper arm — and not reached by these arms",
+              ]),
+          // Still out of reach from here whatever arm is chosen: nothing in this
+          // rig projects at distance, seats participants at differing radii, or
+          // changes one during a game.
+          "graph.projectFar, a radius that differs between participants, and " +
+            "net.setRadius — no arm configures any of them",
         ],
         halted: halted === "" ? null : halted,
         sessions: outcomes,
@@ -643,7 +814,20 @@ function regeneratesFromSeed(
       o.order
     );
     const rng = makeRng(o.recordedSeed);
-    let regen = barabasiAlbert(n, Number(ATTACHMENT), { rng }) as IndexEdge[];
+    /**
+     * The generator the arm actually ran, not the one the paper's arms run.
+     *
+     * An arm auditing a wider radius runs on a ring lattice, and regenerating it
+     * with the scale-free generator would report a mismatch that says nothing
+     * about the seed. The lattice takes no rng, so it draws nothing from the
+     * stream and any later placement sees the same stream either way.
+     */
+    const shape = ARMS[o.arm]?.topology;
+    let regen = (
+      shape === "ringLattice"
+        ? ringLattice(n, LATTICE_NEIGHBORS)
+        : barabasiAlbert(n, Number(ATTACHMENT), { rng })
+    ) as IndexEdge[];
     if (botIndices.length > 0) {
       regen = placeBots(regen, n, botIndices, placement, rng) as IndexEdge[];
     }
@@ -678,7 +862,9 @@ function checkResults(root: string): number {
     for (const o of mine) {
       const views = readIfPresent(path.join(o.outDir, "views.ndjson"));
       const edgesText = o.gameID ? readIfPresent(path.join(o.outDir, o.gameID, "edges.csv")) : "";
-      audits.push(auditViews({ views, edges: parseEdgesCsv(edgesText) }));
+      audits.push(
+        auditViews({ views, edges: parseEdgesCsv(edgesText), radii: radiiOfSession(o) })
+      );
 
       let botIndices: number[] = [];
       let placement = "";
@@ -871,7 +1057,7 @@ async function runInjections(args: SweepArgs): Promise<number> {
         at: new Date().toISOString(),
         n: args.n,
         arms: ["control"],
-        radii: [...new Set(outcomes.map((o) => o.radius).filter((r) => r !== undefined))],
+        radii: everyRadius(outcomes),
         criterion:
           "Not that the session survives — some do not. That the data for what did " +
           "happen is intact and says what happened, and that a session which never " +

@@ -128,17 +128,29 @@ Either is fine in moderation: they are counted and reported. A graph where every
 in one of those states is refused, because a pass would mean nothing: that is `complete` at any
 `n`, `empty`, and `wheel(4)`, which is `complete(4)` wearing a different name.
 
-At `--radius 1.5` a third property decides what a pass is worth, and it disqualifies most shapes:
+Above `--radius 1` a third property decides what a pass is worth, and **it is not monotone in the
+radius** — a shape that proves nothing at one setting can prove something at the next and nothing
+again at the one after. So the refusal is computed per radius rather than kept as a list: the run
+is refused whenever the setting would deliver nothing the step below already delivers.
 
-- A graph where nobody has two neighbors who are connected to each other has no extra structure to
-  send, so radius 1.5 draws the same star radius 1 draws. `ring`, `star`, `pairs` and `ladder` are
-  all triangle-free and are refused at that radius rather than passed. `wheel` is the shipped shape
-  that works, and so is `ringLattice`; for anything else, hand `runLeakCheck()` the generator you
-  hand `withNetwork`.
+- **At a half step** the blocker is missing triangles at that depth. Nobody has two people at the
+  outer edge who are connected to each other, so `k.5` draws what `k` draws. `ring`, `star`,
+  `pairs` and `ladder` are all triangle-free and are refused at 1.5; `wheel` and `ringLattice`
+  work there.
+- **At an integer step** the blocker is usually the diameter — everybody is already within reach,
+  so there is nobody new to add. This is where the list inverts: `wheel` and `star` have diameter
+  2, so every radius-2 ball is the whole graph and both are refused at 2 and beyond *at every n*.
+  `ring` and `ladder`, refused at 1.5, become usable at 2. More participants fix a diameter
+  problem; nothing but a different shape fixes a triangle problem, and the refusal message says
+  which one you have.
+
+At 2.5 and beyond, `ringLattice` is currently the only shipped shape that works at any practical
+`n`. For anything else, hand `runLeakCheck()` the generator you hand `withNetwork`.
 
 `--topology` takes the shapes that need no further argument: `ring`, `star`, `wheel`, `pairs`,
 `ladder`, `complete` — plus `ringLattice`, the one exception, whose `m` is fixed at 2 and which
-therefore needs n ≥ 5. It is there because without it `--radius 1.5` had `wheel` and nothing else.
+therefore needs n ≥ 5. It is there because without it `--radius 1.5` had `wheel` and nothing else, and it is now
+also the only shipped shape usable above 2.
 Everything else takes a parameter a flag cannot carry, so it is reached by
 handing `runLeakCheck` the same function you hand `withNetwork`, which is also the only way to
 check a `fromEdgeList` graph, and the reason to prefer it generally: it verifies the graph your

@@ -24,8 +24,8 @@
  * That is the failure this module is shaped around.
  */
 import { layout, type Point } from "./layout.js";
-import type { ViewGraph } from "../shared/keys.js";
-import { edgeKey, inducedEdges, type LocalEdge } from "./subgraph.js";
+import type { FarNode, ViewGraph } from "../shared/keys.js";
+import { edgeKey, type LocalEdge } from "./subgraph.js";
 
 /**
  * The value written to a participant's channel at radius 1.5.
@@ -44,15 +44,29 @@ import { edgeKey, inducedEdges, type LocalEdge } from "./subgraph.js";
 export type GraphPayload = ViewGraph;
 
 export interface BuildArgs {
-  adj: number[][];
   /**
-   * The DELIVERED neighborhood in delivery order: the viewer's own topology
-   * index first, then the neighbors actually published to them.
+   * Player id per local index, in delivery order: the viewer at 0, then the
+   * neighbors actually published to them, then any node further out. Its length
+   * IS the node count — warm starting follows people, so the ids are the only
+   * identity this function needs.
    */
-  nodes: number[];
-  /** Player id per entry of `nodes`, so warm starting can follow people. */
   ids: string[];
+  /**
+   * Local-index ties, already filtered by the radius rule.
+   *
+   * Computed by the caller from `ball()` rather than induced here, and that is
+   * the whole reason this argument exists: at an integer radius the ties between
+   * two nodes at the outer edge are NOT delivered — they are what the next half
+   * step adds — so inducing everything on the node set would quietly hand over
+   * half a radius nobody asked for. This function lays out what it is given.
+   */
+  edges: LocalEdge[];
+  /** What goes on the wire. Always finite; see `ViewGraph.radius`. */
   radius: number;
+  /** Set only when the study asked for the entire network. */
+  whole?: true;
+  /** Nodes with no entry in the delivered view, in local-index order. */
+  far?: FarNode[];
   seed: number;
   /** What the last publish to this viewer laid out, if anything. */
   cache?: LayoutCache;
@@ -74,20 +88,47 @@ export interface BuildResult {
 const SIZE = 600;
 const MARGIN = 40; // alter radius 30 + padding 10, matching `player/graph.ts`
 
+/**
+ * A name for the SHAPE a layout belongs to, in player ids rather than local
+ * indices.
+ *
+ * Ids and not indices, and that is what makes a layout shareable. Two viewers of
+ * the same set of people with the same ties between them have the same picture
+ * to draw — but they number it differently, because each puts themselves at 0
+ * and their own neighbors next. A key over local indices therefore says "these
+ * are different shapes" about two drawings that are the same one, which at
+ * whole-network vision is every pair of participants in the game.
+ *
+ * It also makes the key say what the old one only implied. `${n}:${localEdges}`
+ * could match for two different sets of people with the same shape, which
+ * `buildGraphPayload` then had to exclude separately by checking that every
+ * remembered id was present. That check stays — it is still the thing that
+ * catches a rewire arriving at an identical shape — but the key no longer
+ * depends on it being right.
+ */
+export function shapeKey(ids: string[], edges: LocalEdge[]): string {
+  const pairs = edges.map(([a, b]) => {
+    const x = ids[a] ?? String(a);
+    const y = ids[b] ?? String(b);
+    return x < y ? `${x}~${y}` : `${y}~${x}`;
+  });
+  return `${ids.length}:${pairs.sort().join(" ")}`;
+}
+
 export function buildGraphPayload(args: BuildArgs): BuildResult {
-  const { adj, nodes, ids, radius, seed, cache } = args;
-  const edges = inducedEdges(adj, nodes);
+  const { ids, edges, radius, whole, far, seed, cache } = args;
+  const n = ids.length;
   // The node count as well as the ties: a neighborhood can lose a node without
   // losing an edge between the ones that remain, and that is still a different
   // picture to lay out.
-  const key = `${nodes.length}:${edgeKey(edges)}`;
+  const key = shapeKey(ids, edges);
 
   // Remembered positions, in this publish's node order. `undefined` unless
   // EVERY node is remembered: a partial array cannot be index-aligned with the
   // nodes it is seeding, and compacting it would seed each node with the
   // previous occupant's coordinates.
   const remembered = cache
-    ? nodes.map((_, at) => cache.positions.get(ids[at] ?? ""))
+    ? ids.map((id) => cache.positions.get(id))
     : undefined;
   const known =
     remembered && remembered.every((p): p is Point => p !== undefined)
@@ -100,13 +141,10 @@ export function buildGraphPayload(args: BuildArgs): BuildResult {
   // holding different people, and reusing on the shape alone would then place
   // each newcomer where the person they replaced had been.
   if (cache && cache.key === key && known) {
-    return { payload: { radius, edges, positions: round(fitToBox(known)) }, cache };
+    return { payload: shape(radius, whole, edges, round(fitToBox(known)), far), cache };
   }
 
-  const raw =
-    nodes.length === 0
-      ? []
-      : layout(nodes.length, edges, { seed, size: SIZE, initial: known });
+  const raw = n === 0 ? [] : layout(n, edges, { seed, size: SIZE, initial: known });
 
   const carried = new Map<string, Point>();
   for (const [at, p] of raw.entries()) {
@@ -115,9 +153,31 @@ export function buildGraphPayload(args: BuildArgs): BuildResult {
   }
 
   return {
-    payload: { radius, edges, positions: round(fitToBox(raw)) },
+    payload: shape(radius, whole, edges, round(fitToBox(raw)), far),
     cache: { key, positions: carried },
   };
+}
+
+/**
+ * Assemble the payload, omitting what is absent.
+ *
+ * `whole` and `far` are left OFF rather than set to `undefined`, because
+ * `JSON.stringify` drops an absent key and keeps nothing for a present one — and
+ * a payload at radius 1.5 has to serialize byte-identically to one written
+ * before those fields existed, or every suppression key in a running study
+ * changes at once on deploy.
+ */
+function shape(
+  radius: number,
+  whole: true | undefined,
+  edges: LocalEdge[],
+  positions: Point[],
+  far: FarNode[] | undefined
+): GraphPayload {
+  const payload: GraphPayload = { radius, edges, positions };
+  if (whole) payload.whole = true;
+  if (far && far.length > 0) payload.far = far;
+  return payload;
 }
 
 /**

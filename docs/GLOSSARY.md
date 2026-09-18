@@ -11,8 +11,8 @@ live there. → [ARCHITECTURE §5](ARCHITECTURE.md#5-where-every-value-lives-and
 **bot / agent** — an artificial participant: a headless Node process that opens a real Tajriba
 session, runs the real participant mode, and reads and writes through the same private channel a
 browser does. There is deliberately no server-side path, so a bot cannot read a non-neighbor or see
-the whole graph — and, at radius 1.5, cannot see *less* than a human either: `ctx.structure()`
-gives it the same ties among its own neighbors a browser in that seat is shown.
+the whole graph — and, above radius 1, cannot see *less* than a human either: `ctx.structure()`
+gives it the same structure a browser in that seat is shown.
 Empirica v2 ships no such facility; this one is `empirica-networks/bots`.
 → [BOTS.md](BOTS.md)
 
@@ -40,6 +40,14 @@ published this way, so view capture must be enabled before a run to create a dur
 what each participant saw.
 → [DATA-AND-ANALYSIS.md](DATA-AND-ANALYSIS.md)
 
+**far node** — somebody a participant can see but is not connected to, which exists from radius 2
+upward. They have no entry in `useNeighbors()`, so the positional naming scheme cannot address
+them: each is identified by a **ref**, a name derived per viewer under a secret recorded on the
+batch scope. Stable for the session, so "the same stranger as last round" is a question a design
+can ask; uncorrelated between viewers, so two participants comparing screens cannot line their
+pictures up; and never an id or a seat. Carries no attributes unless the study sets
+`graph.projectFar`. → [API](API.md#showing-the-ties-among-a-participants-neighbors)
+
 **headless participant** — a participant process that uses the same network protocol as a browser
 but has no graphical interface. Bots and automated verification clients run in this form.
 
@@ -60,26 +68,39 @@ network hooks have something to read. Omit it and every hook throws
 **neighborhood** — the set of a participant's current neighbors and, by extension, the array of
 projected views delivered to that participant. `useNeighbors()` returns `undefined` before the
 first publication and `[]` for a genuinely isolated node. The *closed* neighborhood is that set
-plus the participant themselves, and is what a radius 1.5 subgraph is induced on.
+plus the participant themselves, and is what a radius 1.5 subgraph is induced on. A
+wider radius induces on a larger ball; see **radius**.
 
 **radius** — how much of the network a participant is shown, set by `graph: { radius }` and
 recorded per game on the batch scope. `1` (the default) sends nothing beyond the projected views:
 the client draws a star, which is what Breadboard's participants saw. `1.5` additionally sends the
-ties *between* a participant's own neighbors.
+ties *between* a participant's own neighbors. `2`, `2.5`, `3`, … reach further, and `"whole"` is
+the entire network.
 
 The fraction is the convention from egocentric network analysis, where personal networks are
-routinely described as 1.5-degree, and it counts steps out from the viewer: radius 1 is the
-participant, their neighbors, and the ties to them; 1.5 keeps that same set of people and adds the
-ties *among* them; 2 would add the neighbors' own neighbors. So 1.5 is half a step because it adds
-edges and no nodes — the viewer learns something a two-step walk would have shown them without
-meeting anyone two steps away. Wider radii are refused rather than rounded down for that reason:
-the next legal value is not 1.6 but 2, and at 2 a participant is shown somebody they have no
-connection to, which is the guarantee itself rather than a setting.
+routinely described as 1.5-degree, and it counts steps out from the viewer. The rule it follows
+generalizes: **`floor(radius)` bounds the people and the fraction decides the ties.** So `k` and
+`k.5` always show the same faces, and differ only in whether the ties *between* the outermost of
+them come too — which is why 1.5 adds edges and no nodes, and why 2.5 adds the ties among people
+who are each two hops away. A value between the steps is refused rather than rounded, because 2
+and 2.5 are different studies.
+
+Only radius 1 is free. At 1 the client draws the star from `useNeighbors()` and no extra byte is
+sent; at every wider setting a structure payload is on the wire, and from 2 upward it carries
+people who are not in the viewer's neighbor array at all — see **far node** above.
 
 A property of what participants are told, not of the graph — two studies on one topology at
 different radii leave identical edge lists. → [API, `NetworkConfig`](API.md#networkconfig)
 
-**structure** — the subgraph delivered at radius 1.5: the ties induced on a participant's closed
+**asymmetric visibility** — what a per-participant radius produces, and the reason `radius` takes a
+function as well as a value. A at radius 2 and B at radius 1, two hops apart: A is shown B, and B is
+not shown A. Every rule keys on the **viewer's** radius — being visible to somebody who sees further
+does not widen what you see. Recorded per participant under `networkRadii:<gameID>` and read with
+`readRadii`. Only a study where the radii differ can distinguish a delivery rule keyed on the viewer
+from one keyed on the subject, since on a uniform study the two agree on every pair; `verify
+--radii` refuses a graph where no pair disagrees.
+
+**structure** — the subgraph delivered above radius 1: the ties induced on a participant's closed
 neighborhood, as pairs of indices into the array that participant already holds, plus a position
 per node laid out on the server. Never seat indices; index `0` is the viewer.
 Read with `useNetworkStructure()`, recorded in `ViewRecord.graph`.

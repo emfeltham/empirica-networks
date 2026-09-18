@@ -16,6 +16,8 @@ import { setLogLevel } from "@empirica/core/console";
 // The version printed below is NOT declared here. It is the repository's single
 // pin declaration (src/harness/compat.ts), because a CLI that prints a version
 // number of its own is a CLI that can print the wrong one — see the note there.
+import type { Radius } from "../topology/index.js";
+import { parseArgs, refuseArgs, type Args } from "./args.js";
 import { VERIFIED_CORE } from "../harness/compat.js";
 import { formatLeakResult, runLeakCheck } from "./leak_test.js";
 import { CLI_TOPOLOGY_NAMES, preflightCliTopology } from "./topologies.js";
@@ -41,40 +43,8 @@ function installedCoreVersion(): string | undefined {
   }
 }
 
-interface Args {
-  command: string;
-  n: number;
-  /** Unvalidated as parsed; `main` refuses an unknown or vacuous one. */
-  topology: string;
-  /** Unvalidated as parsed, for the same reason. */
-  radius: number;
-  quiet: boolean;
-  help: boolean;
-}
 
-function parseArgs(argv: string[]): Args {
-  const args: Args = { command: "", n: 4, topology: "ring", radius: 1, quiet: false, help: false };
-  const rest: string[] = [];
 
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i]!;
-    if (a === "--help" || a === "-h") args.help = true;
-    else if (a === "--quiet" || a === "-q") args.quiet = true;
-    else if (a === "--n" || a === "-n") args.n = Number(argv[++i]);
-    else if (a.startsWith("--n=")) args.n = Number(a.slice(4));
-    // Stored as written. The casts that used to be here (`as "ring"`) made every
-    // string typecheck and none of them take effect: `--topology=star` ran a ring
-    // and the verdict printed "topology: star". A verification tool reporting a
-    // shape it did not run is the one bug it must not have.
-    else if (a === "--topology") args.topology = argv[++i] ?? "";
-    else if (a.startsWith("--topology=")) args.topology = a.slice(11);
-    else if (a === "--radius") args.radius = Number(argv[++i]);
-    else if (a.startsWith("--radius=")) args.radius = Number(a.slice(9));
-    else rest.push(a);
-  }
-  args.command = rest[0] ?? "";
-  return args;
-}
 
 const USAGE = `
 empirica-networks verify — reproduce the neighbor-limited visibility guarantee
@@ -91,15 +61,32 @@ Options:
                          is a complete graph. Parameterised generators (grid,
                          wattsStrogatz, erdosRenyi, …) take an argument a flag
                          cannot carry — pass the generator to runLeakCheck().
-      --radius <1|1.5>   the radius your study runs at (default 1). At 1 this
+      --radius <r>       the radius your study runs at (default 1). 1, 1.5, 2,
+                         2.5, … — floor(r) bounds the people and the fraction
+                         decides whether the ties among the outermost of them
+                         come too. At 1 this
                          also checks that NO structure is sent, which is what
                          makes the default free. At 1.5 it checks the ties
                          between a participant's neighbors are contained and
                          complete — arms the sentinel check cannot see, because
                          those bytes are integers rather than anybody's state.
-                         Refused on a triangle-free shape, where radius 1.5
-                         draws the same star radius 1 draws: try --topology
-                         wheel or --topology ringLattice.
+                         Refused wherever the setting would deliver nothing the
+                         step below already delivers: a triangle-free shape at
+                         1.5, a shape smaller than its own diameter at 2, and
+                         'whole' always, which leaves no non-neighbor at all.
+      --radii <a,b,…>    per-seat radii, assigned by seat index and cycled, for a
+                         study where some participants see further than others.
+                         --radii 1,2 puts even seats at 1 and odd at 2.
+                         Mutually exclusive with --radius. Only a MIXED run can
+                         tell a build that keys delivery on the viewer's radius
+                         from one that keys it on the subject's, so the run is
+                         refused on a graph where no pair disagrees.
+      --project-far      your study sets graph.projectFar, so participants learn
+                         something ABOUT people they are not connected to. It
+                         changes what the leak arm is about — without it the data
+                         rule is "neighbors only" at every radius — so it cannot
+                         be inferred, and verifying the wrong one would report
+                         cleanly on a study other than yours.
   -q, --quiet            only print the verdict
   -h, --help             show this
 
@@ -130,11 +117,27 @@ async function main(): Promise<number> {
   // because the radius is one of the two things that decides whether a shape can
   // prove anything. A tool that quietly verified radius 1 for somebody who typed
   // 2 would be reporting on a study other than theirs.
-  if (args.radius !== 1 && args.radius !== 1.5) {
+  if (args.radii !== undefined && args.radius !== 1) {
     process.stderr.write(
-      `\n  --radius must be 1 or 1.5, got ${JSON.stringify(args.radius)}.\n` +
-        `  Wider radii are not implemented by the module either.\n\n`
+      `\n  --radius and --radii are two spellings of one setting. Pass whichever\n` +
+        `  describes your study and not both: a tool that let one silently win would\n` +
+        `  report on a study other than yours.\n\n`
     );
+    return 1;
+  }
+  for (const r of args.radii ?? []) {
+    if (!(r === "whole" || (typeof r === "number" && Number.isFinite(r) && r >= 1 && r * 2 === Math.floor(r * 2)))) {
+      process.stderr.write(
+        `\n  --radii takes a comma-separated list of radii, assigned by seat and\n` +
+          `  cycled. ${JSON.stringify(r)} is not one of them.\n\n` +
+          `    --radii 1,2      even seats see one hop, odd seats see two\n\n`
+      );
+      return 1;
+    }
+  }
+  const refusal = refuseArgs(args);
+  if (refusal !== undefined) {
+    process.stderr.write(`\n  ${refusal}\n\n`);
     return 1;
   }
 
@@ -175,7 +178,11 @@ async function main(): Promise<number> {
     const result = await runLeakCheck({
       n: args.n,
       topology: args.topology,
-      radius: args.radius as 1 | 1.5,
+      radius:
+        args.radii !== undefined
+          ? Array.from({ length: args.n }, (_, i) => args.radii![i % args.radii!.length]!)
+          : args.radius,
+      projectFar: args.projectFar,
       onProgress: args.quiet ? undefined : (m) => process.stdout.write(`  … ${m}\n`),
     });
     process.stdout.write(args.quiet ? `${result.pass ? "PASS" : "FAIL"}\n` : formatLeakResult(result));

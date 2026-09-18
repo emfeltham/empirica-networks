@@ -129,7 +129,7 @@ behavior is described would have shipped all three.
 ### The browser tier — real Chromium, run deliberately
 
 `test/browser/*.ts`, bundled the same way and run outside `npm test`: each file needs a
-Chromium download, and three of the four need the Empirica CLI. `npm run test:browser` runs every
+Chromium download, and four of the five need the Empirica CLI. `npm run test:browser` runs every
 file, one process at a time; a substring argument runs a subset. It sweeps orphaned processes
 between files — `empirica` starts the experiment's callbacks server through an npm wrapper chain
 that lands in its own process group, so a file that kills its dev server still leaves a live
@@ -140,6 +140,7 @@ Tajriba client holding no port, which then answers for the NEXT file's game.
 | `two_windows.ts` | the guarantee at the tab level: four real windows, and a non-neighbor's private value never arrives in the bytes, which cannot be checked by looking at the screen | CLI, ports 3000/8844, approximately 1 minute |
 | `monitor_page.ts` | the monitor's served script: the scrubber, the color scale, and the two banners | Chromium only, approximately 4 seconds |
 | `network_graph.ts` | the participant's own drawing: one circle per connection, every drawn tie incident to the viewer — the neighbor-limited claim restated as geometry — and that the picture still UPDATES when somebody else acts, which is PLATFORM-NOTES §8's residual risk and fails as a correct screen one publish behind | CLI, ports 3000/8844, approximately 40 seconds |
+| `hybrid_session.ts` | the audit over a session that CONTAINS browsers: twenty participants of `examples/shirado2017`, four of them real windows clicking the real client and sixteen simulated, run to the design's five-minute limit and then audited by `auditViews` — the evaluation's own C1 on a session the evaluation itself cannot produce. Also checks each browser's rendered connection count against that participant's degree in the recorded edge list, which is the half the server-side audit cannot see | CLI, Chromium, ports 3000/8844, approximately 10 minutes |
 | `radius_structure.ts` | that radius 1.5 is actually drawn. Every other assertion in the repository stays green if the payload arrives and the renderer ignores it — the screen would show a perfectly good star, which is a correct-looking picture of the other study | CLI, ports 3000/8844, approximately 40 seconds |
 
 Evidence provided: browser-specific behavior, including restoration of a session after reload,
@@ -147,7 +148,7 @@ the bytes received by a tab, execution of the monitor's browser script, and what
 rendered on a participant's screen.
 
 This tier is reserved for browser-specific claims and therefore runs separately from `npm test`.
-All four files replace manual visual inspection with repeatable assertions. On its first run,
+All five files replace manual visual inspection with repeatable assertions. On its first run,
 `monitor_page.ts` identified a genuine defect: `gone()` left the complete seating plan visible
 while the badge reported that the game had ended (`ISSUES.md` O9).
 
@@ -167,6 +168,23 @@ manuscript.
 It lives in `tools/` rather than `test/browser/` on purpose: `npm run test:browser` runs every file
 in that directory, and twenty Chromium contexts driven through a five-minute-limit session have no
 business in the acceptance suite. Run it by hand when the figure needs regenerating.
+
+`tools/radius-ladder.ts`, run by `npm run figure:ladder -- <output directory>`, is its sibling and
+follows the same rules. It starts `examples/minimal` three times, at radius 1, 1.5 and 2, and
+screenshots one participant's graph at each, for the manuscript's radius figure. It pins the shape
+with `NBHD_TOPOLOGY=ringLattice` at n = 12, because the comparison is only honest if the graph is
+held fixed across the three panels — and because the example, left to choose for itself, picks a
+ring at integer radii, on which radius 2 delivers exactly what 2.5 delivers and the half step the
+figure exists to show would not appear. On the lattice one viewer sees 4 others and 4 ties at
+radius 1, the same 4 others and 7 ties at 1.5, and 8 others and 13 ties at 2. It prints the counts
+it drew, so the caption can be written from the figure rather than from memory.
+
+A fourth panel repeats radius 2 with `NBHD_PROJECT_FAR=1`, which is the same radius and a different
+picture: the radius decides who is on screen, and the distance projection decides whether those
+people carry anything. `npm run figure:ladder -- <dir> --asymmetry` is the other mode — one session
+at `NBHD_RADII=1,2`, screenshotting two adjacent participants, with the distance projection on
+because `accountVacuity` counts an asymmetric pair only when a study projects at distance (without
+it the radii differ and the data rule does not).
 
 `examples/shirado2017` is not modified by it. The only thing written inside the example is
 `.empirica/local`, the throwaway datastore its own `.empirica/.gitignore` ignores, and which the

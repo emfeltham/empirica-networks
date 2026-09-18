@@ -28,14 +28,20 @@ import { networkKinds } from "../../src/admin/kinds.js";
 import { resetChannels } from "../../src/admin/provision.js";
 import {
   network,
+  readRadii,
   readRadius,
   withNetwork,
   type NetworkHandle,
 } from "../../src/admin/with_network.js";
-import { EmpiricaNetwork, type EmpiricaNetworkContext } from "../../src/player/mode.js";
+import {
+  EmpiricaNetwork,
+  type EmpiricaNetworkContext,
+  type Nbhd,
+} from "../../src/player/mode.js";
+import { networkStateOf } from "../../src/player/state.js";
 import { networkGraphOf } from "../../src/player/view.js";
 import { NBHD_KEYS } from "../../src/shared/keys.js";
-import { fromEdgeList } from "../../src/topology/index.js";
+import { fromEdgeList, type Radius } from "../../src/topology/index.js";
 import {
   batchConfig,
   createBatch,
@@ -78,7 +84,7 @@ const modeOf = (p: { mode: unknown }) => p.mode as EmpiricaNetworkContext;
  * and `inspect()` reads memory.
  */
 function makeListeners(
-  radius: 1 | 1.5,
+  radius: Radius,
   capture: (net: NetworkHandle) => void,
   onGame?: (game: any) => void
 ) {
@@ -388,18 +394,496 @@ test("at the default radius nothing extra is sent, and the key is absent from th
   );
 });
 
-test("a radius the module cannot deliver is refused, not rounded", async () => {
-  assert.throws(
-    () =>
-      withNetwork({ on: () => {} } as any, {
-        topology: () => fromEdgeList(N, EDGES),
-        graph: { radius: 2 as 1.5 },
-      }),
-    /radius must be 1 or 1\.5/,
-    "silently rounding 2 down to 1.5 would show participants less than the design says"
+test("a radius between the steps is refused, not rounded", async () => {
+  const make = (radius: unknown) =>
+    withNetwork({ on: () => {} } as any, {
+      topology: () => fromEdgeList(N, EDGES),
+      graph: { radius: radius as 1.5 },
+    });
+
+  // 2 and 2.5 are now both legal and are DIFFERENT studies — 2.5 additionally
+  // delivers the ties between two people who are each two hops away. Anything
+  // between them is refused rather than rounded to either, for the reason the
+  // old refusal gave about 2: rounding shows participants something other than
+  // what the design asked for, and nothing anywhere would say so.
+  assert.throws(() => make(1.2), /multiple of 0\.5/);
+  assert.throws(() => make(2.7), /multiple of 0\.5/);
+  assert.throws(() => make(0.5), /at least 1/);
+  assert.throws(() => make(0), /at least 1/);
+  // "whole" is the one spelling for the entire network. Infinity would have to
+  // be translated on the wire anyway, and two spellings of one setting invites
+  // an author to think they differ.
+  assert.throws(() => make(Infinity), /"whole" is the one spelling/);
+  assert.throws(() => make("all"), /multiple of 0\.5/);
+
+  for (const ok of [1, 1.5, 2, 2.5, 3, "whole"]) {
+    assert.doesNotThrow(() => make(ok), `radius ${JSON.stringify(ok)} should be accepted`);
+  }
+});
+
+
+/**
+ * Radius 2: people in the picture who are not in the view that names them.
+ *
+ * The fixture earns its keep here without changing. From seat 3 the ball at
+ * radius 2 is {3} ∪ {0} ∪ {1, 2}: seat 0 is a neighbor and arrives in the view
+ * carrying its id, while 1 and 2 are two hops away, appear in the drawing, and
+ * have no entry in `neighbors` at all. They are exactly what the positional
+ * naming scheme cannot address, and what `far` exists for.
+ *
+ * THE HALF-STEP, AT THE WIRE. Seat 3 is two hops from both 1 and 2, and 1-2 is a
+ * real tie. At radius 2 it must NOT be delivered — a tie between two people who
+ * are each at the outer edge is what 2.5 adds. This is the one assertion that
+ * distinguishes the two settings from outside the server, and without it a build
+ * that induced the whole ball would look correct at every other check.
+ */
+for (const [radius, fringeTieDelivered] of [
+  [2, false],
+  [2.5, true],
+] as Array<[Radius, boolean]>) {
+  test(`radius ${radius}: distant people are named, and the fringe tie ${
+    fringeTieDelivered ? "arrives" : "does not"
+  }`, async () => {
+    await withScenario(
+      {
+        n: N,
+        kinds: networkKinds,
+        listeners: makeListeners(radius, () => {}),
+        modeFunc: EmpiricaNetwork,
+      },
+      async ({ admin, participants }) => {
+        const batch = await createBatch(admin, batchConfig(N, 1));
+        await batch.running();
+        await play(participants);
+
+        const bySeat = new Map<string, ReturnType<typeof modeOf>>();
+        for (const p of participants) {
+          const nbhd = modeOf(p).nbhd.getValue()!;
+          bySeat.set(nbhd.playerID!, modeOf(p));
+        }
+
+        let sawFar = false;
+        let checkedFringe = false;
+
+        for (const p of participants) {
+          const nbhd = modeOf(p).nbhd.getValue()!;
+          const me = nbhd.playerID!;
+          const neighbors = (nbhd.neighbors as { id: string }[]).map((n) => n.id);
+          const structure = networkGraphOf(nbhd);
+
+          // The isolate has nobody at any radius and draws nothing.
+          if (neighbors.length === 0) {
+            assert.ok(
+              !structure || structure.far === undefined,
+              `${me} is isolated and should have been given no distant people`
+            );
+            continue;
+          }
+
+          assert.ok(structure, `${me}'s structure is present and usable`);
+          const far = structure.far ?? [];
+          assert.equal(
+            structure.positions.length,
+            1 + neighbors.length + far.length,
+            `${me}: one position per node in the picture`
+          );
+
+          for (const f of far) {
+            sawFar = true;
+            assert.ok(f.d >= 2, `${me}: a "far" node at distance ${f.d} belongs in the view`);
+            assert.match(f.ref, /^[0-9abcdefghjkmnpqrstvwxyz]{8}$/, `${me}: malformed name`);
+            // The disclosure that must not happen: a name that is somebody's id,
+            // or a seat. Either would be a stable handle on a stranger.
+            assert.ok(!bySeat.has(f.ref), `${me} was handed a real player id as a name`);
+            assert.ok(Number.isNaN(Number(f.ref)) || f.ref.length === 8, `${me}: seat-like name`);
+          }
+          assert.equal(
+            new Set(far.map((f) => f.ref)).size,
+            far.length,
+            `${me}: two distant people share a name`
+          );
+
+          // Seat 3 in the fixture: one neighbor, two people at distance 2, and a
+          // real tie between those two.
+          if (neighbors.length === 1 && far.length === 2) {
+            checkedFringe = true;
+            const fringe = new Set(
+              far.map((f) => 1 + neighbors.length + far.indexOf(f))
+            );
+            const tieAmongFringe = structure.edges.some(
+              ([a, b]) => fringe.has(a) && fringe.has(b)
+            );
+            assert.equal(
+              tieAmongFringe,
+              fringeTieDelivered,
+              fringeTieDelivered
+                ? `${me}: radius 2.5 must deliver the tie between the two outermost people`
+                : `${me}: radius 2 must withhold it — that tie is what 2.5 adds`
+            );
+          }
+        }
+
+        assert.ok(sawFar, "nobody was shown anybody beyond their own neighbors");
+        assert.ok(checkedFringe, "the fringe-tie case never ran, so the half step is untested");
+      }
+    );
+  });
+}
+
+/**
+ * `graph.projectFar` — what a participant learns ABOUT somebody distant.
+ *
+ * Structure-only is the default and the previous tests cover it. These cover the
+ * opt-in, and the thing that makes it an opt-in rather than a consequence: the
+ * naming scheme has to survive it. A distant person is known to this viewer by a
+ * name that is theirs alone, so a payload that also carried the person's id would
+ * hand back the stable cross-viewer handle the whole scheme exists to withhold.
+ */
+test("a study can reveal something about distant people, and the default reveals nothing", async () => {
+  const seen: Array<{ withFar: boolean; views: number }> = [];
+  for (const withFar of [false, true]) {
+    await withScenario(
+      {
+        n: N,
+        kinds: networkKinds,
+        listeners: (_: any) => {
+          gameInit(1, 1, 3_600_000)(_);
+          withNetwork(_, {
+            topology: () => fromEdgeList(N, EDGES),
+            project: (neighbor: any) => ({ id: neighbor.id }),
+            watch: ["mood"],
+            graph: {
+              radius: 2,
+              ...(withFar
+                ? {
+                    projectFar: (person: any, _v: any, ctx: any) => ({
+                      hop: ctx.distance,
+                      mood: ctx.stateOf(person).get("mood"),
+                    }),
+                  }
+                : {}),
+            },
+          });
+        },
+        modeFunc: EmpiricaNetwork,
+      },
+      async ({ admin, participants }) => {
+        const batch = await createBatch(admin, batchConfig(N, 1));
+        await batch.running();
+        await play(participants);
+
+        let views = 0;
+        for (const p of participants) {
+          const structure = networkGraphOf(modeOf(p).nbhd.getValue()!);
+          for (const f of structure?.far ?? []) {
+            if (f.view !== undefined) {
+              views++;
+              assert.equal(
+                (f.view as { hop: number }).hop,
+                f.d,
+                "the callback's distance and the payload's must be the same fact"
+              );
+            }
+          }
+        }
+        seen.push({ withFar, views });
+      }
+    );
+  }
+
+  const off = seen.find((r) => !r.withFar)!;
+  const on = seen.find((r) => r.withFar)!;
+  assert.equal(off.views, 0, "without projectFar a distant person is a shape and a name");
+  assert.ok(on.views > 0, "with it, they carry what the study chose to reveal");
+});
+
+/**
+ * The invalidation this feature needs, and the reason it is conditional.
+ *
+ * A watched value changing on somebody TWO hops away must reach the viewer, and
+ * the one-hop dirty set that is exactly right without `projectFar` is silently
+ * short with it: the viewer's own list never changes, so nothing would republish
+ * and their screen would hold a stale value while the rest of it updated. That
+ * is the same failure the suppression test above covers at 1.5, one ring out.
+ */
+test("a change two hops away reaches the viewer when the study projects that far", async () => {
+  await withScenario(
+    {
+      n: N,
+      kinds: networkKinds,
+      listeners: (_: any) => {
+        gameInit(1, 1, 3_600_000)(_);
+        withNetwork(_, {
+          topology: () => fromEdgeList(N, EDGES),
+          project: (neighbor: any) => ({ id: neighbor.id }),
+          watch: ["mood"],
+          graph: {
+            radius: 2,
+            projectFar: (person: any, _v: any, ctx: any) => ({
+              mood: ctx.stateOf(person).get("mood"),
+            }),
+          },
+        });
+      },
+      modeFunc: EmpiricaNetwork,
+    },
+    async ({ admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+      await play(participants);
+
+      // Seat 3 has one neighbor (seat 0) and two people at distance 2 (1 and 2).
+      const viewer = participants.find(
+        (p) => (modeOf(p).nbhd.getValue()!.neighbors as unknown[]).length === 1
+      );
+      assert.ok(viewer, "the fixture should give exactly one participant a single neighbor");
+      const distant = participants.filter((p) => {
+        const id = modeOf(p).nbhd.getValue()!.playerID!;
+        const mine = modeOf(viewer).nbhd.getValue()!;
+        const neighbors = (mine.neighbors as { id: string }[]).map((n) => n.id);
+        return id !== mine.playerID && !neighbors.includes(id);
+      });
+      const actor = distant[0]!;
+      networkStateOf(modeOf(actor).nbhd.getValue())!.set("mood", "thunderous");
+
+      await waitFor(
+        () =>
+          (networkGraphOf(modeOf(viewer).nbhd.getValue()!)?.far ?? []).some(
+            (f) => (f.view as { mood?: string } | undefined)?.mood === "thunderous"
+          ),
+        { label: "a value from two hops away", timeoutMs: 20_000 }
+      );
+    }
   );
 });
 
+/**
+ * ASYMMETRY: the radius is the VIEWER's property.
+ *
+ * The fixture puts seat 3 two hops from seats 1 and 2, through seat 0. Give seat
+ * 3 radius 2 and everybody else radius 1, and the two possible rules come apart
+ * for the first time:
+ *
+ *   keyed on the VIEWER  — seat 3 is shown 1 and 2; seat 1 is shown nothing
+ *                          beyond its own neighbors, including nothing of seat 3.
+ *   keyed on the SUBJECT — seat 1 would be shown structure too, because the
+ *                          person it can reach has a wide radius.
+ *
+ * Until this stage the two rules agreed on every pair in every test ever written
+ * here, so a build that had them confused passed everything. That is what makes
+ * the negative half of this test the important half: seat 1 must receive NO
+ * structure payload at all, not merely a small one.
+ */
+test("a participant at a wider radius sees further, and their neighbors do not", async () => {
+  await withScenario(
+    {
+      n: N,
+      kinds: networkKinds,
+      listeners: (_: any) => {
+        gameInit(1, 1, 3_600_000)(_);
+        withNetwork(_, {
+          topology: () => fromEdgeList(N, EDGES),
+          project: (neighbor: any) => ({ id: neighbor.id }),
+          graph: {
+            // Per SEAT, in seat order, exactly as `topology` is indexed.
+            radius: ({ playerCount }: any) =>
+              Array.from({ length: playerCount }, (_v, i) => (i === 3 ? 2 : 1)),
+          },
+        });
+      },
+      modeFunc: EmpiricaNetwork,
+    },
+    async ({ admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+      await play(participants);
+
+      // Seat 3 has exactly one neighbor in this fixture; seat 4 has none.
+      const wide = participants.find(
+        (p) => (modeOf(p).nbhd.getValue()!.neighbors as unknown[]).length === 1
+      );
+      assert.ok(wide, "the fixture should give exactly one participant a single neighbor");
+
+      const structure = networkGraphOf(modeOf(wide).nbhd.getValue()!);
+      assert.ok(structure, "the wide seat must have been given a structure");
+      assert.equal(structure.radius, 2);
+      assert.equal(
+        (structure.far ?? []).length,
+        2,
+        "seat 3 is two hops from seats 1 and 2, and at radius 2 must be shown both"
+      );
+
+      // THE HALF THAT CATCHES THE CONFUSION. Everybody else is at radius 1,
+      // where the client draws a star from the neighbor views and no structure
+      // is sent at all — including to the participants who can be SEEN by the
+      // wide seat.
+      for (const p of participants) {
+        if (p === wide) continue;
+        const theirs: Nbhd = modeOf(p).nbhd.getValue()!;
+        assert.equal(
+          networkGraphOf(theirs),
+          undefined,
+          `${theirs.playerID} is at radius 1 and must have been sent no structure: ` +
+            `being visible to somebody with a wider radius is not the same as having one`
+        );
+      }
+    }
+  );
+});
+
+const SET_RADIUS = "setRadiusCmd";
+
+/**
+ * Change somebody's radius from inside the server's own callback.
+ *
+ * For the reason `addTie` above gives, and the reason is not theoretical here:
+ * `setRadius` publishes, and a publish driven from test code updates server
+ * state and then reaches nobody until something else flushes the runloop.
+ */
+async function setRadius(
+  admin: AdminHandle,
+  gameID: string,
+  playerID: string,
+  radius: number
+): Promise<void> {
+  await admin.taj.setAttribute({
+    key: SET_RADIUS,
+    val: JSON.stringify({ playerID, radius }),
+    nodeID: gameID,
+  });
+}
+
+function mutableListeners(capture: (h: NetworkHandle) => void, onGame?: (g: any) => void) {
+  return (_: any) => {
+    gameInit(1, 1, 3_600_000)(_);
+    if (onGame)
+      _.on("game", "start", (_ctx: any, { game }: any) => {
+        if (game.get("start")) onGame(game);
+      });
+    _.on("game", SET_RADIUS, (_ctx: any, { game }: any) => {
+      const cmd = game.get(SET_RADIUS) as { playerID: string; radius: number } | undefined;
+      if (!cmd) return;
+      network(game).setRadius(cmd.playerID, cmd.radius);
+    });
+    capture(
+      withNetwork(_, {
+        topology: () => fromEdgeList(N, EDGES),
+        project: (neighbor: any) => ({ id: neighbor.id }),
+        graph: { radius: 1 },
+      })
+    );
+  };
+}
+
+test("a radius raised mid-game widens exactly one screen, and is logged", async () => {
+  let net!: NetworkHandle;
+  let gameRef: any;
+  await withScenario(
+    {
+      n: N,
+      kinds: networkKinds,
+      listeners: mutableListeners(
+        (h) => (net = h),
+        (g) => (gameRef = g)
+      ),
+      modeFunc: EmpiricaNetwork,
+    },
+    async ({ admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+      await play(participants);
+
+      const gameID = modeOf(participants[0]!).player.getValue()!.get("gameID") as string;
+      // Seat 3: one neighbor, and two people two hops away.
+      const subject = participants.find(
+        (p) => (modeOf(p).nbhd.getValue()!.neighbors as unknown[]).length === 1
+      )!;
+      const subjectID = modeOf(subject).nbhd.getValue()!.playerID!;
+
+      // Everybody starts at the default, so nobody has a structure at all.
+      for (const p of participants) {
+        assert.equal(networkGraphOf(modeOf(p).nbhd.getValue()!), undefined);
+      }
+
+      await setRadius(admin, gameID, subjectID, 2);
+      await waitFor(() => networkGraphOf(modeOf(subject).nbhd.getValue()!) !== undefined, {
+        label: "the widened participant receives a structure",
+        timeoutMs: 20_000,
+      });
+
+      const widened = networkGraphOf(modeOf(subject).nbhd.getValue()!)!;
+      assert.equal(widened.radius, 2);
+      assert.equal((widened.far ?? []).length, 2, "the two people two hops away");
+
+      // EXACTLY one screen. The people who newly became visible to the subject
+      // did not themselves become able to see further — that is what "keyed on
+      // the viewer" means, and it is the half a symmetric implementation gets
+      // wrong.
+      for (const p of participants) {
+        if (p === subject) continue;
+        const theirs: Nbhd = modeOf(p).nbhd.getValue()!;
+        assert.equal(
+          networkGraphOf(theirs),
+          undefined,
+          `${theirs.playerID} did not have their radius changed and must still be at 1`
+        );
+      }
+
+      const log = network(gameRef).radiusHistory();
+      assert.equal(log.length, 2, "the opening assignment, then the change");
+      assert.equal(log[0]!.op, "start");
+      assert.equal(log[1]!.op, "set");
+      assert.equal(log[1]!.player, subjectID);
+      assert.equal(log[1]!.from, 1);
+      assert.equal(log[1]!.to, 2);
+      assert.equal(log[1]!.after[subjectID], 2, "the snapshot makes the entry self-contained");
+      assert.ok(log[1]!.seq >= 1, "and orderable against a delivery without a clock");
+    }
+  );
+});
+
+/**
+ * The failure that cannot happen before this stage.
+ *
+ * A structure payload is written only above radius 1 and an attribute that is
+ * not written keeps its last value — so a radius that DROPS would leave the
+ * participant being drawn the ball they had when it was wider, indefinitely,
+ * while every other part of their screen kept updating. There is no way to
+ * reach that state without mutating a radius, which is why it appears here.
+ */
+test("a radius lowered mid-game takes the old picture away", async () => {
+  await withScenario(
+    {
+      n: N,
+      kinds: networkKinds,
+      listeners: mutableListeners(() => {}),
+      modeFunc: EmpiricaNetwork,
+    },
+    async ({ admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+      await play(participants);
+
+      const gameID = modeOf(participants[0]!).player.getValue()!.get("gameID") as string;
+      const subject = participants.find(
+        (p) => (modeOf(p).nbhd.getValue()!.neighbors as unknown[]).length === 1
+      )!;
+      const subjectID = modeOf(subject).nbhd.getValue()!.playerID!;
+
+      await setRadius(admin, gameID, subjectID, 2);
+      await waitFor(() => networkGraphOf(modeOf(subject).nbhd.getValue()!) !== undefined, {
+        label: "widened",
+        timeoutMs: 20_000,
+      });
+
+      await setRadius(admin, gameID, subjectID, 1);
+      await waitFor(() => networkGraphOf(modeOf(subject).nbhd.getValue()!) === undefined, {
+        label: "the structure is taken away again, not merely left to go stale",
+        timeoutMs: 20_000,
+      });
+    }
+  );
+});
 
 // ------------------------------------------------- the record a run leaves
 //
@@ -408,8 +892,13 @@ test("a radius the module cannot deliver is refused, not rounded", async () => {
 // derivable from anything else: two studies on one graph, one at each radius,
 // leave identical edge lists and identical attribute exports.
 
-test("the radius a game ran at is recorded, at both radii", async () => {
-  for (const radius of [1, 1.5] as const) {
+test("the radius a game ran at is recorded, at every setting", async () => {
+  // `"whole"` is in this list because it was NOT, and the omission hid a defect
+  // for a whole stage: the accessor tested `typeof raw === "number"`, so a study
+  // that showed participants the entire network recorded its radius and then
+  // read back as having recorded nothing. A loop over the two values that
+  // predated the feature could not have caught it.
+  for (const radius of [1, 1.5, 2, "whole"] as const) {
     let net!: NetworkHandle;
     let gameRef: any;
     await withScenario(
@@ -442,12 +931,92 @@ test("the radius a game ran at is recorded, at both radii", async () => {
   }
 });
 
+test("a mixed study records every participant's radius, and says so in one place", async () => {
+  let gameRef: any;
+  let net!: NetworkHandle;
+  await withScenario(
+    {
+      n: N,
+      kinds: networkKinds,
+      listeners: (_: any) => {
+        gameInit(1, 1, 3_600_000)(_);
+        _.on("game", "start", (_ctx: any, { game }: any) => {
+          if (game.get("start")) gameRef = game;
+        });
+        net = withNetwork(_, {
+          topology: () => fromEdgeList(N, EDGES),
+          project: (neighbor: any) => ({ id: neighbor.id }),
+          graph: {
+            radius: ({ playerCount }: any) =>
+              Array.from({ length: playerCount }, (_v, i) => (i === 3 ? 2 : 1)),
+          },
+        });
+      },
+      modeFunc: EmpiricaNetwork,
+    },
+    async ({ admin, participants }) => {
+      const batch = await createBatch(admin, batchConfig(N, 1));
+      await batch.running();
+      await play(participants);
+
+      const recorded = readRadii(gameRef);
+      assert.ok(recorded, "a mixed study must record what each participant ran at");
+      assert.equal(Object.keys(recorded).length, N, "one entry per participant");
+      assert.equal(
+        Object.values(recorded).filter((r) => r === 2).length,
+        1,
+        "exactly the one seat that was widened"
+      );
+      // The scalar answers only when there IS one answer, and this study has
+      // none — which is a different fact from "nothing was recorded" and is why
+      // there are two keys rather than one wider one.
+      assert.equal(
+        readRadius(gameRef),
+        undefined,
+        "no single radius describes this game, and the scalar says so by abstaining"
+      );
+
+      // And the monitor has the per-seat pair it needs to raise a restart
+      // mismatch. It could not before: `GameSnapshot.radius` and
+      // `recordedRadius` BOTH abstain for a mixed study, so a comparison
+      // between them is `undefined !== undefined` and the alarm was
+      // unreachable for exactly the studies the setting exists for.
+      const snap = net.inspect(
+        modeOf(participants[0]!).player.getValue()!.get("gameID") as string
+      )!;
+      assert.equal(snap.radius, undefined, "no single live radius either");
+      assert.equal(snap.nodes.length, N);
+      for (const node of snap.nodes) {
+        assert.equal(
+          node.recordedRadius,
+          node.radius,
+          `${node.playerID}: recorded and live agree on a run that did not restart`
+        );
+      }
+      assert.equal(
+        snap.nodes.filter((n) => n.radius === 2).length,
+        1,
+        "and the widened seat is identifiable on the node, not only in a summary"
+      );
+    }
+  );
+});
+
 test("an unrecorded radius reads back as undefined, never as 1", async () => {
   // The distinction the accessor exists to keep. A dataset from before this key
   // existed and a dataset from a study that deliberately drew a star are
   // different facts, and defaulting would assert the second about the first.
   assert.equal(readRadius({ id: "g", batch: { get: () => undefined } }), undefined);
-  assert.equal(readRadius({ id: "g", batch: { get: () => "1.5" } }), undefined, "a string is not a record");
+  assert.equal(
+    readRadius({ id: "g", batch: { get: () => "1.5" } }),
+    undefined,
+    "a stringified number is not a record — something wrote this key by a path that does not exist here"
+  );
+  assert.equal(
+    readRadius({ id: "g", batch: { get: () => "whole" } }),
+    "whole",
+    "but `whole` IS a recorded value, and reading it as absent made the restart guard unfireable"
+  );
   assert.equal(readRadius({ id: "g" }), undefined, "no batch at all is not a record");
   assert.equal(readRadius({ id: "g", batch: { get: () => 1 } }), 1, "a recorded 1 is a real answer");
 });
