@@ -45,25 +45,16 @@ Every participant also receives each co-player's recruitment identifier. The sam
 
 <a id="not-published-yet"></a>
 
-> ### Not published yet
->
-> The package is deliberately marked `"private": true` at version `0.0.0` while the public API
-> remains under development. This setting prevents an accidental `npm publish` from permanently
-> registering the current name and version.
->
-> Until publication, install the package from a tarball. Commands shown as
-> `npx empirica-networks …` describe the eventual published form; relevant sections also provide
-> the equivalent command for a cloned repository. Other documentation links to this notice.
-
 ```sh
-npm pack                                    # in this repo -> empirica-networks-0.0.0.tgz
-npm --prefix server install /path/to/empirica-networks-0.0.0.tgz
-npm --prefix client install /path/to/empirica-networks-0.0.0.tgz
+npm --prefix server install empirica-networks
+npm --prefix client install empirica-networks
 ```
+
+The anchor above is kept because older documents and links point at it.
 
 The package requires Node 20 or later and the Empirica CLI (`curl https://install.empirica.dev | sh`). Install it in both the `server` and `client` projects because they use separate package installations.
 
-Install from the packed tarball instead of using an npm `file:` dependency. npm implements a `file:` dependency as a symbolic link, which loads two copies of `@empirica/core` and causes Empirica's `instanceof` checks to fail. The failure appears as a full game in which every participant remains on “Waiting for other players” (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) and `docs/PLATFORM-NOTES.md` §10).
+When working from a clone, install from a packed tarball (`npm pack`, then install the resulting `.tgz`) rather than an npm `file:` dependency. npm implements a `file:` dependency as a symbolic link, which loads two copies of `@empirica/core` and causes Empirica's `instanceof` checks to fail. The failure appears as a full game in which every participant remains on “Waiting for other players” (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) and `docs/PLATFORM-NOTES.md` §10).
 
 The unscoped name `empirica-networks` supports discovery in an ecosystem that currently lacks a registry, plugin API, or curated package list. Choosing the name before publication also avoids a later breaking change.
 

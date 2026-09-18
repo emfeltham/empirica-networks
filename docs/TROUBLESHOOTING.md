@@ -29,7 +29,7 @@ classicKinds.game === networkKinds.game;   // false → you have two copies
 ```
 
 Fix: install from a packed tarball instead. `npm pack` in this repository, then
-`npm --prefix server install /path/to/empirica-networks-0.0.0.tgz`. `npm run example:install`
+`npm --prefix server install /path/to/empirica-networks-<version>.tgz`. `npm run example:install`
 does exactly this for the bundled examples.
 
 `docs/PLATFORM-NOTES.md` Section 10 · `docs/GETTING-STARTED.md` Section 2

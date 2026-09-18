@@ -3,11 +3,15 @@
 Notable changes to `empirica-networks`. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [semantic versioning](https://semver.org/spec/v2.0.0.html) from the first release.
 
-## [Unreleased]
+## [0.1.0] - 2026-09-18
 
-Nothing has been released. The package is `private: true` at `0.0.0` while the public API is
-still unfrozen. This section will become `0.1.0` at the first publish, and that freeze is what
-makes the entries below meaningful as a baseline rather than a moving target.
+The first release, and the baseline the entries below are measured against. `package.json` is at
+`0.1.0` with `private` removed, which is what makes the public API a freeze rather than a moving
+target.
+
+> **Re-date this heading if publication slips.** It was written on the day the release was
+> prepared, not the day it was tagged, and the two are the same date only if the tag went out
+> immediately.
 
 ### Changed
 
@@ -22,6 +26,76 @@ makes the entries below meaningful as a baseline rather than a moving target.
   quotes in a methods section, so leaving it standing was not an option.
 
 ### Added
+
+- **A session with real browsers in it, audited.** `test/browser/hybrid_session.ts` runs twenty
+  participants of the `shirado2017` reconstruction with four of them real Chromium windows —
+  loading the bundled client, passing the consent and identification screens, and choosing colors
+  by clicking — and sixteen simulated, then audits the whole session with the same `auditViews`
+  the evaluation uses. Every session the evaluation produces replaces each participant with a
+  process, which left the client, its bundle and its rendering outside the evidence; this is the
+  overlap `two_windows.ts` (four participants, the minimal example) and `simulate` (twenty
+  participants, no browser) did not cover between them.
+
+  It also checks each browser's rendered connection count against that participant's degree in the
+  recorded edge list, which is the half a server-side audit cannot see. What it deliberately does
+  NOT assert is `two_windows.ts`'s wire property: that check works there because four participants
+  hold four distinct colors, so a color names a participant, and twenty participants sharing three
+  colors makes every color arrive legitimately in every tab. The file records that reasoning so it
+  is not "fixed" later.
+
+- **The offline audit looks inside a `projectFar` payload, which nothing did.** Every arm in
+  `auditViews` checked WHO a participant was shown and HOW FAR AWAY the payload said they were;
+  none looked at what the payload said ABOUT them. A build that shipped strangers' attributes in
+  `far[k].view` would have left every count in the report clean. The publish path has refused a
+  far view carrying a player id since `projectFar` existed (`validateNoIdentifiers`), but that
+  check runs on the server, against the build that shipped; this one runs on the capture, against
+  the build that actually ran, which is the only one an evaluation can speak for. The gap first
+  becomes reachable at radius 2.
+
+  `farViews` is reported against `farShown` rather than folded into it, because zero far payloads
+  over a thousand far people is `projectFar` being unset — the default, and a different fact from
+  an arm that ran and found nothing. The report says which.
+
+- **The audit says when it checked permission and when it only checked consistency.** Without a
+  radius log every structure was checked against the radius the delivery stamped on ITSELF, which a
+  server that over-delivered would stamp to match; the result was indistinguishable from the same
+  output with `radius.csv` present. `authorizationChecked` is now printed against
+  `structuredRecords`, and a run with no log says so in a note. Seats authorized `"whole"` were
+  also skipped outright, so such a seat could be delivered any radius at all — `"whole"` never
+  reaches the wire, so the delivery's finite radius is now checked against the eccentricity the
+  edge log gives.
+
+- **`radius.csv`, written by the `shirado2017` example beside `edges.csv`**, and read by `simulate`
+  at both audit call sites. The export helper existed and nothing called it, so the arm above could
+  not run over a real session even where the data existed.
+
+- **Two arms that evidence the wider guarantee at session scale**,
+  `audit-1.5-not-the-paper` and `audit-2-not-the-paper`. Split by radius because the two settings
+  exercise different arms and one run cannot report both, and run on a ring lattice rather than the
+  reconstruction's scale-free graph for a measured reason: over 200 seeds at n = 20, a participant
+  at radius 2 on Barabási–Albert (m = 2) sees 14.4 of the other 19 on average and 15 per cent of
+  seats see all 19, leaving a containment check nothing to forbid on those seats. The lattice holds
+  the same participant to 8 of 19. The shape is selected through the treatment, like the radius, so
+  an arm says what it runs and the manifest records it.
+
+- **`NBHD_TOPOLOGY` in `examples/minimal`**, overriding the shape the radius would otherwise pick.
+  The existing rule is right about what each radius needs and silent about what it wastes: a ring
+  has no ties among anybody's neighbors, so at radius 2 it delivers exactly what 2.5 delivers and
+  the half step is invisible on it. Its comment justified the choice at n = 5, where the lattice
+  puts everybody within two hops; that stops being true above five participants.
+
+- **`npm run figure:ladder`**, which captures one participant's screen at radius 1, 1.5 and 2 on
+  one fixed graph, for the manuscript. Held fixed through `NBHD_TOPOLOGY` because the comparison is
+  only honest on one shape. A fourth panel repeats radius 2 with the distance projection on, which
+  is the same radius and a different picture. `--asymmetry` is the other mode: one session at two
+  radii, two adjacent participants.
+
+- **`NBHD_PROJECT_FAR` in `examples/minimal`**, declaring `graph.projectFar` so a distant
+  participant carries a colour rather than only a position and a name. No client change was needed:
+  the example's `nodeAttrs` already runs for far nodes, and its own attribute selector outranks the
+  default hollow style on specificity, which is what the stylesheet's comment asks a study to do
+  deliberately. The projection returns no `id` — an id is the same handle for every viewer, which
+  is the whole point of the per-viewer `ref`, and a far view carrying one is refused at publish.
 
 - **`simulate` can run an arm above radius 1**, which it could not, and which the tool's own
   `notExercised` list went on asserting after it became possible. The claim — "the example's config
