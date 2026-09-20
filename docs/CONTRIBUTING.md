@@ -204,7 +204,11 @@ Prepared for `0.1.0` on 2026-09-18: `private` is removed, the version is set, `C
 `[Unreleased]` section is now `[0.1.0]`, and the README and GETTING-STARTED install blocks name
 the published package. **Steps 2 and 3 below are therefore done**, and the tag and the GitHub
 release happened on 2026-09-18 with the evaluation output attached. **`npm publish` has not**, so
-the README still gives the tarball route as the working one.
+the README still gives the tarball route as the working one. That is a decision of 2026-09-20 and
+not an oversight: the registry entry is not needed for the preprint the release supports, and
+publishing can happen whenever the API surface has settled. When it does, the README's install
+block goes back to the npm form and `npx empirica-networks …` becomes the working spelling of the
+CLI everywhere it appears.
 
 The procedure, kept for this release and the next:
 
