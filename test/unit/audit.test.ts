@@ -591,6 +591,17 @@ test("the same delivery after the change is authorized, and passes", () => {
   assert.ok(r.pass, r.failures.join("\n"));
 });
 
+test("a radius change is authorized from the next view, not the one stamped with its own counter", () => {
+  // The change is at seq 3. The view stamped 3 was published before it (see the
+  // rewiring boundary test), so it is still at radius 1.
+  const sameCounter = { ...wideDelivery({ radius: 2 }), seq: 3 };
+  const r = auditViews({ views: ndjson(sameCounter), edges: wide(), radii: parseRadiiCsv(RADII_CSV) });
+  assert.match(r.failures.join(" "), /RADIUS MISREPORTED/);
+  const next = { ...wideDelivery({}), seq: 4 };
+  const r2 = auditViews({ views: ndjson(next), edges: wide(), radii: parseRadiiCsv(RADII_CSV) });
+  assert.ok(r2.pass, r2.failures.join("\n"));
+});
+
 test("without the log the audit still runs, and says less", () => {
   // The self-report is checked against the graph either way; only PERMISSION
   // goes unchecked. That is a real reduction and it must not fail the run — a
@@ -651,6 +662,38 @@ test("and a view from the wrong side of the rewire is still caught", () => {
   });
   assert.equal(r.leaks, 1);
   assert.match(r.failures.join(" "), /LEAK/);
+});
+
+test("the boundary: a view stamped with a change's own counter predates it", () => {
+  // `commit` stamps a change with the counter as it stands, and the publish that
+  // carries it increments the counter first. So the view stamped 5 was published
+  // BEFORE the change stamped 5, and the view stamped 6 is the first to show it.
+  // Found on a real session: consecutive removeEdge/addEdge calls in one
+  // callback gave each affected viewer a view at exactly the previous change's
+  // counter, and the audit called every one of them a leak.
+  const before = auditViews({
+    views: ndjson(deliveryTo("a", ["b"], 5)),
+    edges: parseEdgesCsv(REWIRED_CSV),
+  });
+  assert.equal(before.leaks, 0, "a sees b at seq 5, which is correct: b is dropped AT 5");
+  assert.ok(before.pass, before.failures.join("\n"));
+
+  const after = auditViews({
+    views: ndjson(deliveryTo("a", ["b"], 6)),
+    edges: parseEdgesCsv(REWIRED_CSV),
+  });
+  assert.equal(after.leaks, 1, "the first view after the change must not still show b");
+
+  const added = auditViews({
+    views: ndjson(deliveryTo("a", ["c"], 5)),
+    edges: parseEdgesCsv(REWIRED_CSV),
+  });
+  assert.equal(added.leaks, 1, "c is added AT 5, so the view stamped 5 cannot show it yet");
+  const addedLater = auditViews({
+    views: ndjson(deliveryTo("a", ["c"], 6)),
+    edges: parseEdgesCsv(REWIRED_CSV),
+  });
+  assert.equal(addedLater.leaks, 0, addedLater.failures.join("\n"));
 });
 
 test("a tie dropped is gone: the old neighbor is a leak afterwards", () => {

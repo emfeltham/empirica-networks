@@ -3,6 +3,21 @@
 Notable changes to `empirica-networks`. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [semantic versioning](https://semver.org/spec/v2.0.0.html) from the first release.
 
+## [Unreleased]
+
+### Fixed
+
+- **`auditViews` called a correct view a leak when it was stamped with a tie change's own counter.**
+  A change is stamped with the publish counter as it stands, and the publish that carries it
+  increments the counter first, so a view with the same number was published BEFORE the change.
+  `graphAt` (tie changes) and the radius lookup both used `<=` and applied the change to that view,
+  which flagged it as a leak and its missing neighbors as missing deliveries. It needs a viewer
+  whose previous publish carries the counter a later change is stamped with, which sequential
+  `removeEdge`/`addEdge` calls in one callback produce on every change; found auditing a study
+  session (15 false leaks per arm; 0 once corrected). Both comparisons are now strict, and
+  `docs/DATA-AND-ANALYSIS.md` already described the strict rule. The unit tests had views at seq 2
+  and 7 around a change at 5 and never the boundary; two now cover it.
+
 ## [0.1.0] - 2026-09-18
 
 The first release, and the baseline the entries below are measured against. `package.json` is at

@@ -342,11 +342,13 @@ function graphAt(changes: TieChange[] | undefined, seq: number): NeighborMap {
     else set.delete(y);
   };
   for (const c of changes ?? []) {
-    // A change recorded AT this publish counter was made before the publish that
-    // carries it — `commit` stamps the counter as it stands and then flushes —
-    // so `<=` is what puts a tie change and the delivery it caused on the right
-    // sides of each other.
-    if (c.seq > seq) break;
+    // A change is stamped with the counter AS IT STANDS when it is made, and the
+    // publish that carries it increments the counter first — so the delivery it
+    // caused is stamped one higher, and a view stamped with the SAME number was
+    // published before the change. Strict `<` puts them on the right sides of
+    // each other; `<=` called a view that was correct when sent a leak whenever a
+    // viewer's previous publish carried the counter the change was stamped with.
+    if (c.seq >= seq) break;
     link(c.a, c.b, c.connect);
     link(c.b, c.a, c.connect);
   }
@@ -490,12 +492,13 @@ function authorizedAt(
   const events = radii?.get(gameID);
   if (!events) return undefined;
   let found: string | undefined;
-  // The last change to this participant at or before the publish in question.
-  // `seq` and not the clock: two events from one process inside one millisecond
-  // cannot be ordered by time, and a radius change is exactly the kind of thing
-  // that lands there.
+  // The last change to this participant BEFORE the publish in question: a view
+  // stamped with the same counter as the change was published before it (see
+  // `graphAt`). `seq` and not the clock: two events from one process inside one
+  // millisecond cannot be ordered by time, and a radius change is exactly the
+  // kind of thing that lands there.
   for (const e of events) {
-    if (e.player !== player || e.seq > seq) continue;
+    if (e.player !== player || e.seq >= seq) continue;
     found = e.to;
   }
   if (found === undefined) return undefined;
